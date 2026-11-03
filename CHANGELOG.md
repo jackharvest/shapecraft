@@ -2,6 +2,25 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## Unreleased
+
+New:
+- The first launch asks a second question after the device: which app's navigation feels like home. Your existing
+  install asks it once too. All twelve navigation presets now fit in the Navigation Presets window (the last three
+  were cut off).
+
+Fixed:
+- A cut made from a plane that isn't on a body goes into the bodies it really runs into. It used to cut the oldest
+  body whose bounding box it touched, so a logo pushed into an inset panel cut the shell around it instead.
+
+For scripts and agents:
+- `sketch` returns its plane (origin, u and v axes, normal) and takes `x_dir` to aim the u axis.
+- `inspect` gives each region its hole count and the region it sits inside (letters' counters, nested rings), and
+  narrows to one `body` or `sketch`, with `faces: false` to leave out face lists.
+- `"look": false` keeps the open app's camera still when a script starts a sketch. `visual_settings` says that
+  environments show in Visualize.
+- docs/mcp.md: a one-line Claude Code setup, the sketch axis table, and conventions that used to need testing.
+
 ## 0.4.3-alpha
 
 Fixed (found by updating real installs on all three systems):
