@@ -27,8 +27,9 @@ pub enum AppAction {
     GoHome,
     /// Help ▸ Check for Updates…
     CheckUpdates,
-    /// Help ▸ Tutorials: starts a lesson (by its id in `tutorials::LESSONS`).
-    Tutorial(&'static str),
+    /// Help ▸ Get Started / Tutorials: closes the project and opens that page of the home screen, as the reference does.
+    GetStarted,
+    Tutorials,
     /// Help: opens a web page in the browser.
     OpenPage(&'static str),
 }
@@ -97,6 +98,7 @@ fn soon(label: &'static str) -> Entry {
 }
 
 /// Help menu links.
+pub const HELP: &str = "https://github.com/jackharvest/shapecraft#readme";
 pub const WEBSITE: &str = "https://jackharvest.com/shapecraft/";
 pub const RELEASES: &str = "https://github.com/jackharvest/shapecraft/releases";
 pub const ISSUES: &str = "https://github.com/jackharvest/shapecraft/issues/new/choose";
@@ -403,19 +405,22 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
         (
             "Help",
             vec![
-                Entry::Sub {
-                    label: "Tutorials",
-                    items: crate::tutorials::LESSONS.iter().map(|l| item(l.title, None, App(Tutorial(l.id)), Always)).collect(),
-                },
+                // The reference's order (26.142, s35): Help Center | shortcuts, presets, search | Get Started,
+                // Tutorials, Community | Contact Support. Ours: the README for Help Center, the website for
+                // Community, GitHub issues for support (feedback is issues-only), then updates.
+                item("ShapeCraft Help", None, App(OpenPage(HELP)), Always),
                 sep(),
                 item("Keyboard Shortcuts…", None, Ui(UiAction::Shortcuts), InProject),
                 item("Navigation Presets…", None, Ui(UiAction::NavPresets), InProject),
                 item("Search Commands", Some("CmdOrCtrl+F"), Ui(UiAction::Search), InProject),
                 sep(),
+                item("Get Started", None, App(GetStarted), Always),
+                item("Tutorials", None, App(Tutorials), Always),
                 item("ShapeCraft Website", None, App(OpenPage(WEBSITE)), Always),
-                item("Release Notes", None, App(OpenPage(RELEASES)), Always),
+                sep(),
                 item("Report a Problem or Idea…", None, App(OpenPage(ISSUES)), Always),
                 sep(),
+                item("Release Notes", None, App(OpenPage(RELEASES)), Always),
                 item("Check for Updates…", None, App(CheckUpdates), Always),
             ],
         ),

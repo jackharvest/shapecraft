@@ -384,6 +384,8 @@ pub struct Workspace {
     pub(super) clipboard: (Vec<ItemId>, String),
     /// Text waiting to go onto the system clipboard (an action without the egui context asked for it).
     pub(super) clip_out: Option<String>,
+    /// A window of the app's own (the first-run questions) is over the workspace: keys aren't ours.
+    pub keys_blocked: bool,
     pub(crate) now: f64,
     /// What the running tool would produce, shown in place while you drag or type (live geometry).
     pub(crate) preview: Option<Preview>,
@@ -581,6 +583,7 @@ impl Workspace {
             recent_commands: vec!["extrude", "rectangle"],
             clipboard: (Vec::new(), String::new()),
             clip_out: None,
+            keys_blocked: false,
             now: 0.0,
             preview: None,
         }

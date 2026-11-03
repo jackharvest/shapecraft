@@ -18,7 +18,8 @@ impl Workspace {
         {
             ui.memory_mut(|m| m.surrender_focus(id));
         }
-        if self.search.is_some()
+        if self.keys_blocked
+            || self.search.is_some()
             || self.renaming.is_some()
             || self.variables_dialog.is_some()
             || self.prefs_open

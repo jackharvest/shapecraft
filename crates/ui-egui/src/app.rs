@@ -1100,8 +1100,11 @@ impl ShapeCraftApp {
         self.handle_menu(&ctx);
         self.global_keys(&ctx);
 
+        let first_run_open = self.first_run_open();
         match self.ws.as_deref_mut() {
             Some(ws) => {
+                // The first-run windows sit over the workspace: its keys wait until they're answered.
+                ws.keys_blocked = first_run_open;
                 ws.ui(ui, render_state);
                 // Tutorials run on the default tool types and leave the remembered ones alone.
                 if ws.tutorial.is_none() {
@@ -1200,6 +1203,15 @@ impl ShapeCraftApp {
         }
     }
 
+    /// The first-run questions (device, then navigation style) are showing or about to.
+    fn first_run_open(&self) -> bool {
+        let has_file = self.settings_file.is_some();
+        self.ask_device
+            || self.welcome_nav.is_some()
+            || (has_file && self.settings.device.is_empty())
+            || (has_file && !self.settings.nav_asked)
+    }
+
     /// Hands the app's settings to the open workspace and saves them.
     fn sync_settings(&mut self) {
         if let Some(ws) = self.ws.as_deref_mut() {
@@ -1273,7 +1285,14 @@ impl ShapeCraftApp {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                     AppAction::CheckUpdates => shapecraft_update::Updater::global().check_now(),
-                    AppAction::Tutorial(id) => self.start_tutorial(id, 0),
+                    AppAction::GetStarted | AppAction::Tutorials => {
+                        self.close_project();
+                        self.landing.section = if a == AppAction::Tutorials {
+                            crate::landing::Section::Tutorials
+                        } else {
+                            crate::landing::Section::GetStarted
+                        };
+                    }
                     AppAction::OpenPage(url) => open_page(url),
                 },
                 MenuAction::Ui(crate::workspace::toolbar::UiAction::Preferences) if self.ws.is_none() => {
