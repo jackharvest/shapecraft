@@ -53,9 +53,13 @@ jobs:
           echo "$root/bin" >> "$GITHUB_PATH"
           echo "OCCT_INCLUDE_DIR=$root/include/opencascade" >> "$GITHUB_ENV"
           echo "OCCT_LIB_DIR=$root/lib" >> "$GITHUB_ENV"
-      # PowerShell, not bash: Git's bash puts its own link.exe ahead of Microsoft's linker.
-      - run: cargo build --release --locked -p shapecraft -p shapecraft-cli
+      # Git for Windows puts its own link.exe (coreutils) on the PATH ahead of Microsoft's linker: name MSVC's.
+      - name: Build
         shell: pwsh
+        run: |
+          $env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER = Join-Path $env:VCToolsInstallDir 'bin\Hostx64\x64\link.exe'
+          if (-not (Test-Path $env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER)) { throw "MSVC link.exe not found" }
+          cargo build --release --locked -p shapecraft -p shapecraft-cli
       - name: Inno Setup
         shell: pwsh
         run: if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
