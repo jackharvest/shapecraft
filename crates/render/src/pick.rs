@@ -189,10 +189,13 @@ pub fn pick(ctx: &PickContext, cursor: DVec2) -> Option<(Pick, DVec3)> {
                 let at = a + (b - a) * t;
                 let (eo, ed) = ctx.camera.ray(at, ctx.size);
                 let depth = (world - eo).dot(ed);
-                // A face seen at a grazing angle can be hit well in front of its own edge: the edge still shows when
-                // what's in front is one of the two faces it bounds.
-                let visible = nearest_face(ctx, eo, ed)
-                    .is_none_or(|(fd, fb, ff)| depth <= fd + ctx.camera.distance * 0.002 || fb == body.id && own.contains(&ff));
+                // A face seen at a grazing angle can be hit a little in front of its own edge: the edge still shows
+                // when what's in front is one of the two faces it bounds, close by. A round wall wraps around, so its
+                // front half is "one of its faces" too for the far half of its rim: that stays hidden (s36).
+                let near = ctx.camera.world_per_pixel(ctx.size.y) * 12.0;
+                let visible = nearest_face(ctx, eo, ed).is_none_or(|(fd, fb, ff)| {
+                    depth <= fd + ctx.camera.distance * 0.002 || fb == body.id && own.contains(&ff) && depth - fd <= near
+                });
                 if visible {
                     edge_hit = Some((px, body.id, edge, world));
                 }
@@ -322,5 +325,72 @@ mod tests {
         assert!(ray_meets(unit, DVec3::new(-3.0, -3.0, -3.0), DVec3::ONE.normalize()), "diagonally");
         assert!(ray_meets(Some(([0.0, 0.0, 0.0], [1.0, 1.0, 0.0])), DVec3::new(0.5, 0.5, 5.0), down), "flat, as a plate's face");
         assert!(!ray_meets(None, DVec3::ZERO, down), "an empty mesh");
+    }
+
+    struct NoShape;
+    impl shapecraft_kernel::ShapeData for NoShape {
+        fn as_any(&self) -> &dyn std::any::Any {
+            self
+        }
+    }
+
+    /// A closed cylinder (radius 5, height 10) as a mesh: face 0 the wall, 1 the bottom, 2 the top; edge 0 the
+    /// bottom rim, edge 1 the top rim.
+    fn cylinder() -> Document {
+        let n = 48;
+        let ring = |z: f32| -> Vec<[f32; 3]> {
+            (0..=n)
+                .map(|k| {
+                    let a = k as f32 / n as f32 * std::f32::consts::TAU;
+                    [5.0 * a.cos(), 5.0 * a.sin(), z]
+                })
+                .collect()
+        };
+        let (lo, hi) = (ring(0.0), ring(10.0));
+        let mut m = shapecraft_kernel::Mesh::default();
+        let mut tri = |m: &mut shapecraft_kernel::Mesh, a: [f32; 3], b: [f32; 3], c: [f32; 3], face: u32| {
+            let i = m.positions.len() as u32;
+            m.positions.extend([a, b, c]);
+            m.normals.extend([[0.0, 0.0, 1.0]; 3]);
+            m.indices.extend([i, i + 1, i + 2]);
+            m.triangle_faces.push(face);
+        };
+        for k in 0..n {
+            tri(&mut m, lo[k], lo[k + 1], hi[k + 1], 0);
+            tri(&mut m, lo[k], hi[k + 1], hi[k], 0);
+            tri(&mut m, [0.0, 0.0, 0.0], lo[k + 1], lo[k], 1);
+            tri(&mut m, [0.0, 0.0, 10.0], hi[k], hi[k + 1], 2);
+        }
+        m.edges = vec![lo, hi];
+        m.edge_ids = vec![0, 1];
+        m.edge_faces = vec![[0, 1], [0, 2]];
+        let mut doc = Document::default();
+        doc.bodies.push(shapecraft_doc::Body {
+            id: ItemId(1),
+            name: "Body 01".into(),
+            shape: shapecraft_kernel::Shape::new(NoShape),
+            mesh: std::sync::Arc::new(m),
+            visible: true,
+            appearance: None,
+            face_colors: Vec::new(),
+        });
+        doc
+    }
+
+    /// The far half of a cylinder's bottom rim is behind its own wall: a click there takes the wall (s36), while the
+    /// near half of the rim still picks.
+    #[test]
+    fn a_rim_behind_its_own_round_wall_is_hidden() {
+        let doc = cylinder();
+        let camera = crate::Camera::standard(crate::StandardView::Default, DVec3::new(0.0, 0.0, 5.0), 60.0);
+        let ctx = PickContext { doc: &doc, active_sketch: None, camera: &camera, size: DVec2::new(1200.0, 900.0), section: None };
+        // Where the far side of the bottom rim (the point away from the camera) lands on screen.
+        let back = camera.eye().with_z(0.0).normalize() * -5.0;
+        let (far, _) = camera.project(back, ctx.size).unwrap();
+        let hit = pick(&ctx, far).map(|(p, _)| p);
+        assert_eq!(hit, Some(Pick::Face { body: ItemId(1), face: 0 }), "the wall, not the hidden rim");
+        let front = camera.eye().with_z(0.0).normalize() * 5.0;
+        let (near, _) = camera.project(front, ctx.size).unwrap();
+        assert_eq!(pick(&ctx, near).map(|(p, _)| p), Some(Pick::Edge { body: ItemId(1), edge: 0 }), "the near rim still picks");
     }
 }
