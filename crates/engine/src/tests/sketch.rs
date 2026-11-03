@@ -410,3 +410,71 @@ fn a_vertical_distance_type_sets_only_the_lines_height() {
     assert!(((b.y - a.y).abs() - 8.0).abs() < 1e-6, "{a} {b}");
     assert!(s.execute("constrain", &json!({"kind": "distance", "value": 8, "along": "sideways", "entities": [0]})).is_err());
 }
+
+/// A sketch says where its axes point, and `x_dir` turns them.
+#[test]
+fn sketch_returns_its_frame_and_takes_x_dir() {
+    let mut s = super::session();
+    let out = s.execute("sketch", &serde_json::json!({"origin": [0, 0, 5], "normal": [0, 0, 1]})).unwrap();
+    assert_eq!(out.value["normal"], serde_json::json!([0.0, 0.0, 1.0]));
+    let out = s.execute("sketch", &serde_json::json!({"origin": [0, 0, 5], "normal": [0, 0, 1], "x_dir": [1, 0, 0.3]})).unwrap();
+    assert_eq!(out.value["x"], serde_json::json!([1.0, 0.0, 0.0]));
+    assert_eq!(out.value["y"], serde_json::json!([0.0, 1.0, 0.0]));
+    assert!(s.execute("sketch", &serde_json::json!({"origin": [0, 0, 0], "normal": [0, 0, 1], "x_dir": [0, 0, 2]})).is_err());
+}
+
+/// inspect says how regions nest: the ring between two rectangles has a hole, the middle sits inside it.
+#[test]
+fn inspect_reports_region_nesting() {
+    let mut s = super::session();
+    s.execute("sketch", &serde_json::json!({"plane": "xy"})).unwrap();
+    s.execute("rectangle", &serde_json::json!({"corner": [0, 0], "opposite": [20, 20]})).unwrap();
+    s.execute("rectangle", &serde_json::json!({"corner": [5, 5], "opposite": [15, 15]})).unwrap();
+    s.execute("rectangle", &serde_json::json!({"corner": [40, 0], "opposite": [50, 10]})).unwrap();
+    let v = s.execute("inspect", &serde_json::json!({})).unwrap().value;
+    let regions = v["sketches"][0]["regions"].as_array().unwrap().clone();
+    assert_eq!(regions.len(), 3);
+    let ring = regions.iter().find(|r| (r["area_mm2"].as_f64().unwrap() - 300.0).abs() < 1e-6).unwrap();
+    let middle =
+        regions.iter().find(|r| (r["area_mm2"].as_f64().unwrap() - 100.0).abs() < 1e-6 && r["center"][0].as_f64().unwrap() < 30.0).unwrap();
+    let lone = regions.iter().find(|r| r["center"][0].as_f64().unwrap() > 30.0).unwrap();
+    assert_eq!(ring["holes"], 1);
+    assert!(ring["inside"].is_null());
+    assert_eq!(middle["holes"], 0);
+    assert_eq!(middle["inside"], ring["region"]);
+    assert_eq!(lone["holes"], 0);
+    assert!(lone["inside"].is_null());
+}
+
+/// The counters of "o" and "d" are regions inside their letters; the letters themselves sit inside nothing.
+#[test]
+fn text_counters_sit_inside_their_letters() {
+    let mut s = super::session();
+    s.execute("sketch", &serde_json::json!({"plane": "xy"})).unwrap();
+    s.execute("text", &serde_json::json!({"at": [0, 0], "text": "Nod", "size": 20})).unwrap();
+    let v = s.execute("inspect", &serde_json::json!({})).unwrap().value;
+    let regions = v["sketches"][0]["regions"].as_array().unwrap().clone();
+    let solid: Vec<_> = regions.iter().filter(|r| r["inside"].is_null()).collect();
+    let counters: Vec<_> = regions.iter().filter(|r| !r["inside"].is_null()).collect();
+    assert_eq!(solid.len(), 3, "{regions:?}");
+    assert_eq!(counters.len(), 2, "{regions:?}");
+    assert_eq!(solid.iter().filter(|r| r["holes"] == 1).count(), 2);
+}
+
+/// inspect narrows to one sketch or body, and can leave the face lists out.
+#[test]
+fn inspect_filters() {
+    let mut s = super::session();
+    s.execute("sketch", &serde_json::json!({"plane": "xy"})).unwrap();
+    s.execute("rectangle", &serde_json::json!({"corner": [0, 0], "opposite": [20, 20]})).unwrap();
+    let sk = s.active_sketch.unwrap().0;
+    let body = s.execute("extrude", &serde_json::json!({"sketch": sk, "region": 0, "distance": 5})).unwrap().value["body"].clone();
+    let v = s.execute("inspect", &serde_json::json!({"sketch": sk})).unwrap().value;
+    assert_eq!(v["sketches"].as_array().map(Vec::len), Some(1));
+    assert_eq!(v["bodies"].as_array().map(Vec::len), Some(0));
+    let v = s.execute("inspect", &serde_json::json!({"body": body, "faces": false})).unwrap().value;
+    assert_eq!(v["bodies"].as_array().map(Vec::len), Some(1));
+    assert_eq!(v["bodies"][0]["faces"].as_array().map(Vec::len), Some(0));
+    assert_eq!(v["bodies"][0]["face_count"], 6);
+    assert!(s.execute("inspect", &serde_json::json!({"body": 999})).is_err());
+}

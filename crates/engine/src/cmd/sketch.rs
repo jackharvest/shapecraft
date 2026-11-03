@@ -18,7 +18,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             menu: "Tools/Sketch",
             shortcut: None,
             help: "Choose a plane or a flat face to sketch on",
-            params: r#"{"plane": "xy"|"xz"|"yz"} | {"body": id, "face": n} | {"construction": id} | {"origin":[x,y,z],"normal":[x,y,z]}"#,
+            params: r#"{"plane": "xy"|"xz"|"yz"} | {"body": id, "face": n} | {"construction": id} | {"origin":[x,y,z],"normal":[x,y,z],"x_dir":[x,y,z]?}, "look": false? (the open app keeps its camera)  (returns the frame: origin, x (u), y (v), normal)"#,
             modifies: true,
             enabled: always,
             run: new_sketch,
@@ -458,6 +458,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
 }
 
 fn new_sketch(s: &mut Session, p: &Params) -> Result<Value> {
+    // "look": false is for the open app (don't turn the camera to the new plane); headless it changes nothing.
+    let _ = p.bool_or("look", true);
     let (plane, on_body) =
         plane_from(s, p)?.ok_or_else(|| EngineError::BadParams("give a plane, a face or an origin and normal".into()))?;
     let id = s.doc.alloc_id();
@@ -465,7 +467,12 @@ fn new_sketch(s: &mut Session, p: &Params) -> Result<Value> {
     s.doc.sketches.push(Sketch::new(id, name.clone(), plane, on_body));
     s.active_sketch = Some(id);
     s.selection.clear();
-    Ok(json!({ "sketch": id.0, "name": name }))
+    // The frame, so a script knows where (u, v) land in the world without probing.
+    let v = |d: glam::DVec3| [d.x, d.y, d.z];
+    Ok(json!({
+        "sketch": id.0, "name": name,
+        "origin": v(plane.origin), "x": v(plane.x), "y": v(plane.y), "normal": v(plane.normal()),
+    }))
 }
 
 /// The plane a command names: an origin plane, a planar face (and its body), a construction plane, or an origin
@@ -495,8 +502,16 @@ pub(super) fn plane_from(s: &Session, p: &Params) -> Result<Option<(SketchPlane,
         let pl = s.doc.plane(id).ok_or_else(|| EngineError::BadParams(format!("no plane {}", id.0)))?;
         (pl.plane, None)
     } else if p.has("origin") {
-        let plane = SketchPlane::from_normal(p.vec3("origin")?, p.vec3("normal")?)
+        let mut plane = SketchPlane::from_normal(p.vec3("origin")?, p.vec3("normal")?)
             .ok_or_else(|| EngineError::BadParams("normal must not be zero".into()))?;
+        // x_dir: where the sketch's u axis points (projected into the plane); v follows by the right-hand rule.
+        if p.has("x_dir") {
+            let n = plane.normal();
+            let d = p.vec3("x_dir")?;
+            let x =
+                (d - n * d.dot(n)).try_normalize().ok_or_else(|| EngineError::BadParams("x_dir must not be along the normal".into()))?;
+            plane = SketchPlane { origin: plane.origin, x, y: n.cross(x) };
+        }
         (plane, None)
     } else {
         return Ok(None);

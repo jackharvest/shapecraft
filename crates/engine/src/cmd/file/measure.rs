@@ -25,7 +25,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             menu: "",
             shortcut: None,
             help: "Describe the project: bodies with volumes and bounds, sketches with regions, the selection",
-            params: "{}",
+            params: r#"{"body": id?, "sketch": id?, "faces": bool (true; false leaves out each body's face list)}  (body or sketch: only that one, and nothing of the other kind)"#,
             modifies: false,
             enabled: always,
             run: inspect,
@@ -41,17 +41,31 @@ fn round3(v: glam::DVec3) -> [f64; 3] {
     [r(v.x), r(v.y), r(v.z)]
 }
 
-fn inspect(s: &mut Session, _: &Params) -> Result<Value> {
+fn inspect(s: &mut Session, p: &Params) -> Result<Value> {
+    let only_body = p.opt_id("body");
+    let only_sketch = p.opt_id("sketch");
+    let with_faces = p.bool_or("faces", true);
+    if let Some(id) = only_body
+        && s.doc.body(id).is_none()
+    {
+        return Err(crate::EngineError::BadParams(format!("no body {}", id.0)));
+    }
+    if let Some(id) = only_sketch
+        && s.doc.sketch(id).is_none()
+    {
+        return Err(crate::EngineError::BadParams(format!("no sketch {}", id.0)));
+    }
     let bodies: Vec<Value> = s
         .doc
         .bodies
         .iter()
+        .filter(|b| only_sketch.is_none() && only_body.is_none_or(|id| id == b.id))
         .map(|b| {
             let mp = s.kernel.mass_props(&b.shape).ok();
             let bb = s.kernel.bounds(&b.shape).ok();
             let face_count = s.kernel.face_count(&b.shape).unwrap_or(0);
             // Planar faces with their outward normals, so agents can say which face to work on.
-            let faces: Vec<Value> = (0..face_count.min(500))
+            let faces: Vec<Value> = (0..if with_faces { face_count.min(500) } else { 0 })
                 .map(|f| match s.kernel.face_plane(&b.shape, f).ok().flatten() {
                     Some(fp) => json!({ "face": f, "planar": true, "center": round3(fp.origin), "normal": round3(fp.normal) }),
                     None => json!({ "face": f, "planar": false }),
@@ -75,6 +89,7 @@ fn inspect(s: &mut Session, _: &Params) -> Result<Value> {
         .doc
         .sketches
         .iter()
+        .filter(|sk| only_body.is_none() && only_sketch.is_none_or(|id| id == sk.id))
         .map(|sk| {
             json!({
                 "id": sk.id.0,
@@ -83,7 +98,11 @@ fn inspect(s: &mut Session, _: &Params) -> Result<Value> {
                 "plane": { "origin": sk.plane.origin.to_array(), "x": sk.plane.x.to_array(), "y": sk.plane.y.to_array() },
                 "on_body": sk.on_body.map(|b| b.0),
                 "entities": sk.entities,
-                "regions": sk.regions().iter().map(|r| json!({ "region": r.index, "area_mm2": r.area, "center": [r.centroid.x, r.centroid.y] })).collect::<Vec<_>>(),
+                // holes: how many holes the region has; inside: the region it fills a hole of (the inside of an
+                // "o", the middle of two nested rectangles), so solid letters are the regions with no "inside".
+                "regions": sk.regions().iter().zip(shapecraft_doc::region_nesting(sk.regions())).map(|(r, (holes, inside))| json!({
+                    "region": r.index, "area_mm2": r.area, "center": [r.centroid.x, r.centroid.y], "holes": holes, "inside": inside,
+                })).collect::<Vec<_>>(),
                 // Every element fully defined (drawn green), as the reference shows a finished sketch.
                 "defined": !sk.entities.is_empty() && shapecraft_doc::constraints::fully_defined(&sk.entities, &sk.constraints).iter().all(|d| *d),
             })

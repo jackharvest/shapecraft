@@ -61,8 +61,9 @@ fn tools(bridged: bool) -> Vec<Value> {
         ),
         tool(
             "inspect",
-            "Describe the project: bodies (volume, area, bounds, planar faces with normals), sketches (entities, regions), selection, history.",
-            json!({ "type": "object", "properties": {} }),
+            "Describe the project: bodies (volume, area, bounds, planar faces with normals), sketches (entities, regions with holes and nesting), selection, history. `body` or `sketch` narrows it to that one; `faces: false` leaves out the face lists.",
+            json!({ "type": "object", "properties": {
+                "body": { "type": "integer" }, "sketch": { "type": "integer" }, "faces": { "type": "boolean" } } }),
         ),
         tool(
             "render",
@@ -225,7 +226,16 @@ impl Server {
                 None => Err("'command' is required".into()),
             },
             "list_commands" => Ok(text(self.commands(&s("filter").unwrap_or_default()))),
-            "inspect" => self.exec("inspect", json!({})).map(|v| text(serde_json::to_string_pretty(&v).unwrap_or_default())),
+            "inspect" => {
+                let mut p = serde_json::Map::new();
+                for k in ["body", "sketch", "faces"] {
+                    if let Some(v) = args.get(k) {
+                        p.insert(k.into(), v.clone());
+                    }
+                }
+                self.exec("inspect", Value::Object(p))
+            }
+            .map(|v| text(serde_json::to_string_pretty(&v).unwrap_or_default())),
             "render" => {
                 let w = args.get("width").and_then(Value::as_u64).unwrap_or(1200).clamp(64, 4096) as u32;
                 let h = args.get("height").and_then(Value::as_u64).unwrap_or(800).clamp(64, 4096) as u32;

@@ -635,8 +635,10 @@ impl ShapeCraftApp {
                 let command = params.get("command").and_then(Value::as_str).ok_or("'command' is required")?;
                 let p = params.get("params").cloned().unwrap_or(json!({}));
                 let out = ws.session.execute(command, &p).map_err(|e| e.to_string())?;
-                // Follow the reference app: entering a sketch looks at its plane.
+                // Entering a sketch over the control channel looks at its plane, unless the call says "look": false
+                // (scripts that place the camera themselves, recordings). ui.camera also stops a move under way.
                 if command == "sketch"
+                    && params.get("look").or_else(|| p.get("look")).and_then(Value::as_bool) != Some(false)
                     && let Some(sk) = ws.session.active_sketch()
                 {
                     let plane = sk.plane;

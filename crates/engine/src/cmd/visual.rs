@@ -331,7 +331,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                     v.environment -= 1;
                 }
                 s.doc.visual = v.sanitized();
-                Ok(Value::Null)
+                // Environments and materials are drawn only in Visualize; say so, or a modeling-mode screenshot
+                // looks as if nothing happened.
+                Ok(json!({ "note": "environments show in Visualize (ui.toggle {panel: \"visualization\"})" }))
             },
         },
         CommandSpec {
@@ -380,7 +382,9 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                     v.focus = if f.is_null() { None } else { Some(p.vec3("focus")?) };
                 }
                 s.doc.visual = v.sanitized();
-                Ok(Value::Null)
+                // Environments and materials are drawn only in Visualize; say so, or a modeling-mode screenshot
+                // looks as if nothing happened.
+                Ok(json!({ "note": "environments show in Visualize (ui.toggle {panel: \"visualization\"})" }))
             },
         },
     ]

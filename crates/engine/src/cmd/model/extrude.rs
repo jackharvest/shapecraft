@@ -165,7 +165,7 @@ pub(super) fn result_param(p: &Params) -> Result<Option<Option<BoolOp>>> {
 }
 
 /// Puts a feature's solid in the model: a new body, or combined with the body it was made on (`auto` there) or
-/// the first one it overlaps.
+/// the bodies it overlaps (see [`boolean_targets`]). Returns the first body changed.
 pub(super) fn place_result(
     s: &mut Session,
     shape: Shape,
@@ -178,27 +178,60 @@ pub(super) fn place_result(
         Some(op) => op,
     };
     let Some(op) = op else { return add_body(s, shape) };
-    let target = match on_body {
-        Some(b) => b,
-        None => overlapping_body(s, &shape)?.ok_or_else(|| EngineError::NotAvailable("the new solid doesn't touch a body".into()))?,
+    let targets = match on_body {
+        Some(b) => vec![b],
+        None => boolean_targets(s, &shape, op)?,
     };
-    let b = s.doc.body(target).ok_or_else(|| EngineError::BadParams("body vanished".into()))?;
-    let merged = s.kernel.boolean(op, &b.shape, &shape)?;
-    set_body_shape(s, target, merged)?;
-    Ok(target)
+    combine(s, op, &targets, &shape)
 }
 
-/// The body an explicit Union / Subtract / Intersect works on when the profile isn't on one: the first body the
-/// new solid overlaps.
-fn overlapping_body(s: &Session, block: &Shape) -> Result<Option<ItemId>> {
+/// Applies `op` with `tool` to each target body; returns the first.
+fn combine(s: &mut Session, op: BoolOp, targets: &[ItemId], tool: &Shape) -> Result<ItemId> {
+    for target in targets {
+        let b = s.doc.body(*target).ok_or_else(|| EngineError::BadParams("body vanished".into()))?;
+        let merged = s.kernel.boolean(op, &b.shape, tool)?;
+        set_body_shape(s, *target, merged)?;
+    }
+    targets.first().copied().ok_or_else(|| EngineError::NotAvailable("the new solid doesn't touch a body".into()))
+}
+
+/// The bodies an explicit Union / Subtract / Intersect works on when the profile isn't on a body. Subtract cuts
+/// every body the new solid really runs into; Union and Intersect take the one it overlaps most. Bounding boxes
+/// only narrow the search: a shell's box holds everything inside it, and taking the first box hit cut the oldest
+/// body instead of the panel the profile sat on. With no real overlap (a solid that only touches a face), the
+/// first body whose box it touches.
+pub(super) fn boolean_targets(s: &Session, block: &Shape, op: BoolOp) -> Result<Vec<ItemId>> {
     let bb = s.kernel.bounds(block)?;
+    let mut touching = Vec::new();
     for b in &s.doc.bodies {
         let o = s.kernel.bounds(&b.shape)?;
         if o.min.cmple(bb.max).all() && bb.min.cmple(o.max).all() {
-            return Ok(Some(b.id));
+            touching.push(b.id);
         }
     }
-    Ok(None)
+    let mut overlap: Vec<(ItemId, f64)> = Vec::new();
+    if touching.len() > 1 || op == BoolOp::Subtract {
+        for id in &touching {
+            let Some(b) = s.doc.body(*id) else { continue };
+            let volume = s
+                .kernel
+                .boolean(BoolOp::Intersect, &b.shape, block)
+                .and_then(|common| s.kernel.mass_props(&common))
+                .map_or(0.0, |m| m.volume);
+            if volume.is_finite() && volume > 1e-6 {
+                overlap.push((*id, volume));
+            }
+        }
+    }
+    let ids = if overlap.is_empty() {
+        touching.into_iter().take(1).collect()
+    } else if op == BoolOp::Subtract {
+        overlap.into_iter().map(|(id, _)| id).collect()
+    } else {
+        overlap.sort_by(|a, b| b.1.total_cmp(&a.1));
+        overlap.into_iter().take(1).map(|(id, _)| id).collect()
+    };
+    Ok(ids)
 }
 
 pub(super) fn extrude(s: &mut Session, p: &Params) -> Result<Value> {
@@ -295,21 +328,20 @@ pub(super) fn extrude(s: &mut Session, p: &Params) -> Result<Value> {
         "intersect" => Some(BoolOp::Intersect),
         _ => on_body.map(|_| if length > 0.0 { BoolOp::Union } else { BoolOp::Subtract }),
     };
-    let target = match (op, on_body) {
-        (None, _) => None,
-        (Some(_), Some(b)) => Some(b),
-        (Some(_), None) => {
-            Some(overlapping_body(s, &block)?.ok_or_else(|| EngineError::NotAvailable("the extrusion doesn't touch a body".into()))?)
+    let targets = match (op, on_body) {
+        (None, _) => Vec::new(),
+        (Some(_), Some(b)) => vec![b],
+        (Some(op), None) => {
+            let t = boolean_targets(s, &block, op)?;
+            if t.is_empty() {
+                return Err(EngineError::NotAvailable("the extrusion doesn't touch a body".into()));
+            }
+            t
         }
     };
-    let body = match (op, target) {
-        (Some(op), Some(target)) => {
-            let b = s.doc.body(target).ok_or_else(|| EngineError::BadParams("body vanished".into()))?;
-            let merged = s.kernel.boolean(op, &b.shape, &block)?;
-            set_body_shape(s, target, merged)?;
-            target
-        }
-        _ => add_body(s, block)?,
+    let body = match op {
+        Some(op) => combine(s, op, &targets, &block)?,
+        None => add_body(s, block)?,
     };
     if let Some(sketch) = sketch {
         // The reference app greys out a sketch once it has been used.
@@ -323,5 +355,6 @@ pub(super) fn extrude(s: &mut Session, p: &Params) -> Result<Value> {
     let normal = plane_normal * length.signum();
     let cap = find_cap(s, body, start + dir, normal);
     s.selection = cap.map(|face| vec![Pick::Face { body, face }]).unwrap_or_default();
-    Ok(json!({ "body": body.0, "face": cap }))
+    let changed: Vec<u64> = if targets.is_empty() { vec![body.0] } else { targets.iter().map(|b| b.0).collect() };
+    Ok(json!({ "body": body.0, "bodies": changed, "face": cap }))
 }

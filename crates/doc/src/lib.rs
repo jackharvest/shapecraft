@@ -18,7 +18,7 @@ pub use constraints::{Along, Constraint, Element};
 pub use expr::{VarKind, Variable};
 pub use sketch::{
     RectFrame, Region, Sketch, SketchEntity, SketchPattern, SketchPlane, arc_points, bspline_points, circle_through, rectangle_frame,
-    rectangle_loop, spline_points,
+    rectangle_loop, region_nesting, spline_points,
 };
 
 pub mod project;

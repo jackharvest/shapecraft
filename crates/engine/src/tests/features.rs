@@ -309,3 +309,39 @@ fn wrap_emboss_on_cylinder_and_cone() {
     s.execute("rectangle", &json!({"corner": [12, 0], "opposite": [14, 2]})).unwrap();
     assert!(s.execute("wrap_emboss", &json!({"sketch": 4, "region": 0, "body": 2, "depth": 1})).is_err());
 }
+
+/// A cut from a free plane goes into the body it really runs into, not the first body whose bounding box it
+/// touches (a shell's box holds the inset panel, so the oldest body was cut and the panel left alone).
+#[test]
+fn subtract_cuts_the_body_it_runs_into() {
+    let mut s = session();
+    let square = |s: &mut crate::Session, origin: [f64; 3], half: f64| {
+        s.execute("sketch", &json!({"origin": origin, "normal": [0, 0, 1]})).unwrap();
+        s.execute("rectangle", &json!({"corner": [-half, -half], "opposite": [half, half]})).unwrap();
+        s.active_sketch.unwrap().0
+    };
+    // The shell, with a pocket on top, and a panel sitting in the pocket as its own body.
+    let shell = square(&mut s, [50.0, 50.0, 0.0], 50.0);
+    s.execute("extrude", &json!({"sketch": shell, "region": 0, "distance": 20})).unwrap();
+    let pocket = square(&mut s, [50.0, 50.0, 20.0], 10.0);
+    s.execute("extrude", &json!({"sketch": pocket, "region": 0, "distance": -2, "result": "subtract"})).unwrap();
+    let panel = square(&mut s, [50.0, 50.0, 18.0], 10.0);
+    let out = s.execute("extrude", &json!({"sketch": panel, "region": 0, "distance": 2, "result": "new"})).unwrap();
+    let panel_id = out.value["body"].as_u64().unwrap();
+    let vol = |s: &crate::Session, id: u64| {
+        let b = s.doc.bodies.iter().find(|b| b.id.0 == id).unwrap();
+        s.kernel.mass_props(&b.shape).unwrap().volume
+    };
+    let shell_id = s.doc.bodies[0].id.0;
+    let shell_before = vol(&s, shell_id);
+    // A logo pushed 1 mm into the panel's top.
+    let logo = square(&mut s, [50.0, 50.0, 20.0], 5.0);
+    let out = s.execute("extrude", &json!({"sketch": logo, "region": 0, "distance": -1, "result": "subtract"})).unwrap();
+    assert_eq!(out.value["bodies"], json!([panel_id]));
+    assert!((vol(&s, panel_id) - (400.0 * 2.0 - 100.0)).abs() < 1e-6);
+    assert!((vol(&s, shell_id) - shell_before).abs() < 1e-6);
+    // Deeper than the panel: both are cut.
+    let deep = square(&mut s, [50.0, 50.0, 20.0], 2.0);
+    let out = s.execute("extrude", &json!({"sketch": deep, "region": 0, "distance": -5, "result": "subtract"})).unwrap();
+    assert_eq!(out.value["bodies"].as_array().map(Vec::len), Some(2));
+}

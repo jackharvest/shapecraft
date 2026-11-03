@@ -375,6 +375,95 @@ impl Region {
             !(neg && pos)
         })
     }
+
+    /// The region's boundary as segments (triangle edges no other triangle shares), grouped into loops; the loop
+    /// enclosing the most area first (the outside), then the holes.
+    pub fn loops(&self) -> Vec<Vec<[DVec2; 2]>> {
+        use std::collections::HashMap;
+        let key = |p: DVec2| ((p.x * 1e6).round() as i64, (p.y * 1e6).round() as i64);
+        type Key = (i64, i64);
+        let mut count: HashMap<(Key, Key), u32> = HashMap::new();
+        for t in &self.triangles {
+            for (a, b) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
+                let (ka, kb) = (key(a), key(b));
+                *count.entry(if ka < kb { (ka, kb) } else { (kb, ka) }).or_default() += 1;
+            }
+        }
+        let mut segs = Vec::new();
+        for t in &self.triangles {
+            for (a, b) in [(t[0], t[1]), (t[1], t[2]), (t[2], t[0])] {
+                let (ka, kb) = (key(a), key(b));
+                if count.get(&if ka < kb { (ka, kb) } else { (kb, ka) }) == Some(&1) {
+                    segs.push([a, b]);
+                }
+            }
+        }
+        // Loops are the connected groups of segments (union-find over their end points).
+        let mut parent: HashMap<(i64, i64), (i64, i64)> = HashMap::new();
+        fn find(parent: &mut HashMap<(i64, i64), (i64, i64)>, k: (i64, i64)) -> (i64, i64) {
+            let mut r = k;
+            while let Some(&p) = parent.get(&r) {
+                if p == r {
+                    break;
+                }
+                r = p;
+            }
+            parent.insert(k, r);
+            r
+        }
+        for [a, b] in &segs {
+            let (ra, rb) = (find(&mut parent, key(*a)), find(&mut parent, key(*b)));
+            parent.insert(ra, rb);
+            parent.entry(rb).or_insert(rb);
+        }
+        let mut groups: HashMap<(i64, i64), Vec<[DVec2; 2]>> = HashMap::new();
+        for seg in segs {
+            let r = find(&mut parent, key(seg[0]));
+            groups.entry(r).or_default().push(seg);
+        }
+        let mut loops: Vec<Vec<[DVec2; 2]>> = groups.into_values().collect();
+        let area = |l: &Vec<[DVec2; 2]>| l.iter().map(|[a, b]| a.perp_dot(*b)).sum::<f64>().abs() / 2.0;
+        loops.sort_by(|a, b| area(b).total_cmp(&area(a)));
+        loops
+    }
+}
+
+/// Inside a closed outline given as segments (an even-odd ray test; the segments needn't be in order).
+fn inside_outline(segs: &[[DVec2; 2]], p: DVec2) -> bool {
+    let mut inside = false;
+    for [a, b] in segs {
+        if (a.y > p.y) != (b.y > p.y) && p.x < a.x + (p.y - a.y) / (b.y - a.y) * (b.x - a.x) {
+            inside = !inside;
+        }
+    }
+    inside
+}
+
+/// How a sketch's regions nest: for each region (in order), how many holes it has and the region it sits in a
+/// hole of (the innermost), if any. The inside of an "o" is the region inside the letter; the ring between two
+/// rectangles is the one with a hole.
+pub fn region_nesting(regions: &[Region]) -> Vec<(usize, Option<u32>)> {
+    let loops: Vec<Vec<Vec<[DVec2; 2]>>> = regions.iter().map(Region::loops).collect();
+    let outer_area = |i: usize| loops[i].first().map_or(0.0, |l| l.iter().map(|[a, b]| a.perp_dot(*b)).sum::<f64>().abs() / 2.0);
+    regions
+        .iter()
+        .enumerate()
+        .map(|(i, r)| {
+            let holes = loops[i].len().saturating_sub(1);
+            let probe = r.triangles.iter().max_by(|a, b| tri_area(a).total_cmp(&tri_area(b))).map(|t| (t[0] + t[1] + t[2]) / 3.0);
+            let inside = probe.and_then(|p| {
+                (0..regions.len())
+                    .filter(|&j| j != i && !loops[j].is_empty() && inside_outline(&loops[j][0], p) && !regions[j].contains(p))
+                    .min_by(|&a, &b| outer_area(a).total_cmp(&outer_area(b)))
+                    .map(|j| regions[j].index)
+            });
+            (holes, inside)
+        })
+        .collect()
+}
+
+fn tri_area(t: &[DVec2; 3]) -> f64 {
+    (t[1] - t[0]).perp_dot(t[2] - t[0]).abs()
 }
 
 /// A sketch pattern that stays linked: its copies are remade from the source curves whenever those change.
