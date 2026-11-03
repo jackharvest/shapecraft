@@ -66,3 +66,17 @@ Test from the Mac with `ssh -i ~/.ssh/id_ed25519_web deploy@SERVER whoami`. The 
 (`WEB_HOST=deploy@SERVER`), which git ignores.
 
 Links point to `github.com/jackharvest/shapecraft`. Change them in one pass if the repo ends up somewhere else.
+
+## Link preview card
+`media/og-card.jpg` (1200×630) is what iMessage, Discord, Teams, Slack and the rest show when the link is pasted.
+It is `gen/og-card.html` shot at 2× and scaled down. The model in it is the speed-lapse handheld rendered see-through:
+
+```sh
+python3 website/gen/handheld.py /tmp/hh.jsonl
+shapecraft-cli run /tmp/hh.jsonl --png /tmp/hh.png --size 1400x1200 --clear
+# trim to the model and save as website/gen/og-handheld.png, then:
+chrome-headless-shell --headless --hide-scrollbars --force-device-scale-factor=2 --window-size=1200,630 \
+  --virtual-time-budget=4000 --screenshot=/tmp/card2x.png file://$PWD/website/gen/og-card.html
+# scale /tmp/card2x.png to 1200×630, JPEG quality 90 → website/media/og-card.jpg
+```
+Previews are cached by each app; after changing the card, rename the file (or add `?v=2` to the og:image URL).
