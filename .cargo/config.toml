@@ -1,0 +1,4 @@
+# macOS: leave room in the programs' headers so packaging/macos/bundle.py can point them at the libraries inside the
+# app (install_name_tool fails on binaries linked without it, seen on Intel).
+[target.'cfg(target_os = "macos")']
+rustflags = ["-C", "link-arg=-Wl,-headerpad_max_install_names"]

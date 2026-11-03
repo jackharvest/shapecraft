@@ -51,6 +51,8 @@ jobs:
         run: |
           root="$CONDA_PREFIX/Library"
           echo "$root/bin" >> "$GITHUB_PATH"
+          # bundle.ps1 runs in PowerShell, where conda's variables aren't set: tell it where OCCT's DLLs are.
+          echo "OCCT_BIN=$root/bin" >> "$GITHUB_ENV"
           echo "OCCT_INCLUDE_DIR=$root/include/opencascade" >> "$GITHUB_ENV"
           echo "OCCT_LIB_DIR=$root/lib" >> "$GITHUB_ENV"
       # Git for Windows puts its own link.exe (coreutils) on the PATH ahead of Microsoft's linker: name MSVC's.
