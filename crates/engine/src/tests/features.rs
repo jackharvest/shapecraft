@@ -409,3 +409,38 @@ fn free_plane_profile_on_a_face_cuts_and_joins() {
     s.execute("extrude", &json!({"sketch": k, "region": 0, "distance": 2, "result": "new"})).unwrap();
     assert_eq!(s.doc.bodies.len(), 4);
 }
+
+/// The selection pill's radius: a cylinder's wall gives its radius, a flat cap and a cone's wall give none.
+#[test]
+fn selection_radius_of_round_faces() {
+    let mut s = session();
+    let tube = |s: &mut crate::Session, draft: f64| {
+        s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+        s.execute("circle", &json!({"center": [0, 0], "radius": 3})).unwrap();
+        let k = s.active_sketch.unwrap().0;
+        let out = s.execute("extrude", &json!({"sketch": k, "region": 0, "distance": 10, "draft": draft, "result": "new"})).unwrap();
+        out.value["body"].as_u64().unwrap()
+    };
+    let check = |s: &mut crate::Session, body: u64| -> (Option<f64>, usize) {
+        let b = s.doc.bodies.iter().find(|b| b.id.0 == body).unwrap();
+        let faces = b.mesh.triangle_faces.iter().max().copied().unwrap() + 1;
+        let mut found = None;
+        let mut flat = 0;
+        for face in 0..faces {
+            s.selection = vec![Pick::Face { body: shapecraft_doc::ItemId(body), face }];
+            match s.selection_radius() {
+                Some(r) => found = Some(r),
+                None => flat += 1,
+            }
+        }
+        (found, flat)
+    };
+    let cyl = tube(&mut s, 0.0);
+    let (r, others) = check(&mut s, cyl);
+    assert!((r.expect("the wall has a radius") - 3.0).abs() < 1e-4, "{r:?}");
+    assert_eq!(others, 2, "the two caps have none");
+    let cone = tube(&mut s, 10.0);
+    assert_eq!(check(&mut s, cone).0, None, "a drafted wall is a cone");
+    s.selection.clear();
+    assert_eq!(s.selection_radius(), None);
+}

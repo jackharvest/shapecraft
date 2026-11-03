@@ -451,6 +451,33 @@ impl Session {
         any.then_some(total)
     }
 
+    /// The radius of the one selected face when it is round with the same radius all over (a cylinder's wall or a
+    /// hole), for the selection pill ("1 face | ⊝ 5.6569 mm | ‹" in the reference, 26.202 s36). Cones, spheres and
+    /// anything else answer `None`.
+    pub fn selection_radius(&self) -> Option<f64> {
+        let [Pick::Face { body, face }] = self.selection[..] else { return None };
+        let b = self.doc.body(body)?;
+        if self.kernel.face_plane(&b.shape, face).ok().flatten().is_some() {
+            return None;
+        }
+        let axis = self.kernel.axis_of(&b.shape, shapecraft_kernel::SubShape::Face(face)).ok().flatten()?;
+        let dir = axis.dir.try_normalize()?;
+        let m = &b.mesh;
+        let (mut lo, mut hi) = (f64::MAX, f64::MIN);
+        for (t, f) in m.triangle_faces.iter().enumerate() {
+            if *f != face {
+                continue;
+            }
+            for k in 0..3 {
+                let p = glam::DVec3::from(m.positions[*m.indices.get(t * 3 + k)? as usize].map(f64::from));
+                let r = (p - axis.origin).reject_from_normalized(dir).length();
+                lo = lo.min(r);
+                hi = hi.max(r);
+            }
+        }
+        (hi >= lo && lo > 1e-6 && hi - lo <= 1e-4 * hi.max(1.0)).then_some((lo + hi) / 2.0)
+    }
+
     /// "1 face", "2 edges", "3 items" for the selection pill.
     pub fn selection_summary(&self) -> Option<String> {
         let n = self.selection.len();

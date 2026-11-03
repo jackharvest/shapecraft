@@ -259,7 +259,12 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
     {
         // Edges and sketch curves add their total length in an inner chip, and a round button that opens Measure
         // (as observed: "1 edge | ∿ 7.4 mm | ‹").
-        let length = ws.session.selection_length().map(|l| shapecraft_doc::format_length(l, ws.session.doc.units));
+        // A single round face shows its radius in the same chip instead ("1 face | ⊝ 5.6569 mm | ‹", 26.202 s36).
+        let units = ws.session.doc.units;
+        let (length, round) = match ws.session.selection_length() {
+            Some(l) => (Some(shapecraft_doc::format_length(l, units)), false),
+            None => (ws.session.selection_radius().map(|r| shapecraft_doc::format_length(r, units)), true),
+        };
         let g = p.layout_no_wrap(text.clone(), theme::body(11.0), Tokens::text());
         let lg = length.as_ref().map(|l| p.layout_no_wrap(l.clone(), theme::body(11.0), Tokens::text_strong()));
         // Two lines meeting at a corner add their angle before the length (s15-006: "2 edges | ∠ 120.9638° | ∿ …").
@@ -287,10 +292,18 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
         if let Some(lg) = lg {
             let chip = Rect::from_min_size(pos2(r.left() + g.size().x + 14.0 + angle_w, r.top() + 4.0), vec2(lg.size().x + 24.0, 18.0));
             p.rect_filled(chip, radius(9), theme::c(0x48484b));
-            // A small wave for "length".
-            let w0 = pos2(chip.left() + 5.0, chip.center().y);
-            let wave: Vec<Pos2> = (0..=12).map(|k| w0 + vec2(k as f32 * 0.85, -(k as f32 * 0.52).sin() * 2.2)).collect();
-            p.add(Shape::line(wave, Stroke::new(1.1, Tokens::text())));
+            if round {
+                // A radius mark: a circle with a stroke from its center to the rim.
+                let c = pos2(chip.left() + 10.0, chip.center().y);
+                p.circle_stroke(c, 5.5, Stroke::new(1.1, Tokens::text()));
+                p.circle_filled(c, 1.1, Tokens::text());
+                p.line_segment([c, c + vec2(5.5, 0.0)], Stroke::new(1.1, Tokens::text()));
+            } else {
+                // A small wave for "length".
+                let w0 = pos2(chip.left() + 5.0, chip.center().y);
+                let wave: Vec<Pos2> = (0..=12).map(|k| w0 + vec2(k as f32 * 0.85, -(k as f32 * 0.52).sin() * 2.2)).collect();
+                p.add(Shape::line(wave, Stroke::new(1.1, Tokens::text())));
+            }
             p.galley(pos2(chip.left() + 19.0, chip.center().y - lg.size().y / 2.0), lg, Tokens::text_strong());
             let knob = pos2(r.right() - 12.0, r.center().y);
             p.circle_stroke(knob, 6.5, Stroke::new(1.0, Tokens::text_dim()));
