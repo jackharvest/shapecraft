@@ -2,6 +2,19 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.5.3-alpha
+
+Fixed:
+- A sketch drawn on the ground over a part's top face, then pulled into the part, made a separate body. A shape
+  that lies wholly on a face now cuts when pushed in and joins when pulled out, just like one sketched on that
+  face. Only partly on the face still makes a new body. The Result badge and the step's card show the same choice.
+- Escape inside a sketch now steps back one layer at a time: it puts down the tool, then clears the selection,
+  then leaves the sketch. With nothing drawn yet, Escape leaves right away.
+- New projects opened a bit too close and slightly turned, so the same clicks made smaller parts than people
+  expect. The starting view now looks straight down the diagonal from a little farther back.
+- Clicking the middle of a cylinder's wall could select the far side of its bottom edge, hidden behind the wall.
+- Selecting a round face (a cylinder's wall, a hole) shows its radius at the bottom, next to "1 face".
+
 ## 0.5.2-alpha
 
 Fixed:
