@@ -26,6 +26,10 @@ jobs:
           if [ "$RUNNER_OS" = "Windows" ]; then root="$CONDA_PREFIX/Library"; echo "$root/bin" >> "$GITHUB_PATH"; else root="$CONDA_PREFIX"; fi
           echo "OCCT_INCLUDE_DIR=$root/include/opencascade" >> "$GITHUB_ENV"
           echo "OCCT_LIB_DIR=$root/lib" >> "$GITHUB_ENV"
+          # Tests load OCCT at run time too.
+          [ "$RUNNER_OS" = "Linux" ] && echo "LD_LIBRARY_PATH=$root/lib" >> "$GITHUB_ENV"
+          [ "$RUNNER_OS" = "macOS" ] && echo "DYLD_FALLBACK_LIBRARY_PATH=$root/lib" >> "$GITHUB_ENV"
+          true
       - run: cargo fmt --all --check
         if: runner.os == 'Linux'
       - run: cargo clippy --workspace -- -D warnings
