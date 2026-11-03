@@ -2,6 +2,14 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.5.4-alpha
+
+Fixed:
+- After an update, ShapeCraft could sit with no window for as long as macOS was waiting for you to allow access
+  to the Documents folder (where projects live), so it looked stuck. The window now opens right away, the home
+  screen says it's opening your projects folder, and it tells you to choose Allow if macOS asks. If access was
+  turned down, it says where to turn it back on instead of showing an empty home screen.
+
 ## 0.5.3-alpha
 
 Fixed:
