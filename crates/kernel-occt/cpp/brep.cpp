@@ -438,7 +438,8 @@ Handle(Geom_Curve) read_curve3(Rd& r, size_t kind) {
       GeomAPI_Interpolate in(pts, false, 1e-7);
       in.Perform();
       if (!in.IsDone()) throw Bad{"could not interpolate an intersection curve"};
-      return in.Curve();
+      // Spelled out: GCC won't turn the B-spline handle into the base handle on return.
+      return Handle(Geom_Curve)(in.Curve());
     }
   }
   throw Bad{"unknown curve kind"};

@@ -53,7 +53,9 @@ jobs:
           echo "$root/bin" >> "$GITHUB_PATH"
           echo "OCCT_INCLUDE_DIR=$root/include/opencascade" >> "$GITHUB_ENV"
           echo "OCCT_LIB_DIR=$root/lib" >> "$GITHUB_ENV"
+      # PowerShell, not bash: Git's bash puts its own link.exe ahead of Microsoft's linker.
       - run: cargo build --release --locked -p shapecraft -p shapecraft-cli
+        shell: pwsh
       - name: Inno Setup
         shell: pwsh
         run: if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }

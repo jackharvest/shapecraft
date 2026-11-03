@@ -2,6 +2,20 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.4.1-alpha
+
+The first public release.
+
+New (from 0.4.0, which was tagged but never published):
+- ShapeCraft keeps itself up to date: it checks for a new version when it starts and once a day, downloads it in the
+  background, and installs it when you close ShapeCraft (it asks first, or always, your choice).
+- Help ▸ Check for Updates…, and an Updates section in Preferences ▸ ShapeCraft.
+- Downloads for macOS (Apple silicon and Intel), Windows (installer and portable zip) and Linux (AppImage and
+  tar.gz), each with OpenCASCADE inside, and `SHA256SUMS.txt` to check them.
+
+Fixed:
+- The release builds on Linux (a C++ conversion GCC refused) and Windows (the linker).
+
 ## 0.4.0-alpha
 
 New:
