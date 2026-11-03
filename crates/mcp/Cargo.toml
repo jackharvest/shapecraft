@@ -1,0 +1,20 @@
+[package]
+name = "shapecraft-mcp"
+description = "Model Context Protocol server for ShapeCraft (headless, or bridged to the running app)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+shapecraft-kernel.workspace = true
+shapecraft-doc.workspace = true
+shapecraft-engine.workspace = true
+shapecraft-render.workspace = true
+serde_json.workspace = true
+png = "0.18"
+
+[dev-dependencies]
+shapecraft-kernel-occt.workspace = true
+
+[lints]
+workspace = true

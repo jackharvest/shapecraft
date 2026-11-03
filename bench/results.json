@@ -1,0 +1,1094 @@
+{
+  "categories": [
+    {
+      "key": "constraints",
+      "label": "Sketch constraints, dimensions & snapping",
+      "score": 1.0,
+      "tasks": 12,
+      "weight": 10.0
+    },
+    {
+      "key": "construction",
+      "label": "Construction geometry",
+      "score": 1.0,
+      "tasks": 11,
+      "weight": 4.0
+    },
+    {
+      "key": "drawings",
+      "label": "2D Drawings",
+      "score": 1.0,
+      "tasks": 10,
+      "weight": 4.0
+    },
+    {
+      "key": "history",
+      "label": "History & parametrics",
+      "score": 1.0,
+      "tasks": 30,
+      "weight": 12.0
+    },
+    {
+      "key": "io",
+      "label": "Import & export",
+      "score": 1.0,
+      "tasks": 9,
+      "weight": 6.0
+    },
+    {
+      "key": "items",
+      "label": "Items & organization",
+      "score": 1.0,
+      "tasks": 6,
+      "weight": 4.0
+    },
+    {
+      "key": "modeling",
+      "label": "Solid modeling tools",
+      "score": 1.0,
+      "tasks": 30,
+      "weight": 18.0
+    },
+    {
+      "key": "projects",
+      "label": "Projects, preferences, shortcuts & help",
+      "score": 0.9725,
+      "tasks": 8,
+      "weight": 4.0
+    },
+    {
+      "key": "selection",
+      "label": "Selection & inspection",
+      "score": 1.0,
+      "tasks": 7,
+      "weight": 6.0
+    },
+    {
+      "key": "sketch",
+      "label": "Sketch drawing tools",
+      "score": 0.9934782608695653,
+      "tasks": 23,
+      "weight": 14.0
+    },
+    {
+      "key": "transform",
+      "label": "Transform, pattern & align",
+      "score": 1.0,
+      "tasks": 11,
+      "weight": 7.0
+    },
+    {
+      "key": "viewport",
+      "label": "Viewport, navigation & display",
+      "score": 0.89,
+      "tasks": 5,
+      "weight": 8.0
+    },
+    {
+      "key": "visualization",
+      "label": "Visualization",
+      "score": 1.0,
+      "tasks": 8,
+      "weight": 3.0
+    }
+  ],
+  "overall": 0.9891869565217393,
+  "tasks": [
+    {
+      "category": "construction",
+      "name": "con-01-offset-plane-sketch",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "construction",
+      "name": "con-02-midplane-mirror",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "construction",
+      "name": "con-03-plane-3points",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "construction",
+      "name": "con-04-axis-revolve",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "construction",
+      "name": "con-06-plane-resize",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "construction",
+      "name": "con-07-plane-through-edge",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "construction",
+      "name": "con-08-plane-on-curve",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "construction",
+      "name": "con-09-axis-2planes-rotate",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "construction",
+      "name": "con-10-plane-perp-edge",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "construction",
+      "name": "con-11-plane-parallel-face",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "construction",
+      "name": "con-12-axis-perp-face",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "constraints",
+      "name": "cons-01-dimension-width",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "constraints",
+      "name": "cons-02-horizontal",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "constraints",
+      "name": "cons-03-equal-circles",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "constraints",
+      "name": "cons-04-perpendicular",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "constraints",
+      "name": "cons-05-radius",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "constraints",
+      "name": "cons-06-dim-keeps-rect",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "constraints",
+      "name": "cons-07-angle",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "constraints",
+      "name": "cons-08-ui-type-dimension",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "constraints",
+      "name": "cons-09-concentric",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "constraints",
+      "name": "cons-10-symmetry",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "constraints",
+      "name": "cons-11-linked-pattern",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "constraints",
+      "name": "cons-12-fully-defined",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "drawings",
+      "name": "draw-01-create-export",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "drawings",
+      "name": "draw-02-dimension",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "drawings",
+      "name": "draw-03-section-view",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "drawings",
+      "name": "draw-04-dwg",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "drawings",
+      "name": "draw-05-update",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "drawings",
+      "name": "draw-06-projected",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "drawings",
+      "name": "draw-07-detail",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "drawings",
+      "name": "draw-08-tolerance",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "drawings",
+      "name": "draw-09-view-bodies",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "drawings",
+      "name": "draw-10-four-views",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-01-edit-extrude-keeps-fillet",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-02-edit-under-hole",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-03-pushpull-after-renumber",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-04-suppress",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-05-delete-middle",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-06-variable",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-07-breakpoint",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-08-undo-redo-chain",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-09-edit-sketch-past",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-10-pattern-count",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-11-edit-breaks-downstream",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-12-long-chain",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-13-rename-and-merge",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-14-step-card-ui",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-15-edit-fillet-radius-after-shell",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-16-delete-sketch-used",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-17-chamfer-after-edit-width",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-18-edit-fillet-radius-after-hole",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-19-edit-hole-radius",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-20-suppress-hole",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-21-two-bodies",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-22-delete-first-hole",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-23-undo-edit",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-24-region-after-sketch-edit",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-25-reopen-then-edit",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-26-breakpoint-insert",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-27-offset-face-after-widen",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-28-chamfer-then-taller",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-29-shell-after-push",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "history",
+      "name": "hist-30-variable-chain",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "io",
+      "name": "io-dxf-sketch",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "io",
+      "name": "io-iges-roundtrip",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "io",
+      "name": "io-import-options",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "io",
+      "name": "io-obj-3mf-glb",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "io",
+      "name": "io-parasolid",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "io",
+      "name": "io-shapr-roundtrip",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "io",
+      "name": "io-step-roundtrip",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "io",
+      "name": "io-stl-roundtrip",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "io",
+      "name": "io-x_t-import",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "items",
+      "name": "items-01-rename",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "items",
+      "name": "items-02-hide-show",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "items",
+      "name": "items-03-folder",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "items",
+      "name": "items-04-delete",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "items",
+      "name": "items-05-nested-folder",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "items",
+      "name": "items-06-reorder",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-01-box-ui",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-02-pushpull-face",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-03-cut-hole",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-04-fillet-edge-ui",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-05-fillet-all",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-06-chamfer-ui",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-07-two-distance-chamfer",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-08-shell",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-09-revolve",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-10-loft",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-11-sweep",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-12-draft",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-13-symmetric",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-14-through-all",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-15-booleans",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-16-intersect",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-17-offset-face",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-18-split",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-19-g2-fillet",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-20-wrap-emboss",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-22-extrude-to-object",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-23-variable-fillet",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-24-fillet-chain-corner",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-25-fillet-curvature",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-25-fillet-setback",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-26-offset-face-radius",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-27-split-by-sketch",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-28-sweep-twist",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-29-revolve-ui",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "modeling",
+      "name": "model-30-chordal-fillet",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "projects",
+      "name": "proj-01-save-reopen",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "projects",
+      "name": "proj-02-rename",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "projects",
+      "name": "proj-03-units",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "projects",
+      "name": "proj-04-search",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "projects",
+      "name": "proj-05-theme",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "projects",
+      "name": "proj-06-language",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "projects",
+      "name": "proj-07-recents",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "selection",
+      "name": "sel-01-select-all",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "selection",
+      "name": "sel-02-measure-faces",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "selection",
+      "name": "sel-03-measure-volume",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "selection",
+      "name": "sel-04-click-deselect",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "selection",
+      "name": "sel-05-selection-filter",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "selection",
+      "name": "sel-06-interference",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "selection",
+      "name": "sel-07-tab-cycle",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-01-rect-typed",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-02-circle-typed",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-03-line-loop",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-04-drag-rect",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-05-polygon",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-06-circle-in-rect",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-07-trim",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-08-sketch-fillet",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-09-offset-region",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-10-ellipse",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-11-arc-slot",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-12-text",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-13-sketch-on-face",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-14-spline",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-15-project-edges",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-16-circle-two-clicks",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-17-line-typed-length",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-18-undo-in-sketch",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-19-change-sketch-plane",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-20-spline-break",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-21-text-font",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "sketch",
+      "name": "sketch-22-face-sketch-axes",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "viewport",
+      "name": "view-01-standard-views",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "viewport",
+      "name": "view-02-front",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "viewport",
+      "name": "view-03-section",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "visualization",
+      "name": "vis-01-appearance",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "visualization",
+      "name": "vis-02-face-color",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "visualization",
+      "name": "vis-03-decal",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "visualization",
+      "name": "vis-04-roughness",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "visualization",
+      "name": "vis-05-panorama",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "visualization",
+      "name": "vis-06-environment",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "visualization",
+      "name": "vis-07-custom-material",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "visualization",
+      "name": "vis-08-depth-of-field",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "transform",
+      "name": "xf-01-translate",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "transform",
+      "name": "xf-02-rotate",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "transform",
+      "name": "xf-03-mirror-copy",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "transform",
+      "name": "xf-04-linear-pattern",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "transform",
+      "name": "xf-05-circular-pattern",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "transform",
+      "name": "xf-06-scale",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "transform",
+      "name": "xf-07-scale-nonuniform",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "transform",
+      "name": "xf-08-align-face",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "transform",
+      "name": "xf-10-move-copies",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "transform",
+      "name": "xf-11-move-copy-count",
+      "notes": [],
+      "score": 1.0
+    },
+    {
+      "category": "transform",
+      "name": "xf-12-unlinked-copy",
+      "notes": [],
+      "score": 1.0
+    }
+  ]
+}

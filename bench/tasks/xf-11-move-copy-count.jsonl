@@ -1,0 +1,11 @@
+{"task": {"category": "transform", "about": "Copy count in the Move gizmo (Copy \u00d73)"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "select", "params": {"picks": [{"kind": "body", "body": 2}]}}}
+{"key": "M"}
+{"control": "engine.execute", "params": {"command": "translate", "params": {"by": [25, 0, 0], "items": [2], "copy": true, "copies": 3}}}
+{"expect": {"bodies": 4}}

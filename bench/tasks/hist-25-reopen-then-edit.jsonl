@@ -1,0 +1,14 @@
+{"task": {"category": "history", "about": "Save, reopen, then edit the first extrude: the fillet replays"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "fillet", "params": {"body": 2, "edges": ["@edge:2:10,0,10"], "radius": 2}}}
+{"control": "engine.execute", "params": {"command": "save", "params": {"path": "$TMP/h25"}}}
+{"control": "project.home", "params": {}}
+{"control": "project.open", "params": {"path": "$TMP/h25"}}
+{"wait": 0.3}
+{"control": "engine.execute", "params": {"command": "edit_step", "params": {"step": 1, "params": {"distance": 15}}}}
+{"expect": {"failed_steps": 0, "volume": 2982.8318530717956}}

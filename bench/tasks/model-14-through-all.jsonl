@@ -1,0 +1,12 @@
+{"task": {"category": "modeling", "about": "Through All cut from a sketch above the part"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "offset_plane", "params": {"from": "xy", "distance": 30}}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"construction": 3}}}
+{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [10, 5], "radius": 2}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 4, "region": 0, "distance": -1, "extent": "through_all", "result": "subtract"}}}
+{"expect": {"bodies": 1, "volume": 1874.3362938564082}}

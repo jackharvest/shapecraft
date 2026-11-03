@@ -1,0 +1,8 @@
+{"task": {"category": "constraints", "about": "Changing one side keeps the rectangle a rectangle (perpendicular kept)"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "constrain", "params": {"kind": "distance", "entities": [1], "value": 15}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 1}}}
+{"expect": {"volume": 300}}

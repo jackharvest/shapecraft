@@ -1,0 +1,13 @@
+{"task": {"category": "transform", "about": "Align a box's bottom onto another box's top"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [40, 0], "opposite": [45, 5]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 3, "region": 0, "distance": 5}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "align", "params": {"from": {"body": 4, "face": 4}, "to": {"body": 2, "face": 5}}}}
+{"expect": {"bounds": [[0, 0, 0], [20, 10, 15]]}}

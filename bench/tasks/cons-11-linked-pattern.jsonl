@@ -1,0 +1,11 @@
+{"task": {"category": "constraints", "about": "A sketch pattern stays linked: making the source circle bigger makes the copies bigger"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [0, 0], "radius": 1}}}
+{"control": "engine.execute", "params": {"command": "select", "params": {"picks": [{"kind": "sketch_entity", "sketch": 1, "entity": 0}]}}}
+{"control": "engine.execute", "params": {"command": "pattern", "params": {"direction": [1, 0, 0], "spacing": 5, "count": 3}}}
+{"expect": {"regions": 3}}
+{"control": "engine.execute", "params": {"command": "set_entity", "params": {"sketch": 1, "entity": 0, "value": {"type": "circle", "center": [0, 0], "radius": 2}}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "regions": [0, 1, 2], "distance": 1}}}
+{"expect": {"volume": 37.69911184307752}}

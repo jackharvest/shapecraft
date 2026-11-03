@@ -1,0 +1,10 @@
+{"task": {"category": "drawings", "about": "Four standard views on an A4 sheet, first-angle"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "create_drawing", "params": {"bodies": [2], "sheet": "A4", "four_views": true, "first_angle": true}}, "save": {"name": "dr", "at": "/drawing"}}
+{"control": "engine.execute", "params": {"command": "export_drawing", "params": {"drawing": "$dr", "path": "$TMP/f.pdf"}}}
+{"expect": {"file": "$TMP/f.pdf"}}

@@ -1,0 +1,24 @@
+name: Feature request
+description: Something you wanted to make and couldn't, or a tool that should work differently
+labels: [enhancement]
+body:
+  - type: textarea
+    id: part
+    attributes:
+      label: What were you trying to make?
+      description: The part or job you had in mind. Real parts steer the roadmap.
+    validations:
+      required: true
+  - type: textarea
+    id: wish
+    attributes:
+      label: What would help
+      description: The tool, option or behaviour you'd like, and how you'd expect it to feel.
+    validations:
+      required: true
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Where do you use ShapeCraft?
+      multiple: true
+      options: [macOS, Windows, Linux, "Want: iPad / iPhone", "Want: Android tablet", "Want: browser", "Want: Proxmox / server"]

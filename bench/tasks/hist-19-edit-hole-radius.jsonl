@@ -1,0 +1,15 @@
+{"task": {"category": "history", "about": "Edit the hole's sketch (circle 2 \u2192 3) under a later fillet"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"body": 2, "face": "@face:2:10,5,10"}}}
+{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [0, 0], "radius": 2}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 3, "region": 0, "distance": -10}}}
+{"control": "engine.execute", "params": {"command": "fillet", "params": {"body": 2, "edges": ["@edge:2:10,0,10"], "radius": 1}}}
+{"control": "engine.execute", "params": {"command": "edit_sketch_step", "params": {"step": 2}}}
+{"control": "engine.execute", "params": {"command": "set_entity", "params": {"sketch": 3, "entity": 0, "value": {"type": "circle", "center": [0, 0], "radius": 3}}}}
+{"control": "engine.execute", "params": {"command": "exit_sketching", "params": {}}}
+{"expect": {"failed_steps": 0, "volume": 1712.9646244448677}}

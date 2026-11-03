@@ -1,0 +1,27 @@
+ShapeCraft
+Copyright (c) 2026 the ShapeCraft contributors.
+Licensed under the MIT License or the Apache License, Version 2.0, at your option
+(LICENSE-MIT, LICENSE-APACHE).
+
+Third-party material
+
+Open CASCADE Technology (https://dev.opencascade.org) is the geometry kernel. It is licensed under the
+GNU Lesser General Public License 2.1 with the Open CASCADE exception. ShapeCraft links it dynamically and
+does not modify it: the release packages carry its libraries unchanged, together with its licence text, and
+you may replace those libraries with your own build of the same version. Its source is available from the
+address above. Only the crates/kernel-occt crate (a C++ shim plus FFI) touches it; the rest of ShapeCraft
+reaches geometry through the kernel-neutral traits in crates/kernel.
+
+Software dependencies are listed in Cargo.lock, each under its own licence.
+
+Icons are drawn in code. Every file asset (images, fonts, materials) is listed with its author, source and
+licence in ATTRIBUTION.md.
+
+File formats are implemented from public specifications and from files ShapeCraft's contributors made
+themselves: STEP and IGES through Open CASCADE, Parasolid XT from the vendor's published "Parasolid XT
+Format Reference", DWG from the Open Design Alliance's published specification, and the .shapr project
+format for interoperability only. No vendor code, SDK or library is included or linked.
+
+ShapeCraft is an independent project. It is not affiliated with, sponsored by or endorsed by Shapr3D Zrt.,
+Siemens, Autodesk, the Open Design Alliance or any other CAD vendor. Shapr3D, Parasolid, AutoCAD and DWG
+are trademarks of their respective owners and are named only to describe file compatibility.

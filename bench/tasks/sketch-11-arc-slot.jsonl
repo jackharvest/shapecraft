@@ -1,0 +1,10 @@
+{"task": {"category": "sketch", "about": "Two lines and two 3-point arcs make a slot region"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "line", "params": {"a": [0, 0], "b": [20, 0]}}}
+{"control": "engine.execute", "params": {"command": "line", "params": {"a": [0, 10], "b": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "arc", "params": {"a": [20, 0], "mid": [25, 5], "b": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "arc", "params": {"a": [0, 10], "mid": [-5, 5], "b": [0, 0]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 1}}}
+{"expect": {"regions": 1, "volume": 278.53981633974485}}

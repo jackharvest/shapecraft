@@ -1,0 +1,11 @@
+{"task": {"category": "visualization", "about": "Aluminum appearance on a body"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "set_appearance", "params": {"items": [2], "appearance": "Aluminum"}}}
+{"control": "ui.toggle", "params": {"panel": "visualization"}}
+{"wait": 0.3}
+{"expect": {"bodies": 1}}

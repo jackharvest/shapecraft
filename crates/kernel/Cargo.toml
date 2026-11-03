@@ -1,0 +1,13 @@
+[package]
+name = "shapecraft-kernel"
+description = "Kernel-neutral solid modeling interface for ShapeCraft"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+glam.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

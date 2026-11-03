@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=ShapeCraft
+GenericName=3D CAD
+Comment=Local-first direct-modeling CAD
+Exec=shapecraft
+Icon=shapecraft
+Terminal=false
+Categories=Graphics;3DGraphics;Engineering;
+Keywords=CAD;3D;modeling;STEP;STL;
+StartupWMClass=shapecraft

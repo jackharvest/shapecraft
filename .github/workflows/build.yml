@@ -1,0 +1,34 @@
+# Builds and tests on Linux, macOS and Windows. OCCT comes from conda-forge so every platform gets the same 7.8+.
+name: build
+on: [push, pull_request]
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mamba-org/setup-micromamba@v2
+        with:
+          environment-name: occt
+          create-args: occt=7.9
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Window libraries (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev
+      - name: Point the build at OCCT
+        run: |
+          if [ "$RUNNER_OS" = "Windows" ]; then root="$CONDA_PREFIX/Library"; echo "$root/bin" >> "$GITHUB_PATH"; else root="$CONDA_PREFIX"; fi
+          echo "OCCT_INCLUDE_DIR=$root/include/opencascade" >> "$GITHUB_ENV"
+          echo "OCCT_LIB_DIR=$root/lib" >> "$GITHUB_ENV"
+      - run: cargo fmt --all --check
+        if: runner.os == 'Linux'
+      - run: cargo clippy --workspace -- -D warnings
+        if: runner.os == 'Linux'
+      - run: cargo build --workspace
+      - run: cargo test --workspace

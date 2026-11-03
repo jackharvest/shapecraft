@@ -1,0 +1,13 @@
+{"task": {"category": "history", "about": "Width and depth variables drive two steps; change both"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "set_variable", "params": {"name": "h", "value": "10 mm"}}}
+{"control": "engine.execute", "params": {"command": "set_variable", "params": {"name": "r", "value": "h / 5"}}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "edit_step", "params": {"step": 1, "params": {"distance": "h"}}}}
+{"control": "engine.execute", "params": {"command": "fillet", "params": {"body": 2, "edges": ["@edge:2:10,0,10"], "radius": "r"}}}
+{"control": "engine.execute", "params": {"command": "set_variable", "params": {"name": "h", "value": "20 mm"}}}
+{"expect": {"failed_steps": 0, "volume": 3931.3274122871835}}

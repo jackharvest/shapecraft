@@ -1,0 +1,10 @@
+{"task": {"category": "viewport", "about": "Top view looks straight down"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "ui.view", "params": {"view": "top"}}
+{"wait": 1.0}
+{"control": "ui.state", "params": {}, "returns": {"at": "/camera/pitch", "near": 1.5707963267948966, "tol": 0.01}}

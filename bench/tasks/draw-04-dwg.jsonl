@@ -1,0 +1,10 @@
+{"task": {"category": "drawings", "about": "Export DWG"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "create_drawing", "params": {"bodies": [2]}}}
+{"control": "engine.execute", "params": {"command": "export_drawing", "params": {"drawing": 3, "path": "$TMP/d.dwg"}}}
+{"expect": {"file": "$TMP/d.dwg"}}

@@ -1,0 +1,260 @@
+//! Putting a staged update in place. Files in use can't be swapped safely from inside the running app (Windows
+//! locks them; elsewhere a half-swapped app could load a mix), so a small helper script waits for ShapeCraft to
+//! close, swaps the new version in (keeping the old one until the new one is in place), then starts it again if
+//! asked. Its log is `update.log` in the updates folder.
+//!
+//! | Installed as | Swap |
+//! |---|---|
+//! | macOS `.app` | move the old bundle aside, move the new one in, remove the old |
+//! | Windows installer | run the new setup program silently (it updates the same folder and the uninstaller) |
+//! | Windows portable zip | copy the new files over the folder |
+//! | AppImage | move the new AppImage over the old file |
+//! | Linux download folder | move the old folder aside, move the new one in, remove the old |
+
+use std::ffi::OsString;
+use std::path::Path;
+
+use crate::install::Install;
+
+/// Starts the helper. ShapeCraft must close straight after (the helper waits for it, up to three minutes).
+pub fn launch(install: &Install, staged: &Path, version_dir: &Path, log: &Path, restart: bool, args: &[OsString]) -> Result<(), String> {
+    let pid = std::process::id();
+    let args: Vec<String> = args.iter().map(|a| a.to_string_lossy().into_owned()).collect();
+    if cfg!(windows) {
+        let script = windows_script(install, staged, version_dir, log, pid, restart, &args)?;
+        spawn_windows(&script)
+    } else {
+        let script = unix_script(install, staged, version_dir, log, pid, restart, &args)?;
+        let file = version_dir.parent().unwrap_or(version_dir).join("update-helper.sh");
+        std::fs::write(&file, script).map_err(|e| format!("couldn't write the update helper: {e}"))?;
+        spawn_unix(&file)
+    }
+}
+
+/// A POSIX shell word.
+fn sq(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "'\\''"))
+}
+
+fn p(path: &Path) -> String {
+    sq(&path.to_string_lossy())
+}
+
+/// Swaps a folder or bundle: the old one moves aside until the new one is in, and comes back if it can't be.
+fn swap(target: &Path, new: &Path) -> String {
+    let (t, n) = (p(target), p(new));
+    let old = sq(&format!("{}.previous", target.to_string_lossy()));
+    format!(
+        "rm -rf {old}\nmv {t} {old} || {{ echo \"couldn't move the old version aside\"; exit 1; }}\n\
+         if ! mv {n} {t}; then rm -rf {t}; mv {old} {t}; echo \"couldn't put the new version in place; kept the old one\"; exit 1; fi\n\
+         rm -rf {old}\n"
+    )
+}
+
+pub(crate) fn unix_script(
+    install: &Install,
+    staged: &Path,
+    version_dir: &Path,
+    log: &Path,
+    pid: u32,
+    restart: bool,
+    args: &[String],
+) -> Result<String, String> {
+    let words = args.iter().map(|a| sq(a)).collect::<Vec<_>>().join(" ");
+    let (steps, relaunch) = match install {
+        Install::MacApp(bundle) => (swap(bundle, staged), format!("open {} --args {words}", p(bundle))),
+        Install::AppImage(image) => (
+            format!("chmod +x {s}\nmv -f {s} {i} || {{ echo \"couldn't replace the AppImage\"; exit 1; }}\n", s = p(staged), i = p(image)),
+            format!("env -u APPIMAGE -u APPDIR -u OWD -u ARGV0 {} {words} >/dev/null 2>&1 &", p(image)),
+        ),
+        Install::LinuxFolder(root) => {
+            (swap(root, staged), format!("{} {words} >/dev/null 2>&1 &", p(&root.join("bin").join("shapecraft"))))
+        }
+        _ => return Err("updates can't install themselves here".into()),
+    };
+    let relaunch = if restart { relaunch } else { String::new() };
+    Ok(format!(
+        "#!/bin/sh\n# ShapeCraft's update helper: waits for ShapeCraft to close, then swaps in the new version.\n\
+         exec >>{log} 2>&1\necho \"== $(date): updating ShapeCraft\"\nn=0\n\
+         while kill -0 {pid} 2>/dev/null; do n=$((n+1)); [ $n -gt 900 ] && {{ echo \"ShapeCraft didn't close; nothing changed\"; exit 1; }}; sleep 0.2; done\n\
+         {steps}echo \"updated\"\nrm -rf {dir}\ncd \"$HOME\" 2>/dev/null\n{relaunch}\n",
+        log = p(log),
+        dir = p(version_dir),
+    ))
+}
+
+/// A PowerShell string.
+fn pq(s: &str) -> String {
+    format!("'{}'", s.replace('\'', "''"))
+}
+
+pub(crate) fn windows_script(
+    install: &Install,
+    staged: &Path,
+    version_dir: &Path,
+    log: &Path,
+    pid: u32,
+    restart: bool,
+    args: &[String],
+) -> Result<String, String> {
+    let s = |path: &Path| pq(&path.to_string_lossy());
+    let (steps, exe) = match install {
+        Install::WindowsInstalled(dir) => (
+            format!(
+                "$r = Start-Process -FilePath {} -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CURRENTUSER','/NOCANCEL' -Wait -PassThru\n\
+                 if ($r.ExitCode -ne 0) {{ throw \"the setup program stopped with code $($r.ExitCode)\" }}\n",
+                s(staged)
+            ),
+            dir.join("shapecraft.exe"),
+        ),
+        Install::WindowsPortable(dir) => (
+            format!(
+                "& robocopy {} {} /E /R:10 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null\n\
+                 if ($LASTEXITCODE -ge 8) {{ throw \"copying the new files failed (robocopy $LASTEXITCODE)\" }}\n",
+                s(staged),
+                s(dir)
+            ),
+            dir.join("shapecraft.exe"),
+        ),
+        _ => return Err("updates can't install themselves here".into()),
+    };
+    let relaunch = if !restart {
+        String::new()
+    } else if args.is_empty() {
+        format!("Start-Process -FilePath {}\n", s(&exe))
+    } else {
+        let list = args.iter().map(|a| pq(&format!("\"{}\"", a.replace('"', "\\\"")))).collect::<Vec<_>>().join(",");
+        format!("Start-Process -FilePath {} -ArgumentList {list}\n", s(&exe))
+    };
+    Ok(format!(
+        "$ErrorActionPreference = 'Stop'\n$log = {log}\n\
+         function Say($m) {{ Add-Content -LiteralPath $log -Value ((Get-Date -Format s) + ' ' + $m) }}\n\
+         try {{\nSay 'updating ShapeCraft'\n\
+         $p = Get-Process -Id {pid} -ErrorAction SilentlyContinue\n\
+         if ($p -and -not $p.WaitForExit(180000)) {{ Say \"ShapeCraft didn't close; nothing changed\"; exit 1 }}\n\
+         Start-Sleep -Milliseconds 500\n{steps}Say 'updated'\n\
+         Remove-Item -LiteralPath {dir} -Recurse -Force -ErrorAction SilentlyContinue\n{relaunch}}} catch {{ Say ('failed: ' + $_); exit 1 }}\n",
+        log = s(log),
+        dir = s(version_dir),
+    ))
+}
+
+#[cfg(unix)]
+fn spawn_unix(script: &Path) -> Result<(), String> {
+    use std::os::unix::process::CommandExt;
+    std::process::Command::new("/bin/sh")
+        .arg(script)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .process_group(0)
+        .spawn()
+        .map(|_| ())
+        .map_err(|e| format!("couldn't start the update helper: {e}"))
+}
+
+#[cfg(not(unix))]
+fn spawn_unix(_script: &Path) -> Result<(), String> {
+    Err("no shell here".into())
+}
+
+/// Runs the script in a hidden PowerShell, passed as an encoded command (so no script file and no execution policy is
+/// involved), in its own process group, out of any job ShapeCraft runs in.
+#[cfg(windows)]
+fn spawn_windows(script: &str) -> Result<(), String> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    const CREATE_NEW_PROCESS_GROUP: u32 = 0x0000_0200;
+    const CREATE_BREAKAWAY_FROM_JOB: u32 = 0x0100_0000;
+    let utf16: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
+    let encoded = base64(&utf16);
+    let shell = std::env::var_os("SystemRoot").map_or_else(
+        || std::path::PathBuf::from("powershell.exe"),
+        |r| std::path::PathBuf::from(r).join(r"System32\WindowsPowerShell\v1.0\powershell.exe"),
+    );
+    let start = |flags: u32| {
+        std::process::Command::new(&shell)
+            .args(["-NoProfile", "-NonInteractive", "-WindowStyle", "Hidden", "-EncodedCommand", &encoded])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .creation_flags(flags)
+            .spawn()
+    };
+    start(CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP | CREATE_BREAKAWAY_FROM_JOB)
+        .or_else(|_| start(CREATE_NO_WINDOW | CREATE_NEW_PROCESS_GROUP))
+        .map(|_| ())
+        .map_err(|e| format!("couldn't start the update helper: {e}"))
+}
+
+#[cfg(not(windows))]
+fn spawn_windows(_script: &str) -> Result<(), String> {
+    Err("not Windows".into())
+}
+
+#[cfg_attr(not(windows), allow(dead_code))]
+fn base64(bytes: &[u8]) -> String {
+    const T: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(bytes.len().div_ceil(3) * 4);
+    for chunk in bytes.chunks(3) {
+        let b = [chunk.first().copied().unwrap_or(0), chunk.get(1).copied().unwrap_or(0), chunk.get(2).copied().unwrap_or(0)];
+        let n = (u32::from(b[0]) << 16) | (u32::from(b[1]) << 8) | u32::from(b[2]);
+        for (i, shift) in [18, 12, 6, 0].into_iter().enumerate() {
+            if i <= chunk.len() {
+                out.push(char::from(T[((n >> shift) & 63) as usize]));
+            } else {
+                out.push('=');
+            }
+        }
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    use std::path::PathBuf;
+
+    use super::*;
+
+    #[test]
+    fn base64_matches_the_standard() {
+        assert_eq!(base64(b""), "");
+        assert_eq!(base64(b"f"), "Zg==");
+        assert_eq!(base64(b"fo"), "Zm8=");
+        assert_eq!(base64(b"foo"), "Zm9v");
+        assert_eq!(base64(b"foobar"), "Zm9vYmFy");
+    }
+
+    #[test]
+    fn shell_words_survive_quotes() {
+        assert_eq!(sq("it's"), r"'it'\''s'");
+        assert_eq!(pq("it's"), "'it''s'");
+    }
+
+    #[test]
+    fn scripts_swap_and_relaunch() {
+        let app = Install::MacApp(PathBuf::from("/Applications/ShapeCraft.app"));
+        let s = unix_script(
+            &app,
+            Path::new("/c/0.4.1/ShapeCraft.app"),
+            Path::new("/c/0.4.1"),
+            Path::new("/c/update.log"),
+            42,
+            true,
+            &["--control".into(), "4".into()],
+        )
+        .unwrap_or_default();
+        assert!(s.contains("kill -0 42"));
+        assert!(s.contains("mv '/Applications/ShapeCraft.app' '/Applications/ShapeCraft.app.previous'"));
+        assert!(s.contains("open '/Applications/ShapeCraft.app' --args '--control' '4'"));
+        let quiet = unix_script(&app, Path::new("/n"), Path::new("/c"), Path::new("/l"), 1, false, &[]).unwrap_or_default();
+        assert!(!quiet.contains("open "));
+        let win = Install::WindowsInstalled(PathBuf::from(r"C:\Users\O'Neil\AppData\Local\Programs\ShapeCraft"));
+        let w = windows_script(&win, Path::new(r"C:\c\setup.exe"), Path::new(r"C:\c"), Path::new(r"C:\c\log"), 7, true, &[])
+            .unwrap_or_default();
+        assert!(w.contains("Get-Process -Id 7"));
+        assert!(w.contains("'/VERYSILENT'"));
+        assert!(w.contains(r"Start-Process -FilePath 'C:\Users\O''Neil\AppData\Local\Programs\ShapeCraft"));
+        assert!(windows_script(&Install::Dev, Path::new("x"), Path::new("x"), Path::new("x"), 1, true, &[]).is_err());
+    }
+}

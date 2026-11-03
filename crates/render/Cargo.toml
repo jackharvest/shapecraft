@@ -1,0 +1,18 @@
+[package]
+name = "shapecraft-render"
+description = "ShapeCraft viewport: camera, wgpu renderer, picking"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+shapecraft-doc.workspace = true
+shapecraft-kernel.workspace = true
+glam.workspace = true
+wgpu = "30"
+bytemuck = { version = "1", features = ["derive"] }
+pollster = "1"
+thiserror.workspace = true
+
+[lints]
+workspace = true

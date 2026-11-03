@@ -1,0 +1,12 @@
+{"task": {"category": "construction", "about": "Plane through an edge at 45\u00b0, sketch on it"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "plane_through_edge", "params": {"body": 2, "edge": "@edge:2:10,0,10", "angle": 45}}, "save": {"name": "p", "at": "/plane"}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"construction": "$p"}}, "save": {"name": "sk", "at": "/sketch"}}
+{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [0, 0], "radius": 1}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": "$sk", "region": 0, "distance": 1, "result": "new"}}}
+{"expect": {"bodies": 2}}

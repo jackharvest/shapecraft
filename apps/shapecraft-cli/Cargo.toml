@@ -1,0 +1,20 @@
+[package]
+name = "shapecraft-cli"
+description = "Command-line tools for ShapeCraft"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+shapecraft-kernel.workspace = true
+shapecraft-kernel-occt.workspace = true
+anyhow.workspace = true
+shapecraft-doc.workspace = true
+shapecraft-engine.workspace = true
+shapecraft-render.workspace = true
+serde_json.workspace = true
+png = "0.18"
+shapecraft-mcp.workspace = true
+
+[lints]
+workspace = true

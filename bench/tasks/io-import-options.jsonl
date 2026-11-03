@@ -1,0 +1,11 @@
+{"task": {"category": "io", "about": "Import an STL whose numbers are inches (import options: Unit)"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "export_stl", "params": {"path": "$TMP/o.stl"}}}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "import_file", "params": {"path": "$TMP/o.stl", "units": "in"}}}
+{"expect": {"bodies": 1, "volume": [32774127.999999996, 0.01]}}

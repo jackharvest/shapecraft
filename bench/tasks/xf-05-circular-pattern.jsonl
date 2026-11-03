@@ -1,0 +1,9 @@
+{"task": {"category": "transform", "about": "Circular pattern of 6 around Z"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [20, 0], "opposite": [24, 4]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 4}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "pattern_circular", "params": {"origin": [0, 0, 0], "axis": [0, 0, 1], "count": 6, "angle": 360, "items": [2]}}}
+{"expect": {"bodies": 6, "volume": 384}}

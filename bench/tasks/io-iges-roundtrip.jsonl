@@ -1,0 +1,12 @@
+{"task": {"category": "io", "about": "Export IGES, import it into a new project: same volume"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "export_iges", "params": {"path": "$TMP/b.iges"}}}
+{"expect": {"file": "$TMP/b.iges"}}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "import_file", "params": {"path": "$TMP/b.iges"}}}
+{"expect": {"bodies": 1, "volume": [2000, 0.01]}}

@@ -1,0 +1,10 @@
+{"task": {"category": "visualization", "about": "Pick another studio environment and turn the light"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "ui.toggle", "params": {"panel": "visualization"}}
+{"control": "engine.execute", "params": {"command": "visual_settings", "params": {"environment": 3, "light_rotation": 90, "sun_elevation": 40}}}
+{"expect": {"bodies": 1}}

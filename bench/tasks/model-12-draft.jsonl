@@ -1,0 +1,7 @@
+{"task": {"category": "modeling", "about": "Extrude with a 10\u00b0 draft"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 20]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 5, "draft": 10}}}
+{"expect": {"volume": 1828.854886645829}}

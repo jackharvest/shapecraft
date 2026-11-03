@@ -1,0 +1,5 @@
+{"task": {"category": "projects", "about": "Light theme"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "ui.theme", "params": {"theme": "Light"}}
+{"control": "ui.state", "params": {}, "returns": {"at": "/screen", "is": "workspace"}}

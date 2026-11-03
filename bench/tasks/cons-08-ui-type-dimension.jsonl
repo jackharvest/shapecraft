@@ -1,0 +1,22 @@
+{"task": {"category": "constraints", "about": "Click a rectangle's dimension in the sketch and type a new value"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "ui.view", "params": {"view": "top"}}
+{"wait": 0.8}
+{"key": "R"}
+{"click": [0, 0, 0]}
+{"hover": [3, 3, 0]}
+{"text": "20"}
+{"key": "Tab"}
+{"text": "10"}
+{"key": "Enter"}
+{"wait": 0.3}
+{"key": "Escape"}
+{"click": [10, 12.5, 0]}
+{"wait": 0.2}
+{"text": "30"}
+{"key": "Enter"}
+{"wait": 0.3}
+{"control": "engine.execute", "params": {"command": "exit_sketching", "params": {}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 1}}}
+{"expect": {"volume": 300}}

@@ -1,0 +1,8 @@
+{"task": {"category": "selection", "about": "Measure a body: its volume"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "measure", "params": {"picks": [{"kind": "body", "body": 2}]}}, "returns": {"at": "/items/0/volume_mm3", "near": 2000}}

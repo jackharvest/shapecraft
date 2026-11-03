@@ -1,0 +1,19 @@
+{"task": {"category": "modeling", "about": "Union, then Subtract a third box"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [10, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 3, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [2, 2], "opposite": [6, 6]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 5, "region": 0, "distance": 30}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "union", "params": {"target": 2, "tools": [4]}}}
+{"expect": {"bodies": 2}}
+{"control": "engine.execute", "params": {"command": "subtract", "params": {"target": 2, "tools": [6]}}}
+{"expect": {"bodies": 1, "volume": 1840}}

@@ -1,0 +1,12 @@
+[package]
+name = "shapecraft-dwg"
+description = "DWG (AutoCAD R2000) drawing writer, from the Open Design Alliance's published .dwg specification"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+thiserror.workspace = true
+
+[lints]
+workspace = true

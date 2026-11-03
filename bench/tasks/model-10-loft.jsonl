@@ -1,0 +1,10 @@
+{"task": {"category": "modeling", "about": "Loft a 20 square at z=0 to a 10 square at z=10"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"center": [0, 0], "size": [20, 20]}}}
+{"control": "engine.execute", "params": {"command": "offset_plane", "params": {"from": "xy", "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"construction": 2}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"center": [0, 0], "size": [10, 10]}}}
+{"control": "engine.execute", "params": {"command": "loft", "params": {"profiles": [{"sketch": 1, "region": 0}, {"sketch": 3, "region": 0}]}}}
+{"expect": {"bodies": 1, "volume": 2333.3333333333335}}

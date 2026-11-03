@@ -1,0 +1,10 @@
+{"task": {"category": "sketch", "about": "A line across a rectangle, then Trim the piece outside: two regions"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "line", "params": {"a": [10, -5], "b": [10, 15]}}}
+{"expect": {"regions": 2}}
+{"control": "engine.execute", "params": {"command": "trim", "params": {"entity": 4, "at": [10, -2]}}}
+{"control": "engine.execute", "params": {"command": "trim", "params": {"entity": 4, "at": [10, 12]}}}
+{"expect": {"regions": 2}}

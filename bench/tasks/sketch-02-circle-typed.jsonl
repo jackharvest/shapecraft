@@ -1,0 +1,20 @@
+{"task": {"category": "sketch", "about": "C, click the center, type the diameter 10; extrude 10"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "ui.view", "params": {"view": "top"}}
+{"wait": 0.8}
+{"key": "C"}
+{"click": [0, 0, 0]}
+{"hover": [3, 3, 0]}
+{"text": "10"}
+{"key": "Enter"}
+{"wait": 0.3}
+{"expect": {"regions": 1}}
+{"key": "Escape"}
+{"click": [1, 1, 0]}
+{"wait": 0.3}
+{"key": "E"}
+{"text": "10"}
+{"key": "Enter"}
+{"wait": 0.3}
+{"expect": {"volume": 785.3981633974483}}

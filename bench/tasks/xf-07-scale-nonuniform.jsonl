@@ -1,0 +1,9 @@
+{"task": {"category": "transform", "about": "Scale only along X by 3"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "scale", "params": {"factors": [3, 1, 1], "center": [0, 0, 0], "items": [2]}}}
+{"expect": {"volume": 6000}}

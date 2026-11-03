@@ -1,0 +1,7 @@
+{"task": {"category": "constraints", "about": "Horizontal on a slanted line levels it"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "line", "params": {"a": [0, 0], "b": [10, 1]}}}
+{"control": "engine.execute", "params": {"command": "constrain", "params": {"kind": "horizontal_vertical", "entities": [0]}}}
+{"control": "engine.execute", "params": {"command": "inspect"}, "returns": {"at": "/sketches/0/entities/0/b/1", "same": "/sketches/0/entities/0/a/1"}}

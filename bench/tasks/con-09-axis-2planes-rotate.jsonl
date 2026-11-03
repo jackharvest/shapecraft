@@ -1,0 +1,10 @@
+{"task": {"category": "construction", "about": "Axis where XY and XZ meet (the X axis), rotate a body 90\u00b0 around it"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "axis_2planes", "params": {"a": "xy", "b": "xz"}}, "save": {"name": "ax", "at": "/axis"}}
+{"control": "engine.execute", "params": {"command": "rotate", "params": {"about": {"axis": "$ax"}, "angle": 90, "items": [2]}}}
+{"expect": {"bounds": [[0, -10, 0], [20, 0, 10]]}}

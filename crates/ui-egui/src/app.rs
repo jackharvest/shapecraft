@@ -1,0 +1,1584 @@
+//! The application: projects screen ⇄ workspace, autosave, files, and the control channel.
+
+use std::path::PathBuf;
+use std::sync::Arc;
+
+use serde_json::{Value, json};
+use shapecraft_doc::project;
+use shapecraft_engine::Session;
+use shapecraft_kernel::Kernel;
+use shapecraft_render::{SceneColors, SceneInput, StandardView};
+
+use crate::control::{Request, Server};
+use crate::landing::{Landing, LandingAction};
+use crate::menubar::{AppAction, MenuAction, MenuBar, MenuState};
+use crate::theme;
+use crate::workspace::export::{ExportDialog, Format};
+use crate::workspace::{Tool, Workspace};
+
+#[derive(Clone)]
+pub struct Options {
+    pub projects_root: PathBuf,
+    pub control_port: Option<u16>,
+    /// Open this project folder straight away.
+    pub open: Option<PathBuf>,
+    /// Start in a new, empty project (handy for scripted snapshots).
+    pub new_project: bool,
+    /// Install the native menu bar (the desktop app; not offscreen snapshots).
+    pub native_menu: bool,
+    /// Where preferences are read and saved (none: defaults, never saved).
+    pub settings_file: Option<PathBuf>,
+}
+
+impl Options {
+    pub fn default_root() -> PathBuf {
+        // SHAYPER3D_PROJECTS and ~/Documents/Shayper3D are the names from before the rename.
+        if let Some(p) = std::env::var_os("SHAPECRAFT_PROJECTS").or_else(|| std::env::var_os("SHAYPER3D_PROJECTS")) {
+            return PathBuf::from(p);
+        }
+        let docs = dirs::document_dir().or_else(dirs::home_dir).unwrap_or_else(|| PathBuf::from("."));
+        let (root, old) = (docs.join("ShapeCraft"), docs.join("Shayper3D"));
+        // Move the old projects folder once; if it can't be moved, keep using it where it is.
+        if !root.exists() && old.is_dir() && std::fs::rename(&old, &root).is_err() {
+            return old;
+        }
+        root
+    }
+}
+
+/// Set when the graphics driver reports the device lost, from whichever thread noticed.
+static GPU_LOST: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+/// Tells the app started by `restart_without_gpu` why it was.
+const RESTARTED_ENV: &str = "SHAPECRAFT_GPU_RESTARTED";
+
+/// A control request's answer, for whichever side gets to it first.
+type WaitingReply = Arc<std::sync::Mutex<Option<std::sync::mpsc::Sender<Result<Value, String>>>>>;
+
+pub struct ShapeCraftApp {
+    /// A scrap of GPU memory written every frame to learn that the device is gone before painting does (see `gpu_gone`).
+    gpu_probe: Option<wgpu::Buffer>,
+    kernel: Arc<dyn Kernel>,
+    landing: Landing,
+    /// Where a new project's folder goes when it's first saved.
+    new_parent: Option<PathBuf>,
+    ws: Option<Box<Workspace>>,
+    control: Option<Server>,
+    /// When the first unsaved change was made.
+    last_change: Option<std::time::Instant>,
+    saved_generation: u64,
+    /// The window had the keyboard as of the last look.
+    was_focused: bool,
+    /// A screenshot was asked for and isn't back yet: who to answer, and since when.
+    capture: Option<(WaitingReply, std::time::Instant)>,
+    styled: bool,
+    /// Time between frames in ms since `ui.frames` last read them, and when the last frame began.
+    frame_gaps: Vec<f32>,
+    /// Time spent in `frame`, the app's own work, and the 3D view's share of it, in ms. The rest of a gap is painting and waiting.
+    frame_work: Vec<(f32, f32)>,
+    last_frame: Option<std::time::Instant>,
+    /// The window in points, and pixels per point, as of the last frame.
+    view_size: (egui::Vec2, f32),
+    /// The window has been checked against the screen.
+    fitted: bool,
+    menubar: Option<MenuBar>,
+    settings: crate::settings::Settings,
+    settings_file: Option<PathBuf>,
+    /// The first-run device question, asked again (control `ui.onboarding`).
+    ask_device: bool,
+    /// Preferences opened on the projects screen: its tab, and the Navigation Presets modal over it.
+    home_prefs: Option<usize>,
+    home_nav: Option<&'static str>,
+    /// For textures made outside a frame (a tutorial step's picture).
+    egui: egui::Context,
+    /// The desktop app checks for updates and shows them (snapshots and tests don't).
+    updating: bool,
+    updates: crate::updates::UpdateUi,
+}
+
+impl ShapeCraftApp {
+    pub fn new(kernel: Arc<dyn Kernel>, opts: Options, ctx: &egui::Context) -> Self {
+        let _ = std::fs::create_dir_all(&opts.projects_root);
+        let control = opts.control_port.and_then(|port| {
+            let ctx = ctx.clone();
+            match Server::start(port, move || ctx.request_repaint()) {
+                Ok(s) => {
+                    eprintln!("control channel on 127.0.0.1:{}", s.port);
+                    Some(s)
+                }
+                Err(e) => {
+                    eprintln!("control channel: {e}");
+                    None
+                }
+            }
+        });
+        let menubar = if opts.native_menu {
+            let ctx = ctx.clone();
+            MenuBar::install(move || ctx.request_repaint())
+        } else {
+            None
+        };
+        let settings = opts.settings_file.as_deref().map(crate::settings::Settings::load).unwrap_or_default();
+        let updating = opts.native_menu;
+        if updating {
+            let ctx = ctx.clone();
+            shapecraft_update::Updater::global().set_waker(move || ctx.request_repaint());
+        }
+        // Tessellation Quality takes effect from the start (Preferences says to restart for it).
+        shapecraft_doc::project::set_deflection(match settings.tessellation_quality.as_str() {
+            "Medium" => 0.05,
+            "Low" => 0.12,
+            _ => shapecraft_doc::project::DEFLECTION,
+        });
+        let mut app = Self {
+            gpu_probe: None,
+            menubar,
+            settings,
+            settings_file: opts.settings_file,
+            ask_device: false,
+            home_prefs: None,
+            home_nav: None,
+            egui: ctx.clone(),
+            updating,
+            updates: Default::default(),
+            kernel,
+            landing: Landing::new(opts.projects_root),
+            new_parent: None,
+            ws: None,
+            control,
+            last_change: None,
+            saved_generation: 0,
+            was_focused: true,
+            capture: None,
+            styled: false,
+            frame_gaps: Vec::new(),
+            frame_work: Vec::new(),
+            last_frame: None,
+            view_size: (egui::Vec2::ZERO, 1.0),
+            fitted: false,
+        };
+        if let Some(dir) = opts.open {
+            app.open(dir);
+        } else if opts.new_project {
+            app.new_project();
+        }
+        app
+    }
+
+    pub fn workspace(&mut self) -> Option<&mut Workspace> {
+        self.ws.as_deref_mut()
+    }
+
+    fn new_project_in(&mut self, dir: PathBuf) {
+        self.new_project();
+        self.new_parent = Some(dir);
+    }
+
+    fn new_project(&mut self) {
+        self.close_project();
+        self.new_parent = None;
+        let session = Session::new(self.kernel.clone(), "Untitled Project");
+        self.ws = Some(Box::new(Workspace::new(session, self.settings.clone())));
+        self.saved_generation = 0;
+    }
+
+    fn open(&mut self, dir: PathBuf) {
+        self.close_project();
+        match project::load(self.kernel.as_ref(), &dir) {
+            Ok(doc) => {
+                let session = Session::with_document(self.kernel.clone(), doc, Some(dir));
+                self.ws = Some(Box::new(Workspace::new(session, self.settings.clone())));
+                self.saved_generation = 0;
+            }
+            Err(e) => self.landing.toast = Some((format!("Couldn't open {}: {e}", dir.display()), f64::MAX)),
+        }
+    }
+
+    /// Projects save themselves, like the reference app; ours go to a folder on disk.
+    fn save(&mut self) {
+        let root = self.new_parent.clone().unwrap_or_else(|| self.landing.root.clone());
+        let Some(ws) = self.ws.as_deref_mut() else { return };
+        // A tutorial's scenes are scratch: they never become projects.
+        if ws.session.doc.is_empty() && ws.session.path.is_none() || ws.tutorial.is_some() {
+            return;
+        }
+        let dir = ws.session.path.clone().unwrap_or_else(|| project::unique_dir(&root, &ws.session.doc.name));
+        if let Err(e) = project::save(&ws.session.doc, ws.session.kernel.as_ref(), &dir) {
+            ws.toast(format!("Couldn't save: {e}"));
+            return;
+        }
+        ws.session.path = Some(dir.clone());
+        ws.session.dirty = false;
+        write_thumbnail(ws, &dir);
+        self.saved_generation = ws.session.revision;
+        self.landing.rescan();
+    }
+
+    /// Saves a moment after the last change, or as soon as the window loses the keyboard: leaving for a slicer or a file
+    /// manager shouldn't find the project a change behind.
+    fn autosave(&mut self, ctx: &egui::Context) {
+        let focused = ctx.input(|i| i.focused);
+        let left = std::mem::replace(&mut self.was_focused, focused) && !focused;
+        let Some(ws) = self.ws.as_deref() else { return };
+        if ws.session.revision == self.saved_generation || !ws.session.dirty {
+            return;
+        }
+        let first = *self.last_change.get_or_insert_with(std::time::Instant::now);
+        if left || first.elapsed().as_secs_f32() > 1.5 {
+            self.last_change = None;
+            self.save();
+        } else {
+            ctx.request_repaint_after(std::time::Duration::from_millis(500));
+        }
+    }
+
+    /// Whether the graphics device is gone (driver reset, GPU unplugged or disabled, some wake-ups). The toolkit's paint
+    /// panics on a lost device, so this asks the same question first, with the same kind of allocation.
+    fn gpu_gone(&mut self, state: &egui_wgpu::RenderState) -> bool {
+        use std::sync::atomic::Ordering;
+        let probe = self.gpu_probe.get_or_insert_with(|| {
+            state.device.set_device_lost_callback(|reason, _| {
+                if reason != wgpu::DeviceLostReason::Destroyed {
+                    GPU_LOST.store(true, Ordering::Relaxed);
+                }
+            });
+            state.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("lost device probe"),
+                size: 4,
+                usage: wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            })
+        });
+        GPU_LOST.load(Ordering::Relaxed)
+            || wgpu::BufferSize::new(4).is_some_and(|size| state.queue.write_buffer_with(probe, 0, size).is_none())
+    }
+
+    /// Saves the work and starts over on whatever graphics are left. A device can't come back in this process.
+    fn restart_without_gpu(&mut self) {
+        // Not `save`: its thumbnail needs the device that's gone.
+        let root = self.new_parent.clone().unwrap_or_else(|| self.landing.root.clone());
+        let mut open = None;
+        if let Some(ws) = self.ws.as_deref_mut()
+            && !(ws.session.doc.is_empty() && ws.session.path.is_none())
+        {
+            let dir = ws.session.path.clone().unwrap_or_else(|| project::unique_dir(&root, &ws.session.doc.name));
+            match project::save(&ws.session.doc, ws.session.kernel.as_ref(), &dir) {
+                Ok(()) => open = Some(dir),
+                Err(e) => eprintln!("couldn't save before restarting: {e}"),
+            }
+        }
+        let mut args = Vec::new();
+        let mut old = std::env::args_os().skip(1);
+        while let Some(arg) = old.next() {
+            if arg == "--open" {
+                old.next();
+            } else if arg != "--new" {
+                args.push(arg);
+            }
+        }
+        if let Some(dir) = open {
+            args.push("--open".into());
+            args.push(dir.into_os_string());
+        }
+        let started = std::env::current_exe().and_then(|exe| std::process::Command::new(exe).args(args).env(RESTARTED_ENV, "1").spawn());
+        if let Err(e) = started {
+            eprintln!("couldn't restart: {e}");
+        }
+        std::process::exit(0);
+    }
+
+    fn close_project(&mut self) {
+        if self.ws.as_ref().is_some_and(|w| w.session.dirty) {
+            self.save();
+        }
+        self.ws = None;
+        self.landing.rescan();
+    }
+
+    fn import_dialog(&mut self) {
+        let Some(path) = rfd::FileDialog::new()
+            .add_filter("All Supported Files", &["shapr", "step", "stp", "x_t", "x_b", "iges", "igs", "stl", "obj", "dxf", "svg"])
+            .add_filter("Shapr3D", &["shapr"])
+            .add_filter("STEP", &["step", "stp"])
+            .add_filter("Parasolid", &["x_t", "x_b"])
+            .add_filter("IGES", &["iges", "igs"])
+            .add_filter("Meshes (STL, OBJ)", &["stl", "obj"])
+            .add_filter("2D (DXF, SVG)", &["dxf", "svg"])
+            .pick_file()
+        else {
+            return;
+        };
+        if self.ws.is_none() {
+            self.new_project();
+        }
+        if let Some(ws) = self.ws.as_deref_mut() {
+            if ws.session.doc.name == "Untitled Project"
+                && let Some(stem) = path.file_stem()
+            {
+                ws.session.doc.name = stem.to_string_lossy().into_owned();
+            }
+            if let Some(done) = ws.run("import_file", json!({ "path": path })) {
+                ws.standard_view(StandardView::Default);
+                // Solids with geometry we can't read yet are left out; say so rather than lose them quietly.
+                let skipped = done["unreadable"].as_array().map_or(0, Vec::len);
+                if skipped > 0 {
+                    ws.toast(format!(
+                        "{skipped} {} in this file couldn't be read yet and {} left out",
+                        if skipped == 1 { "solid" } else { "solids" },
+                        if skipped == 1 { "was" } else { "were" }
+                    ));
+                }
+            }
+        }
+    }
+
+    /// Import Project (⇧⌘P): the local projects in a sheet to pick from.
+    fn import_project_sheet(&mut self) {
+        let root = self.landing.root.clone();
+        let Some(ws) = self.ws.as_deref_mut() else { return };
+        let projects = shapecraft_doc::project::list_all(&root).into_iter().map(|p| (p.name, p.dir, p.thumbnail, p.modified)).collect();
+        ws.import_sheet = Some(crate::workspace::import_project::ImportSheet::new(projects));
+    }
+
+    /// Insert ▸ Image: picks a PNG or JPEG and places it on the selected face or plane (the top plane otherwise).
+    fn image_dialog(&mut self) {
+        let Some(ws) = self.ws.as_deref_mut() else { return };
+        ws.wants_image = false;
+        let Some(path) = rfd::FileDialog::new().add_filter("Image", &["png", "jpg", "jpeg"]).pick_file() else { return };
+        // In Drawings the picture goes on the open sheet.
+        if let Some(id) = ws.drawings.as_ref().map(|d| d.id) {
+            let _ = ws.run("insert_sheet_image", json!({ "drawing": id.0, "path": path }));
+            return;
+        }
+        let _ = ws.insert_image(&path);
+    }
+
+    /// Visualization ▸ Decal ⊕: adds a PNG or JPEG picture to the project's decals.
+    fn decal_dialog(&mut self) {
+        let Some(ws) = self.ws.as_deref_mut() else { return };
+        ws.wants_decal = false;
+        let Some(path) = rfd::FileDialog::new().add_filter("Image", &["png", "jpg", "jpeg"]).pick_file() else { return };
+        let _ = ws.run("import_decal", json!({ "path": path }));
+    }
+
+    /// Visualization ▸ Custom ⊕: makes a custom material from a PNG or JPEG picture.
+    fn material_dialog(&mut self) {
+        let Some(ws) = self.ws.as_deref_mut() else { return };
+        ws.wants_material = false;
+        let Some(path) = rfd::FileDialog::new().add_filter("Image", &["png", "jpg", "jpeg"]).pick_file() else { return };
+        let _ = ws.run("import_material", json!({ "path": path }));
+    }
+
+    /// Visualization ▸ Environment ▸ Import…: adds a panorama as a custom environment.
+    fn environment_dialog(&mut self) {
+        let Some(ws) = self.ws.as_deref_mut() else { return };
+        ws.wants_environment = false;
+        let Some(path) = rfd::FileDialog::new().add_filter("Panorama", &["hdr", "exr", "png", "jpg", "jpeg"]).pick_file() else { return };
+        let _ = ws.run("import_environment", json!({ "path": path }));
+    }
+
+    /// Saves the open drawing in each chosen format: one save dialog, the others written next to it.
+    fn capture_dialog(&mut self) {
+        let Some(ws) = self.ws.as_deref_mut() else { return };
+        if !std::mem::take(&mut ws.wants_capture) {
+            return;
+        }
+        let name = format!("{} {}.png", ws.session.doc.name, if ws.visualizing { "Capture" } else { "Screenshot" });
+        let Some(path) = rfd::FileDialog::new().set_file_name(name).add_filter("PNG", &["png"]).save_file() else { return };
+        match ws.capture_png(&path) {
+            Ok(()) => ws.toast(format!("Saved {}", path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default())),
+            Err(e) => ws.toast(format!("Couldn't save the image: {e}")),
+        }
+    }
+
+    fn export_drawing_dialog(&mut self) {
+        let Some(ws) = self.ws.as_deref_mut() else { return };
+        let Some(formats) = ws.wants_drawing_export.take() else { return };
+        let Some(first) = formats.first().copied() else { return };
+        let drawing = ws.drawings.as_ref().map(|d| d.id.0);
+        let stem = drawing
+            .and_then(|id| ws.session.doc.drawing(shapecraft_doc::ItemId(id)))
+            .map_or_else(|| ws.session.doc.name.clone(), |d| d.name.clone());
+        let Some(path) =
+            rfd::FileDialog::new().set_file_name(format!("{stem}.{first}")).add_filter(first.to_uppercase(), &[first]).save_file()
+        else {
+            return;
+        };
+        let mut written = Vec::new();
+        for f in &formats {
+            let out = path.with_extension(f);
+            let mut params = json!({ "path": out });
+            if let Some(id) = drawing {
+                params["drawing"] = json!(id);
+            }
+            if ws.run("export_drawing", params).is_some() {
+                written.push(out.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default());
+            }
+        }
+        if !written.is_empty() {
+            ws.toast(format!("Exported {}", written.join(", ")));
+        }
+    }
+
+    /// Opens the Export dialog, optionally with one format picked.
+    fn export_dialog(&mut self, preset: Option<Format>) {
+        let Some(ws) = self.ws.as_deref_mut() else { return };
+        ws.export = Some(ExportDialog::new(&ws.session.doc.name, preset));
+    }
+
+    /// Quick Export to Favorite Formats: the last export's formats, written again into its folder without asking;
+    /// before any export it opens the Export dialog.
+    fn quick_export(&mut self) {
+        let Some(ws) = self.ws.as_deref_mut() else { return };
+        let formats: Vec<Format> =
+            ws.settings.favorite_formats.iter().filter_map(|n| Format::from_label(n)).filter(|f| *f != Format::Slicer).collect();
+        let dir = ws.settings.last_export_dir.clone().map(std::path::PathBuf::from).filter(|d| d.is_dir());
+        match dir {
+            Some(dir) if !formats.is_empty() => {
+                let mut d = ExportDialog::new(&ws.session.doc.name, None);
+                d.chosen = formats;
+                d.quick = Some(dir);
+                ws.wants_export = Some(d);
+                self.run_export();
+            }
+            _ => self.export_dialog(None),
+        }
+    }
+
+    /// Export pressed: asks where (a file for one format, a folder for several or one file per item), then writes
+    /// each format through its command.
+    fn run_export(&mut self) {
+        use crate::workspace::export::Format;
+        let Some(ws) = self.ws.as_deref_mut() else { return };
+        let Some(mut d) = ws.wants_export.take() else { return };
+        let name = d.name();
+        // Slicer: a 3MF in a scratch folder, opened in the chosen slicer; no save dialog of its own.
+        if d.chosen.contains(&Format::Slicer) {
+            d.chosen.retain(|f| *f != Format::Slicer);
+            let dir = std::env::temp_dir().join("ShapeCraft Slicer");
+            let path = dir.join(format!("{name}.3mf"));
+            let mut params = d.params(Format::Slicer);
+            params["path"] = json!(path);
+            let made = std::fs::create_dir_all(&dir).is_ok() && ws.run("export_3mf", params).is_some();
+            let (shown, app, command) = crate::workspace::export::SLICERS[d.slicer.min(2)];
+            let opened = made && open_in(app, command, &path);
+            ws.toast(if opened {
+                format!("Opened {name} in {shown}")
+            } else if made {
+                format!("Couldn't open {shown}: is it installed?")
+            } else {
+                format!("Couldn't export {name} for {shown}")
+            });
+            if d.chosen.is_empty() {
+                return;
+            }
+        }
+        let single = d.chosen.len() == 1 && !(d.separately && d.chosen[0].per_body());
+        let folder = if let Some(dir) = d.quick.clone() {
+            (dir, name.clone())
+        } else if single {
+            let (ext, _) = d.chosen[0].ext_and_command();
+            let Some(path) =
+                rfd::FileDialog::new().set_file_name(format!("{name}.{ext}")).add_filter(ext.to_uppercase(), &[ext]).save_file()
+            else {
+                return;
+            };
+            match path.parent() {
+                Some(dir) => (dir.to_path_buf(), path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or(name.clone())),
+                None => return,
+            }
+        } else {
+            let Some(dir) = rfd::FileDialog::new().set_title("Choose a folder to export to").pick_folder() else { return };
+            (dir, name.clone())
+        };
+        let (dir, stem) = folder;
+        let mut written = Vec::new();
+        let mut failed = Vec::new();
+        for f in &d.chosen {
+            let (ext, cmd) = f.ext_and_command();
+            // One file per visible (or every) body, named after it, when asked; else one file of them all.
+            let jobs: Vec<(String, Option<u64>)> = if d.separately && f.per_body() {
+                ws.session
+                    .doc
+                    .bodies
+                    .iter()
+                    .filter(|b| b.visible || d.hidden)
+                    .map(|b| (b.name.replace(['/', '\\', ':'], "-"), Some(b.id.0)))
+                    .collect()
+            } else {
+                vec![(stem.clone(), None)]
+            };
+            for (file, body) in jobs {
+                let path = dir.join(format!("{file}.{ext}"));
+                let ok = match cmd {
+                    Some(cmd) => {
+                        let mut params = d.params(*f);
+                        params["path"] = json!(path);
+                        if let Some(id) = body {
+                            params["items"] = json!([id]);
+                        }
+                        if cmd == "export_drawing"
+                            && let Some(id) = ws.drawings.as_ref().map(|dr| dr.id.0)
+                        {
+                            params["drawing"] = json!(id);
+                        }
+                        ws.run(cmd, params).is_some()
+                    }
+                    None => ws.capture_png(&path).is_ok(),
+                };
+                let shown = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                if ok { written.push(shown) } else { failed.push(shown) }
+            }
+        }
+        // Remembered for Quick Export to Favorite Formats.
+        if !written.is_empty() {
+            ws.settings.favorite_formats = d.chosen.iter().map(|f| f.label().to_string()).collect();
+            ws.settings.last_export_dir = Some(dir.to_string_lossy().into_owned());
+        }
+        if !failed.is_empty() {
+            ws.toast(format!("Couldn't export {}", failed.join(", ")));
+        } else if !written.is_empty() {
+            ws.toast(format!("Exported {}", written.join(", ")));
+        }
+    }
+
+    fn global_keys(&mut self, ctx: &egui::Context) {
+        if self.ws.as_ref().is_some_and(|w| w.wants_drawing_export.is_some()) {
+            self.export_drawing_dialog();
+        }
+        if self.ws.as_ref().is_some_and(|w| w.wants_export.is_some()) {
+            self.run_export();
+        }
+        if self.ws.as_ref().is_some_and(|w| w.wants_capture) {
+            self.capture_dialog();
+        }
+        if self.ws.as_ref().is_some_and(|w| w.wants_image) {
+            self.image_dialog();
+        }
+        if self.ws.as_ref().is_some_and(|w| w.wants_decal) {
+            self.decal_dialog();
+        }
+        if self.ws.as_ref().is_some_and(|w| w.wants_material) {
+            self.material_dialog();
+        }
+        if self.ws.as_ref().is_some_and(|w| w.wants_environment) {
+            self.environment_dialog();
+        }
+        let (n, w, s, e, i) = ctx.input_mut(|inp| {
+            let cmd = egui::Modifiers::COMMAND;
+            let cmd_shift = egui::Modifiers::COMMAND | egui::Modifiers::SHIFT;
+            (
+                inp.consume_key(cmd, egui::Key::N),
+                inp.consume_key(cmd, egui::Key::W),
+                inp.consume_key(cmd, egui::Key::S),
+                inp.consume_key(cmd_shift, egui::Key::E),
+                inp.consume_key(cmd_shift, egui::Key::I),
+            )
+        });
+        if n {
+            self.new_project();
+        }
+        if w {
+            self.close_project();
+        }
+        if s {
+            self.save();
+        }
+        if e {
+            self.export_dialog(None);
+        }
+        if i {
+            self.import_dialog();
+        }
+    }
+
+    fn handle_control(&mut self, ctx: &egui::Context) {
+        let mut reqs = Vec::new();
+        if let Some(server) = &self.control {
+            while let Ok(r) = server.requests.try_recv() {
+                reqs.push(r);
+            }
+        }
+        for Request { method, params, reply } in reqs {
+            if method == "ui.screenshot" {
+                let path = params.get("path").and_then(Value::as_str).map(PathBuf::from);
+                match path {
+                    Some(p) => {
+                        let waiting = Arc::new(std::sync::Mutex::new(Some(reply)));
+                        self.capture = Some((waiting.clone(), std::time::Instant::now()));
+                        let cb = egui::ScreenshotCallback::new(move |image| {
+                            if let Some(reply) = waiting.lock().ok().and_then(|mut w| w.take()) {
+                                let _ = reply.send(write_color_image(&image, &p).map(|_| json!({ "path": p })));
+                            }
+                        });
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Screenshot(cb));
+                    }
+                    None => {
+                        let _ = reply.send(Err("'path' is required".into()));
+                    }
+                }
+                continue;
+            }
+            let _ = reply.send(self.control_call(&method, &params));
+        }
+    }
+
+    pub fn control_call(&mut self, method: &str, params: &Value) -> Result<Value, String> {
+        match method {
+            "engine.execute" => {
+                if self.ws.is_none() {
+                    self.new_project();
+                }
+                let ws = self.ws.as_deref_mut().ok_or("no project")?;
+                let command = params.get("command").and_then(Value::as_str).ok_or("'command' is required")?;
+                let p = params.get("params").cloned().unwrap_or(json!({}));
+                let out = ws.session.execute(command, &p).map_err(|e| e.to_string())?;
+                // Follow the reference app: entering a sketch looks at its plane.
+                if command == "sketch"
+                    && let Some(sk) = ws.session.active_sketch()
+                {
+                    let plane = sk.plane;
+                    ws.animate_to(shapecraft_render::Camera::facing(plane.normal(), plane.y, plane.origin, ws.camera.distance));
+                }
+                Ok(out.value)
+            }
+            "engine.commands" => Ok(Value::Array(
+                shapecraft_engine::registry()
+                    .iter()
+                    .map(|c| json!({ "id": c.id, "label": c.label, "menu": c.menu, "shortcut": c.shortcut, "help": c.help, "params": c.params }))
+                    .collect(),
+            )),
+            "project.new" => {
+                self.new_project();
+                Ok(Value::Null)
+            }
+            "project.open" => {
+                let p = params.get("path").and_then(Value::as_str).ok_or("'path' is required")?;
+                self.open(PathBuf::from(p));
+                Ok(json!({ "open": self.ws.is_some() }))
+            }
+            "project.save" => {
+                self.save();
+                Ok(json!({ "path": self.ws.as_ref().and_then(|w| w.session.path.clone()) }))
+            }
+            "project.home" => {
+                self.close_project();
+                Ok(Value::Null)
+            }
+            "ui.tutorial" => {
+                let id = params.get("lesson").and_then(Value::as_str).ok_or("'lesson' is required")?;
+                let step = params.get("step").and_then(Value::as_u64).unwrap_or(0) as usize;
+                let lesson = crate::tutorials::lesson(id).ok_or_else(|| format!("no tutorial '{id}'"))?;
+                if step >= lesson.steps.len() {
+                    return Err(format!("'{id}' has {} steps", lesson.steps.len()));
+                }
+                self.start_tutorial(id, step);
+                Ok(json!({ "steps": lesson.steps.len() }))
+            }
+            "ui.tutorial_state" => Ok(self.ws.as_deref().and_then(Workspace::tutorial_state).unwrap_or(Value::Null)),
+            "ui.tutorial_action" => {
+                use crate::workspace::tutorial::Request;
+                let req = match params.get("action").and_then(Value::as_str) {
+                    Some("retry") => Request::Retry,
+                    Some("continue") => Request::Next,
+                    Some("quit") => Request::Quit,
+                    _ => return Err("'action' is retry, continue or quit".into()),
+                };
+                let ctx = self.egui.clone();
+                self.tutorial_request(req, &ctx);
+                Ok(Value::Null)
+            }
+            "ui.landing" => {
+                if self.ws.is_some() {
+                    self.close_project();
+                }
+                let section = params.get("section").and_then(Value::as_str).unwrap_or("recents");
+                self.landing.show_section(section).map_err(|e| e.to_string())?;
+                Ok(Value::Null)
+            }
+            "project.list" => {
+                let root = self.landing.root.clone();
+                let dir = params.get("folder").and_then(Value::as_str).map(PathBuf::from).unwrap_or_else(|| root.clone());
+                if !dir.starts_with(&root) {
+                    return Err("folder must be inside the projects folder".into());
+                }
+                let projects: Vec<Value> = project::list(&dir).iter().map(|p| json!({ "name": p.name, "path": p.dir })).collect();
+                Ok(json!({ "folders": project::folders(&dir), "projects": projects }))
+            }
+            "project.new_folder" | "project.rename" | "project.duplicate" | "project.delete" => {
+                let root = self.landing.root.clone();
+                let path = params.get("path").and_then(Value::as_str).map(PathBuf::from).unwrap_or_else(|| root.clone());
+                if !path.starts_with(&root) {
+                    return Err("path must be inside the projects folder".into());
+                }
+                let done = match method {
+                    "project.new_folder" => project::new_folder(&path),
+                    "project.rename" => project::rename(&path, params.get("name").and_then(Value::as_str).ok_or("'name' is required")?),
+                    "project.duplicate" => project::duplicate(&path),
+                    _ => project::trash(&path, &root),
+                }
+                .map_err(|e| e.to_string())?;
+                self.landing.rescan();
+                Ok(json!({ "path": done }))
+            }
+            "ui.view" => {
+                let ws = self.ws.as_deref_mut().ok_or("no project open")?;
+                let v = match params.get("view").and_then(Value::as_str).unwrap_or("default") {
+                    "front" => StandardView::Front,
+                    "back" => StandardView::Back,
+                    "top" => StandardView::Top,
+                    "bottom" => StandardView::Bottom,
+                    "right" => StandardView::Right,
+                    "left" => StandardView::Left,
+                    _ => StandardView::Default,
+                };
+                ws.standard_view(v);
+                Ok(Value::Null)
+            }
+            "ui.camera" => {
+                // Puts the camera somewhere at once: {"target": [x,y,z]?, "yaw": rad?, "pitch": rad?, "distance": d?,
+                // "ortho": 0–1?, "fit": bool? (frame the whole model first)}. Recordings use it to orbit.
+                let ws = self.ws.as_deref_mut().ok_or("no project open")?;
+                ws.anim = None;
+                let mut c = ws.camera;
+                if params.get("fit").and_then(Value::as_bool) == Some(true)
+                    && let Some((min, max)) = ws.session.doc.bounds()
+                {
+                    c.fit(min, max);
+                }
+                let num = |k: &str| params.get(k).and_then(Value::as_f64);
+                if let Some(t) = params.get("target").and_then(Value::as_array)
+                    && t.len() == 3
+                {
+                    c.target = glam::DVec3::new(t[0].as_f64().unwrap_or(0.0), t[1].as_f64().unwrap_or(0.0), t[2].as_f64().unwrap_or(0.0));
+                }
+                c.yaw = num("yaw").unwrap_or(c.yaw);
+                c.pitch = num("pitch").unwrap_or(c.pitch);
+                c.distance = num("distance").unwrap_or(c.distance);
+                c.ortho = num("ortho").unwrap_or(c.ortho);
+                ws.camera = c;
+                Ok(json!({ "target": c.target.to_array(), "yaw": c.yaw, "pitch": c.pitch, "distance": c.distance }))
+            }
+            "ui.tool" => {
+                let ws = self.ws.as_deref_mut().ok_or("no project open")?;
+                use crate::workspace::toolbar::ToolKind as K;
+                let kind = match params.get("tool").and_then(Value::as_str).unwrap_or("") {
+                    "sketch" => K::Sketch,
+                    "line" => K::Line,
+                    "rectangle" => K::Rectangle,
+                    "circle" => K::Circle,
+                    "extrude" => K::Extrude,
+                    "fillet" => K::Fillet,
+                    "shell" => K::Shell,
+                    "revolve" => K::Revolve,
+                    "polygon" => K::Polygon,
+                    "arc" => K::Arc,
+                    "move" => K::Move,
+                    "mirror" => K::Mirror,
+                    "pattern" => K::Pattern,
+                    "ellipse" => K::Ellipse,
+                    "spline" => K::Spline,
+                    "offset_face" => K::OffsetFace,
+                    "scale" => K::Scale,
+                    "split_body" => K::SplitBody,
+                    "loft" => K::Loft,
+                    "trim" => K::Trim,
+                    "offset_plane" => K::OffsetPlane,
+                    "pattern_circular" => K::CircularPattern,
+                    "project" => K::Project,
+                    "text" => K::Text,
+                    "sketch_fillet" => K::SketchFillet,
+                    "axis_2points" => K::Axis2,
+                    "align" => K::Align,
+                    "replace_face" => K::ReplaceFace,
+                    "wrap_emboss" => K::WrapEmboss,
+                    "project_edge" => K::ProjectEdge,
+                    "scale_non_uniform" => K::ScaleNonUniform,
+                    "plane_3points" => K::Plane3,
+                    "rotate_axis" => K::RotateAxis,
+                    "offset_edge" => K::OffsetEdge,
+                    "sweep" => K::Sweep,
+                    "translate" => K::Translate,
+                    "union" => K::Union,
+                    "subtract" => K::Subtract,
+                    "intersect" => K::Intersect,
+                    "plane_through_edge" => K::PlaneEdge,
+                    "plane_on_curve" => K::PlaneCurve,
+                    "none" => {
+                        ws.tool = Tool::Idle;
+                        return Ok(Value::Null);
+                    }
+                    other => return Err(format!("unknown tool '{other}'")),
+                };
+                ws.start_tool(kind);
+                Ok(Value::Null)
+            }
+            "ui.drawing" => {
+                let ws = self.ws.as_deref_mut().ok_or("no project open")?;
+                let id = params.get("id").and_then(Value::as_u64).ok_or("'id' is required")?;
+                if ws.session.doc.drawing(shapecraft_doc::ItemId(id)).is_none() {
+                    return Err(format!("no drawing {id}"));
+                }
+                ws.open_drawing_public(shapecraft_doc::ItemId(id));
+                Ok(Value::Null)
+            }
+            "ui.export" => {
+                // Opens the Export dialog with the given formats picked (file extensions, e.g. ["3mf", "stl"]).
+                let ws = self.ws.as_deref_mut().ok_or("no project open")?;
+                let mut d = ExportDialog::new(&ws.session.doc.name, None);
+                if let Some(list) = params.get("formats").and_then(Value::as_array) {
+                    d.chosen = list.iter().filter_map(Value::as_str).filter_map(Format::from_extension).collect();
+                }
+                ws.export = Some(d);
+                Ok(Value::Null)
+            }
+            "ui.onboarding" => {
+                self.ask_device = true;
+                Ok(Value::Null)
+            }
+            "ui.theme" => {
+                // Preferences ▸ Theme: System, Light or Dark.
+                let name = params.get("theme").and_then(Value::as_str).ok_or("theme: System, Light or Dark")?;
+                if !["System", "Light", "Dark"].contains(&name) {
+                    return Err(format!("unknown theme '{name}'"));
+                }
+                self.settings.theme = name.to_string();
+                if let Some(ws) = self.ws.as_deref_mut() {
+                    ws.settings.theme = name.to_string();
+                }
+                Ok(Value::Null)
+            }
+            "ui.setting" => {
+                // Any Preferences value by its settings key, e.g. {"key": "confirm_buttons", "value": "Toolbar"}.
+                let key = params.get("key").and_then(Value::as_str).ok_or("'key' is required")?;
+                let value = params.get("value").cloned().ok_or("'value' is required")?;
+                let current = self.ws.as_deref().map_or(&self.settings, |ws| &ws.settings);
+                let mut all = serde_json::to_value(current).map_err(|e| e.to_string())?;
+                let slot = all.get_mut(key).ok_or_else(|| format!("no setting '{key}'"))?;
+                *slot = value;
+                self.settings = serde_json::from_value(all).map_err(|e| format!("bad value for '{key}': {e}"))?;
+                if let Some(ws) = self.ws.as_deref_mut() {
+                    ws.settings = self.settings.clone();
+                }
+                // Both copies now agree, so the per-frame check that saves Preferences changes won't see this one.
+                if let Some(path) = &self.settings_file {
+                    self.settings.save(path).map_err(|e| e.to_string())?;
+                }
+                Ok(Value::Null)
+            }
+            "ui.import_project" => {
+                // Opens Import Project's sheet over the local projects.
+                self.ws.as_deref().ok_or("no project open")?;
+                self.import_project_sheet();
+                Ok(Value::Null)
+            }
+            "ui.draw_tool" => {
+                let ws = self.ws.as_deref_mut().ok_or("no project open")?;
+                let i = params.get("index").and_then(Value::as_u64).ok_or("'index' is required")?;
+                ws.ui_action(crate::workspace::toolbar::UiAction::DrawTool(i.min(255) as u8));
+                Ok(Value::Null)
+            }
+            "ui.view_tool" => {
+                // A Views tool on the open drawing: 0 Base View, 1 Projection, 2 Section View, 3 Detail View.
+                let ws = self.ws.as_deref_mut().ok_or("no project open")?;
+                let i = params.get("index").and_then(Value::as_u64).ok_or("'index' is required")?;
+                ws.ui_action(crate::workspace::toolbar::UiAction::ViewTool(i.min(255) as u8));
+                Ok(Value::Null)
+            }
+            "ui.capture" => {
+                let ws = self.ws.as_deref_mut().ok_or("no project open")?;
+                let path = params.get("path").and_then(Value::as_str).ok_or("'path' is required")?;
+                ws.capture_png(std::path::Path::new(path))?;
+                Ok(json!({ "path": path }))
+            }
+            "ui.selection_filter" => {
+                // Selection filter: {"only": "all" | "bodies" | "faces" | "edges"}.
+                let ws = self.ws.as_deref_mut().ok_or("no project open")?;
+                ws.pick_filter = match params.get("only").and_then(Value::as_str).unwrap_or("all") {
+                    "all" => "all",
+                    "bodies" => "bodies",
+                    "faces" => "faces",
+                    "edges" => "edges",
+                    other => return Err(format!("unknown selection filter '{other}'")),
+                };
+                Ok(Value::Null)
+            }
+            "ui.history_step" => {
+                let ws = self.ws.as_deref_mut().ok_or("no project open")?;
+                let step = params.get("step").and_then(Value::as_u64).ok_or("'step' is required")?;
+                ws.open_history_step(step as usize);
+                Ok(Value::Null)
+            }
+            "ui.visual" => {
+                let ws = self.ws.as_deref_mut().ok_or("no project open")?;
+                if let Some(d) = params.get("decal") {
+                    ws.decal_sel = d.as_u64().map(shapecraft_doc::ItemId);
+                }
+                if let Some(t) = params.get("tab").and_then(Value::as_u64) {
+                    ws.vis_tab = (t as usize).min(2);
+                }
+                if let Some(e) = params.get("env_settings").and_then(Value::as_bool) {
+                    ws.env_settings = e;
+                }
+                Ok(Value::Null)
+            }
+            "ui.toggle" if self.ws.is_none() && params.get("panel").and_then(Value::as_str) == Some("preferences") => {
+                self.home_prefs = Some(params.get("tab").and_then(Value::as_u64).unwrap_or(0).min(3) as usize);
+                Ok(Value::Null)
+            }
+            "ui.toggle" => {
+                let ws = self.ws.as_deref_mut().ok_or("no project open")?;
+                match params.get("panel").and_then(Value::as_str).unwrap_or("") {
+                    "items" => ws.show_items = !ws.show_items,
+                    "history" => ws.show_history = !ws.show_history,
+                    "grid" => ws.view_opts.grid = !ws.view_opts.grid,
+                    "drawings" => ws.ui_action(crate::workspace::toolbar::UiAction::Drawings),
+                    "visualization" => ws.ui_action(crate::workspace::toolbar::UiAction::Visualization),
+                    "help" => ws.ui_action(crate::workspace::toolbar::UiAction::Help),
+                    "preferences" => {
+                        ws.prefs_tab = params.get("tab").and_then(Value::as_u64).unwrap_or(0).min(3) as usize;
+                        ws.ui_action(crate::workspace::toolbar::UiAction::Preferences);
+                    }
+                    "nav_presets" => ws.ui_action(crate::workspace::toolbar::UiAction::NavPresets),
+                    "variables" => ws.ui_action(crate::workspace::toolbar::UiAction::Variables),
+                    "shortcuts" => ws.ui_action(crate::workspace::toolbar::UiAction::Shortcuts),
+                    other => return Err(format!("unknown panel '{other}'")),
+                }
+                Ok(Value::Null)
+            }
+            "ui.state" => Ok(match self.ws.as_deref() {
+                None => json!({ "screen": "projects", "root": self.landing.root, "preferences": self.home_prefs.is_some() }),
+                Some(ws) => json!({
+                    "screen": "workspace",
+                    "graphics": crate::graphics::status().active.map(|a| format!("{}: {}", a.path, a.name)),
+                    "project": ws.session.doc.name,
+                    "path": ws.session.path,
+                    "tool": format!("{:?}", std::mem::discriminant(&ws.tool)),
+                    "active_sketch": ws.session.active_sketch.map(|i| i.0),
+                    "renaming": ws.renaming.is_some(),
+                    "selection": ws.session.selection,
+                    "camera": { "target": ws.camera.target.to_array(), "yaw": ws.camera.yaw, "pitch": ws.camera.pitch, "distance": ws.camera.distance },
+                    "banner": ws.seen_banner,
+                    "column": ws.seen_column,
+                    "bottom": ws.seen_bottom,
+                }),
+            }),
+            // Frame pacing since the last call. Keep the app busy while measuring: time it spends idle counts as slow
+            // frames, up to the 5 s past which a gap can only be idling.
+            "ui.frames" => {
+                let mut gaps: Vec<f32> = self.frame_gaps.drain(..).filter(|g| *g < 5000.0).collect();
+                gaps.sort_by(f32::total_cmp);
+                let at = |q: f32| gaps.get((gaps.len().saturating_sub(1) as f32 * q) as usize).copied();
+                let total: f32 = gaps.iter().sum();
+                let mut work: Vec<f32> = self.frame_work.iter().map(|w| w.0).collect();
+                let mut view: Vec<f32> = self.frame_work.drain(..).map(|w| w.1).collect();
+                work.sort_by(f32::total_cmp);
+                view.sort_by(f32::total_cmp);
+                Ok(json!({
+                    "work_p50_ms": work.get(work.len() / 2), "view_p50_ms": view.get(view.len() / 2),
+                    "frames": gaps.len(),
+                    "fps": if total > 0.0 { gaps.len() as f32 * 1000.0 / total } else { 0.0 },
+                    "p50_ms": at(0.5), "p95_ms": at(0.95), "p99_ms": at(0.99), "worst_ms": gaps.last(),
+                    "over_33ms": gaps.iter().filter(|g| **g > 33.4).count(),
+                    "points": [self.view_size.0.x, self.view_size.0.y], "pixels_per_point": self.view_size.1,
+                }))
+            }
+            // Updates: what the updater knows, a check as Help ▸ Check for Updates… makes, closing the window as its
+            // close button does (with an update ready, that asks first), and an answer to that question.
+            "update.state" => {
+                let u = shapecraft_update::Updater::global();
+                let s = u.snapshot();
+                Ok(json!({
+                    "current": s.current,
+                    "install": format!("{:?}", s.install),
+                    "phase": format!("{:?}", s.phase),
+                    "offered": s.offered.as_ref().map(|o| o.0.clone()),
+                    "manual": s.manual,
+                    "ready": u.ready(),
+                    "asking": self.updates.asking,
+                    "release_build": shapecraft_update::release_build(),
+                }))
+            }
+            "update.check" => {
+                shapecraft_update::Updater::global().check_now();
+                Ok(Value::Null)
+            }
+            "update.download" => {
+                shapecraft_update::Updater::global().download();
+                Ok(Value::Null)
+            }
+            "app.close" => {
+                self.egui.send_viewport_cmd(egui::ViewportCommand::Close);
+                Ok(Value::Null)
+            }
+            "update.answer" => {
+                use crate::updates::Action;
+                let action = match params.get("choice").and_then(Value::as_str) {
+                    Some("update") => Some(Action::Install { restart: false }),
+                    Some("reopen") => Some(Action::Install { restart: true }),
+                    Some("not_now") => Some(Action::CloseAnyway),
+                    Some("cancel") => None,
+                    _ => return Err("'choice' is update, reopen, not_now or cancel".into()),
+                };
+                self.updates.asking = false;
+                if let Some(action) = action {
+                    let ctx = self.egui.clone();
+                    self.update_action(&ctx, action);
+                }
+                Ok(Value::Null)
+            }
+            other => Err(format!("unknown method '{other}'")),
+        }
+    }
+
+    /// One frame. `render_state` is the window's wgpu state when there is one.
+    pub fn frame(&mut self, ui: &mut egui::Ui, render_state: Option<&egui_wgpu::RenderState>) {
+        if let Some(state) = render_state
+            && self.gpu_gone(state)
+        {
+            self.restart_without_gpu();
+        }
+        let began = std::time::Instant::now();
+        // Preferences ▸ Language takes effect at once (the workspace keeps its own copy of the settings).
+        crate::i18n::set(self.ws.as_deref().map_or(&self.settings.language, |ws| &ws.settings.language));
+        if let Some(last) = self.last_frame.replace(began)
+            && self.frame_gaps.len() < 100_000
+        {
+            self.frame_gaps.push((began - last).as_secs_f32() * 1000.0);
+        }
+        let ctx = ui.ctx().clone();
+        self.view_size = (ctx.content_rect().size(), ctx.pixels_per_point());
+        let settings = self.ws.as_deref().map_or(&self.settings, |ws| &ws.settings);
+        let light = match settings.theme.as_str() {
+            "Light" => true,
+            "System" => crate::system_theme::light().unwrap_or(ctx.system_theme() == Some(egui::Theme::Light)),
+            _ => false,
+        };
+        if !self.styled || light != theme::is_light() {
+            theme::set_light(light);
+            if !self.styled {
+                theme::install_fonts(&ctx);
+            }
+            theme::apply_style(&ctx);
+            self.styled = true;
+        }
+        if !self.fitted {
+            self.fitted = fit_window(&ctx);
+            if std::env::var_os(RESTARTED_ENV).is_some()
+                && let Some(ws) = self.ws.as_deref_mut()
+            {
+                ws.toast("The graphics driver reset, so ShapeCraft restarted. Your work was saved.");
+            }
+        }
+        if let Some(ws) = self.ws.as_deref_mut()
+            && crate::graphics::take_slow_warning()
+        {
+            ws.toast("Drawing on the processor, so things may feel slow. See Preferences ▸ ShapeCraft.");
+        }
+        // Without a native menu bar nothing else would catch the menus' shortcuts, and they go before the workspace's keys.
+        #[cfg(not(target_os = "macos"))]
+        if let Some(bar) = self.menubar.as_mut() {
+            bar.take_shortcuts(&ctx);
+        }
+        self.handle_menu(&ctx);
+        self.global_keys(&ctx);
+
+        match self.ws.as_deref_mut() {
+            Some(ws) => {
+                ws.ui(ui, render_state);
+                if ws.settings != self.settings {
+                    self.settings = ws.settings.clone();
+                    if let Some(path) = &self.settings_file
+                        && let Err(e) = self.settings.save(path)
+                    {
+                        ws.toast(format!("Couldn't save preferences: {e}"));
+                    }
+                }
+                if ws.go_home {
+                    self.close_project();
+                } else if let Some(req) = ws.tutorial.as_deref_mut().and_then(|t| t.request.take()) {
+                    self.tutorial_request(req, ui.ctx());
+                }
+            }
+            None => {
+                if self.landing.tutorials_done != self.settings.tutorials_done {
+                    self.landing.tutorials_done = self.settings.tutorials_done.clone();
+                }
+                match self.landing.ui(ui) {
+                    Some(LandingAction::Open(dir)) => self.open(dir),
+                    Some(LandingAction::New(dir)) => self.new_project_in(dir),
+                    Some(LandingAction::Import) => self.import_dialog(),
+                    Some(LandingAction::Tutorial(id)) => self.start_tutorial(id, 0),
+                    Some(LandingAction::NavigationPresets) => {
+                        self.home_prefs = Some(0);
+                        self.home_nav = Some(self.settings.preset().name);
+                    }
+                    Some(LandingAction::Shortcuts) => {
+                        self.new_project();
+                        if let Some(ws) = self.ws.as_deref_mut() {
+                            ws.ui_action(crate::workspace::toolbar::UiAction::Shortcuts);
+                        }
+                    }
+                    None => {}
+                }
+                self.home_preferences(ui);
+            }
+        }
+        // On top of the bar the screen just drew; the workspace and the home screen both fill the window.
+        let menus_at = self.ws.as_deref().map_or(crate::landing::MENUS_AT, |ws| ws.menus_at);
+        if let Some(bar) = self.menubar.as_mut() {
+            bar.show(ui, menus_at);
+        }
+        crate::window_chrome::show(ui);
+        if self.updating {
+            let full = ctx.content_rect();
+            for action in crate::updates::show(ui, full, &mut self.updates) {
+                self.update_action(&ctx, action);
+            }
+        }
+        if self.frame_work.len() < 100_000 {
+            let view = self.ws.as_deref().map_or(0.0, |ws| ws.view_ms);
+            self.frame_work.push((began.elapsed().as_secs_f32() * 1000.0, view));
+        }
+        // First run: which device the model is worked with (picks the navigation preset).
+        if ((self.settings_file.is_some() && self.settings.device.is_empty()) || self.ask_device)
+            && let Some(i) = crate::onboarding::show(ui)
+        {
+            let (_, value, preset) = crate::onboarding::DEVICES[i];
+            self.settings.device = value.to_string();
+            self.settings.nav_preset = preset.to_string();
+            self.ask_device = false;
+            if let Some(ws) = self.ws.as_deref_mut() {
+                ws.settings = self.settings.clone();
+            }
+            if let Some(path) = &self.settings_file {
+                let _ = self.settings.save(path);
+            }
+        }
+    }
+
+    /// Preferences over the projects screen (⌘, works there too, like the reference). The workspace has its own.
+    fn home_preferences(&mut self, ui: &mut egui::Ui) {
+        if self.ws.is_some() {
+            (self.home_prefs, self.home_nav) = (None, None);
+            return;
+        }
+        let Some(mut tab) = self.home_prefs else { return };
+        let full = ui.max_rect();
+        let mut s = self.settings.clone();
+        let mut nav = self.home_nav;
+        egui::Area::new(ui.scope_id().with("home-prefs")).order(egui::Order::Foreground).fixed_pos(full.min).show(ui.ctx(), |ui| {
+            let _ = ui.allocate_rect(full, egui::Sense::click());
+            let out = crate::workspace::prefs::window(ui, full, &mut tab, &mut s, false);
+            if out.presets {
+                nav = Some(s.preset().name);
+            }
+            let open = nav.is_some();
+            crate::workspace::prefs::presets_window(ui, full, &mut nav, &mut s);
+            self.home_prefs = if out.done && !open { None } else { Some(tab) };
+        });
+        self.home_nav = nav;
+        if s != self.settings {
+            self.settings = s;
+            if let Some(path) = &self.settings_file
+                && let Err(e) = self.settings.save(path)
+            {
+                self.landing.toast = Some((format!("Couldn't save preferences: {e}"), f64::MAX));
+            }
+        }
+    }
+
+    fn handle_menu(&mut self, ctx: &egui::Context) {
+        let Some(bar) = self.menubar.as_mut() else { return };
+        let state = match self.ws.as_deref() {
+            None => MenuState::default(),
+            Some(ws) => MenuState {
+                in_project: true,
+                bodies: ws.session.doc.bodies.len(),
+                selection: !ws.session.selection.is_empty(),
+                sketching: ws.session.active_sketch.is_some(),
+                undo: ws.session.can_undo(),
+                redo: ws.session.can_redo(),
+            },
+        };
+        bar.update(state);
+        for action in bar.poll() {
+            match action {
+                MenuAction::App(a) => match a {
+                    AppAction::NewProject => self.new_project(),
+                    AppAction::CloseProject | AppAction::GoHome => self.close_project(),
+                    AppAction::Save => self.save(),
+                    AppAction::Import => self.import_dialog(),
+                    AppAction::ImportProject => self.import_project_sheet(),
+                    AppAction::Export => self.export_dialog(None),
+                    AppAction::ExportAs(f) => self.export_dialog(Some(f)),
+                    AppAction::QuickExport => self.quick_export(),
+                    AppAction::Quit => {
+                        if self.ws.as_ref().is_some_and(|w| w.session.dirty) {
+                            self.save();
+                        }
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
+                    AppAction::CheckUpdates => shapecraft_update::Updater::global().check_now(),
+                },
+                MenuAction::Ui(crate::workspace::toolbar::UiAction::Preferences) if self.ws.is_none() => {
+                    self.home_prefs.get_or_insert(0);
+                }
+                other => {
+                    let Some(ws) = self.ws.as_deref_mut() else { continue };
+                    match other {
+                        MenuAction::Command(id) => {
+                            let _ = ws.run(id, json!({}));
+                        }
+                        MenuAction::Tool(kind) => ws.start_tool(kind),
+                        MenuAction::Ui(u) => ws.ui_action(u),
+                        MenuAction::View(v) => ws.standard_view(v),
+                        MenuAction::Display(d) => ws.display = d,
+                        MenuAction::Soon(label) => ws.toast(format!("{label} is coming soon")),
+                        MenuAction::App(_) => {}
+                    }
+                }
+            }
+        }
+    }
+
+    /// Opens a tutorial at a step: a fresh scratch workspace built from the step's scene, so nothing done in an
+    /// earlier step (or a slip) carries on, as in the reference.
+    pub(crate) fn start_tutorial(&mut self, id: &str, step: usize) {
+        use crate::tutorials;
+        let Some(lesson) = tutorials::lesson(id) else { return };
+        let Some(def) = lesson.steps.get(step) else { return };
+        if self.ws.as_ref().is_some_and(|w| w.tutorial.is_none()) {
+            self.close_project();
+        }
+        let mut session = Session::new(self.kernel.clone(), lesson.title);
+        let mut vars = std::collections::HashMap::new();
+        let setup = tutorials::run(&mut session, def.setup, &mut vars);
+        // Each scene starts with nothing picked (an extrude would leave its face selected).
+        session.selection.clear();
+        let base = tutorials::snapshot(&session);
+        let mut ws = Workspace::new(session, self.settings.clone());
+        ws.show_items = false;
+        ws.show_history = false;
+        if let Err(e) = setup {
+            ws.toast(format!("This step's scene didn't build: {e}"));
+        }
+        match def.view {
+            tutorials::View::Default => {
+                // An empty first step frames the size of part the lesson makes (about 10 cm).
+                let (min, max) =
+                    ws.session.doc.bounds().unwrap_or((glam::DVec3::new(-60.0, -45.0, 0.0), glam::DVec3::new(60.0, 45.0, 20.0)));
+                let mut c = shapecraft_render::Camera::default();
+                c.fit(min, max);
+                ws.camera = shapecraft_render::Camera::standard(StandardView::Default, c.target, c.distance);
+            }
+            tutorials::View::Sketch => {
+                if let Some(plane) = ws.session.active_sketch().map(|s| s.plane) {
+                    ws.focus_plane_public(plane);
+                }
+            }
+        }
+        let mut run = crate::workspace::tutorial::TutorialRun::new(lesson, step, base);
+        // Where the step is headed: its scene with the solution done, rendered for the corner card.
+        let mut goal = Session::new(self.kernel.clone(), lesson.title);
+        let mut gvars = std::collections::HashMap::new();
+        if tutorials::run(&mut goal, def.setup, &mut gvars).and_then(|_| tutorials::run(&mut goal, def.solution, &mut gvars)).is_ok() {
+            goal.selection.clear();
+            run.picture = picture(&mut ws, &goal.doc, (480, 330)).map(|(w, h, px)| {
+                let image = egui::ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &px);
+                self.egui.load_texture(format!("tutorial-{id}-{step}"), image, egui::TextureOptions::LINEAR)
+            });
+        }
+        ws.tutorial = Some(Box::new(run));
+        self.ws = Some(Box::new(ws));
+        self.saved_generation = 0;
+    }
+
+    fn tutorial_request(&mut self, req: crate::workspace::tutorial::Request, _ctx: &egui::Context) {
+        use crate::workspace::tutorial::Request;
+        let Some((id, step, steps)) =
+            self.ws.as_deref().and_then(|w| w.tutorial.as_deref()).map(|t| (t.lesson.id, t.step, t.lesson.steps.len()))
+        else {
+            return;
+        };
+        match req {
+            Request::Retry => self.start_tutorial(id, step),
+            Request::Next if step + 1 < steps => self.start_tutorial(id, step + 1),
+            Request::Next | Request::Quit => {
+                if req == Request::Next && !self.settings.tutorials_done.iter().any(|d| d == id) {
+                    self.settings.tutorials_done.push(id.to_string());
+                    self.save_settings();
+                }
+                self.ws = None;
+                self.landing.show_tutorials();
+                if req == Request::Next {
+                    self.landing.toast = Some(("Tutorial complete. Nicely done!".into(), f64::MAX));
+                }
+            }
+        }
+    }
+
+    fn save_settings(&mut self) {
+        if let Some(path) = &self.settings_file {
+            let _ = self.settings.save(path);
+        }
+    }
+
+    /// The settings in force: the workspace keeps its own copy while a project is open (the frame copies it back).
+    fn settings_now(&mut self) -> &mut crate::settings::Settings {
+        match self.ws.as_deref_mut() {
+            Some(ws) => &mut ws.settings,
+            None => &mut self.settings,
+        }
+    }
+
+    fn toast(&mut self, text: String) {
+        match self.ws.as_deref_mut() {
+            Some(ws) => ws.toast(text),
+            None => self.landing.toast = Some((text, f64::MAX)),
+        }
+    }
+
+    /// Installs the ready update as ShapeCraft closes (the helper waits for it to exit), saving first.
+    fn install_update(&mut self, ctx: &egui::Context, restart: bool) -> bool {
+        if self.ws.as_ref().is_some_and(|w| w.session.dirty) {
+            self.save();
+        }
+        let args: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+        match shapecraft_update::Updater::global().apply(restart, &args) {
+            Ok(()) => {
+                self.updates.closing = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                true
+            }
+            Err(e) => {
+                self.toast(format!("Couldn't install the update: {e}"));
+                false
+            }
+        }
+    }
+
+    fn update_action(&mut self, ctx: &egui::Context, action: crate::updates::Action) {
+        use crate::updates::Action;
+        match action {
+            Action::Install { restart } => {
+                self.install_update(ctx, restart);
+            }
+            Action::CloseAnyway => {
+                self.updates.closing = true;
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+            Action::Skip(version) => {
+                self.settings_now().update_skip = version;
+                shapecraft_update::Updater::global().skip();
+                if self.ws.is_none() {
+                    self.save_settings();
+                }
+            }
+            Action::AlwaysOnClose => {
+                self.settings_now().update_on_close = crate::updates::ON_CLOSE[1].to_string();
+                if self.ws.is_none() {
+                    self.save_settings();
+                }
+            }
+            Action::OpenPage(url) => {
+                let opener = if cfg!(target_os = "macos") {
+                    "open"
+                } else if cfg!(windows) {
+                    "explorer"
+                } else {
+                    "xdg-open"
+                };
+                let _ = std::process::Command::new(opener).arg(url).spawn();
+            }
+        }
+    }
+
+    /// Every frame, shown or not: automatic checks, and the question when closing with an update downloaded.
+    fn update_logic(&mut self, ctx: &egui::Context) {
+        if !self.updating {
+            return;
+        }
+        let updater = shapecraft_update::Updater::global();
+        let prefs = crate::updates::prefs(self.ws.as_deref().map_or(&self.settings, |w| &w.settings));
+        updater.tick(&prefs);
+        // An idle window draws no frames, so ask for one when the next automatic check could be due.
+        ctx.request_repaint_after(std::time::Duration::from_secs(if updater.snapshot().checked_ago.is_some() { 300 } else { 5 }));
+        if !ctx.input(|i| i.viewport().close_requested()) || self.updates.closing || !updater.ready() {
+            return;
+        }
+        let always = self.ws.as_deref().map_or(&self.settings, |w| &w.settings).update_on_close == crate::updates::ON_CLOSE[1];
+        if always {
+            // Installs on the way out; the window closes as asked.
+            if self.ws.as_ref().is_some_and(|w| w.session.dirty) {
+                self.save();
+            }
+            let args: Vec<std::ffi::OsString> = std::env::args_os().skip(1).collect();
+            let _ = updater.apply(false, &args);
+            self.updates.closing = true;
+        } else {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.updates.asking = true;
+            ctx.request_repaint();
+        }
+    }
+}
+
+/// A document rendered on its own, see-through around the model (unmixed from black and white backgrounds), at the
+/// default view fitted to it: project thumbnails and the tutorial's pictures.
+fn picture(ws: &mut Workspace, doc: &shapecraft_doc::Document, px: (u32, u32)) -> Option<(u32, u32, Vec<u8>)> {
+    let (min, max) = doc.bounds()?;
+    let mut c = shapecraft_render::Camera::default();
+    c.fit(min, max);
+    let camera = shapecraft_render::Camera::standard(StandardView::Default, c.target, c.distance * 0.92);
+    let mut over = |background: u32| {
+        let scene = SceneInput {
+            doc,
+            selection: &[],
+            hover: None,
+            active_sketch: None,
+            plane_tiles: &[],
+            overlays: &[],
+            colors: SceneColors { background: shapecraft_render::Rgba::hex(background), ..SceneColors::default() },
+            show_axes: false,
+            show_edges: true,
+            show_hidden_edges: false,
+            show_decals: true,
+            grid: None,
+            display: Default::default(),
+            section: None,
+            presentation: false,
+            backdrop: shapecraft_render::Rgba::hex(0x101010),
+            shadow: 0.0,
+            ghosts: &[],
+            tints: &[],
+            drawn: &[],
+            defined: &[],
+        };
+        ws.gpu.thumbnail(&scene, &camera, px)
+    };
+    let (w, h, black) = over(0x000000)?;
+    let (_, _, white) = over(0xffffff)?;
+    Some((w, h, crate::workspace::unmix(&black, &white)))
+}
+
+/// The project card's picture: see-through around the model (rendered over black and over white, then unmixed),
+/// so the card shows it on either theme's background.
+fn write_thumbnail(ws: &mut Workspace, dir: &std::path::Path) {
+    let camera = ws.thumbnail_camera();
+    let mut over = |background: u32| {
+        let scene = SceneInput {
+            doc: &ws.session.doc,
+            selection: &[],
+            hover: None,
+            active_sketch: None,
+            plane_tiles: &[],
+            overlays: &[],
+            colors: SceneColors { background: shapecraft_render::Rgba::hex(background), ..SceneColors::default() },
+            show_axes: false,
+            show_edges: true,
+            show_hidden_edges: false,
+            show_decals: true,
+            grid: None,
+            display: Default::default(),
+            section: None,
+            presentation: false,
+            backdrop: shapecraft_render::Rgba::hex(0x101010),
+            shadow: 0.0,
+            ghosts: &[],
+            tints: &[],
+            drawn: &[],
+            defined: &[],
+        };
+        ws.gpu.thumbnail(&scene, &camera, (400, 296))
+    };
+    if let (Some((w, h, black)), Some((_, _, white))) = (over(0x000000), over(0xffffff)) {
+        let mut px = crate::workspace::unmix(&black, &white);
+        // A project of only sketches is hairlines, which unmix to near see-through and vanish on a light card: make
+        // their coverage solid (bodies keep their measured look).
+        if ws.session.doc.bodies.is_empty() {
+            for a in px.iter_mut().skip(3).step_by(4) {
+                let t = 1.0 - *a as f32 / 255.0;
+                *a = ((1.0 - t * t * t) * 255.0).round() as u8;
+            }
+        }
+        let _ = write_rgba(&dir.join(project::THUMBNAIL_FILE), w, h, &px);
+    }
+}
+
+pub fn write_rgba(path: &std::path::Path, w: u32, h: u32, px: &[u8]) -> Result<(), String> {
+    let file = std::fs::File::create(path).map_err(|e| e.to_string())?;
+    let mut enc = png::Encoder::new(std::io::BufWriter::new(file), w, h);
+    enc.set_color(png::ColorType::Rgba);
+    enc.set_depth(png::BitDepth::Eight);
+    let mut writer = enc.write_header().map_err(|e| e.to_string())?;
+    writer.write_image_data(px).map_err(|e| e.to_string())
+}
+
+pub fn write_color_image(image: &egui::ColorImage, path: &std::path::Path) -> Result<(), String> {
+    let px: Vec<u8> = image.pixels.iter().flat_map(|c| c.to_array()).collect();
+    write_rgba(path, image.size[0] as u32, image.size[1] as u32, &px)
+}
+
+impl eframe::App for ShapeCraftApp {
+    /// What must go on with the window hidden too, where `ui` doesn't run: a minimized window, or one the compositor has
+    /// stopped giving frames to, still answers the control channel and still saves.
+    fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        self.handle_control(ctx);
+        self.autosave(ctx);
+        self.update_logic(ctx);
+        // A screenshot comes back on a later poll of the device, which an idle app would never make.
+        if let Some((waiting, since)) = &self.capture {
+            let late = since.elapsed().as_secs() >= 5;
+            let answered = waiting.lock().map_or(true, |mut w| {
+                if late && let Some(reply) = w.take() {
+                    let _ = reply.send(Err("the window isn't being drawn (minimized, or the display is off)".to_string()));
+                }
+                w.is_none()
+            });
+            if answered {
+                self.capture = None;
+            } else {
+                if let Some(state) = frame.wgpu_render_state() {
+                    let _ = state.device.poll(wgpu::PollType::Poll);
+                }
+                ctx.request_repaint_after(std::time::Duration::from_millis(16));
+            }
+        }
+    }
+
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        let rs = frame.wgpu_render_state().cloned();
+        self.frame(ui, rs.as_ref());
+    }
+
+    fn on_exit(&mut self) {
+        if self.ws.as_ref().is_some_and(|w| w.session.dirty) {
+            self.save();
+        }
+    }
+}
+
+/// Brings a window that came up too big for its screen, or hanging off it, fully into view (a high-DPI laptop has far
+/// fewer points than pixels), leaving room for the title bar and taskbar. False until the system has said how big things
+/// are. New windows open on the main screen, the one with the origin the position is measured from.
+fn fit_window(ctx: &egui::Context) -> bool {
+    let (screen, inner, outer) = ctx.input(|i| (i.viewport().monitor_size, i.viewport().inner_rect, i.viewport().outer_rect));
+    let (Some(screen), Some(inner), Some(outer)) = (screen, inner, outer) else { return false };
+    let room = egui::vec2(screen.x * 0.9, screen.y * 0.85);
+    let size = inner.size().min(room);
+    if size != inner.size() || outer.right() > screen.x || outer.bottom() > screen.y {
+        let chrome = outer.size() - inner.size();
+        ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(size));
+        ctx.send_viewport_cmd(egui::ViewportCommand::OuterPosition(((screen - size - chrome) / 2.0).max(egui::Vec2::ZERO).to_pos2()));
+    }
+    true
+}
+
+/// Opens a file in an app: by name on macOS (`open -a`), else its command on the PATH.
+fn open_in(mac_app: &str, command: &str, path: &std::path::Path) -> bool {
+    if cfg!(target_os = "macos") {
+        std::process::Command::new("open").arg("-a").arg(mac_app).arg(path).status().map(|s| s.success()).unwrap_or(false)
+    } else {
+        std::process::Command::new(command).arg(path).spawn().is_ok()
+    }
+}

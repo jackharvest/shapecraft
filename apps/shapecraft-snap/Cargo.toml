@@ -1,0 +1,21 @@
+[package]
+name = "shapecraft-snap"
+description = "Renders the ShapeCraft UI offscreen to PNG (no window), for side-by-side checks against the reference"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+shapecraft-ui.workspace = true
+shapecraft-kernel-occt.workspace = true
+egui = "0.37"
+eframe = { version = "0.37", default-features = false, features = ["wgpu"] }
+egui_kittest = { version = "0.37", features = ["wgpu", "eframe"] }
+serde_json.workspace = true
+glam.workspace = true
+anyhow.workspace = true
+image = { version = "0.25", default-features = false, features = ["png"] }
+
+[lints]
+workspace = true

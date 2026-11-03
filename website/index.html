@@ -1,0 +1,866 @@
+<!doctype html>
+<html lang="en" data-version="0.4.0-alpha">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ShapeCraft</title>
+<meta name="description" content="ShapeCraft: free, open-source, local-first direct-modeling CAD for macOS, Windows and Linux. Push, pull and round solids. No account, no cloud, no seats.">
+<meta property="og:title" content="ShapeCraft">
+<meta property="og:description" content="Free, open-source direct-modeling CAD. Push, pull, done. No account, no cloud.">
+<meta property="og:image" content="media/handheld.jpg">
+<link rel="icon" href="media/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --canvas:#1b1b1b; --panel:#232323; --panel-2:#2c2c2c; --line:#323232; --chip:#3a3a3a; --chip-2:#454545;
+  --ink:#f2f2f2; --ink-2:#a9a9a9; --ink-3:#717171;
+  --blue:#1d4fff; --blue-soft:rgba(29,79,255,.20);
+  --go:#1d4fff; --go-ink:#fff; --go-hi:#3a68ff;
+  --amber-soft:rgba(232,162,58,.15);
+  --green:#2fbf71; --amber:#e8a23a;
+  --grid:rgba(255,255,255,.045); --grid-major:rgba(255,255,255,.085);
+  --space:#0e0e10;
+  --shadow:0 18px 50px rgba(0,0,0,.45);
+  --top:48px; --left:250px; --right:250px;
+  --font:"Inter",-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+}
+:root[data-theme="light"]{
+  --canvas:#f3f3f3; --panel:#ffffff; --panel-2:#f0f0f0; --line:#dedede; --chip:#e7e7e7; --chip-2:#dcdcdc;
+  --ink:#141414; --ink-2:#555; --ink-3:#8c8c8c; --blue-soft:rgba(29,79,255,.12);
+  --grid:rgba(0,0,0,.05); --grid-major:rgba(0,0,0,.09); --space:#d9dbe0; --shadow:0 18px 44px rgba(0,0,0,.13);
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]){
+    --canvas:#f3f3f3; --panel:#ffffff; --panel-2:#f0f0f0; --line:#dedede; --chip:#e7e7e7; --chip-2:#dcdcdc;
+    --ink:#141414; --ink-2:#555; --ink-3:#8c8c8c; --blue-soft:rgba(29,79,255,.12);
+    --grid:rgba(0,0,0,.05); --grid-major:rgba(0,0,0,.09); --space:#d9dbe0; --shadow:0 18px 44px rgba(0,0,0,.13);
+  }
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:calc(var(--top) + 70px)}
+body{margin:0;background:var(--canvas);color:var(--ink);font:16px/1.55 var(--font);-webkit-font-smoothing:antialiased}
+a{color:inherit}
+img,video{max-width:100%;display:block}
+code,pre{font-family:var(--mono)}
+.kbd{font:500 12px var(--mono);min-width:22px;display:inline-block;text-align:center;padding:1px 6px;border-radius:6px;background:var(--chip);border-bottom:2px solid var(--chip-2);color:var(--ink)}
+
+/* the CAD grid, used as small glints across the page */
+.gridded{background-image:linear-gradient(var(--grid-major) 1px,transparent 1px),linear-gradient(90deg,var(--grid-major) 1px,transparent 1px),
+  linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:160px 160px,160px 160px,32px 32px,32px 32px}
+
+/* ── App chrome: title strip, Items column, History column, all attached to the edges ── */
+.strip{position:fixed;inset:0 0 auto 0;height:var(--top);z-index:30;display:flex;align-items:center;gap:12px;padding:0 14px;
+  background:var(--panel);border-bottom:1px solid var(--line)}
+.strip .homebtn{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--ink-2);text-decoration:none;flex:none}
+.strip .homebtn:hover{background:var(--chip);color:var(--ink)}
+.strip .name{font-weight:600;font-size:14.5px;display:flex;align-items:center;gap:9px;white-space:nowrap}
+.strip .name img{width:26px;height:26px}
+.wm{font-weight:700;letter-spacing:-.035em}
+.strip .wm{font-size:18px}
+.strip .ver:empty{display:none}
+.strip .ver{font:500 11px var(--mono);color:var(--ink-2);background:var(--chip);border-radius:99px;padding:2px 8px;white-space:nowrap}
+.strip nav{margin-left:auto;display:flex;align-items:center;gap:2px}
+.strip nav a{font-size:13.5px;color:var(--ink-2);text-decoration:none;padding:6px 10px;border-radius:8px;white-space:nowrap}
+.strip nav a:hover{color:var(--ink);background:var(--chip)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font:600 14px var(--font);text-decoration:none;border:0;cursor:pointer;
+  padding:9px 16px;border-radius:99px;background:var(--chip);color:var(--ink)}
+.btn:hover{filter:brightness(1.1)}
+.btn.blue{background:var(--blue);color:#fff}
+.btn.go{background:var(--go);color:var(--go-ink)} .btn.go:hover{background:var(--go-hi);filter:none}
+.strip nav a.btn.blue,.strip nav a.btn.go{padding:6px 14px;margin-left:6px}
+.strip nav a.btn.blue{color:#fff} .strip nav a.btn.go{color:var(--go-ink)} .strip nav a.btn.go:hover{background:var(--go-hi)}
+.strip .theme{width:32px;height:32px;padding:0;margin-left:4px}
+
+.items,.history{position:fixed;top:var(--top);bottom:0;width:var(--left);z-index:20;background:var(--panel);display:flex;flex-direction:column;font-size:13.5px}
+.items{left:0;border-right:1px solid var(--line)}
+.history{right:0;width:var(--right);border-left:1px solid var(--line)}
+.colhead{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 8px;font-weight:600;font-size:13px;flex:none}
+.colhead small{color:var(--ink-3);font-weight:500}
+.filter{margin:0 10px 6px;padding:5px 10px;border-radius:8px;background:var(--panel-2);color:var(--ink-2);font-size:12.5px;display:flex;justify-content:space-between;flex:none}
+.colbody{flex:1 1 auto;min-height:0;overflow-y:auto;overflow-x:hidden;padding-bottom:8px}
+.group{padding:10px 14px 4px;font-size:11px;color:var(--ink-3);font-weight:600;text-transform:uppercase;letter-spacing:.06em}
+.rowlink{display:flex;align-items:center;gap:9px;margin:1px 8px;padding:6px 8px;border-radius:8px;text-decoration:none;color:var(--ink-2);min-width:0;white-space:nowrap}
+.rowlink:hover{background:var(--chip);color:var(--ink)}
+.rowlink svg{width:17px;height:17px;flex:none}
+.rowlink .tx{overflow:hidden;text-overflow:ellipsis}
+.rowlink .tag{margin-left:auto;opacity:.6;font:500 10.5px var(--mono);flex:none}
+.rowlink.muted{opacity:.7;position:relative}
+.rowlink .mini{position:absolute;left:35px;right:16px;bottom:2px;height:2px;border-radius:2px;background:linear-gradient(90deg,var(--amber) var(--w),var(--chip) var(--w))}
+.rowlink.muted .tag{opacity:1;color:var(--amber)}
+.rowlink.on{background:var(--blue-soft);color:var(--ink)}
+.rowlink.on svg{color:var(--blue)}
+.colfoot{flex:none;padding:12px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:8px}
+.colfoot .note{font-size:11.5px;color:var(--ink-3);line-height:1.4}
+.progress{flex:none;height:3px;margin:0 16px 12px;border-radius:3px;background:var(--chip);overflow:hidden}
+.progress span{display:block;height:100%;width:0;background:var(--blue)}
+
+/* ── Floating overlays over the middle, as in the app ── */
+.hint{position:fixed;top:calc(var(--top) + 12px);left:calc(var(--left) + (100vw - var(--left) - var(--right))/2);transform:translateX(-50%);z-index:15;
+  display:flex;align-items:center;gap:10px;padding:6px 14px 6px 6px;border-radius:11px;max-width:min(520px,calc(100vw - var(--left) - var(--right) - 260px));
+  background:var(--panel);border:1px solid var(--line);box-shadow:var(--shadow);font-size:13px;color:var(--ink-2);transition:opacity .2s}
+.hint i{width:24px;height:24px;border-radius:7px;background:var(--chip);display:grid;place-items:center;font-style:normal;color:var(--ink);flex:none}
+.hint span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.hint b{color:var(--ink)}
+.tools{position:fixed;left:calc(var(--left) + 14px);top:50%;transform:translateY(-50%);z-index:15;display:flex;flex-direction:column;gap:6px}
+.tool{position:relative;display:block;text-decoration:none}
+.tool .ic{width:38px;height:38px;border-radius:10px;background:var(--panel);border:1px solid var(--line);display:grid;place-items:center;color:var(--ink);box-shadow:0 4px 14px rgba(0,0,0,.25)}
+.tool .ic svg{width:19px;height:19px}
+.tool .lb{position:absolute;left:46px;top:50%;font-size:12px;font-weight:600;padding:3px 8px;border-radius:7px;background:var(--panel);border:1px solid var(--line);
+  white-space:nowrap;opacity:0;transform:translate(-4px,-50%);transition:.15s;pointer-events:none}
+.tool:hover .lb,.tool:focus-visible .lb{opacity:1;transform:translate(0,-50%)}
+.tool.on .ic{background:var(--blue);border-color:var(--blue);color:#fff}
+.status{position:fixed;bottom:12px;left:calc(var(--left) + (100vw - var(--left) - var(--right))/2);transform:translateX(-50%);z-index:15;
+  font:500 11.5px var(--mono);color:var(--ink-2);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:4px 10px;white-space:nowrap;transition:opacity .2s}
+
+/* the view cube: chamfered faces, edges and corners, drawn in SVG; dragging it turns the page */
+.vcube{position:fixed;right:calc(var(--right) + 16px);top:calc(var(--top) + 10px);z-index:16;width:92px;height:92px;touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}
+.vcube:active{cursor:grabbing}
+.vcube svg{width:100%;height:100%;overflow:visible;filter:drop-shadow(0 6px 14px rgba(0,0,0,.35))}
+.vcube .pf{fill:#e4e4e4;stroke:#8e8e8e;stroke-width:.7;stroke-linejoin:round}
+.vcube .pe{fill:#cdcdcd;stroke:#8e8e8e;stroke-width:.7;stroke-linejoin:round}
+.vcube .pc{fill:#b9b9b9;stroke:#8e8e8e;stroke-width:.7;stroke-linejoin:round}
+.vcube polygon:hover{fill:#7d9bff}
+.vcube text{font:700 8px var(--font);letter-spacing:.05em;fill:#3a3a3a;pointer-events:none}
+.vcube .tip{position:absolute;right:0;top:96px;font:500 11px var(--font);color:var(--ink-3);white-space:nowrap;opacity:0;transition:opacity .2s;pointer-events:none}
+.vcube:hover .tip{opacity:1}
+
+/* ── The middle: one tall page between the columns ── */
+.viewport{margin:var(--top) var(--right) 0 var(--left);position:relative}
+.page{position:relative}
+section{position:relative;padding:110px 64px 100px 88px}
+.wrap{max-width:1120px;margin:0 auto;position:relative}
+.center{text-align:center;margin-left:auto;margin-right:auto}
+h1{font-size:clamp(44px,6vw,84px);letter-spacing:-.045em;line-height:1;margin:18px 0 20px;font-weight:700}
+h2{font-size:clamp(30px,3.4vw,48px);letter-spacing:-.035em;line-height:1.05;margin:12px 0 16px}
+p{color:var(--ink-2);font-size:17px;line-height:1.6}
+.lede{font-size:clamp(17px,1.4vw,20px);max-width:640px;margin:0 0 26px}
+.lede.center{margin-bottom:34px}
+.ctas{display:flex;flex-wrap:wrap;gap:10px}
+.ctas.center{justify-content:center}
+.meta{margin-top:14px;font-size:13px;color:var(--ink-3)}
+.opens{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:22px}
+.opens span{font-size:12.5px;color:var(--ink-2);margin-right:4px}
+.opens a{font:600 12px var(--mono);text-decoration:none;color:var(--amber);background:var(--amber-soft);padding:3px 8px;border-radius:7px}
+.opens a:hover{color:var(--ink)}
+.btn.lg{padding:13px 24px;font-size:15px}
+.btn.ghost{background:transparent;box-shadow:inset 0 0 0 1.5px var(--chip-2)}
+.grad{background:linear-gradient(90deg,#5b86ff,#1d4fff 60%,#7a5bff);-webkit-background-clip:text;background-clip:text;color:transparent}
+.eyebrow{white-space:nowrap;display:inline-flex;align-items:center;gap:9px;font:500 12.5px var(--mono);color:var(--ink-2);padding:6px 12px;border-radius:99px;background:var(--panel);border:1px solid var(--line)}
+.eyebrow .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 0 4px rgba(47,191,113,.18)}
+.label{display:flex;align-items:center;gap:10px;font:600 12.5px var(--mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-2)}
+.label.center{justify-content:center}
+.label span{font-weight:600;color:var(--amber);padding:3px 8px;border-radius:7px;background:var(--amber-soft)}
+.label.light{color:rgba(255,255,255,.8)} .label.light span{color:#fff;background:rgba(255,255,255,.16)}
+
+/* bands */
+.s-hero{background:radial-gradient(900px 560px at 75% 30%,rgba(29,79,255,.24),transparent 62%),var(--canvas);padding-top:96px;padding-bottom:80px;overflow:hidden}
+.s-steps{background:var(--panel);padding-top:44px;padding-bottom:44px;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+.s-feat{background:var(--canvas)}
+.s-feat.alt,.s-tiles{background:var(--panel)}
+.s-dark{background:#0d0d0f;color:#f2f2f2} .s-dark p{color:#a9a9a9} .s-dark .label{color:#a9a9a9}
+.s-blue{background:var(--blue);color:#fff} .s-blue .lede{color:rgba(255,255,255,.85)}
+.s-coffee{background:linear-gradient(180deg,var(--panel),var(--canvas))}
+
+/* grid glints: a patch of the modeling grid that fades out, never a whole background */
+.glint{position:absolute;pointer-events:none;inset:0;z-index:0}
+.glint.hero{-webkit-mask:radial-gradient(560px 340px at 28% 40%,#000 10%,transparent 72%);mask:radial-gradient(560px 340px at 28% 40%,#000 10%,transparent 72%)}
+.glint.mid{-webkit-mask:radial-gradient(620px 300px at 50% 50%,#000 5%,transparent 70%);mask:radial-gradient(620px 300px at 50% 50%,#000 5%,transparent 70%)}
+.glint.tl{-webkit-mask:radial-gradient(460px 340px at 0 0,#000,transparent 70%);mask:radial-gradient(460px 340px at 0 0,#000,transparent 70%)}
+.glint.br{-webkit-mask:radial-gradient(460px 340px at 100% 100%,#000,transparent 70%);mask:radial-gradient(460px 340px at 100% 100%,#000,transparent 70%)}
+.glint.tr{-webkit-mask:radial-gradient(520px 380px at 100% 0,#000,transparent 70%);mask:radial-gradient(520px 380px at 100% 0,#000,transparent 70%)}
+.glint.bl{-webkit-mask:radial-gradient(520px 380px at 0 100%,#000,transparent 70%);mask:radial-gradient(520px 380px at 0 100%,#000,transparent 70%)}
+.s-dark .glint{--grid:rgba(255,255,255,.05);--grid-major:rgba(255,255,255,.09)}
+.s-blue .glint{--grid:rgba(255,255,255,.07);--grid-major:rgba(255,255,255,.14)}
+section>.wrap{z-index:1}
+/* registration crosses at the corners of some blocks, like a sketch's corner points */
+.marks:before,.marks:after{content:"";position:absolute;width:15px;height:15px;pointer-events:none;opacity:.8;
+  background:linear-gradient(var(--amber),var(--amber)) center/1px 100% no-repeat,linear-gradient(var(--amber),var(--amber)) center/100% 1px no-repeat}
+.marks:before{left:-30px;top:-30px} .marks:after{right:-30px;bottom:-30px}
+.s-blue .marks:before,.s-blue .marks:after{background:linear-gradient(#fff,#fff) center/1px 100% no-repeat,linear-gradient(#fff,#fff) center/100% 1px no-repeat;opacity:.5}
+
+/* hero stage: the speed-lapse on a raised plate, cards floating over it */
+.stage{margin-top:44px}
+.stage>video{border-radius:14px;border:1px solid var(--line);box-shadow:0 0 90px rgba(29,79,255,.20),var(--shadow);width:100%;height:auto;background:#1b1b1b}
+.hero-split{grid-template-columns:minmax(0,1fr) minmax(0,1.12fr);gap:44px}
+.hero-split h1{font-size:clamp(34px,3.05vw,60px)}
+.hero-split .btn.lg{padding:12px 20px}
+.hero-split h1 span,.hero-split h1 .l1{white-space:nowrap}
+.hero-split .float-card{left:-34px;bottom:-30px;min-width:170px;font-size:12px;padding:8px 10px}
+.hero-split .float-card .row{padding:4px 0;font-size:12px}
+.hero-split .lede{font-size:clamp(16px,1.2vw,19px)}
+.chip{position:absolute;left:0;top:-44px;z-index:2;display:inline-flex;align-items:center;gap:8px;font:500 12px var(--mono);color:var(--ink);background:var(--panel);border:1px solid var(--line);padding:6px 12px;border-radius:99px;box-shadow:var(--shadow);white-space:nowrap}
+.chip i{width:7px;height:7px;border-radius:50%;background:var(--amber);animation:blink 1.4s infinite}
+@keyframes blink{50%{opacity:.25}}
+.float-card{position:absolute;right:-18px;bottom:28px;min-width:200px;background:color-mix(in srgb,var(--panel) 92%,transparent);backdrop-filter:blur(10px);
+  border:1px solid var(--line);border-radius:12px;padding:10px 12px;box-shadow:var(--shadow);font-size:13px;z-index:2}
+.float-card .title{font-weight:600;margin-bottom:4px;display:flex;justify-content:space-between;gap:12px}
+.float-card .title small{font-weight:500;color:var(--ink-3)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 0;border-top:1px solid var(--line);font-size:13px}
+.row .k{color:var(--ink-2)}
+.row .v{font:500 12px var(--mono);background:var(--chip);padding:3px 9px;border-radius:7px;color:var(--ink);white-space:nowrap}
+.row .v.on{background:var(--blue);color:#fff}
+
+/* four-step row */
+.steps4{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:16px;overflow:hidden;background:var(--canvas)}
+.steps4 .st{padding:22px 22px 24px;text-decoration:none;display:flex;flex-direction:column;gap:6px;border-right:1px solid var(--line);transition:background .15s}
+.steps4 .st:last-child{border-right:0}
+.steps4 .st:hover{background:var(--panel-2)}
+.steps4 .n{font:600 12px var(--mono);color:var(--amber)}
+.steps4 b{font-size:19px;letter-spacing:-.01em}
+.steps4 span:last-child{font-size:14px;color:var(--ink-2)}
+
+/* split features */
+.split{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.25fr);gap:56px;align-items:center}
+.split.flip{grid-template-columns:minmax(0,1.25fr) minmax(0,.9fr)}
+.split.flip .txt{order:2}
+.media{position:relative;isolation:isolate}
+.media:before{content:"";position:absolute;inset:-34px;z-index:-1;pointer-events:none;
+  background-image:linear-gradient(var(--grid-major) 1px,transparent 1px),linear-gradient(90deg,var(--grid-major) 1px,transparent 1px);background-size:32px 32px;
+  -webkit-mask:radial-gradient(closest-side,#000 40%,transparent);mask:radial-gradient(closest-side,#000 40%,transparent)}
+.media>img,.media>video{border-radius:14px;border:1px solid var(--line);box-shadow:var(--shadow);width:100%;height:auto;background:#1b1b1b}
+.media .float-card{right:auto;left:-18px;bottom:-18px}
+.split.flip .media .float-card{left:auto;right:-18px}
+.ticks{list-style:none;padding:0;margin:20px 0 0;display:grid;gap:9px}
+.ticks li{display:flex;gap:10px;align-items:center;font-size:15px;color:var(--ink)}
+.kbd{box-shadow:0 0 0 1px var(--amber-soft)}
+.ticks li:before{content:"";width:18px;height:18px;flex:none;border-radius:6px;background:var(--blue-soft) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='M5 10.5l3 3 7-7' fill='none' stroke='%231d4fff' stroke-width='2.2'/%3E%3C/svg%3E") center/14px no-repeat}
+
+/* tiles */
+.gpu{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,1fr);gap:28px;align-items:center;margin-top:30px;padding:26px 28px;border-radius:16px;
+  border:1px solid var(--line);background:radial-gradient(500px 220px at 100% 50%,var(--amber-soft),transparent 70%),var(--canvas)}
+.gpu-t b{display:block;font-size:24px;letter-spacing:-.02em;margin:10px 0 6px}
+.gpu-t p{margin:0;font-size:15px}
+.gpu-c{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.gpu-c span{font:600 12.5px var(--mono);padding:6px 11px;border-radius:9px;background:var(--panel);border:1px solid var(--line)}
+.gpu-c i{flex-basis:100%;height:0}
+.tiles6{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--line);border:1px solid var(--line);border-radius:16px;overflow:hidden;margin-top:36px}
+.tiles6>div{background:var(--canvas);padding:24px;display:flex;flex-direction:column;gap:6px}
+.tiles6 b{font-size:17px} .tiles6 span{font-size:14.5px;color:var(--ink-2)}
+.shots3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:28px}
+.shots3 figure{margin:0} .shots3 img{border-radius:12px;border:1px solid var(--line)}
+.shots3 figcaption{font-size:13px;color:var(--ink-3);margin-top:8px;text-align:center}
+
+pre.term{background:#151518;border:1px solid #2a2a30;color:#e8e8e8;box-shadow:var(--shadow);font-size:13.5px;border-radius:14px;padding:16px 18px;overflow:auto;line-height:1.6;margin:0}
+pre.term .c{color:#777}
+.s-dark .btn.ghost{color:#fff;box-shadow:inset 0 0 0 1.5px #444}
+
+.formats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:10px}
+.formats>div{border:1px solid var(--line);border-radius:12px;padding:16px 18px;display:flex;justify-content:space-between;align-items:center;gap:10px;background:var(--panel)}
+.formats b{font-size:15px} .formats span{font:500 12px var(--mono);color:var(--green);white-space:nowrap}
+.trio{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:22px}
+.trio>*{display:flex;flex-direction:column;gap:6px;padding:22px;border-radius:14px;background:var(--panel-2);text-decoration:none}
+.s-feat:not(.alt) .trio>*{background:var(--panel)}
+.trio b{font-size:16.5px} .trio span{font-size:14.5px;color:var(--ink-2)}
+.trio a:hover{outline:1.5px solid var(--blue)}
+
+.dl3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.dl3 .pl{background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.18);border-radius:16px;padding:22px;display:flex;flex-direction:column;gap:8px}
+.dl3 b{font-size:20px;margin-bottom:4px}
+.dl3 a{color:#111;background:#fff;border-radius:10px;padding:10px 12px;text-decoration:none;font-weight:600;font-size:14px}
+.dl3 a:hover{background:#e9eeff}
+.dl3 small{color:rgba(255,255,255,.75);font-size:12.5px}
+.first{border:1px solid rgba(255,255,255,.2);background:rgba(0,0,0,.18);color:#fff;border-radius:14px;padding:14px 18px;max-width:640px;margin:20px auto 0;font-size:14px}
+.first summary{cursor:pointer;font-weight:600}
+.first ol{margin:10px 0 0;padding-left:20px;color:rgba(255,255,255,.88)}
+
+.soon5{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-top:10px}
+.soon5>div{border:1.5px dashed var(--chip-2);border-radius:14px;padding:18px;display:flex;flex-direction:column;gap:6px}
+.soon5 .tag{align-self:flex-start;font:600 10.5px var(--mono);text-transform:uppercase;letter-spacing:.05em;color:var(--amber);background:rgba(232,162,58,.15);padding:3px 8px;border-radius:99px}
+.soon5 b{font-size:16px} .soon5 span:not(.tag){font-size:14px;color:var(--ink-2)}
+.soon5 i{display:block;height:5px;border-radius:5px;margin-top:auto;background:linear-gradient(90deg,var(--amber) var(--w),var(--chip) var(--w))}
+.bmc{display:inline-flex;align-items:center;justify-content:center;gap:10px;padding:12px 20px;border-radius:12px;background:#ffdd00;color:#111;font-weight:700;text-decoration:none}
+.bmc:hover{filter:brightness(1.05)}
+.bmc.big{font-size:18px;padding:16px 28px;border-radius:14px}
+.bmc.soft{background:var(--panel-2);color:var(--ink);font-weight:600;font-size:13.5px;padding:10px 14px;box-shadow:inset 0 0 0 1px var(--line)}
+.bmc.soft:hover{box-shadow:inset 0 0 0 1px #e0b400;filter:none}
+.small{font-size:13.5px;color:var(--ink-3)}
+.made{max-width:760px;margin:34px auto 0;padding:18px 22px;border-radius:14px;border:1px solid var(--line);background:var(--canvas)}
+.made b{font-size:15px} .made p{font-size:15px;margin:6px 0 0}
+
+footer{border-top:1px solid var(--line);background:var(--panel);padding:34px 64px 30px 88px;font-size:14px}
+footer .in{max-width:1120px;margin:0 auto;display:grid;grid-template-columns:1.6fr repeat(3,1fr);gap:24px;align-items:start}
+footer .brand img{width:96px;height:96px;filter:drop-shadow(0 10px 24px rgba(29,79,255,.35))}
+footer .brand .wm{display:block;font-size:44px;line-height:1;margin-top:14px}
+footer .brand p{margin-top:8px}
+footer h5{margin:0 0 10px;font-size:11.5px;color:var(--ink-3);text-transform:uppercase;letter-spacing:.06em}
+footer a{display:block;text-decoration:none;color:var(--ink-2);padding:3px 0}
+footer a:hover{color:var(--ink)}
+footer p{font-size:13.5px;margin:10px 0 0}
+footer .legal{grid-column:1/-1;border-top:1px solid var(--line);padding-top:16px;font-size:12.5px;color:var(--ink-3)}
+
+.reveal{opacity:0;transform:translateY(14px);transition:opacity .5s ease,transform .5s ease}
+.reveal.in{opacity:1;transform:none}
+
+/* ── The page as the front of a cube: while the view cube is dragged, the middle turns in 3D ── */
+.faces{position:absolute;left:0;width:100%;display:none;transform-style:preserve-3d;pointer-events:none}
+.cface{position:absolute;left:0;top:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;background-color:var(--canvas);border:1px solid var(--chip-2);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;overflow:hidden}
+.cface .fl{font:700 clamp(40px,7vw,96px)/1 var(--font);letter-spacing:.08em;color:var(--ink-3);opacity:.6}
+.cface p{max-width:420px;margin:0;font-size:18px}
+.cface img{max-width:min(70%,620px);border-radius:12px;border:1px solid var(--line);box-shadow:var(--shadow)}
+.cface .ax{position:absolute;inset:0;pointer-events:none}
+.cface .ax:before,.cface .ax:after{content:"";position:absolute}
+.cface .ax:before{left:50%;top:0;bottom:0;width:1px;background:rgba(80,190,110,.45)}
+.cface .ax:after{top:50%;left:0;right:0;height:1px;background:rgba(235,80,80,.45)}
+.cface>*:not(.ax){position:relative}
+html.cubing{scroll-behavior:auto}
+html.cubing body{background:var(--space)}
+html.cubing .viewport{transform-style:preserve-3d;will-change:transform}
+html.cubing .page{backface-visibility:hidden;-webkit-backface-visibility:hidden}
+html.cubing .faces{display:block}
+html.cubing .hint,html.cubing .status{opacity:0}
+
+@media (prefers-reduced-motion: reduce){.reveal{opacity:1;transform:none;transition:none}html{scroll-behavior:auto}.chip i{animation:none}}
+
+/* Narrower screens: the Items column goes first, then History; the page stays full width. */
+@media (max-width:1280px){ :root{--left:0px} .items{display:none} }
+@media (max-width:1000px){
+  :root{--right:0px} .history,.tools,.vcube,.status{display:none}
+  section{padding:84px 16px 64px} footer{padding:28px 16px}
+  .split,.split.flip{grid-template-columns:1fr;gap:28px} .split.flip .txt{order:0}
+  .steps4,.soon5{grid-template-columns:1fr 1fr} .steps4 .st:nth-child(2){border-right:0} .steps4 .st:nth-child(-n+2){border-bottom:1px solid var(--line)}
+  .tiles6,.formats,.trio,.dl3,.shots3,.gpu{grid-template-columns:1fr} .gpu-c{justify-content:flex-start}
+  .float-card{position:static;margin-top:10px}
+  .marks:before,.marks:after{display:none}
+  footer .in{grid-template-columns:1fr 1fr}
+  .strip nav a.m-hide{display:none}
+  .hint{max-width:calc(100vw - 32px)}
+}
+@media (max-width:560px){
+  .steps4,.soon5{grid-template-columns:1fr} .steps4 .st{border-right:0;border-bottom:1px solid var(--line)}
+  .strip .ver{display:none} .strip nav a:not(.btn){display:none} .hint{display:none}
+  .chip{font-size:11px;left:10px}
+}
+</style>
+</head>
+<body>
+
+<header class="strip">
+  <a class="homebtn" href="#top" aria-label="Top"><svg width="18" height="18" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 9.5 10 3l7 6.5V17h-4.5v-4.5h-5V17H3z"/></svg></a>
+  <span class="name"><img src="media/icon.svg" alt=""><span class="wm">Shape<span class="grad">Craft</span></span></span>
+  <span class="ver vnum"></span>
+  <nav>
+    <a class="m-hide" href="#sketch">Features</a>
+    <a class="m-hide" href="#agents">Agents</a>
+    <a class="m-hide" href="#files">Files</a>
+    <a href="https://github.com/jackharvest/shapecraft">GitHub</a>
+    <button class="btn theme" id="theme" aria-label="Switch light or dark">◐</button>
+    <a class="btn go" href="#download">Download</a>
+  </nav>
+</header>
+
+<!-- Items column (left edge): what you can take home -->
+<aside class="items" aria-label="Downloads and links">
+  <div class="colhead">Items <small>⌄</small></div>
+  <div class="filter"><span>All Items</span><span>⇅</span></div>
+  <div class="colbody">
+    <div class="group">Bodies · ready</div>
+    <a class="rowlink" href="#download"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 2.5 16.5 6v8L10 17.5 3.5 14V6z"/><path d="M3.5 6 10 9.5 16.5 6M10 9.5v8"/></svg><span class="tx">macOS</span><span class="tag">alpha</span></a>
+    <a class="rowlink" href="#download"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 2.5 16.5 6v8L10 17.5 3.5 14V6z"/><path d="M3.5 6 10 9.5 16.5 6M10 9.5v8"/></svg><span class="tx">Windows</span><span class="tag">alpha</span></a>
+    <a class="rowlink" href="#download"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 2.5 16.5 6v8L10 17.5 3.5 14V6z"/><path d="M3.5 6 10 9.5 16.5 6M10 9.5v8"/></svg><span class="tx">Linux</span><span class="tag">alpha</span></a>
+    <div class="group">Sketches · on the way</div>
+    <a class="rowlink muted" href="#soon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg><span class="tx">iPad and iPhone</span><span class="tag">15%</span><i class="mini" style="--w:15%"></i></a>
+    <a class="rowlink muted" href="#soon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg><span class="tx">Android tablets</span><span class="tag">10%</span><i class="mini" style="--w:10%"></i></a>
+    <a class="rowlink muted" href="#soon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg><span class="tx">In the browser</span><span class="tag">20%</span><i class="mini" style="--w:20%"></i></a>
+    <a class="rowlink muted" href="#soon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg><span class="tx">Proxmox / LXC</span><span class="tag">70%</span><i class="mini" style="--w:70%"></i></a>
+    <a class="rowlink muted" href="#soon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg><span class="tx">Pure-Rust kernel</span><span class="tag">30%</span><i class="mini" style="--w:30%"></i></a>
+    <a class="rowlink muted" href="#soon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg><span class="tx">Cloud connectors</span><span class="tag">10%</span><i class="mini" style="--w:10%"></i></a>
+    <div class="group">Links</div>
+    <a class="rowlink" href="https://github.com/jackharvest/shapecraft"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 6 3 10l4 4M13 6l4 4-4 4"/></svg><span class="tx">Source code</span></a>
+    <a class="rowlink" href="https://github.com/jackharvest/shapecraft/issues/new/choose"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="6.5"/><path d="M10 6.5v4.5M10 13.5v.1"/></svg><span class="tx">Report an issue</span></a>
+  </div>
+  <div class="colfoot">
+    <a class="bmc soft" href="https://www.buymeacoffee.com/jackharvest">☕ Prove my wife wrong</a>
+    <span class="note">Free, no account, no cloud. A coffee keeps the work going.</span>
+  </div>
+</aside>
+
+<!-- History column (right edge): the page's steps -->
+<aside class="history" aria-label="On this page">
+  <div class="colhead">History <small>⌄</small></div>
+  <div class="filter"><span>Related to Selection</span><span>Clear</span></div>
+  <nav class="colbody" id="hist">
+    <a class="rowlink" href="#top"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg><span class="tx">Sketch 01</span></a>
+    <a class="rowlink" href="#sketch"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="4" y="6" width="12" height="9"/></svg><span class="tx">Rectangle 01</span></a>
+    <a class="rowlink" href="#extrude"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12h12v5H4zM10 11V3M7 6l3-3 3 3"/></svg><span class="tx">Extrude 01</span></a>
+    <a class="rowlink" href="#fillet"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 16V9a5 5 0 0 1 5-5h7"/></svg><span class="tx">Fillet 01</span></a>
+    <a class="rowlink" href="#move"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3v14M3 10h14"/></svg><span class="tx">Move 01</span></a>
+    <a class="rowlink" href="#agents"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4-4 4M10 15h6"/></svg><span class="tx">Command 01</span></a>
+    <a class="rowlink" href="#files"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h5l2 2h7v8H3z"/></svg><span class="tx">Export 01</span></a>
+    <a class="rowlink" href="#download"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3v10M6 9l4 4 4-4M4 17h12"/></svg><span class="tx">Download</span></a>
+    <a class="rowlink" href="#soon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="6" y="2.5" width="8" height="15" rx="2"/></svg><span class="tx">Nearing completion</span></a>
+    <a class="rowlink" href="#donate"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 16s-6-3.5-6-8a3 3 0 0 1 6-1 3 3 0 0 1 6 1c0 4.5-6 8-6 8z"/></svg><span class="tx">Support</span></a>
+    <a class="rowlink" href="#contribute"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="10" cy="10" r="6"/><path d="M10 7v6M7 10h6"/></svg><span class="tx">Your step next</span></a>
+  </nav>
+  <div class="progress"><span id="progress"></span></div>
+  <div class="colfoot"><a class="btn go" href="#download">Download</a><span class="note">macOS · Windows · Linux · <span class="vnum"></span></span></div>
+</aside>
+
+<!-- Viewport overlays -->
+<div class="hint"><i>↓</i><span id="hint-text"><b>Scroll</b> to build the page, or drag the cube</span></div>
+<nav class="tools" aria-label="Jump to">
+  <a class="tool" href="#sketch" data-for="sketch"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg></span><span class="lb">Sketch</span></a>
+  <a class="tool" href="#extrude" data-for="extrude"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 12h12v5H4zM10 11V3M7 6l3-3 3 3"/></svg></span><span class="lb">Extrude</span></a>
+  <a class="tool" href="#fillet" data-for="fillet"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 16V9a5 5 0 0 1 5-5h7"/></svg></span><span class="lb">Fillet</span></a>
+  <a class="tool" href="#move" data-for="move"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3v14M3 10h14M10 3 8 5M10 3l2 2M17 10l-2-2M17 10l-2 2"/></svg></span><span class="lb">Move</span></a>
+  <a class="tool" href="#agents" data-for="agents"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4 6l4 4-4 4M10 15h6"/></svg></span><span class="lb">Automate</span></a>
+  <a class="tool" href="#files" data-for="files"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3 6h5l2 2h7v8H3z"/></svg></span><span class="lb">Files</span></a>
+  <a class="tool" href="#download" data-for="download"><span class="ic"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M10 3v10M6 9l4 4 4-4M4 17h12"/></svg></span><span class="lb">Download</span></a>
+</nav>
+<div class="vcube" id="vcube" role="img" aria-label="View cube: drag it to turn the page">
+  <svg id="vc" viewBox="-50 -50 100 100"></svg>
+  <span class="tip">Drag me</span>
+</div>
+<div class="status" id="status">Sketch 01</div>
+
+<div class="viewport" id="vp">
+<div class="page" id="page">
+
+<section id="top" class="s-hero" data-hint="<b>Scroll</b> to build the page, or drag the cube" data-name="Sketch 01">
+  <div class="glint hero gridded"></div>
+  <div class="wrap split hero-split">
+    <div class="txt">
+      <div class="eyebrow"><span class="dot"></span>Alpha · macOS · Windows · Linux</div>
+      <h1><span class="l1">Direct modeling.</span><br><span class="grad">Free, local, yours.</span></h1>
+      <p class="lede">Sketch on any face, pull it into a solid, round the edges, and type a number whenever you like. No account, no cloud, no seat limits.</p>
+      <div class="ctas">
+        <a class="btn go lg" href="#download">Download for <span id="os">your computer</span></a>
+        <a class="btn ghost lg" href="https://github.com/jackharvest/shapecraft">View on GitHub</a>
+      </div>
+      <div class="opens"><span>Opens what you already have</span><a href="#files">.shapr</a><a href="#files">.step</a><a href="#files">.x_t</a><a href="#files">.igs</a><a href="#files">.stl</a><a href="#files">.obj</a><a href="#files">.dxf</a><a href="#files">.svg</a></div>
+      <div class="meta">Free and open source · MIT OR Apache-2.0 · Made in Rust</div>
+    </div>
+    <div class="media stage reveal">
+      <span class="chip"><i></i>Speed-lapse · a handheld, start to finish</span>
+      <video autoplay muted loop playsinline preload="metadata" poster="media/handheld.jpg" width="1380" height="993"
+        aria-label="A clamshell handheld console modeled from a blank project: body, hinge, lid, screen, buttons and speaker, then the lid closes and opens">
+        <source src="media/handheld.mp4" type="video/mp4">
+      </video>
+      <div class="float-card"><div class="title">History <small>30 steps</small></div>
+        <div class="row"><span class="k">Sketches</span><span class="v">12</span></div>
+        <div class="row"><span class="k">Extrudes</span><span class="v">12</span></div>
+        <div class="row"><span class="k">Lid angle</span><span class="v">148°</span></div></div>
+    </div>
+  </div>
+</section>
+
+<section id="steps" class="s-steps" data-hint="Four moves make most parts" data-name="Rectangle 01">
+  <div class="glint mid gridded"></div>
+  <div class="wrap">
+    <div class="steps4 reveal">
+      <a href="#sketch" class="st"><span class="n">01</span><b>Sketch</b><span>Draw on any plane or face. Type sizes as you go.</span></a>
+      <a href="#extrude" class="st"><span class="n">02</span><b>Pull</b><span>Grab a face and drag it, or type a distance.</span></a>
+      <a href="#fillet" class="st"><span class="n">03</span><b>Round</b><span>Drag an edge to fillet it. Chamfer, shell, offset.</span></a>
+      <a href="#move" class="st"><span class="n">04</span><b>Arrange</b><span>Move, rotate, pattern and copy, linked or free.</span></a>
+    </div>
+  </div>
+</section>
+
+<section id="sketch" class="s-feat" data-hint="Pick a <b>plane</b> and draw. Type a size whenever you like" data-name="Rectangle 01">
+  <div class="glint br gridded"></div>
+  <div class="wrap split marks">
+    <div class="txt">
+      <div class="label"><span>01</span>Sketch</div>
+      <h2>Draw first.<br>Type numbers when you know them.</h2>
+      <p>Press <span class="kbd">R</span> on the top of a part and drag out a rectangle. Type 28, press <span class="kbd">Tab</span>, type 20. Snapping, inference and constraints work while you draw, so it moves like a pencil and holds like a drawing.</p>
+      <ul class="ticks"><li>Lines, arcs, splines, polygons and text</li><li>Constraints and driving dimensions</li><li>Linked sketch patterns</li></ul>
+    </div>
+    <div class="media reveal"><img src="media/sketch.gif" alt="Drawing a rectangle and a circle on the top of a mounting plate, typing their sizes" loading="lazy">
+      <div class="float-card"><div class="title">Rectangle</div><div class="row"><span class="k">Width</span><span class="v on">28 mm</span></div><div class="row"><span class="k">Height</span><span class="v">20 mm</span></div></div></div>
+  </div>
+</section>
+
+<section id="extrude" class="s-feat alt" data-hint="Click a <b>region</b>, then pull the arrow or type a distance" data-name="Extrude 01">
+  <div class="glint tl gridded"></div>
+  <div class="wrap split flip">
+    <div class="txt">
+      <div class="label"><span>02</span>Pull</div>
+      <h2>Grab a face. Pull it.</h2>
+      <p>Every face has a handle. Drag it, drop it onto another face to reach it, or type an exact value. ShapeCraft works out whether to add, cut or start a new body, and the badge lets you overrule it: push a sketch through a part and it cuts, switch the badge to New Body and the cut becomes a part of its own.</p>
+      <ul class="ticks"><li>One side, both sides, symmetric</li><li>Up to a face, or by distance</li><li>Every step editable later from History</li></ul>
+    </div>
+    <div class="media reveal"><img src="media/extrude.gif" alt="Pulling a boss up out of a plate, then pushing a hexagon through it and switching the result to a new body, which lifts out" loading="lazy">
+      <div class="float-card"><div class="title">Extrude</div><div class="row"><span class="k">Hexagon</span><span class="v">−12 mm</span></div><div class="row"><span class="k">Result</span><span class="v on">New Body</span></div></div></div>
+  </div>
+</section>
+
+<section id="fillet" class="s-feat" data-hint="Pick an <b>edge</b> and drag to round it" data-name="Fillet 01">
+  <div class="glint br gridded"></div>
+  <div class="wrap split marks">
+    <div class="txt">
+      <div class="label"><span>03</span>Round</div>
+      <h2>Round an edge by dragging it.</h2>
+      <p>Click an edge and drag, and the round follows your hand. Switch to chordal size, setback corners or G2 continuity, or shape the curvature with a slider.</p>
+      <ul class="ticks"><li>Radius or chordal, G1 or G2</li><li>Chamfer, shell, offset face</li><li>Parameter Cards for every setting</li></ul>
+    </div>
+    <div class="media reveal"><img src="media/fillet.gif" alt="Rounding the inside corner of a bracket, then its top edge" loading="lazy">
+      <div class="float-card"><div class="title">Fillet</div><div class="row"><span class="k">Type</span><span class="v on">Radius</span></div><div class="row"><span class="k">Continuity</span><span class="v">G1</span></div></div></div>
+  </div>
+</section>
+
+<section id="move" class="s-feat alt" data-hint="Press <b>M</b> to move or rotate the selection" data-name="Move 01">
+  <div class="glint tl gridded"></div>
+  <div class="wrap split flip">
+    <div class="txt">
+      <div class="label"><span>04</span>Arrange</div>
+      <h2>Move, rotate, copy.<br>Linked or not.</h2>
+      <p>One gizmo moves and turns. Pattern a part around an axis or along a line, and the copies stay linked: turn the original and all eight follow. Or let them go free. Mirror, booleans, split, loft, sweep, revolve and wrap-and-emboss sit on the same toolbar.</p>
+      <ul class="ticks"><li>Linear and circular patterns</li><li>Union, subtract, intersect, split</li><li>Loft, sweep, revolve, wrap and emboss</li></ul>
+    </div>
+    <div class="media reveal"><video autoplay muted loop playsinline preload="metadata" poster="media/rotate.jpg" width="920" height="662" aria-label="One arm on a hub patterned into eight around it; turning the original arm swings every linked copy with it"><source src="media/rotate.mp4" type="video/mp4"></video>
+      <div class="float-card"><div class="title">Pattern - Circular</div><div class="row"><span class="k">Count</span><span class="v on">8</span></div><div class="row"><span class="k">Copies</span><span class="v">Linked</span></div></div></div>
+  </div>
+</section>
+
+<section class="s-tiles" data-hint="Everything else that comes in the box" data-name="Move 01">
+  <div class="glint tr gridded"></div>
+  <div class="wrap">
+    <div class="label center"><span>+</span>Also inside</div>
+    <h2 class="center">Built to keep your work.</h2>
+    <div class="gpu reveal">
+      <div class="gpu-t"><span class="label"><span>GPU</span>Hardware-accelerated</span>
+        <b>Fast on the graphics card you have.</b>
+        <p>Metal on a Mac, Vulkan or DirectX 12 on Windows and Linux, with OpenGL and then the processor as fallbacks, so almost any machine gets a picture. It picks the discrete GPU over the built-in one, lets you choose a card by name, and if a GPU drops out mid-session it saves your work and restarts on another.</p></div>
+      <div class="gpu-c"><span>Metal</span><span>Vulkan</span><span>DirectX 12</span><span>OpenGL</span><i></i><span>NVIDIA</span><span>AMD</span><span>Intel</span><span>Apple silicon</span></div>
+    </div>
+    <div class="tiles6 reveal">
+      <div><b>History</b><span>Open any step, change a number, and the model rebuilds.</span></div>
+      <div><b>Offsite, if you want</b><span>Projects are plain folders, so Dropbox, OneDrive, Google Drive or iCloud Drive sync them like anything else. Built-in connectors are on the way.</span></div>
+      <div><b>Visualize</b><span>Drag a material onto a body. Bring your own HDR panoramas.</span></div>
+      <div><b>Drawings</b><span>Views of your part out to PDF, SVG, DXF and DWG.</span></div>
+      <div><b>Tutorials, eleven languages</b><span>Guided first parts in seven minutes each. English, German, French, Spanish, Japanese, Chinese and more.</span></div>
+      <div><b>Never lose work</b><span>Atomic saves, autosave when you switch away, and a project that reopens even after a crash.</span></div>
+    </div>
+    <div class="shots3 reveal">
+      <figure><img src="media/home-get-started.jpg" alt="The Get Started page" loading="lazy"><figcaption>Get Started</figcaption></figure>
+      <figure><img src="media/home-whats-new.jpg" alt="What's new cards" loading="lazy"><figcaption>What's new</figcaption></figure>
+      <figure><img src="media/workspace.jpg" alt="The workspace" loading="lazy"><figcaption>The workspace</figcaption></figure>
+    </div>
+  </div>
+</section>
+
+<section id="agents" class="s-dark" data-hint="Everything is a <b>command</b>: menus, keys, scripts and agents" data-name="Command 01">
+  <div class="glint bl gridded"></div>
+  <div class="wrap split">
+    <div class="txt">
+      <div class="label"><span>05</span>Automate</div>
+      <h2>Every button is a command.</h2>
+      <p>Menus, shortcuts, command search, scripts, the CLI, a JSON control channel and a built-in MCP server all call the same command list. Run it headless on a server, or connect to the open app and watch the model being built. The handheld at the top of this page was made that way, one command at a time.</p>
+      <div class="ctas"><a class="btn ghost" href="https://github.com/jackharvest/shapecraft/blob/main/docs/mcp.md">Read the MCP guide</a></div>
+    </div>
+<pre class="term reveal"><span class="c"># Headless MCP server on stdio</span>
+shapecraft-cli mcp
+
+<span class="c"># …or drive the open app (started with --control 47811)</span>
+shapecraft-cli mcp --connect 47811
+
+<span class="c"># One shot: script → project → picture</span>
+shapecraft-cli run part.jsonl --save out/ --png part.png</pre>
+  </div>
+</section>
+
+<section id="files" class="s-feat" data-hint="Your files stay <b>yours</b>" data-name="Export 01">
+  <div class="glint bl gridded"></div>
+  <div class="wrap">
+    <div class="label center"><span>06</span>Exchange</div>
+    <h2 class="center">Plain folders. Open formats.</h2>
+    <p class="lede center">Open the files you already have, from <code>.shapr</code> projects to STEP and Parasolid. A project is a folder: a readable <code>project.json</code> with the History, and the bodies as STEP. An imported file is never written over. Drawings go out as PDF, SVG, DXF and DWG.</p>
+    <div class="formats reveal">
+      <div><b>STEP · IGES</b><span>Open and save</span></div>
+      <div><b>Parasolid XT</b><span>Open and save</span></div>
+      <div><b>.shapr</b><span>Open and save</span></div>
+      <div><b>STL · OBJ</b><span>Open and save</span></div>
+      <div><b>DXF · SVG</b><span>Open as sketches</span></div>
+      <div><b>3MF · glTF · USDZ</b><span>Export</span></div>
+    </div>
+    <div class="trio reveal">
+      <div><b>Folders you own</b><span>Back them up, sync them, put them in git. Nothing is locked in a database.</span></div>
+      <div><b>No account, ever</b><span>No sign-in, no telemetry, no licence server. It works on a plane.</span></div>
+      <div><b>MIT OR Apache-2.0</b><span>Read it, build it, fork it. Icons drawn in code, every asset listed.</span></div>
+    </div>
+  </div>
+</section>
+
+<section id="download" class="s-blue" data-hint="Pick your <b>platform</b>. Alpha builds: keep backups" data-name="Download">
+  <div class="glint mid gridded"></div>
+  <div class="wrap marks">
+    <div class="label center light"><span>07</span>Download</div>
+    <h2 class="center">Get ShapeCraft.</h2>
+    <p class="lede center">Download, double-click, model. Everything it needs is inside, and it keeps itself up to date.</p>
+    <div class="dl3 reveal">
+      <div class="pl"><b>macOS</b><a href="https://github.com/jackharvest/shapecraft/releases" data-asset="(arm64|aarch64|apple).*\.dmg$">Apple silicon · .dmg</a><a href="https://github.com/jackharvest/shapecraft/releases" data-asset="(x86_64|x64|intel).*\.dmg$">Intel · .dmg</a><small>macOS 13 or newer</small></div>
+      <div class="pl"><b>Windows</b><a href="https://github.com/jackharvest/shapecraft/releases" data-asset="\.exe$">Installer x64 · .exe</a><a href="https://github.com/jackharvest/shapecraft/releases" data-asset="windows.*\.zip$">Portable x64 · .zip</a><small>Windows 10 and 11</small></div>
+      <div class="pl"><b>Linux</b><a href="https://github.com/jackharvest/shapecraft/releases" data-asset="\.AppImage$">AppImage x86_64</a><a href="https://github.com/jackharvest/shapecraft/releases" data-asset="linux.*\.tar\.gz$">Bundle · .tar.gz</a><small>Wayland and X11</small></div>
+    </div>
+    <details class="first"><summary>First launch: your computer asks once</summary>
+      <ol><li><b>macOS:</b> System Settings ▸ Privacy &amp; Security ▸ <b>Open Anyway</b>.</li><li><b>Windows:</b> SmartScreen ▸ <b>More info</b> ▸ <b>Run anyway</b>.</li><li><b>Linux:</b> allow the AppImage to run as a program, then double-click it.</li></ol>
+    </details>
+  </div>
+</section>
+
+<section id="soon" class="s-feat" data-hint="Coming next. Your <b>feedback</b> decides what's first" data-name="Nearing completion">
+  <div class="glint tr gridded"></div>
+  <div class="wrap">
+    <div class="label center"><span>08</span>Nearing completion</div>
+    <h2 class="center">What's next.</h2>
+    <p class="lede center">What you report from the desktop apps shapes these, so tell us how you use it.</p>
+    <div class="soon5 reveal">
+      <div><span class="tag">In design</span><b>iPad and iPhone</b><span>A touch and Pencil interface of its own, iPhone Duo included.</span><i style="--w:15%"></i></div>
+      <div><span class="tag">In design</span><b>Android tablets</b><span>The same touch and pen interface, on Android.</span><i style="--w:10%"></i></div>
+      <div><span class="tag">Planned</span><b>In the browser</b><span>The kernel on your server, drawing with WebGPU. Nothing to install.</span><i style="--w:20%"></i></div>
+      <div><span class="tag">Soon</span><b>Proxmox / LXC</b><span>One-line container install for headless modeling and agents.</span><i style="--w:70%"></i></div>
+      <div><span class="tag">In progress</span><b>Replaceable kernel</b><span>Today the geometry is Open CASCADE Technology (OCCT), behind one Rust interface. Pure-Rust kernels we want to plug in next: truck, Fornjot, and SolidCore as it matures. Your projects stay the same.</span><i style="--w:30%"></i></div>
+      <div><span class="tag">Planned</span><b>Your cloud, connected</b><span>Google Drive, OneDrive, Dropbox and iCloud Drive from inside the app. Until then, any synced folder works.</span><i style="--w:10%"></i></div>
+    </div>
+  </div>
+</section>
+
+<section id="donate" class="s-coffee" data-hint="Free forever. <b>Tips</b> keep it moving" data-name="Support">
+  <div class="glint tr gridded"></div>
+  <div class="wrap split">
+    <div class="txt"><div class="label"><span>09</span>Support</div>
+      <h2>Free. If it saved you a subscription…</h2>
+      <p>No paid tier, ever. Building it still costs money in test hardware, build machines and development tools. My wife is fairly sure that's where my evenings and our money disappear to. A coffee is the best counter-argument I have. It buys no features and no priority, only more hours on the work.</p></div>
+    <div class="center reveal"><a class="bmc big" href="https://www.buymeacoffee.com/jackharvest">☕ Prove my wife wrong</a><p class="small">Can't tip? A star or a good bug report helps as much.</p></div>
+  </div>
+</section>
+
+<section id="contribute" class="s-feat alt" data-hint="Found a bug? <b>Report it</b> on GitHub" data-name="Your step next">
+  <div class="glint br gridded"></div>
+  <div class="wrap">
+    <div class="label center"><span>10</span>Contribute</div>
+    <h2 class="center">Help shape it.</h2>
+    <div class="trio reveal">
+      <a href="https://github.com/jackharvest/shapecraft/issues/new/choose"><b>Report a bug →</b><span>What you did, what you expected, and the project folder if you can.</span></a>
+      <a href="https://github.com/jackharvest/shapecraft/issues/new/choose"><b>Ask for a feature →</b><span>Tell us about the part you were making. Real parts steer the roadmap.</span></a>
+      <a href="https://github.com/jackharvest/shapecraft/blob/main/CONTRIBUTING.md"><b>Send code →</b><span>Read the clean-room rules first. Small, tested pull requests merge fastest.</span></a>
+    </div>
+    <div class="made reveal" id="made"><b>How it's made</b>
+      <p>ShapeCraft is built by one applications engineer with more than twelve years in the trade, working with AI coding agents. The agents write much of the code. A person decides what gets built and how it should behave, and checks that it's right: by hand on real parts, with automated tests, on all three operating systems, and side by side with the tools it's measured against. It's clean-room: no code, files or artwork from other CAD products. The command list the agents build it with is the same one the MCP server hands to yours.</p></div>
+  </div>
+</section>
+
+<footer>
+  <div class="in">
+    <div class="brand"><img src="media/icon.svg" alt="ShapeCraft icon" width="96" height="96"><span class="wm">Shape<span class="grad">Craft</span></span>
+      <p>Direct-modeling CAD, free and local.<br>Made in Rust.</p></div>
+    <div><h5>Product</h5><a href="#sketch">Features</a><a href="#download">Download</a><a href="https://github.com/jackharvest/shapecraft/releases">Releases</a><a href="https://github.com/jackharvest/shapecraft/blob/main/CHANGELOG.md">Changelog</a></div>
+    <div><h5>Project</h5><a href="https://github.com/jackharvest/shapecraft">GitHub</a><a href="https://github.com/jackharvest/shapecraft/issues">Issues</a><a href="https://github.com/jackharvest/shapecraft/blob/main/CONTRIBUTING.md">Contribute</a><a href="https://www.buymeacoffee.com/jackharvest">Prove my wife wrong ☕</a></div>
+    <div><h5>Legal</h5><a href="https://github.com/jackharvest/shapecraft/blob/main/LICENSE-MIT">Licence</a><a href="https://github.com/jackharvest/shapecraft/blob/main/NOTICE">Notices</a><a href="https://github.com/jackharvest/shapecraft/blob/main/DISCLAIMER.md">Disclaimer</a><a href="https://github.com/jackharvest/shapecraft/blob/main/SECURITY.md">Security</a></div>
+    <div class="legal">© 2026 the ShapeCraft contributors. MIT OR Apache-2.0, at your option. Open CASCADE Technology is used under the LGPL 2.1 with its exception.
+      ShapeCraft is independent software and is not affiliated with, sponsored by or endorsed by any CAD vendor or console maker. Product names are trademarks of their owners and are used only to describe file compatibility.</div>
+  </div>
+</footer>
+</div>
+
+<!-- The cube's other sides, shown only while it's turned -->
+<div class="faces" id="faces" aria-hidden="true">
+  <div class="cface gridded" data-f="right"><span class="ax"></span><span class="fl">RIGHT</span><img src="media/handheld.jpg" alt="" loading="lazy"><p>Every side of a part is one drag away.</p></div>
+  <div class="cface gridded" data-f="left"><span class="ax"></span><span class="fl">LEFT</span><img src="media/icon-256.png" alt="" loading="lazy" style="width:120px;border:0;box-shadow:none"><p>Made in Rust. Free and open source.</p></div>
+  <div class="cface gridded" data-f="top"><span class="ax"></span><span class="fl">TOP</span><p>Looking down on the page.</p></div>
+  <div class="cface gridded" data-f="bottom"><span class="ax"></span><span class="fl">BOTTOM</span><p>Let go, and it snaps back.</p></div>
+  <div class="cface gridded" data-f="back"><span class="ax"></span><span class="fl">BACK</span><p>Nothing back here but more grid.</p></div>
+</div>
+</div>
+
+<script>
+(function(){
+  var root=document.documentElement;
+  try{var saved=localStorage.getItem('sc-theme'); if(saved) root.dataset.theme=saved;}catch(e){}
+  document.getElementById('theme').addEventListener('click',function(){
+    var dark=root.dataset.theme? root.dataset.theme==='dark' : !matchMedia('(prefers-color-scheme: light)').matches;
+    root.dataset.theme=dark?'light':'dark';
+    try{localStorage.setItem('sc-theme',root.dataset.theme);}catch(e){}
+  });
+  /* The version lives in one place: <html data-version>, the fallback. When the repository has releases, the
+     newest one (pre-releases count: alphas are pre-releases) replaces it, and its page and files become the download
+     links. Cached for an hour so visitors don't use up GitHub's rate limit. */
+  var VERSION='', last=null, spy=null;
+  function showVersion(tag){
+    VERSION=String(tag||'').replace(/^v/,'').replace(/-/g,' ');
+    document.querySelectorAll('.vnum').forEach(function(el){el.textContent=VERSION});
+    if(spy){last=null;spy()}
+  }
+  function useRelease(r){
+    if(!r||!r.tag_name) return;
+    showVersion(r.tag_name);
+    var files=r.assets||[];
+    document.querySelectorAll('.dl3 a').forEach(function(a){
+      var want=a.dataset.asset? new RegExp(a.dataset.asset,'i') : null, hit=want&&files.filter(function(f){return want.test(f.name)})[0];
+      a.href=hit?hit.browser_download_url:r.html_url;
+    });
+  }
+  showVersion(root.dataset.version);
+  (function(){
+    var key='sc-release', cached=null;
+    try{cached=JSON.parse(sessionStorage.getItem(key)||'null')}catch(e){}
+    if(cached&&Date.now()-cached.t<3600e3){useRelease(cached.r);return}
+    if(!window.fetch) return;
+    fetch('https://api.github.com/repos/jackharvest/shapecraft/releases?per_page=1',{headers:{Accept:'application/vnd.github+json'}})
+      .then(function(x){return x.ok?x.json():[]}).then(function(list){
+        var r=list&&list[0]; if(!r) return;
+        r={tag_name:r.tag_name,html_url:r.html_url,assets:(r.assets||[]).map(function(f){return {name:f.name,browser_download_url:f.browser_download_url}})};
+        try{sessionStorage.setItem(key,JSON.stringify({t:Date.now(),r:r}))}catch(e){}
+        useRelease(r);
+      }).catch(function(){});
+  })();
+
+  var ua=navigator.userAgent, os=/iPhone|iPad|Android/.test(ua)?null:/Mac/.test(ua)?'macOS':/Win/.test(ua)?'Windows':/Linux/.test(ua)?'Linux':null;
+  if(os) document.getElementById('os').textContent=os;
+
+  var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target);}})},{threshold:.1});
+  document.querySelectorAll('.reveal').forEach(function(el){io.observe(el)});
+
+  // History, toolbar, hint banner and status pill follow the section on screen.
+  var secs=[].slice.call(document.querySelectorAll('.page section[id]')),
+      hist={}, tools={}, hint=document.getElementById('hint-text'), bar=document.getElementById('progress'),
+      status=document.getElementById('status'), histBox=document.getElementById('hist');
+  document.querySelectorAll('#hist a').forEach(function(a){hist[a.getAttribute('href').slice(1)]=a});
+  document.querySelectorAll('.tool').forEach(function(a){tools[a.dataset.for]=a});
+  spy=function(){
+    var y=window.scrollY+window.innerHeight*0.4, cur=secs[0];
+    secs.forEach(function(s){if(s.offsetTop<=y) cur=s});
+    var h=document.documentElement.scrollHeight-window.innerHeight, t=h>0?Math.min(1,window.scrollY/h):0;
+    bar.style.width=(t*100)+'%';
+    if(cur===last) return; last=cur;
+    for(var k in hist){
+      hist[k].classList.toggle('on',k===cur.id);
+      if(k===cur.id){var a=hist[k]; if(a.offsetTop<histBox.scrollTop||a.offsetTop+a.offsetHeight>histBox.scrollTop+histBox.clientHeight) histBox.scrollTop=a.offsetTop-histBox.clientHeight/2;}
+    }
+    for(var k2 in tools) tools[k2].classList.toggle('on',k2===cur.id);
+    hint.innerHTML=cur.dataset.hint||'';
+    status.textContent=(cur.dataset.name||'')+(VERSION?' · '+VERSION:'');
+  }
+  addEventListener('scroll',spy,{passive:true}); addEventListener('resize',function(){last=null;spy()}); spy();
+
+  /* ── View cube ─────────────────────────────────────────────────────────────────────────────
+     The page is the FRONT of a box as wide as the middle and as deep as it is wide. Dragging the cube turns
+     the box (CSS 3D on the viewport; the other sides are .cface panels); letting go springs back to the front.
+     Clicking a face, edge or corner turns to look at it for a moment. Coordinates are CSS ones: x right,
+     y down, z towards you. */
+  var vp=document.getElementById('vp'), page=document.getElementById('page'), facesEl=document.getElementById('faces'),
+      svg=document.getElementById('vc'), cubeBox=document.getElementById('vcube'),
+      reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var yaw=0, pitch=0, active=false, raf=0, timer=0, D=0, W=0, Hv=0, P=0;
+  var R=Math.PI/180;
+  function rx(a){var c=Math.cos(a),s=Math.sin(a);return [[1,0,0],[0,c,-s],[0,s,c]]}
+  function ry(a){var c=Math.cos(a),s=Math.sin(a);return [[c,0,s],[0,1,0],[-s,0,c]]}
+  function mul(A,B){var M=[[0,0,0],[0,0,0],[0,0,0]];for(var i=0;i<3;i++)for(var j=0;j<3;j++)M[i][j]=A[i][0]*B[0][j]+A[i][1]*B[1][j]+A[i][2]*B[2][j];return M}
+  function ap(M,v){return [M[0][0]*v[0]+M[0][1]*v[1]+M[0][2]*v[2],M[1][0]*v[0]+M[1][1]*v[1]+M[1][2]*v[2],M[2][0]*v[0]+M[2][1]*v[1]+M[2][2]*v[2]]}
+  function add(){var r=[0,0,0];for(var i=0;i<arguments.length;i++){var v=arguments[i];r[0]+=v[0];r[1]+=v[1];r[2]+=v[2]}return r}
+  function sc(v,k){return [v[0]*k,v[1]*k,v[2]*k]}
+
+  // A chamfered cube: 6 square faces, 12 bevelled edges, 8 corner triangles.
+  var A=0.8, polys=[], AX=[[1,0,0],[0,1,0],[0,0,1]];
+  var FACES=[{n:[0,0,1],t:'FRONT',u:[1,0,0],up:[0,-1,0]},{n:[0,0,-1],t:'BACK',u:[-1,0,0],up:[0,-1,0]},
+             {n:[1,0,0],t:'RIGHT',u:[0,0,-1],up:[0,-1,0]},{n:[-1,0,0],t:'LEFT',u:[0,0,1],up:[0,-1,0]},
+             {n:[0,-1,0],t:'TOP',u:[1,0,0],up:[0,0,-1]},{n:[0,1,0],t:'BOTTOM',u:[1,0,0],up:[0,0,1]}];
+  FACES.forEach(function(f){
+    var c=f.n, u=f.u, v=sc(f.up,-1);
+    polys.push({k:'pf',d:c,face:f,pts:[add(c,sc(u,-A),sc(v,-A)),add(c,sc(u,A),sc(v,-A)),add(c,sc(u,A),sc(v,A)),add(c,sc(u,-A),sc(v,A))]});
+  });
+  for(var i=0;i<3;i++)for(var j=i+1;j<3;j++)for(var si=-1;si<=1;si+=2)for(var sj=-1;sj<=1;sj+=2){
+    var n1=sc(AX[i],si), n2=sc(AX[j],sj), e3=AX[3-i-j];
+    polys.push({k:'pe',d:add(n1,n2),pts:[add(n1,sc(n2,A),sc(e3,-A)),add(n1,sc(n2,A),sc(e3,A)),add(sc(n1,A),n2,sc(e3,A)),add(sc(n1,A),n2,sc(e3,-A))]});
+  }
+  for(var a1=-1;a1<=1;a1+=2)for(var b1=-1;b1<=1;b1+=2)for(var c1=-1;c1<=1;c1+=2){
+    polys.push({k:'pc',d:[a1,b1,c1],pts:[[a1,b1*A,c1*A],[a1*A,b1,c1*A],[a1*A,b1*A,c1]]});
+  }
+  var TILT=mul(rx(-24*R),ry(-32*R)), S=25;
+  function label(f,M){
+    var k=0.054, u=ap(M,f.u), dn=ap(M,sc(f.up,-1)), c=ap(M,f.n);
+    return '<text text-anchor="middle" dominant-baseline="central" transform="matrix('+[u[0]*S*k,u[1]*S*k,dn[0]*S*k,dn[1]*S*k,c[0]*S,c[1]*S].map(function(x){return x.toFixed(3)}).join(' ')+')">'+f.t+'</text>';
+  }
+  function draw(){
+    var M=mul(TILT,mul(rx(pitch*R),ry(yaw*R))), out=[];
+    polys.forEach(function(p,idx){
+      var n=ap(M,p.d); if(n[2]<=0.02) return;
+      var q=p.pts.map(function(v){return ap(M,v)}), z=0;
+      q.forEach(function(v){z+=v[2]});
+      out.push({z:z/q.length,s:'<polygon class="'+p.k+'" data-i="'+idx+'" points="'+q.map(function(v){return (v[0]*S).toFixed(2)+','+(v[1]*S).toFixed(2)}).join(' ')+'"/>'+
+        (p.face?label(p.face,M):'')});
+    });
+    out.sort(function(a,b){return a.z-b.z});
+    svg.innerHTML=out.map(function(o){return o.s}).join('');
+  }
+
+  function begin(){
+    if(active) return; active=true;
+    var top=document.querySelector('.strip').offsetHeight, sy=window.scrollY, H=page.offsetHeight;
+    W=vp.clientWidth; Hv=window.innerHeight-top; D=W;
+    var left=vp.getBoundingClientRect().left+window.scrollX;
+    vp.style.transformOrigin=(W/2)+'px '+(sy+Hv/2)+'px';
+    P=Math.max(W,Hv)*2.2;
+    page.style.clipPath='inset('+sy+'px 0 '+Math.max(0,H-sy-Hv)+'px 0)';
+    facesEl.style.top=sy+'px'; facesEl.style.height=Hv+'px';
+    facesEl.querySelectorAll('.cface').forEach(function(el){
+      var f=el.dataset.f, w=W, h=Hv, t;
+      if(f==='right'||f==='left'){w=D; t='translateZ('+(-D/2)+'px) rotateY('+(f==='right'?90:-90)+'deg) translateZ('+(W/2)+'px)'}
+      else if(f==='top'||f==='bottom'){h=D; t='translateZ('+(-D/2)+'px) rotateX('+(f==='top'?90:-90)+'deg) translateZ('+(Hv/2)+'px)'}
+      else t='translateZ('+(-D/2)+'px) rotateY(180deg) translateZ('+(D/2)+'px)';
+      el.style.width=w+'px'; el.style.height=h+'px'; el.style.left=((W-w)/2)+'px'; el.style.top=((Hv-h)/2)+'px'; el.style.transform=t;
+    });
+    root.classList.add('cubing');
+  }
+  function finish(){
+    active=false; root.classList.remove('cubing');
+    vp.style.transform=''; vp.style.transformOrigin=''; page.style.clipPath='';
+  }
+  function apply(){
+    if(active) vp.style.transform='perspective('+P+'px) translateZ('+(-D/2)+'px) rotateX('+pitch+'deg) rotateY('+yaw+'deg) translateZ('+(D/2)+'px)';
+    draw();
+  }
+  function tween(y1,p1,ms,ease,done){
+    cancelAnimationFrame(raf);
+    var y0=yaw,p0=pitch,t0=performance.now();
+    if(reduce) ms=1;
+    (function step(now){
+      var t=Math.min(1,Math.max(0,(now-t0)/ms)), e=ease(t);
+      yaw=y0+(y1-y0)*e; pitch=p0+(p1-p0)*e; apply();
+      if(t<1) raf=requestAnimationFrame(step); else if(done) done();
+    })(t0);
+  }
+  function outBack(t){var c=1.4;return 1+(c+1)*Math.pow(t-1,3)+c*Math.pow(t-1,2)}
+  function inOut(t){return t<.5?4*t*t*t:1-Math.pow(-2*t+2,3)/2}
+  function snapBack(){
+    clearTimeout(timer);
+    yaw=((yaw%360)+540)%360-180;
+    tween(0,0,700,outBack,function(){yaw=0;pitch=0;draw();finish()});
+  }
+  function peek(d){
+    var r=Math.hypot(d[0],d[2]), yt=r<1e-6?0:Math.atan2(-d[0],d[2])/R, pt=Math.atan2(d[1],r)/R;
+    begin();
+    tween(yt,pt,650,inOut,function(){timer=setTimeout(snapBack,1100)});
+  }
+
+  var drag=null;
+  cubeBox.addEventListener('pointerdown',function(e){
+    e.preventDefault(); cancelAnimationFrame(raf); clearTimeout(timer);
+    drag={x:e.clientX,y:e.clientY,y0:yaw,p0:pitch,moved:false,el:e.target};
+    try{cubeBox.setPointerCapture(e.pointerId)}catch(err){}
+  });
+  cubeBox.addEventListener('pointermove',function(e){
+    if(!drag) return;
+    var dx=e.clientX-drag.x, dy=e.clientY-drag.y;
+    if(!drag.moved&&Math.hypot(dx,dy)<4) return;
+    if(!drag.moved){drag.moved=true; begin()}
+    yaw=drag.y0+dx*0.55; pitch=Math.max(-90,Math.min(90,drag.p0-dy*0.55)); apply();
+  });
+  function up(){
+    if(!drag) return;
+    var d=drag; drag=null;
+    if(d.moved){snapBack();return}
+    var i=d.el&&d.el.getAttribute&&d.el.getAttribute('data-i');
+    if(i!=null) peek(polys[+i].d); else if(active) snapBack();
+  }
+  cubeBox.addEventListener('pointerup',up); cubeBox.addEventListener('pointercancel',up);
+  addEventListener('wheel',function(e){if(active)e.preventDefault()},{passive:false});
+  addEventListener('keydown',function(e){if(active&&e.key==='Escape')snapBack()});
+  draw();
+})();
+</script>
+</body>
+</html>

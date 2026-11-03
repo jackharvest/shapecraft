@@ -1,0 +1,13 @@
+{"task": {"category": "sketch", "about": "C, click the center, click a rim point 5 away: a \u00d810 circle"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "ui.view", "params": {"view": "top"}}
+{"wait": 0.8}
+{"key": "C"}
+{"click": [0, 0, 0]}
+{"click": [5, 0, 0]}
+{"wait": 0.3}
+{"key": "Escape"}
+{"control": "engine.execute", "params": {"command": "exit_sketching", "params": {}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 1}}}
+{"expect": {"volume": 78.53981633974483}}

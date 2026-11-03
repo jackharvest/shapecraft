@@ -1,0 +1,7 @@
+{"task": {"category": "modeling", "about": "Symmetric extrude 10 puts 10 on each side (observed s16-009)"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [10, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10, "sides": "symmetric"}}}
+{"expect": {"bounds": [[0, 0, -10], [10, 10, 10]]}}

@@ -1,0 +1,5 @@
+{"task": {"category": "construction", "about": "Resize a construction plane"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "offset_plane", "params": {"from": "xy", "distance": 5}}}
+{"control": "engine.execute", "params": {"command": "plane_size", "params": {"plane": 1, "size": 80}}}

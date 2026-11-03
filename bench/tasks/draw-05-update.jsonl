@@ -1,0 +1,12 @@
+{"task": {"category": "drawings", "about": "Drawing follows a model edit (Update)"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "create_drawing", "params": {"bodies": [2]}}, "save": {"name": "dr", "at": "/drawing"}}
+{"control": "engine.execute", "params": {"command": "edit_step", "params": {"step": 1, "params": {"distance": 20}}}}
+{"control": "engine.execute", "params": {"command": "update_drawing", "params": {"drawing": "$dr"}}}
+{"control": "engine.execute", "params": {"command": "export_drawing", "params": {"drawing": "$dr", "path": "$TMP/u.svg"}}}
+{"expect": {"file": "$TMP/u.svg"}}

@@ -1,0 +1,35 @@
+[package]
+name = "shapecraft-ui"
+description = "ShapeCraft desktop UI (egui): landing, workspace, tools, control channel"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+shapecraft-kernel.workspace = true
+shapecraft-doc.workspace = true
+shapecraft-engine.workspace = true
+shapecraft-render.workspace = true
+shapecraft-update.workspace = true
+glam.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+eframe = { version = "0.37", default-features = false, features = ["wgpu", "default_fonts", "wayland", "x11", "accesskit"] }
+egui = "0.37"
+egui-wgpu = "0.37"
+wgpu = "30"
+png = "0.18"
+rfd = "0.17"
+dirs = "6"
+
+[dev-dependencies]
+shapecraft-kernel-occt.workspace = true
+
+[lints]
+workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+muda = { version = "0.21", default-features = false }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+zbus = { version = "5", default-features = false, features = ["blocking-api", "async-io"] }

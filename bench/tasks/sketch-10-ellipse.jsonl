@@ -1,0 +1,7 @@
+{"task": {"category": "sketch", "about": "Ellipse 10 \u00d7 5, extruded 2"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "ellipse", "params": {"center": [0, 0], "rx": 10, "ry": 5}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 2}}}
+{"expect": {"volume": 314.1592653589793}}

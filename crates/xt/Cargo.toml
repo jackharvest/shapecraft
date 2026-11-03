@@ -1,0 +1,16 @@
+[package]
+name = "shapecraft-xt"
+description = "Parasolid XT transmit files (text and neutral binary), read and written from the published format reference"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+shapecraft-kernel.workspace = true
+thiserror.workspace = true
+
+[dev-dependencies]
+shapecraft-kernel-occt.workspace = true
+
+[lints]
+workspace = true

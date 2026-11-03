@@ -1,0 +1,9 @@
+{"task": {"category": "modeling", "about": "Sweep a square along a line with 90\u00b0 twist"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"center": [0, 0], "size": [4, 4]}}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xz"}}}
+{"control": "engine.execute", "params": {"command": "line", "params": {"a": [0, 0], "b": [0, 30]}}}
+{"control": "engine.execute", "params": {"command": "sweep", "params": {"profile": {"sketch": 1, "region": 0}, "path": {"sketch": 2}, "twist": 90}}}
+{"expect": {"bodies": 1, "volume": [480, 0.01]}}

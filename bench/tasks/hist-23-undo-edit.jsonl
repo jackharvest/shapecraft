@@ -1,0 +1,11 @@
+{"task": {"category": "history", "about": "Undo an edited step: the model goes back"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "edit_step", "params": {"step": 1, "params": {"distance": 30}}}}
+{"expect": {"volume": 6000}}
+{"key": "Z", "mods": "cmd"}
+{"expect": {"volume": 2000}}

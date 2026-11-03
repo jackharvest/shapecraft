@@ -1,0 +1,12 @@
+{"task": {"category": "construction", "about": "Axis along an edge; revolve a profile around that edge"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "axis_along_edge", "params": {"body": 2, "edge": 1}}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xz"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [30, 0], "opposite": [32, 10]}}}
+{"control": "engine.execute", "params": {"command": "revolve", "params": {"sketch": 4, "region": 0, "axis": {"body": 2, "edge": 1}, "angle": 360, "result": "new"}}}
+{"expect": {"bodies": 2, "volume": 5895.574890451344}}

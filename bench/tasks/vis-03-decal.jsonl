@@ -1,0 +1,11 @@
+{"task": {"category": "visualization", "about": "A picture as a decal on the top face"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "ui.capture", "params": {"path": "$TMP/decal.png"}}
+{"control": "engine.execute", "params": {"command": "import_decal", "params": {"path": "$TMP/decal.png"}}, "save": {"name": "img", "at": "/image"}}
+{"control": "engine.execute", "params": {"command": "place_decal", "params": {"image": "$img", "body": 2, "face": 5, "point": [10, 5, 10]}}}
+{"expect": {"bodies": 1}}

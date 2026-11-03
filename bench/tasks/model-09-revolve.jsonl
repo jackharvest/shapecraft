@@ -1,0 +1,7 @@
+{"task": {"category": "modeling", "about": "Revolve a 5 \u00d7 10 rectangle 5 mm off the axis: a tube"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xz"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [5, 0], "opposite": [10, 10]}}}
+{"control": "engine.execute", "params": {"command": "revolve", "params": {"sketch": 1, "region": 0, "axis": {"origin": [0, 0, 0], "dir": [0, 0, 1]}, "angle": 360}}}
+{"expect": {"bodies": 1, "volume": 2356.194490192345}}

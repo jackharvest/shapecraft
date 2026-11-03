@@ -1,0 +1,9 @@
+{"task": {"category": "modeling", "about": "Sweep a circle along a straight path: a cylinder"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [0, 0], "radius": 2}}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xz"}}}
+{"control": "engine.execute", "params": {"command": "line", "params": {"a": [0, 0], "b": [0, 30]}}}
+{"control": "engine.execute", "params": {"command": "sweep", "params": {"profile": {"sketch": 1, "region": 0}, "path": {"sketch": 2}}}}
+{"expect": {"bodies": 1, "volume": 376.99111843077515}}

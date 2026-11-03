@@ -1,0 +1,8 @@
+{"task": {"category": "sketch", "about": "Move a sketch to another plane (Change Sketch Plane)"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [0, 0], "radius": 2}}}
+{"control": "engine.execute", "params": {"command": "exit_sketching", "params": {}}}
+{"control": "engine.execute", "params": {"command": "change_sketch_plane", "params": {"sketch": 1, "plane": "xz"}}}
+{"expect": {"sketches": 1}}

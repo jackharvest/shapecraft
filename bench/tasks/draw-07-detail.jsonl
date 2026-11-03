@@ -1,0 +1,12 @@
+{"task": {"category": "drawings", "about": "A detail view of a corner at 2\u00d7"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "create_drawing", "params": {"bodies": [2]}}, "save": {"name": "dr", "at": "/drawing"}}
+{"control": "engine.execute", "params": {"command": "add_drawing_view", "params": {"drawing": "$dr", "kind": "base", "orientation": "front", "at": [120, 180]}}, "save": {"name": "v", "at": "/view"}}
+{"control": "engine.execute", "params": {"command": "add_drawing_view", "params": {"drawing": "$dr", "kind": "detail", "parent": "$v", "center": [20, 10], "radius": 4, "scale": 2, "at": [300, 80]}}}
+{"control": "engine.execute", "params": {"command": "export_drawing", "params": {"drawing": "$dr", "path": "$TMP/dt.pdf"}}}
+{"expect": {"file": "$TMP/dt.pdf"}}

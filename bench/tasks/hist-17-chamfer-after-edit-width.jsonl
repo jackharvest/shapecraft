@@ -1,0 +1,12 @@
+{"task": {"category": "history", "about": "Chamfer the top right edge, then widen the box via its sketch: chamfer moves with the edge"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "chamfer", "params": {"body": 2, "edges": [9], "distance": 1}}}
+{"control": "engine.execute", "params": {"command": "edit_sketch_step", "params": {"step": 0}}}
+{"control": "engine.execute", "params": {"command": "set_entity", "params": {"sketch": 1, "entities": [[0, {"type": "line", "a": [0, 0], "b": [30, 0]}], [1, {"type": "line", "a": [30, 0], "b": [30, 10]}], [2, {"type": "line", "a": [30, 10], "b": [0, 10]}]]}}}
+{"control": "engine.execute", "params": {"command": "exit_sketching", "params": {}}}
+{"expect": {"failed_steps": 0, "volume": 2995.0}}

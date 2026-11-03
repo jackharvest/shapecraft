@@ -1,0 +1,10 @@
+{"task": {"category": "modeling", "about": "Wrap & Emboss a sketch onto a cylinder"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [0, 0], "radius": 10}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 20}}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xz"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [-2, 5], "opposite": [2, 15]}}}
+{"control": "engine.execute", "params": {"command": "wrap_emboss", "params": {"sketch": 3, "region": 0, "body": 2, "depth": 1}}}
+{"expect": {"bodies": 1, "volume_between": [6284.185307179586, 6383.185307179586]}}

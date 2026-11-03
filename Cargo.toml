@@ -1,0 +1,44 @@
+[workspace]
+resolver = "3"
+members = ["crates/*", "apps/*"]
+
+[workspace.package]
+version = "0.4.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+rust-version = "1.90"
+
+[workspace.dependencies]
+shapecraft-kernel = { path = "crates/kernel" }
+shapecraft-kernel-occt = { path = "crates/kernel-occt" }
+shapecraft-doc = { path = "crates/doc" }
+shapecraft-engine = { path = "crates/engine" }
+shapecraft-render = { path = "crates/render" }
+shapecraft-ui = { path = "crates/ui-egui" }
+shapecraft-mcp = { path = "crates/mcp" }
+shapecraft-xt = { path = "crates/xt" }
+shapecraft-shapr = { path = "crates/shapr" }
+shapecraft-dwg = { path = "crates/dwg" }
+shapecraft-update = { path = "crates/update" }
+glam = { version = "0.30", features = ["serde"] }
+thiserror = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+
+[workspace.lints.clippy]
+unwrap_used = "deny"
+expect_used = "deny"
+panic = "deny"
+todo = "deny"
+unimplemented = "deny"
+unreachable = "deny"
+dbg_macro = "warn"
+
+[profile.dev.package."*"]
+opt-level = 2
+
+# Small, fast release builds: link-time optimisation across crates and no debug symbols in the shipped binary.
+[profile.release]
+lto = "thin"
+strip = "symbols"

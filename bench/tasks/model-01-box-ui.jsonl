@@ -1,0 +1,21 @@
+{"task": {"category": "modeling", "about": "Rectangle then E: a 20 \u00d7 10 \u00d7 12 box, all by input"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "ui.view", "params": {"view": "top"}}
+{"wait": 0.8}
+{"key": "R"}
+{"click": [0, 0, 0]}
+{"hover": [3, 3, 0]}
+{"text": "20"}
+{"key": "Tab"}
+{"text": "10"}
+{"key": "Enter"}
+{"wait": 0.3}
+{"key": "Escape"}
+{"click": [5, 5, 0]}
+{"wait": 0.3}
+{"key": "E"}
+{"text": "12"}
+{"key": "Enter"}
+{"wait": 0.3}
+{"expect": {"bodies": 1, "volume": 2400, "bounds": [[0, 0, 0], [20, 10, 12]]}}

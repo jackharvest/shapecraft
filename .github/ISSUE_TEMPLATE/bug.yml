@@ -1,0 +1,45 @@
+name: Bug report
+description: Something in ShapeCraft does the wrong thing, crashes or won't start
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting this. Small, exact steps are the fastest way to a fix.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: What you clicked, typed or dragged, in order, starting from a new project if you can.
+      placeholder: |
+        1. New project, sketch on the top plane
+        2. Rectangle 20 × 20, extrude 10
+        3. Fillet the top edge with 6 mm
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: ShapeCraft version and system
+      description: The version is on the home screen and in About ShapeCraft.
+      placeholder: 0.3.1, Windows 11, NVIDIA RTX 4060
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: Project, screenshots or a recording
+      description: |
+        Drag in a zipped project folder, a screenshot or a short recording. Leave out anything private.
+        After a crash, `crash.log` beside your settings helps too.
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else

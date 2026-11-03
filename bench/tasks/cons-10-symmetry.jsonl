@@ -1,0 +1,9 @@
+{"task": {"category": "constraints", "about": "Symmetry of two points about a line"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "line", "params": {"a": [0, -10], "b": [0, 10]}}}
+{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [-5, 0], "radius": 1}}}
+{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [4, 1], "radius": 1}}}
+{"control": "engine.execute", "params": {"command": "constrain", "params": {"kind": "symmetry", "entities": [1, 2, 0]}}}
+{"control": "engine.execute", "params": {"command": "inspect"}, "returns": {"at": "/sketches/0/entities/2/center/0", "neg": "/sketches/0/entities/1/center/0"}}

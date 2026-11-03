@@ -1,0 +1,10 @@
+{"task": {"category": "history", "about": "Shell the top open, then push the box taller: the open face is still the top"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "shell", "params": {"body": 2, "faces": ["@face:2:10,5,10"], "thickness": 1}}}
+{"control": "engine.execute", "params": {"command": "edit_step", "params": {"step": 1, "params": {"distance": 15}}}}
+{"expect": {"failed_steps": 0, "volume": 984}}

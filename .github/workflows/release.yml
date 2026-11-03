@@ -1,0 +1,119 @@
+# Pushing a tag like v0.4.0-alpha builds every download and publishes them as a GitHub release:
+#   macOS DMGs (Apple silicon, Intel), a Windows installer and portable zip, a Linux AppImage and tar.gz, SHA256SUMS.txt.
+# File names follow the Craft App Suite's (shapecraft-<version>-<os>-<arch>[-portable].<ext>); the app's updater and
+# the website pick their files by those names. OCCT comes from conda-forge on every platform and goes inside each
+# download. Builds are unsigned for now. SHAPECRAFT_RELEASE=1 marks these builds as releases, which check for updates.
+name: release
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+permissions:
+  contents: write
+env:
+  SHAPECRAFT_RELEASE: '1'
+defaults:
+  run:
+    shell: bash -el {0}
+
+jobs:
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-14, macos-15-intel]   # Apple silicon, Intel
+    runs-on: ${{ matrix.runner }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '13.0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mamba-org/setup-micromamba@v2
+        with: { environment-name: occt, create-args: occt=7.9 }
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Point the build at OCCT
+        run: |
+          echo "OCCT_INCLUDE_DIR=$CONDA_PREFIX/include/opencascade" >> "$GITHUB_ENV"
+          echo "OCCT_LIB_DIR=$CONDA_PREFIX/lib" >> "$GITHUB_ENV"
+      - run: cargo build --release --locked -p shapecraft -p shapecraft-cli
+      - run: python3 packaging/macos/bundle.py
+      - uses: actions/upload-artifact@v4
+        with: { name: 'macos-${{ matrix.runner }}', path: 'target/*.dmg', if-no-files-found: error }
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mamba-org/setup-micromamba@v2
+        with: { environment-name: occt, create-args: occt=7.9 }
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Point the build at OCCT
+        run: |
+          root="$CONDA_PREFIX/Library"
+          echo "$root/bin" >> "$GITHUB_PATH"
+          echo "OCCT_INCLUDE_DIR=$root/include/opencascade" >> "$GITHUB_ENV"
+          echo "OCCT_LIB_DIR=$root/lib" >> "$GITHUB_ENV"
+      - run: cargo build --release --locked -p shapecraft -p shapecraft-cli
+      - name: Inno Setup
+        shell: pwsh
+        run: if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+      - name: Bundle
+        shell: pwsh
+        run: ./packaging/windows/bundle.ps1
+      - uses: actions/upload-artifact@v4
+        with: { name: windows, path: "target/*-portable.zip\ntarget/*-setup.exe", if-no-files-found: error }
+
+  linux:
+    # The oldest Ubuntu runner: the programs need the glibc they were built against or newer.
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: mamba-org/setup-micromamba@v2
+        with: { environment-name: occt, create-args: occt=7.9 }
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Window libraries, patchelf
+        run: sudo apt-get update && sudo apt-get install -y patchelf libfuse2 libxkbcommon-dev libwayland-dev libx11-dev libxcursor-dev libxrandr-dev libxi-dev libgl1-mesa-dev
+      - name: Point the build at OCCT
+        run: |
+          echo "OCCT_INCLUDE_DIR=$CONDA_PREFIX/include/opencascade" >> "$GITHUB_ENV"
+          echo "OCCT_LIB_DIR=$CONDA_PREFIX/lib" >> "$GITHUB_ENV"
+      - run: cargo build --release --locked -p shapecraft -p shapecraft-cli
+      - name: Bundle (conda's OCCT needs its own C++ runtime along)
+        run: LD_LIBRARY_PATH="$OCCT_LIB_DIR" BUNDLE_CXX_RUNTIME=1 sh packaging/linux/bundle.sh
+      - name: AppImage
+        run: |
+          curl -fsSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool
+          APPIMAGETOOL="$PWD/appimagetool" sh packaging/linux/appimage.sh
+      - uses: actions/upload-artifact@v4
+        with: { name: linux, path: "target/*.tar.gz\ntarget/*.AppImage", if-no-files-found: error }
+
+  publish:
+    needs: [macos, windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          # The notes are the version's CHANGELOG.md section (## 0.4.0-alpha), then how to open the downloads.
+          awk -v h="## ${tag#v}" '$0 == h {on = 1; next} on && /^## / {exit} on' CHANGELOG.md > notes.md
+          {
+            echo
+            echo "---"
+            echo "Alpha: keep copies of anything important. ShapeCraft updates itself from here on: it downloads new"
+            echo "versions in the background and installs them when you close it."
+            echo
+            echo "**First launch:** macOS asks once: System Settings ▸ Privacy & Security ▸ Open Anyway."
+            echo "Windows SmartScreen: More info ▸ Run anyway. Linux: make the AppImage executable, then double-click it."
+            echo
+            echo "Check a download against SHA256SUMS.txt: \`shasum -a 256 FILE\` (macOS, Linux) or \`Get-FileHash FILE\` (Windows)."
+          } >> notes.md
+          gh release create "$tag" dist/* --title "ShapeCraft ${tag#v}" --notes-file notes.md --latest

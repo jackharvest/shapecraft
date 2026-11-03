@@ -1,0 +1,17 @@
+{"task": {"category": "history", "about": "Five steps, undo three, redo two"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
+{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"body": 2, "face": "@face:2:10,5,10", "distance": 1}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"body": 2, "face": "@face:2:10,5,11", "distance": 1}}}
+{"control": "engine.execute", "params": {"command": "extrude", "params": {"body": 2, "face": "@face:2:10,5,12", "distance": 1}}}
+{"key": "Z", "mods": "cmd"}
+{"key": "Z", "mods": "cmd"}
+{"key": "Z", "mods": "cmd"}
+{"expect": {"volume": 2000}}
+{"key": "Z", "mods": "cmd+shift"}
+{"key": "Z", "mods": "cmd+shift"}
+{"expect": {"volume": 2400}}

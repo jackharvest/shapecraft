@@ -1,0 +1,76 @@
+{
+  "sketch": {
+    "label": "Sketch drawing tools",
+    "weight": 14,
+    "manual": [
+      {
+        "score": 0.85,
+        "why": "sketch feel: inference lines, hover labels, rubber bands checked side by side; snapping to distant edges missing"
+      }
+    ]
+  },
+  "constraints": {
+    "label": "Sketch constraints, dimensions & snapping",
+    "weight": 10
+  },
+  "modeling": {
+    "label": "Solid modeling tools",
+    "weight": 18
+  },
+  "transform": {
+    "label": "Transform, pattern & align",
+    "weight": 7
+  },
+  "construction": {
+    "label": "Construction geometry",
+    "weight": 4
+  },
+  "selection": {
+    "label": "Selection & inspection",
+    "weight": 6
+  },
+  "history": {
+    "label": "History & parametrics",
+    "weight": 12
+  },
+  "items": {
+    "label": "Items & organization",
+    "weight": 4
+  },
+  "viewport": {
+    "label": "Viewport, navigation & display",
+    "weight": 8,
+    "manual": [
+      {
+        "score": 0.65,
+        "why": "navigation feel: Blender mouse preset observed and matched; trackpad gestures untuned against the reference; SpaceMouse missing"
+      },
+      {
+        "score": 0.8,
+        "why": "look of shading, edges, selection colours, view cube (side-by-side snapshots, docs/ui-parity.md)"
+      }
+    ]
+  },
+  "visualization": {
+    "label": "Visualization",
+    "weight": 3
+  },
+  "drawings": {
+    "label": "2D Drawings",
+    "weight": 4
+  },
+  "io": {
+    "label": "Import & export",
+    "weight": 6
+  },
+  "projects": {
+    "label": "Projects, preferences, shortcuts & help",
+    "weight": 4,
+    "manual": [
+      {
+        "score": 0.78,
+        "why": "icons: redrawn in the reference's style, a few still differ in weight (docs/ui-parity.md)"
+      }
+    ]
+  }
+}

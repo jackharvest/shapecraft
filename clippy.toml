@@ -1,0 +1,2 @@
+# Painter helpers take a painter, positions, sizes and colours; past ten arguments it is time for a struct.
+too-many-arguments-threshold = 10

@@ -1,0 +1,326 @@
+use glam::{DVec2, DVec3};
+use shapecraft_doc::{Body, Document, ItemId, Pick, Sketch};
+
+use crate::Camera;
+
+pub struct PickContext<'a> {
+    pub doc: &'a Document,
+    pub active_sketch: Option<ItemId>,
+    pub camera: &'a Camera,
+    pub size: DVec2,
+    /// Section View plane (origin, normal toward the removed side): hits there don't count.
+    pub section: Option<(DVec3, DVec3)>,
+}
+
+const EDGE_PX: f64 = 6.0;
+const SKETCH_PX: f64 = 7.0;
+
+fn v3(p: [f32; 3]) -> DVec3 {
+    DVec3::new(p[0] as f64, p[1] as f64, p[2] as f64)
+}
+
+/// Möller–Trumbore; returns the distance along the ray.
+fn ray_triangle(o: DVec3, d: DVec3, a: DVec3, b: DVec3, c: DVec3) -> Option<f64> {
+    let e1 = b - a;
+    let e2 = c - a;
+    let p = d.cross(e2);
+    let det = e1.dot(p);
+    if det.abs() < 1e-14 {
+        return None;
+    }
+    let inv = 1.0 / det;
+    let s = o - a;
+    let u = s.dot(p) * inv;
+    if !(0.0..=1.0).contains(&u) {
+        return None;
+    }
+    let q = s.cross(e1);
+    let v = d.dot(q) * inv;
+    if v < 0.0 || u + v > 1.0 {
+        return None;
+    }
+    let t = e2.dot(q) * inv;
+    (t > 0.0).then_some(t)
+}
+
+fn segment_distance(p: DVec2, a: DVec2, b: DVec2) -> (f64, f64) {
+    let ab = b - a;
+    let len2 = ab.length_squared();
+    let t = if len2 > 0.0 { ((p - a).dot(ab) / len2).clamp(0.0, 1.0) } else { 0.0 };
+    ((a + ab * t).distance(p), t)
+}
+
+fn sketch_entity_under(ctx: &PickContext, sketch: &Sketch, cursor: DVec2) -> Option<u32> {
+    let mut best: Option<(f64, u32)> = None;
+    for (i, e) in sketch.entities.iter().enumerate() {
+        for outline in e.outlines() {
+            let pts: Vec<DVec2> =
+                outline.iter().filter_map(|p| ctx.camera.project(sketch.plane.to_world(*p), ctx.size).map(|(s, _)| s)).collect();
+            for w in pts.windows(2) {
+                let (d, _) = segment_distance(cursor, w[0], w[1]);
+                if d < SKETCH_PX && best.is_none_or(|(bd, _)| d < bd) {
+                    best = Some((d, i as u32));
+                }
+            }
+        }
+    }
+    best.map(|(_, i)| i)
+}
+
+/// Whether a ray can reach a body at all: picking tests every triangle otherwise, and this runs each frame for what's under
+/// the cursor, so a model of many bodies would spend its frame there.
+fn ray_meets(bounds: Option<([f32; 3], [f32; 3])>, o: DVec3, d: DVec3) -> bool {
+    let Some((lo, hi)) = bounds else { return false };
+    let (mut near, mut far) = (f64::NEG_INFINITY, f64::INFINITY);
+    for i in 0..3 {
+        let (a, b) = (lo[i] as f64 - o[i], hi[i] as f64 - o[i]);
+        if d[i] == 0.0 {
+            if a > 0.0 || b < 0.0 {
+                return false;
+            }
+        } else {
+            let (t1, t2) = (a / d[i], b / d[i]);
+            near = near.max(t1.min(t2));
+            far = far.min(t1.max(t2));
+        }
+    }
+    near <= far && far >= 0.0
+}
+
+/// Whether the cursor can be within `px` of a body's outline on screen. Unsure (part of it behind the viewer) counts as yes.
+fn near_on_screen(ctx: &PickContext, body: &Body, cursor: DVec2, px: f64) -> bool {
+    let Some((lo, hi)) = body.mesh.bounds() else { return false };
+    let (mut min, mut max) = (DVec2::INFINITY, DVec2::NEG_INFINITY);
+    for corner in 0..8 {
+        let pick = |i: usize| if corner >> i & 1 == 0 { lo[i] } else { hi[i] };
+        let Some((p, _)) = ctx.camera.project(v3([pick(0), pick(1), pick(2)]), ctx.size) else { return true };
+        min = min.min(p);
+        max = max.max(p);
+    }
+    cursor.x >= min.x - px && cursor.x <= max.x + px && cursor.y >= min.y - px && cursor.y <= max.y + px
+}
+
+/// The nearest visible face along a ray: distance, body, face.
+fn nearest_face(ctx: &PickContext, o: DVec3, d: DVec3) -> Option<(f64, ItemId, u32)> {
+    let mut face_hit: Option<(f64, ItemId, u32)> = None;
+    for body in ctx.doc.bodies.iter().filter(|b| b.visible && ray_meets(b.mesh.bounds(), o, d)) {
+        let m = &body.mesh;
+        for (t, tri) in m.indices.as_chunks::<3>().0.iter().enumerate() {
+            let (Some(a), Some(b), Some(c)) =
+                (m.positions.get(tri[0] as usize), m.positions.get(tri[1] as usize), m.positions.get(tri[2] as usize))
+            else {
+                continue;
+            };
+            if let Some(dist) = ray_triangle(o, d, v3(*a), v3(*b), v3(*c))
+                && face_hit.is_none_or(|(bd, _, _)| dist < bd)
+                && !cut(ctx, o + d * dist)
+            {
+                face_hit = Some((dist, body.id, m.triangle_faces.get(t).copied().unwrap_or(0)));
+            }
+        }
+    }
+    face_hit
+}
+
+fn cut(ctx: &PickContext, p: DVec3) -> bool {
+    ctx.section.is_some_and(|(o, n)| (p - o).dot(n) > 0.0)
+}
+
+/// What's under the cursor, and the world point there.
+pub fn pick(ctx: &PickContext, cursor: DVec2) -> Option<(Pick, DVec3)> {
+    let (o, d) = ctx.camera.ray(cursor, ctx.size);
+
+    // In sketch mode the sketch wins: its elements, then its regions.
+    if let Some(sketch) = ctx.active_sketch.and_then(|id| ctx.doc.sketch(id)) {
+        let hit = sketch.plane.intersect_ray(o, d);
+        if let Some(i) = sketch_entity_under(ctx, sketch, cursor) {
+            return Some((Pick::SketchEntity { sketch: sketch.id, entity: i }, hit.unwrap_or(o)));
+        }
+        if let Some(hit) = hit {
+            let local = sketch.plane.to_local(hit);
+            // Regions don't overlap (the kernel splits them), so at most one contains the point.
+            if let Some(r) = sketch.regions().iter().find(|r| r.contains(local)) {
+                return Some((Pick::Region { sketch: sketch.id, region: r.index }, hit));
+            }
+        }
+    }
+
+    // Construction axes, by screen distance like edges.
+    for ax in ctx.doc.axes.iter().filter(|a| a.visible) {
+        let (a, b) = ax.ends();
+        if let (Some((sa, _)), Some((sb, _))) = (ctx.camera.project(a, ctx.size), ctx.camera.project(b, ctx.size)) {
+            let (d, t) = segment_distance(cursor, sa, sb);
+            if d < SKETCH_PX {
+                return Some((Pick::Axis { axis: ax.id }, a.lerp(b, t.clamp(0.0, 1.0))));
+            }
+        }
+    }
+
+    // Curves of other visible sketches stay pickable (a sweep path, a revolve axis), like edges are.
+    for sketch in ctx.doc.sketches.iter().filter(|s| s.visible && Some(s.id) != ctx.active_sketch) {
+        if let Some(i) = sketch_entity_under(ctx, sketch, cursor) {
+            let hit = sketch.plane.intersect_ray(o, d).unwrap_or(o);
+            return Some((Pick::SketchEntity { sketch: sketch.id, entity: i }, hit));
+        }
+    }
+
+    let face_hit = nearest_face(ctx, o, d);
+
+    // Nearest visible edge within a few pixels.
+    let mut edge_hit: Option<(f64, ItemId, u32, DVec3)> = None;
+    for body in ctx.doc.bodies.iter().filter(|b| b.visible && near_on_screen(ctx, b, cursor, EDGE_PX)) {
+        for (k, (line, &edge)) in body.mesh.edges.iter().zip(&body.mesh.edge_ids).enumerate() {
+            let own = body.mesh.edge_faces.get(k).copied().unwrap_or([u32::MAX; 2]);
+            for w in line.windows(2) {
+                let (a3, b3) = (v3(w[0]), v3(w[1]));
+                let (Some((a, _)), Some((b, _))) = (ctx.camera.project(a3, ctx.size), ctx.camera.project(b3, ctx.size)) else {
+                    continue;
+                };
+                let (px, t) = segment_distance(cursor, a, b);
+                if px >= EDGE_PX || edge_hit.is_some_and(|(bp, ..)| px >= bp) {
+                    continue;
+                }
+                let world = a3.lerp(b3, t);
+                if cut(ctx, world) {
+                    continue;
+                }
+                // Hidden or not is judged where the edge itself is on screen: next to a slanted face the cursor's
+                // own face point can be well in front of the edge it bounds.
+                let at = a + (b - a) * t;
+                let (eo, ed) = ctx.camera.ray(at, ctx.size);
+                let depth = (world - eo).dot(ed);
+                // A face seen at a grazing angle can be hit well in front of its own edge: the edge still shows when
+                // what's in front is one of the two faces it bounds.
+                let visible = nearest_face(ctx, eo, ed)
+                    .is_none_or(|(fd, fb, ff)| depth <= fd + ctx.camera.distance * 0.002 || fb == body.id && own.contains(&ff));
+                if visible {
+                    edge_hit = Some((px, body.id, edge, world));
+                }
+            }
+        }
+    }
+    if let Some((_, body, edge, world)) = edge_hit {
+        return Some((Pick::Edge { body, edge }, world));
+    }
+
+    // Regions of other visible sketches, if nearer than any face.
+    let mut region_hit: Option<(f64, Pick, DVec3)> = None;
+    for sketch in ctx.doc.sketches.iter().filter(|s| s.visible && Some(s.id) != ctx.active_sketch) {
+        let Some(hit) = sketch.plane.intersect_ray(o, d) else { continue };
+        let dist = (hit - o).length();
+        let local = sketch.plane.to_local(hit);
+        if let Some(r) = sketch.regions().iter().find(|r| r.contains(local))
+            && region_hit.as_ref().is_none_or(|(bd, ..)| dist < *bd)
+        {
+            region_hit = Some((dist, Pick::Region { sketch: sketch.id, region: r.index }, hit));
+        }
+    }
+    // Construction planes: their square, if nearer than any face or region.
+    for pl in ctx.doc.planes.iter().filter(|p| p.visible) {
+        let Some(hit) = pl.plane.intersect_ray(o, d) else { continue };
+        let local = pl.plane.to_local(hit);
+        let dist = (hit - o).length();
+        if local.abs().max_element() <= pl.size / 2.0 && region_hit.as_ref().is_none_or(|(bd, ..)| dist < *bd) {
+            region_hit = Some((dist, Pick::Plane { plane: pl.id }, hit));
+        }
+    }
+    // Reference pictures, like planes: inside their rectangle, if nearer than any face or region.
+    for im in ctx.doc.images.iter().filter(|i| i.visible) {
+        let Some(hit) = im.plane.intersect_ray(o, d) else { continue };
+        let local = im.plane.to_local(hit);
+        let dist = (hit - o).length();
+        if local.x.abs() <= im.size.x / 2.0 && local.y.abs() <= im.size.y / 2.0 && region_hit.as_ref().is_none_or(|(bd, ..)| dist < *bd) {
+            region_hit = Some((dist, Pick::Image { image: im.id }, hit));
+        }
+    }
+    match (face_hit, region_hit) {
+        (Some((fd, body, face)), Some((rd, pick, hit))) => {
+            if rd <= fd + ctx.camera.distance * 0.001 {
+                Some((pick, hit))
+            } else {
+                Some((Pick::Face { body, face }, o + d * fd))
+            }
+        }
+        (Some((fd, body, face)), None) => Some((Pick::Face { body, face }, o + d * fd)),
+        (None, Some((_, pick, hit))) => Some((pick, hit)),
+        (None, None) => None,
+    }
+}
+
+/// Everything along the ray under the cursor, nearest first: each face it passes through, edges within a few
+/// pixels, and sketch regions and construction planes it crosses ("Select Through This Point…").
+pub fn pick_through(ctx: &PickContext, cursor: DVec2) -> Vec<(Pick, f64)> {
+    let (o, d) = ctx.camera.ray(cursor, ctx.size);
+    let mut hits: Vec<(Pick, f64)> = Vec::new();
+    let add = |pick: Pick, dist: f64, hits: &mut Vec<(Pick, f64)>| match hits.iter_mut().find(|(p, _)| *p == pick) {
+        Some(h) => h.1 = h.1.min(dist),
+        None => hits.push((pick, dist)),
+    };
+    for body in ctx.doc.bodies.iter().filter(|b| b.visible) {
+        let m = &body.mesh;
+        for (t, tri) in m.indices.as_chunks::<3>().0.iter().enumerate() {
+            let (Some(a), Some(b), Some(c)) =
+                (m.positions.get(tri[0] as usize), m.positions.get(tri[1] as usize), m.positions.get(tri[2] as usize))
+            else {
+                continue;
+            };
+            if let Some(dist) = ray_triangle(o, d, v3(*a), v3(*b), v3(*c))
+                && !cut(ctx, o + d * dist)
+            {
+                add(Pick::Face { body: body.id, face: m.triangle_faces.get(t).copied().unwrap_or(0) }, dist, &mut hits);
+            }
+        }
+        for (line, &edge) in body.mesh.edges.iter().zip(&body.mesh.edge_ids) {
+            for w in line.windows(2) {
+                let (a3, b3) = (v3(w[0]), v3(w[1]));
+                let (Some((a, _)), Some((b, _))) = (ctx.camera.project(a3, ctx.size), ctx.camera.project(b3, ctx.size)) else { continue };
+                let (px, t) = segment_distance(cursor, a, b);
+                let world = a3.lerp(b3, t);
+                if px < EDGE_PX && !cut(ctx, world) {
+                    add(Pick::Edge { body: body.id, edge }, (world - o).dot(d), &mut hits);
+                }
+            }
+        }
+    }
+    for sketch in ctx.doc.sketches.iter().filter(|s| s.visible || Some(s.id) == ctx.active_sketch) {
+        let Some(hit) = sketch.plane.intersect_ray(o, d) else { continue };
+        let local = sketch.plane.to_local(hit);
+        if let Some(r) = sketch.regions().iter().find(|r| r.contains(local)) {
+            add(Pick::Region { sketch: sketch.id, region: r.index }, (hit - o).length(), &mut hits);
+        }
+    }
+    for pl in ctx.doc.planes.iter().filter(|p| p.visible) {
+        let Some(hit) = pl.plane.intersect_ray(o, d) else { continue };
+        if pl.plane.to_local(hit).abs().max_element() <= pl.size / 2.0 {
+            add(Pick::Plane { plane: pl.id }, (hit - o).length(), &mut hits);
+        }
+    }
+    for im in ctx.doc.images.iter().filter(|i| i.visible) {
+        let Some(hit) = im.plane.intersect_ray(o, d) else { continue };
+        let local = im.plane.to_local(hit);
+        if local.x.abs() <= im.size.x / 2.0 && local.y.abs() <= im.size.y / 2.0 {
+            add(Pick::Image { image: im.id }, (hit - o).length(), &mut hits);
+        }
+    }
+    hits.sort_by(|a, b| a.1.total_cmp(&b.1));
+    hits
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_ray_meets_a_box_only_where_it_is() {
+        let unit = Some(([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]));
+        let down = DVec3::NEG_Z;
+        assert!(ray_meets(unit, DVec3::new(0.5, 0.5, 5.0), down), "straight through");
+        assert!(ray_meets(unit, DVec3::new(0.5, 0.5, 0.5), down), "from inside");
+        assert!(ray_meets(unit, DVec3::new(1.0, 1.0, 5.0), down), "along a corner");
+        assert!(!ray_meets(unit, DVec3::new(1.5, 0.5, 5.0), down), "beside it");
+        assert!(!ray_meets(unit, DVec3::new(0.5, 0.5, -5.0), down), "behind the ray");
+        assert!(ray_meets(unit, DVec3::new(-3.0, -3.0, -3.0), DVec3::ONE.normalize()), "diagonally");
+        assert!(ray_meets(Some(([0.0, 0.0, 0.0], [1.0, 1.0, 0.0])), DVec3::new(0.5, 0.5, 5.0), down), "flat, as a plate's face");
+        assert!(!ray_meets(None, DVec3::ZERO, down), "an empty mesh");
+    }
+}

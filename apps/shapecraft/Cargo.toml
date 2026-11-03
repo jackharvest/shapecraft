@@ -1,0 +1,17 @@
+[package]
+name = "shapecraft"
+description = "ShapeCraft desktop app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+shapecraft-ui.workspace = true
+shapecraft-kernel-occt.workspace = true
+eframe = { version = "0.37", default-features = false, features = ["wgpu", "default_fonts", "wayland", "x11", "accesskit"] }
+egui = "0.37"
+anyhow.workspace = true
+png = "0.18"
+
+[lints]
+workspace = true

@@ -1,0 +1,22 @@
+[package]
+name = "shapecraft-shapr"
+description = "Shapr3D project files (.shapr): read and write for interoperability, learned from files we made"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+shapecraft-kernel.workspace = true
+shapecraft-xt.workspace = true
+serde_json.workspace = true
+glam.workspace = true
+thiserror.workspace = true
+rusqlite = { version = "0.37", features = ["bundled"] }
+rmpv = "1.3"
+miniz_oxide = "0.8"
+
+[dev-dependencies]
+shapecraft-kernel-occt.workspace = true
+
+[lints]
+workspace = true

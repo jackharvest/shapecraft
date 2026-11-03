@@ -1,0 +1,8 @@
+{"task": {"category": "constraints", "about": "Perpendicular turns the second line square to the first"}}
+{"size": [1840, 1324]}
+{"control": "project.new", "params": {}}
+{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
+{"control": "engine.execute", "params": {"command": "line", "params": {"a": [0, 0], "b": [10, 0]}}}
+{"control": "engine.execute", "params": {"command": "line", "params": {"a": [0, 0], "b": [3, 10]}}}
+{"control": "engine.execute", "params": {"command": "constrain", "params": {"kind": "perpendicular", "entities": [0, 1]}}}
+{"control": "engine.execute", "params": {"command": "inspect"}, "returns": {"at": "/sketches/0/entities/1/b/0", "same": "/sketches/0/entities/1/a/0"}}
