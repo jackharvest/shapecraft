@@ -1266,6 +1266,8 @@ impl ShapeCraftApp {
                         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                     AppAction::CheckUpdates => shapecraft_update::Updater::global().check_now(),
+                    AppAction::Tutorial(id) => self.start_tutorial(id, 0),
+                    AppAction::OpenPage(url) => open_page(url),
                 },
                 MenuAction::Ui(crate::workspace::toolbar::UiAction::Preferences) if self.ws.is_none() => {
                     self.home_prefs.get_or_insert(0);
@@ -1427,16 +1429,7 @@ impl ShapeCraftApp {
                     self.save_settings();
                 }
             }
-            Action::OpenPage(url) => {
-                let opener = if cfg!(target_os = "macos") {
-                    "open"
-                } else if cfg!(windows) {
-                    "explorer"
-                } else {
-                    "xdg-open"
-                };
-                let _ = std::process::Command::new(opener).arg(url).spawn();
-            }
+            Action::OpenPage(url) => open_page(&url),
         }
     }
 
@@ -1627,6 +1620,18 @@ fn fit_window(ctx: &egui::Context) -> bool {
 }
 
 /// Opens a file in an app: by name on macOS (`open -a`), else its command on the PATH.
+/// Opens a web page in the default browser.
+fn open_page(url: &str) {
+    let opener = if cfg!(target_os = "macos") {
+        "open"
+    } else if cfg!(windows) {
+        "explorer"
+    } else {
+        "xdg-open"
+    };
+    let _ = std::process::Command::new(opener).arg(url).spawn();
+}
+
 fn open_in(mac_app: &str, command: &str, path: &std::path::Path) -> bool {
     if cfg!(target_os = "macos") {
         std::process::Command::new("open").arg("-a").arg(mac_app).arg(path).status().map(|s| s.success()).unwrap_or(false)

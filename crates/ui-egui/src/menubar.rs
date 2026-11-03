@@ -27,6 +27,10 @@ pub enum AppAction {
     GoHome,
     /// Help ▸ Check for Updates…
     CheckUpdates,
+    /// Help ▸ Tutorials: starts a lesson (by its id in `tutorials::LESSONS`).
+    Tutorial(&'static str),
+    /// Help: opens a web page in the browser.
+    OpenPage(&'static str),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -91,6 +95,11 @@ fn item(label: &'static str, accel: Option<&'static str>, action: MenuAction, wh
 fn soon(label: &'static str) -> Entry {
     item(label, None, MenuAction::Soon(label), When::InProject)
 }
+
+/// Help menu links.
+pub const WEBSITE: &str = "https://jackharvest.com/shapecraft/";
+pub const RELEASES: &str = "https://github.com/jackharvest/shapecraft/releases";
+pub const ISSUES: &str = "https://github.com/jackharvest/shapecraft/issues/new/choose";
 
 /// The menus after the application menu, in the reference's order.
 pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
@@ -394,11 +403,20 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
         (
             "Help",
             vec![
+                Entry::Sub {
+                    label: "Tutorials",
+                    items: crate::tutorials::LESSONS.iter().map(|l| item(l.title, None, App(Tutorial(l.id)), Always)).collect(),
+                },
+                sep(),
                 item("Keyboard Shortcuts…", None, Ui(UiAction::Shortcuts), InProject),
                 item("Navigation Presets…", None, Ui(UiAction::NavPresets), InProject),
                 item("Search Commands", Some("CmdOrCtrl+F"), Ui(UiAction::Search), InProject),
-                Entry::Separator,
-                item("Check for Updates…", None, MenuAction::App(AppAction::CheckUpdates), When::Always),
+                sep(),
+                item("ShapeCraft Website", None, App(OpenPage(WEBSITE)), Always),
+                item("Release Notes", None, App(OpenPage(RELEASES)), Always),
+                item("Report a Problem or Idea…", None, App(OpenPage(ISSUES)), Always),
+                sep(),
+                item("Check for Updates…", None, App(CheckUpdates), Always),
             ],
         ),
     ]
