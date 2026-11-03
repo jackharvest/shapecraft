@@ -1,6 +1,6 @@
 //! The application: projects screen ⇄ workspace, autosave, files, and the control channel.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use serde_json::{Value, json};
@@ -50,6 +50,11 @@ impl Options {
     fn documents() -> PathBuf {
         dirs::document_dir().or_else(dirs::home_dir).unwrap_or_else(|| PathBuf::from("."))
     }
+}
+
+/// A project's name for messages: its folder name (the path is long and says little).
+fn project_name(dir: &Path) -> String {
+    dir.file_name().map_or_else(|| dir.display().to_string(), |n| n.to_string_lossy().into_owned())
 }
 
 /// Set when the graphics driver reports the device lost, from whichever thread noticed.
@@ -210,8 +215,38 @@ impl ShapeCraftApp {
                 self.ws = Some(Box::new(Workspace::new(session, self.settings.clone())));
                 self.saved_generation = 0;
             }
-            Err(e) => self.landing.toast = Some((format!("Couldn't open {}: {e}", dir.display()), f64::MAX)),
+            // The bodies file is unreadable: open the rest and make the bodies again from the History.
+            Err(project::ProjectError::Kernel(e)) => match self.recover(&dir) {
+                Some(note) => {
+                    if let Some(ws) = self.ws.as_deref_mut() {
+                        ws.toast(note);
+                    }
+                }
+                None => {
+                    self.landing.toast =
+                        Some((format!("Couldn't open “{}”: its bodies file can't be read ({e})", project_name(&dir)), f64::MAX))
+                }
+            },
+            Err(e) => self.landing.toast = Some((format!("Couldn't open “{}”: {e}", project_name(&dir)), f64::MAX)),
         }
+    }
+
+    /// Opens a project whose bodies file can't be read, rebuilding its bodies from the History. `None` when that
+    /// can't be done either (nothing opened).
+    fn recover(&mut self, dir: &Path) -> Option<String> {
+        let doc = project::load_without_bodies(self.kernel.as_ref(), dir).ok()?;
+        let mut session = Session::with_document(self.kernel.clone(), doc, Some(dir.to_path_buf()));
+        let failed = session.rebuild_bodies().ok()?;
+        let made = session.doc.bodies.len();
+        session.dirty = true;
+        self.ws = Some(Box::new(Workspace::new(session, self.settings.clone())));
+        self.saved_generation = 0;
+        Some(match failed {
+            0 => format!("This project's saved bodies couldn't be read, so its {made} bodies were rebuilt from the History."),
+            n => format!(
+                "This project's saved bodies couldn't be read. They were rebuilt from the History, but {n} steps failed: check them."
+            ),
+        })
     }
 
     /// Projects save themselves, like the reference app; ours go to a folder on disk.

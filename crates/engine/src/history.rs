@@ -508,6 +508,18 @@ impl Session {
     }
 
     /// Replays the steps that were set aside while a sketch was edited in the past.
+    /// Makes the bodies again from the History, for a project whose bodies file couldn't be read (opened with
+    /// `project::load_without_bodies`). Returns how many steps failed (they're marked, as on any rebuild).
+    pub fn rebuild_bodies(&mut self) -> Result<usize> {
+        if self.doc.history.is_empty() {
+            return Err(EngineError::NotAvailable("there's no History to rebuild the bodies from".into()));
+        }
+        self.rebuild(self.all_steps(), Strict::No)?;
+        self.refresh_regions();
+        self.revision += 1;
+        Ok(self.doc.history.iter().filter(|h| h.error.is_some()).count())
+    }
+
     pub(crate) fn resume_history(&mut self) -> Result<()> {
         self.rebuild(self.all_steps(), Strict::No)
     }

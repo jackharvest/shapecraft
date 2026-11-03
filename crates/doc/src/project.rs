@@ -323,6 +323,31 @@ pub fn load(kernel: &dyn Kernel, dir: &Path) -> Result<Document, ProjectError> {
     build(file, shapes, kernel, Some(dir))
 }
 
+/// The project without its bodies (sketches, planes, History and the rest), for when its bodies file can't be read:
+/// the History can make the bodies again. The unreadable file is kept beside it as `bodies-unreadable.step`.
+pub fn load_without_bodies(kernel: &dyn Kernel, dir: &Path) -> Result<Document, ProjectError> {
+    let bytes = fs::read(dir.join(PROJECT_FILE))?;
+    let mut file: ProjectFile = serde_json::from_slice(&bytes)?;
+    if file.version > FILE_VERSION {
+        return Err(ProjectError::Invalid(format!("made by a newer ShapeCraft (file version {})", file.version)));
+    }
+    if [BODIES_FILE, BODIES_FILE_NEXT].contains(&file.bodies_file.as_str()) {
+        let bad = dir.join(&file.bodies_file);
+        let keep = dir.join(UNREADABLE_BODIES_FILE);
+        if bad.exists() && !keep.exists() {
+            let _ = fs::copy(&bad, &keep);
+        }
+    }
+    file.bodies.clear();
+    for s in &mut file.sketches {
+        s.on_body = None;
+    }
+    build(file, Vec::new(), kernel, Some(dir))
+}
+
+/// Where `load_without_bodies` keeps a bodies file it couldn't read.
+pub const UNREADABLE_BODIES_FILE: &str = "bodies-unreadable.step";
+
 /// A document from its `project.json` contents and its bodies' shapes; pictures are read from `dir` when given.
 fn build(
     file: ProjectFile,

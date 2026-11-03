@@ -335,3 +335,33 @@ fn custom_materials_from_a_picture() {
     assert!(s.doc.bodies[0].appearance.is_none());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A project whose bodies file is unreadable still opens: the rest loads, the History makes the bodies again,
+/// and the broken file is kept beside it.
+#[test]
+fn an_unreadable_bodies_file_is_rebuilt_from_the_history() {
+    let dir = std::env::temp_dir().join(format!("sc-recover-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut s = session();
+    s.execute("sketch", &serde_json::json!({"plane": "xy"})).unwrap();
+    s.execute("rectangle", &serde_json::json!({"corner": [0, 0], "opposite": [4, 5]})).unwrap();
+    s.execute("extrude", &serde_json::json!({"sketch": 1, "region": 0, "distance": 3})).unwrap();
+    let id = s.doc.bodies[0].id;
+    shapecraft_doc::project::save(&s.doc, s.kernel.as_ref(), &dir).unwrap();
+    let step = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.path()).find(|p| p.extension().is_some_and(|x| x == "step")).unwrap();
+    std::fs::write(&step, b"ISO-10303-21;\nthis is not a step file\n").unwrap();
+    assert!(shapecraft_doc::project::load(s.kernel.as_ref(), &dir).is_err());
+
+    let doc = shapecraft_doc::project::load_without_bodies(s.kernel.as_ref(), &dir).unwrap();
+    let mut back = crate::Session::with_document(s.kernel.clone(), doc, Some(dir.clone()));
+    assert_eq!(back.rebuild_bodies().unwrap(), 0, "no step failed");
+    assert_eq!(back.doc.bodies.len(), 1);
+    assert_eq!(back.doc.bodies[0].id, id, "the body keeps its id");
+    let v = back.kernel.mass_props(&back.doc.bodies[0].shape).unwrap().volume;
+    assert!((v - 60.0).abs() < 1e-6, "{v}");
+    assert!(dir.join(shapecraft_doc::project::UNREADABLE_BODIES_FILE).exists());
+    // Saved again, it opens normally.
+    shapecraft_doc::project::save(&back.doc, back.kernel.as_ref(), &dir).unwrap();
+    assert_eq!(shapecraft_doc::project::load(back.kernel.as_ref(), &dir).unwrap().bodies.len(), 1);
+    let _ = std::fs::remove_dir_all(&dir);
+}
