@@ -111,8 +111,16 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${GITHUB_REF_NAME}"
-          # The notes are the version's CHANGELOG.md section (## 0.4.0-alpha), then how to open the downloads.
-          awk -v h="## ${tag#v}" '$0 == h {on = 1; next} on && /^## / {exit} on' CHANGELOG.md > notes.md
+          # The notes are every CHANGELOG.md section since the last public release: internal versions in between
+          # (docs/versioning.md) never got a release of their own. Then how to open the downloads.
+          prev=$(gh release list --exclude-drafts --limit 1 --json tagName --jq '.[0].tagName // ""')
+          awk -v h="## ${tag#v}" -v stop="## ${prev#v}" '
+            $0 == h {on = 1; next}
+            on && /^## / {
+              if (stop == "## " || $0 == stop) exit
+              sub(/^## /, "### Also in ")
+            }
+            on' CHANGELOG.md > notes.md
           {
             echo
             echo "---"

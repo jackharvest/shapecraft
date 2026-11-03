@@ -62,5 +62,8 @@ The GUI and UX feeling extremely close to the reference is the most important fe
 ## Git
 - The repository is public. Commit after each piece of work that builds and passes tests; push and release only
   when the maintainer says so.
+- Finished batches get their own version and local tag; only the day's one push reaches GitHub
+  ([docs/versioning.md](docs/versioning.md) "Internal versions and the daily push"). The internal checklist,
+  including the visual check of every change in the reference and in our built app, is `plan/PROCESS.md`.
 - Public text (commits, docs, About box) names no AI tools and no personal names. Commit as the repository's
   configured identity, with no co-author trailers.
