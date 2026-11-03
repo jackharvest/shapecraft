@@ -35,16 +35,18 @@ const HALF_PI: f64 = std::f64::consts::FRAC_PI_2;
 
 impl Default for Camera {
     fn default() -> Self {
-        // 26.200 starts 1.34× closer than 26.142 did (a 7.48 mm line where ours measured 10.05, s11-009).
-        Self::standard(StandardView::Default, DVec3::ZERO, 89.4)
+        // 26.202 at 1600×1000: a 13 mm square at the origin spans 306 px across (s36); 89.4 (matched to 26.200)
+        // drew it 1.19× bigger.
+        Self::standard(StandardView::Default, DVec3::ZERO, 106.1)
     }
 }
 
 impl Camera {
     pub fn standard(view: StandardView, target: DVec3, distance: f64) -> Self {
         let (yaw, pitch) = match view {
-            // Observed: X runs to the lower right, Y to the upper right, Z up.
-            StandardView::Default => (-0.95, 0.52),
+            // Observed: X runs to the lower right, Y to the upper right, Z up, both at the same slope (26.202:
+            // a square at the origin is a symmetric diamond, s36).
+            StandardView::Default => (-std::f64::consts::FRAC_PI_4, 0.52),
             StandardView::Front => (0.0, 0.0),
             StandardView::Back => (std::f64::consts::PI, 0.0),
             StandardView::Right => (HALF_PI, 0.0),
