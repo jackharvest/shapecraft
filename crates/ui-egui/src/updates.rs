@@ -28,6 +28,8 @@ pub struct UpdateUi {
     always: bool,
     /// When a manual check's result was first shown.
     shown_at: Option<f64>,
+    /// A failed install from the last run has been reported.
+    pub told_failure: bool,
 }
 
 /// What the user asked for.

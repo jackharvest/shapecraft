@@ -16,6 +16,9 @@ use std::path::Path;
 
 use crate::install::Install;
 
+/// Where a helper that couldn't install the update leaves the reason, beside its log.
+pub(crate) const FAILURE_FILE: &str = "last-failure.txt";
+
 /// Starts the helper. ShapeCraft must close straight after (the helper waits for it, up to three minutes).
 pub fn launch(install: &Install, staged: &Path, version_dir: &Path, log: &Path, restart: bool, args: &[OsString]) -> Result<(), String> {
     let pid = std::process::id();
@@ -45,8 +48,8 @@ fn swap(target: &Path, new: &Path) -> String {
     let (t, n) = (p(target), p(new));
     let old = sq(&format!("{}.previous", target.to_string_lossy()));
     format!(
-        "rm -rf {old}\nmv {t} {old} || {{ echo \"couldn't move the old version aside\"; exit 1; }}\n\
-         if ! mv {n} {t}; then rm -rf {t}; mv {old} {t}; echo \"couldn't put the new version in place; kept the old one\"; exit 1; fi\n\
+        "rm -rf {old}\nmv {t} {old} || fail \"couldn't move the old version aside\"\n\
+         if ! mv {n} {t}; then rm -rf {t}; mv {old} {t}; fail \"couldn't put the new version in place, so the old one was kept\"; fi\n\
          rm -rf {old}\n"
     )
 }
@@ -64,7 +67,7 @@ pub(crate) fn unix_script(
     let (steps, relaunch) = match install {
         Install::MacApp(bundle) => (swap(bundle, staged), format!("open {} --args {words}", p(bundle))),
         Install::AppImage(image) => (
-            format!("chmod +x {s}\nmv -f {s} {i} || {{ echo \"couldn't replace the AppImage\"; exit 1; }}\n", s = p(staged), i = p(image)),
+            format!("chmod +x {s}\nmv -f {s} {i} || fail \"couldn't replace the AppImage\"\n", s = p(staged), i = p(image)),
             format!("env -u APPIMAGE -u APPDIR -u OWD -u ARGV0 {} {words} >/dev/null 2>&1 &", p(image)),
         ),
         Install::LinuxFolder(root) => {
@@ -73,12 +76,17 @@ pub(crate) fn unix_script(
         _ => return Err("updates can't install themselves here".into()),
     };
     let relaunch = if restart { relaunch } else { String::new() };
+    // A failed install says why at the next start (`take_failure`) and, when asked to, still reopens the old version.
     Ok(format!(
         "#!/bin/sh\n# ShapeCraft's update helper: waits for ShapeCraft to close, then swaps in the new version.\n\
-         exec >>{log} 2>&1\necho \"== $(date): updating ShapeCraft\"\nn=0\n\
+         exec >>{log} 2>&1\necho \"== $(date): updating ShapeCraft\"\n\
+         fail() {{ echo \"$1\"; printf '%s\\n' \"$1\" > {failed}; cd \"$HOME\" 2>/dev/null; {relaunch}\n exit 1; }}\nn=0\n\
          while kill -0 {pid} 2>/dev/null; do n=$((n+1)); [ $n -gt 900 ] && {{ echo \"ShapeCraft didn't close; nothing changed\"; exit 1; }}; sleep 0.2; done\n\
-         {steps}echo \"updated\"\nrm -rf {dir}\ncd \"$HOME\" 2>/dev/null\n{relaunch}\n",
+         [ -e {staged} ] || fail \"the downloaded update went missing before it could be installed\"\n\
+         {steps}echo \"updated\"\nrm -f {failed}\nrm -rf {dir}\ncd \"$HOME\" 2>/dev/null\n{relaunch}\n",
         log = p(log),
+        failed = p(&log.with_file_name(FAILURE_FILE)),
+        staged = p(staged),
         dir = p(version_dir),
     ))
 }
@@ -127,14 +135,18 @@ pub(crate) fn windows_script(
         format!("Start-Process -FilePath {} -ArgumentList {list}\n", s(&exe))
     };
     Ok(format!(
-        "$ErrorActionPreference = 'Stop'\n$log = {log}\n\
+        "$ErrorActionPreference = 'Stop'\n$log = {log}\n$failed = {failed}\n\
          function Say($m) {{ Add-Content -LiteralPath $log -Value ((Get-Date -Format s) + ' ' + $m) }}\n\
-         try {{\nSay 'updating ShapeCraft'\n\
          $p = Get-Process -Id {pid} -ErrorAction SilentlyContinue\n\
          if ($p -and -not $p.WaitForExit(180000)) {{ Say \"ShapeCraft didn't close; nothing changed\"; exit 1 }}\n\
-         Start-Sleep -Milliseconds 500\n{steps}Say 'updated'\n\
-         Remove-Item -LiteralPath {dir} -Recurse -Force -ErrorAction SilentlyContinue\n{relaunch}}} catch {{ Say ('failed: ' + $_); exit 1 }}\n",
+         try {{\nSay 'updating ShapeCraft'\nStart-Sleep -Milliseconds 500\n\
+         if (-not (Test-Path -LiteralPath {staged})) {{ throw 'the downloaded update went missing before it could be installed' }}\n\
+         {steps}Say 'updated'\nRemove-Item -LiteralPath $failed -Force -ErrorAction SilentlyContinue\n\
+         Remove-Item -LiteralPath {dir} -Recurse -Force -ErrorAction SilentlyContinue\n{relaunch}\
+         }} catch {{ Say ('failed: ' + $_); Set-Content -LiteralPath $failed -Value ([string]$_); {relaunch}exit 1 }}\n",
         log = s(log),
+        failed = s(&log.with_file_name(FAILURE_FILE)),
+        staged = s(staged),
         dir = s(version_dir),
     ))
 }
@@ -215,6 +227,27 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
+
+    #[cfg(unix)]
+    #[test]
+    fn the_shell_helper_parses() {
+        for install in [
+            Install::MacApp(PathBuf::from("/Applications/Shape Craft's.app")),
+            Install::AppImage(PathBuf::from("/home/a/ShapeCraft.AppImage")),
+            Install::LinuxFolder(PathBuf::from("/home/a/.local/lib/shapecraft")),
+        ] {
+            for restart in [true, false] {
+                let s = unix_script(&install, Path::new("/c/0.4.3/new"), Path::new("/c/0.4.3"), Path::new("/c/update.log"), 9, restart, &["--x".into()])
+                    .unwrap_or_default();
+                let dir = std::env::temp_dir().join(format!("sc-helper-{}-{restart}", std::process::id()));
+                let _ = std::fs::write(&dir, &s);
+                let ok = std::process::Command::new("/bin/sh").arg("-n").arg(&dir).status().map(|s| s.success()).unwrap_or(false);
+                let _ = std::fs::remove_file(&dir);
+                assert!(ok, "{s}");
+                assert!(s.contains("fail()") && s.contains("last-failure.txt"));
+            }
+        }
+    }
 
     #[test]
     fn base64_matches_the_standard() {

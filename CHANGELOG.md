@@ -2,6 +2,14 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.4.3-alpha
+
+Fixed (found by updating real installs on all three systems):
+- Two copies of ShapeCraft on one computer (an installed one and a portable one) no longer share their update folder,
+  so one copy's update can't clear away the other's download.
+- When an update can't be installed, ShapeCraft says why the next time it starts and tries again; with Update and
+  Reopen it still reopens, on the version you had.
+
 ## 0.4.2-alpha
 
 Fixed:

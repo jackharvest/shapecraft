@@ -280,7 +280,7 @@ impl Updater {
             self.wake();
             return;
         };
-        let staged = stage::updates_dir().and_then(|d| stage::already_staged(&d, &release));
+        let staged = stage::updates_dir(&install).and_then(|d| stage::already_staged(&d, &release));
         let fetch = self
             .with(|i| {
                 i.last_check = Some(Instant::now());
@@ -331,7 +331,7 @@ impl Updater {
         self.with(|i| i.phase = Phase::Downloading { done: 0, total: None });
         self.wake();
         let install = self.install().clone();
-        let result = match stage::updates_dir() {
+        let result = match stage::updates_dir(&install) {
             None => Err("there's no cache folder to download into".to_string()),
             Some(dir) => stage::stage(&install, release, &dir, &self.stop, &|done, total| {
                 self.with(|i| i.phase = Phase::Downloading { done, total });
@@ -351,6 +351,16 @@ impl Updater {
         self.wake();
     }
 
+    /// Why the last update couldn't be installed, once: the helper leaves the reason when it fails, and this takes it.
+    /// The update is offered again by the next check.
+    pub fn take_failure(&self) -> Option<String> {
+        let file = stage::updates_dir(self.install())?.join(crate::apply::FAILURE_FILE);
+        let text = std::fs::read_to_string(&file).ok()?;
+        let _ = std::fs::remove_file(&file);
+        let text = text.trim();
+        Some(if text.is_empty() { "the update didn't install".to_string() } else { text.chars().take(300).collect() })
+    }
+
     /// An update is downloaded and waiting.
     pub fn ready(&self) -> bool {
         self.with(|i| matches!(i.phase, Phase::Ready) && i.staged.is_some()).unwrap_or(false)
@@ -361,7 +371,7 @@ impl Updater {
     pub fn apply(&self, restart: bool, args: &[OsString]) -> Result<(), String> {
         let (staged, release) = self.with(|i| (i.staged.clone(), i.offered.clone())).ok_or("the updater is unavailable")?;
         let (Some(staged), Some(release)) = (staged, release) else { return Err("no update is ready".into()) };
-        let dir = stage::updates_dir().ok_or("there's no cache folder")?;
+        let dir = stage::updates_dir(self.install()).ok_or("there's no cache folder")?;
         crate::apply::launch(self.install(), &staged, &dir.join(release.version_text()), &dir.join("update.log"), restart, args)
     }
 }

@@ -1399,6 +1399,11 @@ impl ShapeCraftApp {
             return;
         }
         let updater = shapecraft_update::Updater::global();
+        if !std::mem::replace(&mut self.updates.told_failure, true)
+            && let Some(why) = updater.take_failure()
+        {
+            self.toast(format!("The last update didn't install ({why}). ShapeCraft will try again."));
+        }
         let prefs = crate::updates::prefs(self.ws.as_deref().map_or(&self.settings, |w| &w.settings));
         updater.tick(&prefs);
         // An idle window draws no frames, so ask for one when the next automatic check could be due.

@@ -13,9 +13,21 @@ use crate::{SUMS, net};
 /// What a finished stage leaves in its folder, so a ready update survives a restart without downloading again.
 const READY_FILE: &str = "ready.json";
 
-/// The folder updates are prepared in: `<cache>/ShapeCraft/updates`.
-pub fn updates_dir() -> Option<PathBuf> {
-    dirs::cache_dir().map(|d| d.join("ShapeCraft").join("updates"))
+/// The folder this installation's updates are prepared in: `<cache>/ShapeCraft/updates/<installation>`. Each copy of
+/// ShapeCraft on a computer (an installed one and a portable one, say) has its own, so one copy's helper never tidies
+/// away another's download.
+pub fn updates_dir(install: &Install) -> Option<PathBuf> {
+    let place = match install {
+        Install::MacApp(p)
+        | Install::WindowsInstalled(p)
+        | Install::WindowsPortable(p)
+        | Install::AppImage(p)
+        | Install::LinuxFolder(p) => p.to_string_lossy().to_lowercase(),
+        _ => String::new(),
+    };
+    // FNV-1a: short, stable, and the same in every version.
+    let id = place.bytes().fold(0xcbf2_9ce4_8422_2325_u64, |h, b| (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3));
+    dirs::cache_dir().map(|d| d.join("ShapeCraft").join("updates").join(format!("{id:016x}")))
 }
 
 /// An update to `release` that is already downloaded, checked and unpacked: the path `apply` puts in place.
@@ -129,5 +141,19 @@ fn unpack(archive: &Path, here: &Path, marker: &str) -> Result<PathBuf, String> 
     match dirs.as_slice() {
         [one] if one.join(marker).exists() => Ok(one.clone()),
         _ => Err("the update's archive isn't laid out as expected".into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_installation_has_its_own_folder() {
+        let a = updates_dir(&Install::WindowsInstalled("C:/Users/a/AppData/Local/Programs/ShapeCraft".into()));
+        let b = updates_dir(&Install::WindowsPortable("C:/sc/portable/ShapeCraft".into()));
+        let a2 = updates_dir(&Install::WindowsInstalled("c:/users/a/appdata/local/programs/shapecraft".into()));
+        assert_ne!(a, b);
+        assert_eq!(a, a2);
     }
 }
