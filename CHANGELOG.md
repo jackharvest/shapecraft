@@ -2,13 +2,17 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.5.4-alpha
+## 0.5.5-alpha
 
 Fixed:
 - Long names in the Items and History lists ran out of the panel into the model. They now end in "…", and
   project names on the home screen stop at two lines.
 - A project whose saved bodies file was damaged wouldn't open at all ("STEP import failed"). It now opens, its
   bodies are rebuilt from the History, and a message tells you; the damaged file is kept beside it.
+
+## 0.5.4-alpha
+
+Fixed:
 - After an update, ShapeCraft could sit with no window for as long as macOS was waiting for you to allow access
   to the Documents folder (where projects live), so it looked stuck. The window now opens right away, the home
   screen says it's opening your projects folder, and it tells you to choose Allow if macOS asks. If access was
