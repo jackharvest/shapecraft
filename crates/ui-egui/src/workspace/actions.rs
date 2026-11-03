@@ -373,7 +373,13 @@ impl Workspace {
         {
             return;
         }
+        // In a sketch, Escape peels one layer at a time (reference 26.202, s36): an armed tool, then the
+        // selection, then the sketch itself. A tool armed in a sketch with nothing drawn yet leaves it at once.
+        let sketch_empty = self.session.active_sketch.and_then(|id| self.session.doc.sketch(id)).map(|sk| sk.entities.is_empty());
         match self.tool {
+            Tool::Idle if sketch_empty.is_some() && self.session.selection.is_empty() => {
+                self.ui_action(UiAction::ExitSketching);
+            }
             Tool::Idle => {
                 self.session.selection.clear();
             }
@@ -381,6 +387,17 @@ impl Workspace {
             Tool::Spline { ref points, control } if !points.is_empty() => {
                 let points = points.clone();
                 self.finish_spline(points, control);
+            }
+            Tool::Line { .. }
+            | Tool::Rectangle { .. }
+            | Tool::Circle { .. }
+            | Tool::Arc { .. }
+            | Tool::Polygon { .. }
+            | Tool::Ellipse { .. }
+            | Tool::Spline { .. }
+                if sketch_empty == Some(true) =>
+            {
+                self.ui_action(UiAction::ExitSketching);
             }
             Tool::PickPlane { .. } => {
                 self.pending_tool = None;
