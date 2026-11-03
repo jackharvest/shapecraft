@@ -204,21 +204,46 @@ impl ExtrudeTool {
         let off = self.normal * self.distance;
         if self.distance.abs() > 1e-9 {
             let ends: &[f64] = if self.symmetric { &[1.0, -1.0] } else { &[1.0] };
+            let from = if self.symmetric { base - off } else { base };
+            let corners = self.outline_corners();
             for side in ends {
                 let end = base + off * *side;
-                let from = if self.symmetric { base - off } else { base };
                 out.push(Overlay::Fill {
                     tris: self.tris.iter().map(|t| [t[0] + end, t[1] + end, t[2] + end]).collect(),
                     color: ghost.with_alpha(70),
                 });
                 for (a, b) in &self.outline {
                     out.push(Overlay::Line { a: *a + end, b: *b + end, color: ghost, width: 1.5 });
-                    if *side > 0.0 {
-                        out.push(Overlay::Line { a: *a + from, b: *a + end, color: ghost.with_alpha(160), width: 1.0 });
-                    }
                 }
             }
+            // The walls as a faint tint, and lines only up the sharp corners: a round profile reads as one smooth
+            // side, not a fence of facet lines.
+            let top = base + off;
+            let walls =
+                self.outline.iter().flat_map(|(a, b)| [[*a + from, *b + from, *b + top], [*a + from, *b + top, *a + top]]).collect();
+            out.push(Overlay::Fill { tris: walls, color: ghost.with_alpha(35) });
+            for a in corners {
+                out.push(Overlay::Line { a: a + from, b: a + top, color: ghost.with_alpha(160), width: 1.0 });
+            }
         }
+    }
+
+    /// Outline points where the profile turns sharply (more than ~25°); a tessellated curve has none.
+    fn outline_corners(&self) -> Vec<DVec3> {
+        let tol = 1e-6 * (1.0 + self.outline.iter().map(|(a, b)| (*b - *a).length()).fold(0.0, f64::max));
+        let mut out = Vec::new();
+        for (a, b) in &self.outline {
+            let dir = (*b - *a).normalize_or_zero();
+            let before = self.outline.iter().find(|(_, pb)| pb.distance(*a) <= tol).map(|(pa, pb)| (*pb - *pa).normalize_or_zero());
+            // An open end (no segment arrives here) is a corner too.
+            if before.is_none_or(|d| d.dot(dir) < 0.9) {
+                out.push(*a);
+            }
+            if !self.outline.iter().any(|(na, _)| na.distance(*b) <= tol) {
+                out.push(*b);
+            }
+        }
+        out
     }
 }
 
