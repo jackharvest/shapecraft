@@ -63,6 +63,8 @@ pub struct Settings {
     /// The first run's second question (navigation style) has been answered or skipped.
     pub nav_asked: bool,
     pub last_export_dir: Option<String>,
+    /// Export ▸ Slicer: the slicer last opened (its name).
+    pub slicer: String,
     /// The in-app tutorials finished (their ids), ticked on their cards.
     pub tutorials_done: Vec<String>,
     /// Preferences ▸ ShapeCraft ▸ Updates: look for a new version at start and once a day, download it in the
@@ -112,6 +114,7 @@ impl Default for Settings {
             device: String::new(),
             nav_asked: false,
             last_export_dir: None,
+            slicer: String::new(),
             custom_keys: Vec::new(),
             tutorials_done: Vec::new(),
             update_check: true,

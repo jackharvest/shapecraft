@@ -26,6 +26,7 @@ mod section;
 mod sheet_views;
 mod shortcuts;
 mod sketch;
+pub mod slicers;
 mod start_tool;
 mod step_card;
 pub mod toolbar;

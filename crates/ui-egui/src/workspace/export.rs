@@ -1,7 +1,7 @@
 //! The Export dialog (⇧⌘E), as observed in 26.200 (s12-101..110): a format list on the left (click picks one,
 //! ⌘-click adds), each chosen format's settings on the right, then the file name and the shared switches, and
 //! Cancel / Export (n). The account-only rows (Share & Publish) and the formats we can't write (JT, DWG from Sketch)
-//! are left out; DWG from Drawing is written as AutoCAD R2000 (crate shapecraft-dwg); Shapr3D and Parasolid are written from the published Parasolid format; Slicer hands a 3MF to PrusaSlicer, Bambu Studio or OrcaSlicer.
+//! are left out; DWG from Drawing is written as AutoCAD R2000 (crate shapecraft-dwg); Shapr3D and Parasolid are written from the published Parasolid format; Slicer hands a 3MF to an installed slicer (see `slicers`).
 
 use egui::{Align2, Color32, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, pos2, vec2};
 
@@ -62,13 +62,6 @@ const FORMATS: &[(Format, &str, &str, &str, &str)] = &[
 
 /// How many of `FORMATS` are in the Recommended section; the rest are Everything Else.
 const RECOMMENDED: usize = 6;
-
-/// The slicers a 3MF can be handed to: (shown name, macOS app name, command on Linux and Windows).
-pub const SLICERS: [(&str, &str, &str); 3] = [
-    ("PrusaSlicer", "PrusaSlicer", "prusa-slicer"),
-    ("Bambu Studio", "BambuStudio", "bambu-studio"),
-    ("OrcaSlicer", "OrcaSlicer", "orca-slicer"),
-];
 
 impl Format {
     fn info(self) -> (&'static str, &'static str, &'static str, &'static str) {
@@ -145,8 +138,8 @@ pub struct ExportDialog {
     pub stl_units: usize,
     /// STEP application protocol: 0 AP242 (the reference's default), 1 AP214, 2 AP203.
     pub step_ap: usize,
-    /// Which of `SLICERS` the Slicer row opens.
-    pub slicer: usize,
+    /// The slicer the Slicer row opens (a name from `slicers::choices`).
+    pub slicer: String,
     /// Quick Export: straight into this folder, no save dialog.
     pub quick: Option<std::path::PathBuf>,
     scroll: f32,
@@ -170,7 +163,7 @@ impl ExportDialog {
             stl_ascii: false,
             stl_units: 0,
             step_ap: 0,
-            slicer: 0,
+            slicer: super::slicers::pick(""),
             quick: None,
             scroll: 0.0,
             list_scroll: 0.0,
@@ -280,16 +273,16 @@ fn settings(d: &mut ExportDialog, ui: &mut Ui, p: &egui::Painter, f: Format, k: 
         if paint {
             card(p, r);
             label(p, r.left() + 10.0, r.center().y, "Slicer", None);
-            let names: Vec<String> = SLICERS.iter().map(|s| s.0.to_string()).collect();
+            let names: Vec<String> = super::slicers::choices().iter().map(|s| s.to_string()).collect();
             if let Some(i) = super::popover::pill_select(
                 ui,
                 &format!("exp-slicer{k}"),
                 pos2(r.right() - 10.0, r.center().y),
                 110.0,
                 &names,
-                Some(d.slicer),
+                names.iter().position(|n| *n == d.slicer),
             ) {
-                d.slicer = i;
+                d.slicer = names.get(i).cloned().unwrap_or_default();
             }
         }
     }

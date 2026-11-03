@@ -425,7 +425,9 @@ impl ShapeCraftApp {
     /// Opens the Export dialog, optionally with one format picked.
     fn export_dialog(&mut self, preset: Option<Format>) {
         let Some(ws) = self.ws.as_deref_mut() else { return };
-        ws.export = Some(ExportDialog::new(&ws.session.doc.name, preset));
+        let mut d = ExportDialog::new(&ws.session.doc.name, preset);
+        d.slicer = crate::workspace::slicers::pick(&ws.settings.slicer);
+        ws.export = Some(d);
     }
 
     /// Quick Export to Favorite Formats: the last export's formats, written again into its folder without asking;
@@ -462,8 +464,9 @@ impl ShapeCraftApp {
             let mut params = d.params(Format::Slicer);
             params["path"] = json!(path);
             let made = std::fs::create_dir_all(&dir).is_ok() && ws.run("export_3mf", params).is_some();
-            let (shown, app, command) = crate::workspace::export::SLICERS[d.slicer.min(2)];
-            let opened = made && open_in(app, command, &path);
+            let shown = d.slicer.clone();
+            ws.settings.slicer = shown.clone();
+            let opened = made && crate::workspace::slicers::open(&shown, &path);
             ws.toast(if opened {
                 format!("Opened {name} in {shown}")
             } else if made {
@@ -1630,12 +1633,4 @@ fn open_page(url: &str) {
         "xdg-open"
     };
     let _ = std::process::Command::new(opener).arg(url).spawn();
-}
-
-fn open_in(mac_app: &str, command: &str, path: &std::path::Path) -> bool {
-    if cfg!(target_os = "macos") {
-        std::process::Command::new("open").arg("-a").arg(mac_app).arg(path).status().map(|s| s.success()).unwrap_or(false)
-    } else {
-        std::process::Command::new(command).arg(path).spawn().is_ok()
-    }
 }
