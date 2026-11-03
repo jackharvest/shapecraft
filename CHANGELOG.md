@@ -2,6 +2,14 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.5.2-alpha
+
+Fixed:
+- While the first-run questions (device, navigation style) were open, keyboard shortcuts still reached the model
+  behind them, so ⌘V or a tool key changed a project you couldn't see. They now wait until you answer or skip.
+- The Help menu follows the familiar order: Help, then shortcuts and search, then Get Started and Tutorials (which
+  now open those pages of the home screen), then reporting a problem, release notes and updates.
+
 ## 0.5.1-alpha
 
 New:
