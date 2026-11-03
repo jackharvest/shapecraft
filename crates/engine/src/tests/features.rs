@@ -345,3 +345,67 @@ fn subtract_cuts_the_body_it_runs_into() {
     let out = s.execute("extrude", &json!({"sketch": deep, "region": 0, "distance": -5, "result": "subtract"})).unwrap();
     assert_eq!(out.value["bodies"].as_array().map(Vec::len), Some(2));
 }
+
+/// A free-plane profile lying on a body's face works on that body on auto, as if sketched on the face: pushed in
+/// it cuts, pulled out it joins (reference 26.202, s36: ground sketch over a block's top, disc pulled down =
+/// Subtract). Only part of the profile on the face (a ground rectangle half under the block), a plane through the
+/// middle of a body, or a profile off every body still makes a new body.
+#[test]
+fn free_plane_profile_on_a_face_cuts_and_joins() {
+    let mut s = session();
+    let disc = |s: &mut crate::Session, z: f64| {
+        s.execute("sketch", &json!({"origin": [0, 0, z], "normal": [0, 0, 1]})).unwrap();
+        s.execute("circle", &json!({"center": [0, 0], "radius": 2})).unwrap();
+        s.active_sketch.unwrap().0
+    };
+    s.execute("sketch", &json!({"origin": [0, 0, 0], "normal": [0, 0, 1]})).unwrap();
+    s.execute("rectangle", &json!({"corner": [-5, -5], "opposite": [5, 5]})).unwrap();
+    let block = s.active_sketch.unwrap().0;
+    s.execute("extrude", &json!({"sketch": block, "region": 0, "distance": -10})).unwrap();
+    assert_eq!(s.doc.bodies.len(), 1);
+    let disc_area = std::f64::consts::PI * 4.0;
+
+    // Into the block: a 4 mm hole, and the step remembers the block was behind the plane.
+    let k = disc(&mut s, 0.0);
+    assert_eq!(
+        crate::cmd::extrude_auto_body(&s, crate::ItemId(k), &[0]).map(|(_, side)| side),
+        Some(-1.0),
+        "the block is behind the ground plane"
+    );
+    s.execute("extrude", &json!({"sketch": k, "region": 0, "distance": -4})).unwrap();
+    assert_eq!(s.doc.bodies.len(), 1);
+    assert!((volume(&mut s) - (1000.0 - disc_area * 4.0)).abs() < 1e-6, "{}", volume(&mut s));
+    let step = s.all_steps().last().cloned().unwrap();
+    assert_eq!(step.entries[0].params["auto_side"], json!(-1.0));
+
+    // Out of the bottom face (the block is on the plane's front side there): a boss joined on.
+    let k = disc(&mut s, -10.0);
+    s.execute("extrude", &json!({"sketch": k, "region": 0, "distance": -3})).unwrap();
+    assert_eq!(s.doc.bodies.len(), 1);
+    assert!((volume(&mut s) - (1000.0 - disc_area)).abs() < 1e-6, "{}", volume(&mut s));
+
+    // Half on the block's bottom face, pulled up into it: a new body (reference 26.202).
+    s.execute("sketch", &json!({"origin": [0, 0, -10], "normal": [0, 0, 1]})).unwrap();
+    s.execute("rectangle", &json!({"corner": [3, 3], "opposite": [8, 8]})).unwrap();
+    let k = s.active_sketch.unwrap().0;
+    assert_eq!(crate::cmd::extrude_auto_body(&s, crate::ItemId(k), &[0]), None);
+    s.execute("extrude", &json!({"sketch": k, "region": 0, "distance": 4})).unwrap();
+    assert_eq!(s.doc.bodies.len(), 2);
+    s.execute("undo", &json!({})).unwrap();
+    assert_eq!(s.doc.bodies.len(), 1);
+
+    // A plane through the block's middle, and one off to the side: new bodies, as before.
+    let k = disc(&mut s, -5.0);
+    s.execute("extrude", &json!({"sketch": k, "region": 0, "distance": 1})).unwrap();
+    assert_eq!(s.doc.bodies.len(), 2);
+    s.execute("sketch", &json!({"origin": [30, 0, 0], "normal": [0, 0, 1]})).unwrap();
+    s.execute("circle", &json!({"center": [0, 0], "radius": 2})).unwrap();
+    let k = s.active_sketch.unwrap().0;
+    s.execute("extrude", &json!({"sketch": k, "region": 0, "distance": -1})).unwrap();
+    assert_eq!(s.doc.bodies.len(), 3);
+
+    // Explicit New Body still means a new body.
+    let k = disc(&mut s, 0.0);
+    s.execute("extrude", &json!({"sketch": k, "region": 0, "distance": 2, "result": "new"})).unwrap();
+    assert_eq!(s.doc.bodies.len(), 4);
+}

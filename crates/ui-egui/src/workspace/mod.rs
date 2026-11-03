@@ -41,6 +41,9 @@ use egui::{Pos2, Rect, pos2, vec2};
 use glam::{DVec2, DVec3};
 use serde_json::{Value, json};
 use shapecraft_doc::{ItemId, Pick};
+
+/// Extrude's automatic Result for (revision, sketch, regions): the side of the plane its body is on.
+pub(crate) type ExtrudeAuto = (u64, ItemId, Vec<u32>, Option<f64>);
 use shapecraft_engine::Session;
 use shapecraft_kernel::Kernel;
 use shapecraft_render::{Camera, StandardView};
@@ -266,6 +269,8 @@ pub struct Workspace {
     pub(crate) variants: std::collections::HashMap<String, usize>,
     /// Revolve's automatic Result as the engine works it out, for (revision, params): the Result menu's row.
     pub(crate) revolve_auto: std::cell::RefCell<Option<(u64, String, usize)>>,
+    /// Extrude's automatic Result body for (revision, sketch, regions): which side of the sketch plane it's on.
+    pub(crate) extrude_auto: std::cell::RefCell<Option<ExtrudeAuto>>,
     /// A tool's variant cascade, open beside its button.
     pub(crate) variant_menu: Option<(&'static str, Pos2)>,
     /// Where a press-drag-release sketch stroke began (screen).
@@ -518,6 +523,7 @@ impl Workspace {
             cycled: None,
             variants: settings.tool_variants.iter().map(|(k, v)| (k.clone(), *v)).collect(),
             revolve_auto: Default::default(),
+            extrude_auto: Default::default(),
             variant_menu: None,
             sketch_drag: None,
             side_drag: None,

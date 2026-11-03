@@ -13,7 +13,7 @@ mod visual;
 
 pub use sketch::{face_offset, offset_entities};
 
-pub use model::{revolve_auto, set_body_shape};
+pub use model::{extrude_auto_body, revolve_auto, set_body_shape};
 
 pub type RunFn = fn(&mut Session, &Params) -> Result<Value>;
 pub type EnabledFn = fn(&Session) -> bool;

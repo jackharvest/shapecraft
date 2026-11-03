@@ -166,14 +166,18 @@ fn step_fillet(ws: &Workspace, i: usize) -> Option<Fillet> {
     })
 }
 
-fn result_index(result: &str, auto_on_body: bool, cuts: bool) -> (usize, bool) {
+/// The Result row lit, and whether that is auto's pick. `side`: which side of the profile's plane the body auto
+/// works on is (-1 behind it), `None` when auto makes a new body.
+fn result_index(result: &str, side: Option<f64>, distance: f64) -> (usize, bool) {
     match result {
         "new" => (0, false),
         "union" => (1, false),
         "subtract" => (2, false),
         "intersect" => (3, false),
-        _ if !auto_on_body => (0, true),
-        _ => (if cuts { 2 } else { 1 }, true),
+        _ => match side {
+            None => (0, true),
+            Some(side) => (if distance * side > 0.0 { 2 } else { 1 }, true),
+        },
     }
 }
 
@@ -188,12 +192,13 @@ struct Extrude {
     distance: f64,
     draft: f64,
     result: String,
-    on_body: bool,
+    /// Which side of the profile's plane auto's body is on, `None` for a new body (see [`result_index`]).
+    side: Option<f64>,
     exprs: [Option<String>; 2],
 }
 
 fn extrude_rows(e: &Extrude) -> (Vec<Row>, String) {
-    let (lit, auto) = result_index(&e.result, e.on_body, e.distance < 0.0);
+    let (lit, auto) = result_index(&e.result, e.side, e.distance);
     let result_sub = format!("{}{}", ["New Body", "Union", "Subtract", "Intersect"][lit], if auto { " - Auto" } else { "" });
     let mut rows = vec![
         Row::Picks("Profile", "face", e.profile),
@@ -242,10 +247,7 @@ fn extrude_rows(e: &Extrude) -> (Vec<Row>, String) {
 }
 
 fn tool_extrude(ws: &Workspace, t: &ExtrudeTool) -> Extrude {
-    let on_body = match t.target {
-        super::tools::Target::Region { sketch, .. } => ws.session.doc.sketch(sketch).is_some_and(|s| s.on_body.is_some()),
-        super::tools::Target::Face { .. } => true,
-    };
+    let side = ws.extrude_body_side(t);
     Extrude {
         profile: 1 + t.more.len(),
         symmetric: t.symmetric,
@@ -256,7 +258,7 @@ fn tool_extrude(ws: &Workspace, t: &ExtrudeTool) -> Extrude {
         distance: t.distance,
         draft: t.draft,
         result: t.result.to_string(),
-        on_body,
+        side,
         exprs: [None, None],
     }
 }
@@ -268,12 +270,14 @@ fn step_extrude(ws: &Workspace, i: usize) -> Option<Extrude> {
     let get = |k: &str| e.params.get(k);
     let fields = history::feature("extrude")?.fields;
     let vars = &ws.session.doc.variables;
+    // A free-plane profile resting on a body: the side that body was on when the step ran.
     let on_body = e.params.get("face").is_some()
         || e.params
             .get("sketch")
             .and_then(Value::as_u64)
             .and_then(|id| ws.session.doc.sketch(shapecraft_doc::ItemId(id)))
             .is_some_and(|s| s.on_body.is_some());
+    let side = if on_body { Some(-1.0) } else { e.params.get("auto_side").and_then(Value::as_f64) };
     Some(Extrude {
         profile: history::profile_count(step).unwrap_or(1),
         symmetric: get("sides").and_then(Value::as_str) == Some("symmetric"),
@@ -284,7 +288,7 @@ fn step_extrude(ws: &Workspace, i: usize) -> Option<Extrude> {
         distance: history::value(step, &fields[0], vars),
         draft: history::value(step, &fields[1], vars),
         result: get("result").and_then(Value::as_str).unwrap_or("auto").to_string(),
-        on_body,
+        side,
         exprs: [history::expression(step, &fields[0]).map(str::to_string), history::expression(step, &fields[1]).map(str::to_string)],
     })
 }

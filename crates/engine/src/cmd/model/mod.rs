@@ -12,6 +12,7 @@ use crate::cmd::CommandSpec;
 use crate::{EngineError, Params, Result, Session};
 use boolean::{boolean_spec, split_body};
 use extrude::extrude;
+pub use extrude::extrude_auto_body;
 use faces::{chamfer, edge_target, fillet, offset_face, project_edge, replace_face, shell};
 pub use sweep::revolve_auto;
 use sweep::{loft, revolve, sweep};

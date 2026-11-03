@@ -164,6 +164,62 @@ pub(super) fn result_param(p: &Params) -> Result<Option<Option<BoolOp>>> {
     })
 }
 
+/// The body a profile from a free plane rests on, and which side of the plane it is on (1 along the normal, -1
+/// against it): a sketch on the ground drawn over a block's top face. The reference treats that profile like one
+/// sketched on the face (pushed in it cuts, pulled out it joins) only when all of it lies on the face: a ground
+/// rectangle half under a block, pulled up into it, is a new body there (both observed in 26.202, s36). A body on
+/// both sides (the plane runs through it) or on neither doesn't count.
+pub(crate) fn resting_body(s: &Session, faces: &[Shape], normal: DVec3) -> Result<Option<(ItemId, f64)>> {
+    const SKIN: f64 = 0.01;
+    let mut slabs = Vec::new();
+    for side in [1.0, -1.0] {
+        let slab = extrude_block(s, faces, normal * (SKIN * side), 0.0, false)?;
+        let volume = s.kernel.mass_props(&slab)?.volume;
+        if !(volume.is_finite() && volume > 0.0) {
+            return Ok(None);
+        }
+        slabs.push((side, slab, volume));
+    }
+    let mut best: Option<(ItemId, f64, f64)> = None;
+    for b in &s.doc.bodies {
+        let mut share = [0.0; 2];
+        for (i, (_, slab, volume)) in slabs.iter().enumerate() {
+            let bb = s.kernel.bounds(slab)?;
+            let o = s.kernel.bounds(&b.shape)?;
+            if !(o.min.cmple(bb.max).all() && bb.min.cmple(o.max).all()) {
+                continue;
+            }
+            let common = s.kernel.boolean(BoolOp::Intersect, &b.shape, slab).and_then(|c| s.kernel.mass_props(&c));
+            share[i] = common.map_or(0.0, |m| m.volume / volume);
+        }
+        // All of the profile on the face: the body fills the skin on one side and none of the other.
+        let (side, inside) = match (share[0] > 0.999, share[1] > 0.999) {
+            (true, false) if share[1] < 1e-3 => (1.0, share[0]),
+            (false, true) if share[0] < 1e-3 => (-1.0, share[1]),
+            _ => continue,
+        };
+        if best.is_none_or(|(_, _, most)| inside > most) {
+            best = Some((b.id, side, inside));
+        }
+    }
+    Ok(best.map(|(id, side, _)| (id, side)))
+}
+
+/// The body an extrude of these regions works on when its Result is left on auto, and which side of the sketch
+/// plane that body is on: the body the sketch was drawn on (behind its plane), or else the one a free-plane
+/// profile rests on ([`resting_body`]). The UI asks this to show the same Result the engine will use.
+pub fn extrude_auto_body(s: &Session, sketch: ItemId, regions: &[u32]) -> Option<(ItemId, f64)> {
+    let sk = s.doc.sketch(sketch)?;
+    if let Some(b) = sk.on_body.filter(|b| s.doc.body(*b).is_some()) {
+        return Some((b, -1.0));
+    }
+    let faces: Vec<Shape> = regions.iter().filter_map(|r| sk.region(*r).map(|g| g.face.clone())).collect();
+    if faces.is_empty() {
+        return None;
+    }
+    resting_body(s, &faces, sk.plane.normal()).ok().flatten()
+}
+
 /// Puts a feature's solid in the model: a new body, or combined with the body it was made on (`auto` there) or
 /// the bodies it overlaps (see [`boolean_targets`]). Returns the first body changed.
 pub(super) fn place_result(
@@ -320,13 +376,30 @@ pub(super) fn extrude(s: &mut Session, p: &Params) -> Result<Value> {
     // sketch, the union leaves no wall or seam where the regions touched.
     // A face pushed into its body cuts a block whose walls lean the other way.
     let draft = if sketch.is_none() && length < 0.0 { -draft } else { draft };
+    // Auto on a free plane: a profile resting on a body's face works on that body like one sketched on it. The
+    // step keeps which side that body was on (`auto_side`, worked out again on every rebuild) for its card.
+    let _ = p.f64_or("auto_side", 0.0)?;
+    let (on_body, body_side) = match on_body {
+        Some(b) => (Some(b), -1.0),
+        None if opts.result == "auto" && sketch.is_some() => match resting_body(s, &faces, plane_normal)? {
+            Some((b, side)) => {
+                let mut logged = p.all().clone();
+                logged["auto_side"] = json!(side);
+                s.log_params = Some(logged);
+                (Some(b), side)
+            }
+            None => (None, -1.0),
+        },
+        None => (None, -1.0),
+    };
     let block = extrude_block(s, &faces, dir, draft, opts.symmetric)?;
     let op = match opts.result.as_str() {
         "new" => None,
         "union" => Some(BoolOp::Union),
         "subtract" => Some(BoolOp::Subtract),
         "intersect" => Some(BoolOp::Intersect),
-        _ => on_body.map(|_| if length > 0.0 { BoolOp::Union } else { BoolOp::Subtract }),
+        // Toward the body's side it cuts, away from it it joins.
+        _ => on_body.map(|_| if length * body_side > 0.0 { BoolOp::Subtract } else { BoolOp::Union }),
     };
     let targets = match (op, on_body) {
         (None, _) => Vec::new(),

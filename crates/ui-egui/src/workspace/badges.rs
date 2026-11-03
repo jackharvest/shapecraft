@@ -69,15 +69,11 @@ impl Workspace {
     fn result_choice(&self) -> Option<(&'static str, usize)> {
         match &self.tool {
             Tool::Extrude(t) => {
-                let on_body = match t.target {
-                    Target::Region { sketch, .. } => self.session.doc.sketch(sketch).is_some_and(|s| s.on_body.is_some()),
-                    Target::Face { .. } => true,
-                };
                 // As the engine decides it: on a body, pulling out adds and pushing in cuts; elsewhere a new body.
-                let auto = match (on_body, t.distance < 0.0) {
-                    (false, _) => 0,
-                    (true, false) => 1,
-                    (true, true) => 3,
+                let auto = match self.extrude_body_side(t) {
+                    None => 0,
+                    Some(side) if t.distance * side > 0.0 => 3,
+                    Some(_) => 1,
                 };
                 Some((t.result, auto))
             }
@@ -112,6 +108,30 @@ impl Workspace {
     }
 
     /// The Result row Revolve's auto stands for, asked of the engine once per model revision and settings.
+    /// The body a running Extrude works on when its Result is auto, as the engine decides it: which side of the
+    /// profile's plane it is on (-1 behind it, like the face a sketch was drawn on), or `None` for a new body.
+    pub(super) fn extrude_body_side(&self, t: &super::tools::ExtrudeTool) -> Option<f64> {
+        let Target::Region { sketch, region } = t.target else { return Some(-1.0) };
+        let mut regions = vec![region];
+        regions.extend(t.more.iter().copied());
+        self.extrude_side_of(sketch, regions)
+    }
+
+    /// [`Self::extrude_body_side`] for a sketch's regions, cached per document revision.
+    pub(super) fn extrude_side_of(&self, sketch: shapecraft_doc::ItemId, regions: Vec<u32>) -> Option<f64> {
+        let rev = self.session.revision;
+        if let Some((r, k, g, side)) = self.extrude_auto.borrow().as_ref()
+            && *r == rev
+            && *k == sketch
+            && *g == regions
+        {
+            return *side;
+        }
+        let side = shapecraft_engine::cmd::extrude_auto_body(&self.session, sketch, &regions).map(|(_, side)| side);
+        *self.extrude_auto.borrow_mut() = Some((rev, sketch, regions, side));
+        side
+    }
+
     fn revolve_auto_row(&self, t: &super::tools::RevolveTool) -> usize {
         let Some(mut params) = t.params(t.angle) else { return 0 };
         params["result"] = serde_json::json!("auto");
