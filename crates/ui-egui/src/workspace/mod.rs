@@ -379,6 +379,10 @@ pub struct Workspace {
     /// Set when the user asked to go back to the projects screen.
     pub go_home: bool,
     recent_commands: Vec<&'static str>,
+    /// Edit ▸ Copy: the bodies and planes copied, and the tag put on the system clipboard with them.
+    pub(super) clipboard: (Vec<ItemId>, String),
+    /// Text waiting to go onto the system clipboard (an action without the egui context asked for it).
+    pub(super) clip_out: Option<String>,
     pub(crate) now: f64,
     /// What the running tool would produce, shown in place while you drag or type (live geometry).
     pub(crate) preview: Option<Preview>,
@@ -574,6 +578,8 @@ impl Workspace {
             hint_collapsed: false,
             go_home: false,
             recent_commands: vec!["extrude", "rectangle"],
+            clipboard: (Vec::new(), String::new()),
+            clip_out: None,
             now: 0.0,
             preview: None,
         }

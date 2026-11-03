@@ -27,11 +27,21 @@ impl Workspace {
             || self.badge_menu.is_some()
             || ui.ctx().egui_wants_keyboard_input()
         {
+            if let Some(t) = self.clip_out.take() {
+                ui.ctx().copy_text(t);
+            }
             return;
         }
         let events = ui.input(|i| i.events.clone());
         for ev in events {
             match ev {
+                // ⌘C / ⌘V reach us as Copy / Paste (text fields have had their turn above).
+                egui::Event::Copy if self.drawings.is_none() && !self.visualizing && !self.session.selection.is_empty() => {
+                    self.copy_items()
+                }
+                egui::Event::Paste(text) if self.drawings.is_none() && !self.visualizing => {
+                    self.paste_text(&text);
+                }
                 egui::Event::Text(text) if self.tool.takes_numbers() || self.dim_edit.is_some() => {
                     for ch in text.chars() {
                         if ch.is_ascii_digit() || ch == '.' || ch == '-' || ch == ',' {
@@ -50,6 +60,9 @@ impl Workspace {
                 }
                 _ => {}
             }
+        }
+        if let Some(t) = self.clip_out.take() {
+            ui.ctx().copy_text(t);
         }
     }
 

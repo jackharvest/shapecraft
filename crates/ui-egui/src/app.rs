@@ -930,6 +930,16 @@ impl ShapeCraftApp {
                 self.home_prefs = Some(params.get("tab").and_then(Value::as_u64).unwrap_or(0).min(3) as usize);
                 Ok(Value::Null)
             }
+            "ui.edit" => {
+                // Edit ▸ Copy / Paste as the menu runs them.
+                let ws = self.ws.as_deref_mut().ok_or("no project open")?;
+                match params.get("action").and_then(Value::as_str).unwrap_or("") {
+                    "copy" => ws.ui_action(crate::workspace::toolbar::UiAction::Copy),
+                    "paste" => ws.ui_action(crate::workspace::toolbar::UiAction::Paste),
+                    other => return Err(format!("action is copy or paste, not '{other}'")),
+                }
+                Ok(json!({ "selection": ws.session.selection }))
+            }
             "ui.toggle" => {
                 let ws = self.ws.as_deref_mut().ok_or("no project open")?;
                 match params.get("panel").and_then(Value::as_str).unwrap_or("") {

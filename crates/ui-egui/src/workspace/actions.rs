@@ -132,6 +132,8 @@ impl Workspace {
                 self.session.selection.clear();
                 self.tool = Tool::Idle;
             }
+            UiAction::Copy => self.copy_items(),
+            UiAction::Paste => self.paste_items(),
             UiAction::Modeling => {
                 self.drawings = None;
                 self.visualizing = false;
@@ -414,6 +416,59 @@ impl Workspace {
                 let _ = self.run("delete", json!({}));
             }
             self.tool = Tool::Idle;
+        }
+    }
+}
+
+impl Workspace {
+    /// Edit ▸ Copy (⌘C): remembers the selected bodies and construction planes. The system clipboard gets a tag,
+    /// so ⌘V pastes them only while nothing else has been copied since.
+    pub(super) fn copy_items(&mut self) {
+        let mut ids = Vec::new();
+        for p in &self.session.selection {
+            let id = match *p {
+                Pick::Body { body } | Pick::Face { body, .. } | Pick::Edge { body, .. } => body,
+                Pick::Plane { plane } => plane,
+                _ => continue,
+            };
+            if !ids.contains(&id) {
+                ids.push(id);
+            }
+        }
+        if ids.is_empty() {
+            self.toast("Select bodies to copy");
+            return;
+        }
+        let nanos = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_nanos());
+        let tag = format!("ShapeCraft copy {nanos:x}: {}", ids.iter().map(|i| i.0.to_string()).collect::<Vec<_>>().join(","));
+        self.clip_out = Some(tag.clone());
+        let n = ids.len();
+        self.clipboard = (ids, tag);
+        self.toast(if n == 1 { "Copied 1 item".to_string() } else { format!("Copied {n} items") });
+    }
+
+    /// ⌘V with this text on the system clipboard: pastes when it is the tag of our last copy.
+    pub(super) fn paste_text(&mut self, text: &str) -> bool {
+        if self.clipboard.0.is_empty() || text != self.clipboard.1 {
+            return false;
+        }
+        self.paste_items();
+        true
+    }
+
+    /// Edit ▸ Paste: unlinked copies of what was copied, in place, selected (Move them from there).
+    pub(super) fn paste_items(&mut self) {
+        let doc = &self.session.doc;
+        let ids: Vec<u64> =
+            self.clipboard.0.iter().filter(|id| doc.body(**id).is_some() || doc.plane(**id).is_some()).map(|id| id.0).collect();
+        if ids.is_empty() {
+            self.toast(if self.clipboard.0.is_empty() { "Nothing copied yet" } else { "What was copied is gone" });
+            return;
+        }
+        self.tool = Tool::Idle;
+        let n = ids.len();
+        if self.run("translate", json!({ "items": ids, "by": [0, 0, 0], "copy": true, "linked": false })).is_some() {
+            self.toast(if n == 1 { "Pasted in place: 1 item".to_string() } else { format!("Pasted in place: {n} items") });
         }
     }
 }

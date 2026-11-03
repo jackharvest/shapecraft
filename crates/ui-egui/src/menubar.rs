@@ -155,6 +155,9 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                 item("Undo", Some("CmdOrCtrl+Z"), Command("undo"), Undo),
                 item("Redo", Some("CmdOrCtrl+Shift+Z"), Command("redo"), Redo),
                 sep(),
+                // No accelerators: ⌘C / ⌘V must still reach text fields; the workspace takes them otherwise.
+                item("Copy", None, Ui(UiAction::Copy), Selection),
+                item("Paste", None, Ui(UiAction::Paste), InProject),
                 item("Delete", None, Command("delete"), Selection),
                 item("Rename", Some("CmdOrCtrl+R"), Ui(UiAction::Rename), Selection),
                 item("Select All", Some("CmdOrCtrl+A"), Command("select_all"), Bodies),

@@ -107,6 +107,9 @@ pub enum UiAction {
     Search,
     ExitSketching,
     DeselectAll,
+    /// Edit ▸ Copy / Paste (⌘C / ⌘V) of bodies and construction planes.
+    Copy,
+    Paste,
     Modeling,
     DisplayModes,
     Measure,
