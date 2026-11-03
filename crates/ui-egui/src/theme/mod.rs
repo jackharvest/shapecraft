@@ -155,3 +155,23 @@ pub fn apply_style(ctx: &egui::Context) {
         s.text_styles.insert(egui::TextStyle::Heading, strong(17.0));
     });
 }
+
+/// `text` cut short with "…" so it fits in `max_width` on one line (names in the Items and History lists, as the
+/// reference does, s36). Whole when it fits.
+pub fn elide(painter: &egui::Painter, text: &str, font: egui::FontId, max_width: f32) -> String {
+    let width = |s: String| painter.layout_no_wrap(s, font.clone(), egui::Color32::WHITE).size().x;
+    if max_width <= 0.0 {
+        return String::new();
+    }
+    if width(text.to_string()) <= max_width {
+        return text.to_string();
+    }
+    let chars: Vec<char> = text.chars().collect();
+    let (mut lo, mut hi) = (0usize, chars.len());
+    while lo < hi {
+        let mid = (lo + hi).div_ceil(2);
+        let s: String = chars[..mid].iter().collect::<String>().trim_end().to_string() + "…";
+        if width(s) <= max_width { lo = mid } else { hi = mid - 1 }
+    }
+    chars[..lo].iter().collect::<String>().trim_end().to_string() + "…"
+}

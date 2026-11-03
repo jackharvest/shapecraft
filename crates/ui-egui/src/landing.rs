@@ -519,7 +519,24 @@ impl Landing {
                 } else {
                     Tokens::text_strong()
                 };
-                let g = p.layout(name, theme::strong(12.5), name_color, card_w);
+                // At most two lines under the card, the second ending in "…" when the name runs longer.
+                let fits = |t: &str| {
+                    let g = p.layout(t.to_string(), theme::strong(12.5), name_color, card_w);
+                    g.rows.len() <= 2 && g.size().x <= card_w + 0.5
+                };
+                let name = if fits(&name) {
+                    name
+                } else {
+                    let chars: Vec<char> = name.chars().collect();
+                    let cut = |n: usize| chars[..n].iter().collect::<String>().trim_end().to_string() + "…";
+                    let (mut lo, mut hi) = (0, chars.len());
+                    while lo < hi {
+                        let mid = (lo + hi).div_ceil(2);
+                        if fits(&cut(mid)) { lo = mid } else { hi = mid - 1 }
+                    }
+                    cut(lo)
+                };
+                let g = p.layout(name.clone(), theme::strong(12.5), name_color, card_w);
                 let lines = g.rows.len().min(2) as f32;
                 let at = pos2(tile.center().x - g.size().x / 2.0, tile.bottom() + 10.0);
                 if picked {

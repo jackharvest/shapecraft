@@ -231,7 +231,10 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
                 }
             }
         } else {
-            p.text(pos2(r.left() + 66.0 + indent, row.center().y), Align2::LEFT_CENTER, &name, theme::body(14.0), color);
+            // Long names end in "…" before the eye, as in the reference (s36), instead of running into the viewport.
+            let x = r.left() + 66.0 + indent;
+            let shown = theme::elide(&p, &name, theme::body(14.0), row.right() - 32.0 - x);
+            p.text(pos2(x, row.center().y), Align2::LEFT_CENTER, shown, theme::body(14.0), color);
         }
         if resp.secondary_clicked() {
             ws.item_menu = resp.interact_pointer_pos().map(|pos| (id, pos));

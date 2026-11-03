@@ -369,7 +369,11 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
                 }
             }
         } else {
-            let name = p.text(pos2(r.left() + 47.0, row.center().y), Align2::LEFT_CENTER, &step.label, theme::strong(13.0), text_color);
+            // Room for the error badge and the row's ⋯ button; longer names end in "…".
+            let x = r.left() + 47.0;
+            let room = row.right() - 40.0 - if step.error.is_some() { 22.0 } else { 0.0 } - x;
+            let shown = theme::elide(&p, &step.label, theme::strong(13.0), room);
+            let name = p.text(pos2(x, row.center().y), Align2::LEFT_CENTER, shown, theme::strong(13.0), text_color);
             if step.error.is_some() {
                 icons::paint(
                     &p,
@@ -443,7 +447,8 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
                         icon_for(&probe),
                         Tokens::text_faint(),
                     );
-                    p.text(pos2(left + 58.0, y + 11.0), Align2::LEFT_CENTER, name, theme::body(12.0), Tokens::text_dim());
+                    let shown = theme::elide(&p, &name.to_string(), theme::body(12.0), r.right() - 12.0 - (left + 58.0));
+                    p.text(pos2(left + 58.0, y + 11.0), Align2::LEFT_CENTER, shown, theme::body(12.0), Tokens::text_dim());
                     y += 22.0;
                 }
             }
