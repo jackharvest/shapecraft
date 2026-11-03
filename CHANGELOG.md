@@ -2,6 +2,24 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## Unreleased
+
+New:
+- Edit ▸ Copy and Paste (⌘C / ⌘V): copy bodies or construction planes and paste them in place as separate,
+  selected copies, ready to move. Text fields still copy and paste text as before.
+- Export ▸ Slicer lists the slicers you actually have installed (Bambu Studio, OrcaSlicer, PrusaSlicer, Snapmaker
+  Orca, UltiMaker Cura, Creality Print, ElegooSlicer), plus your default app for 3MF files, and remembers your pick.
+- The Help menu has the three tutorials, the website, release notes and a link for reporting a problem or idea.
+- Tool types you pick (Rectangle ▸ 3 Points, Fillet ▸ G2 and the rest) stay picked in your next project and after
+  a restart.
+
+Fixed:
+- Pulling a round profile showed a fence of thin lines up its side while the preview caught up; it now shows a
+  smooth tinted wall, with lines only up real corners.
+
+For scripts and agents:
+- `ui.edit {action: copy|paste}` runs Edit ▸ Copy / Paste.
+
 ## 0.5.0-alpha
 
 New:
