@@ -88,6 +88,8 @@ pub struct ShapeCraftApp {
     /// Preferences opened on the projects screen: its tab, and the Navigation Presets modal over it.
     home_prefs: Option<usize>,
     home_nav: Option<&'static str>,
+    /// The first run's second question: the navigation style, preselected from the device's answer.
+    welcome_nav: Option<&'static str>,
     /// For textures made outside a frame (a tutorial step's picture).
     egui: egui::Context,
     /// The desktop app checks for updates and shows them (snapshots and tests don't).
@@ -137,6 +139,7 @@ impl ShapeCraftApp {
             ask_device: false,
             home_prefs: None,
             home_nav: None,
+            welcome_nav: None,
             egui: ctx.clone(),
             updating,
             updates: Default::default(),
@@ -1147,12 +1150,44 @@ impl ShapeCraftApp {
             self.settings.device = value.to_string();
             self.settings.nav_preset = preset.to_string();
             self.ask_device = false;
-            if let Some(ws) = self.ws.as_deref_mut() {
-                ws.settings = self.settings.clone();
+            self.welcome_nav = Some(self.settings.preset().name);
+            self.sync_settings();
+        } else if self.welcome_nav.is_none()
+            && !self.ask_device
+            && self.settings_file.is_some()
+            && !self.settings.device.is_empty()
+            && !self.settings.nav_asked
+        {
+            // Installs from before the second question get it once.
+            self.welcome_nav = Some(self.settings.preset().name);
+        }
+        // …then which app's navigation feels like home.
+        if self.welcome_nav.is_some() {
+            let full = ctx.content_rect();
+            let mut nav = self.welcome_nav;
+            let mut s = self.settings.clone();
+            egui::Area::new(ui.scope_id().with("welcome-nav")).order(egui::Order::Foreground).fixed_pos(full.min).show(ui.ctx(), |ui| {
+                let _ = ui.allocate_rect(full, egui::Sense::click());
+                crate::workspace::prefs::presets_window(ui, full, &mut nav, &mut s, true);
+            });
+            self.welcome_nav = nav;
+            if nav.is_none() {
+                s.nav_asked = true;
             }
-            if let Some(path) = &self.settings_file {
-                let _ = self.settings.save(path);
+            if s != self.settings {
+                self.settings = s;
+                self.sync_settings();
             }
+        }
+    }
+
+    /// Hands the app's settings to the open workspace and saves them.
+    fn sync_settings(&mut self) {
+        if let Some(ws) = self.ws.as_deref_mut() {
+            ws.settings = self.settings.clone();
+        }
+        if let Some(path) = &self.settings_file {
+            let _ = self.settings.save(path);
         }
     }
 
@@ -1173,7 +1208,7 @@ impl ShapeCraftApp {
                 nav = Some(s.preset().name);
             }
             let open = nav.is_some();
-            crate::workspace::prefs::presets_window(ui, full, &mut nav, &mut s);
+            crate::workspace::prefs::presets_window(ui, full, &mut nav, &mut s, false);
             self.home_prefs = if out.done && !open { None } else { Some(tab) };
         });
         self.home_nav = nav;

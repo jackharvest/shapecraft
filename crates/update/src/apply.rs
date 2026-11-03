@@ -237,8 +237,16 @@ mod tests {
             Install::LinuxFolder(PathBuf::from("/home/a/.local/lib/shapecraft")),
         ] {
             for restart in [true, false] {
-                let s = unix_script(&install, Path::new("/c/0.4.3/new"), Path::new("/c/0.4.3"), Path::new("/c/update.log"), 9, restart, &["--x".into()])
-                    .unwrap_or_default();
+                let s = unix_script(
+                    &install,
+                    Path::new("/c/0.4.3/new"),
+                    Path::new("/c/0.4.3"),
+                    Path::new("/c/update.log"),
+                    9,
+                    restart,
+                    &["--x".into()],
+                )
+                .unwrap_or_default();
                 let dir = std::env::temp_dir().join(format!("sc-helper-{}-{restart}", std::process::id()));
                 let _ = std::fs::write(&dir, &s);
                 let ok = std::process::Command::new("/bin/sh").arg("-n").arg(&dir).status().map(|s| s.success()).unwrap_or(false);

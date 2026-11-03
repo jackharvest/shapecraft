@@ -665,15 +665,43 @@ fn gesture(p: &egui::Painter, c: Pos2, action: NavAction, button: Option<Button>
 
 /// The Navigation Presets modal: presets on the left, how the chosen one pans, orbits and zooms on the right.
 fn nav_presets(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
-    presets_window(ui, full, &mut ws.nav_presets, &mut ws.settings);
+    presets_window(ui, full, &mut ws.nav_presets, &mut ws.settings, false);
 }
 
 /// The Navigation Presets modal with no Workspace behind it. `chosen` is None once it closes.
-pub(crate) fn presets_window(ui: &mut Ui, full: Rect, nav: &mut Option<&'static str>, settings: &mut Settings) {
+///
+/// `welcome` is the first run's second question (ours, the reference stops at the device): the same window, asked
+/// as "which app do your hands already know", with Skip (keep the device's preset) and Use This.
+pub(crate) fn presets_window(ui: &mut Ui, full: Rect, nav: &mut Option<&'static str>, settings: &mut Settings, welcome: bool) {
     let Some(chosen) = *nav else { return };
-    let r = dialog(ui, full, vec2(742.0, 644.0), "");
+    // Tall enough for all twelve presets when the window allows it (at 644 the last three were cut off).
+    let r = dialog(ui, full, vec2(742.0, (full.height() - 40.0).clamp(560.0, 720.0)), "");
     let p = ui.painter().clone();
-    p.text(pos2(r.left() + 19.0, r.top() + 36.0), Align2::LEFT_CENTER, "Navigation Presets", theme::strong(21.0), Tokens::text_strong());
+    if welcome {
+        p.text(
+            pos2(r.left() + 19.0, r.top() + 27.0),
+            Align2::LEFT_CENTER,
+            "Make yourself at home",
+            theme::strong(21.0),
+            Tokens::text_strong(),
+        );
+        p.text(
+            pos2(r.left() + 19.0, r.top() + 52.0),
+            Align2::LEFT_CENTER,
+            "Pick the app your hands already know, and orbit, pan and zoom work the way they do there. \
+             Change it any time in Preferences.",
+            theme::body(12.0),
+            Tokens::text_dim(),
+        );
+    } else {
+        p.text(
+            pos2(r.left() + 19.0, r.top() + 36.0),
+            Align2::LEFT_CENTER,
+            "Navigation Presets",
+            theme::strong(21.0),
+            Tokens::text_strong(),
+        );
+    }
     let body = Rect::from_min_max(pos2(r.left(), r.top() + 70.0), pos2(r.right(), r.bottom() - 60.0));
     p.line_segment([body.left_top(), body.right_top()], Stroke::new(1.0, Tokens::chip_border()));
     let list = Rect::from_min_max(body.min, pos2(body.left() + 238.0, body.bottom()));
@@ -684,7 +712,7 @@ pub(crate) fn presets_window(ui: &mut Ui, full: Rect, nav: &mut Option<&'static 
         p.text(pos2(list.left() + 12.0, y), Align2::LEFT_CENTER, group, theme::strong(11.5), Tokens::text_dim());
         y += 16.0;
         for preset in PRESETS.iter().filter(|p| p.own == own) {
-            let h = if preset.recommended { 58.0 } else { 46.0 };
+            let h = if preset.recommended { 52.0 } else { 40.0 };
             if y + h > list.bottom() {
                 break;
             }
@@ -761,9 +789,9 @@ pub(crate) fn presets_window(ui: &mut Ui, full: Rect, nav: &mut Option<&'static 
     }
     let footer = Rect::from_min_max(pos2(r.left(), body.bottom()), r.max);
     p.rect_filled(footer, egui::CornerRadius { nw: 0, ne: 0, sw: 11, se: 11 }, theme::c(0x232325));
-    let cancel =
-        button(ui, Rect::from_min_size(pos2(r.right() - 166.0, r.bottom() - 36.0), vec2(70.0, 20.0)), "Cancel", false, "nav-cancel");
-    let apply = button(ui, Rect::from_min_size(pos2(r.right() - 86.0, r.bottom() - 36.0), vec2(70.0, 20.0)), "Apply", true, "nav-apply");
+    let (no, yes) = if welcome { ("Skip", "Use This") } else { ("Cancel", "Apply") };
+    let cancel = button(ui, Rect::from_min_size(pos2(r.right() - 166.0, r.bottom() - 36.0), vec2(70.0, 20.0)), no, false, "nav-cancel");
+    let apply = button(ui, Rect::from_min_size(pos2(r.right() - 86.0, r.bottom() - 36.0), vec2(70.0, 20.0)), yes, true, "nav-apply");
     if let Some(name) = picked {
         *nav = Some(name);
     }
