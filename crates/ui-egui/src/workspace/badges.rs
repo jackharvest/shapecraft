@@ -320,7 +320,7 @@ impl Workspace {
         if let (Badge::Continuity, Tool::Fillet(t)) = (b, &self.tool) {
             let mut t = t.clone();
             t.g2 = i == 1;
-            self.variants.insert("Fillet Continuity", i);
+            self.variants.insert("Fillet Continuity".into(), i);
             self.tool = Tool::Fillet(t.clone());
             self.preview = None;
             if t.radius > 1e-9 {
@@ -403,7 +403,7 @@ impl Workspace {
             // Chain takes in every curve connected to the picked ones; Single goes back to what was picked. Remembered.
             (Badge::OffsetType, Tool::OffsetEdge(t)) => {
                 let (sketch, distance, picked) = (t.sketch, t.distance, t.picked.clone());
-                self.variants.insert("Offset Edge", i);
+                self.variants.insert("Offset Edge".into(), i);
                 if picked.is_empty() {
                     return;
                 }
@@ -420,7 +420,7 @@ impl Workspace {
             // The choice is remembered for the next Scale, as observed.
             (Badge::ScaleMode, Tool::Scale(t)) => {
                 t.uniform = i == 0;
-                self.variants.insert("Scale", i);
+                self.variants.insert("Scale".into(), i);
             }
             _ => return,
         }

@@ -77,7 +77,7 @@ impl Workspace {
         {
             let mut t = t.clone();
             t.chordal = !t.chordal;
-            self.variants.insert("Fillet Size Type", usize::from(t.chordal));
+            self.variants.insert("Fillet Size Type".into(), usize::from(t.chordal));
             self.preview = None;
             self.cycled = Some((super::badges::Badge::SizeType, self.now));
             self.tool = Tool::Fillet(t.clone());

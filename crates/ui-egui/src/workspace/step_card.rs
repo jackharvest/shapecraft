@@ -707,15 +707,15 @@ fn apply(ws: &mut Workspace, source: Source, key: &'static str, value: Value) {
             match key {
                 "mode" => {
                     t.chordal = value.as_str() == Some("chordal");
-                    ws.variants.insert("Fillet Size Type", usize::from(t.chordal));
+                    ws.variants.insert("Fillet Size Type".into(), usize::from(t.chordal));
                 }
                 "corner" => {
                     t.setback = value.as_str() == Some("setback");
-                    ws.variants.insert("Fillet Corner", usize::from(t.setback));
+                    ws.variants.insert("Fillet Corner".into(), usize::from(t.setback));
                 }
                 "continuity" => {
                     t.g2 = value.as_str() == Some("g2");
-                    ws.variants.insert("Fillet Continuity", usize::from(t.g2));
+                    ws.variants.insert("Fillet Continuity".into(), usize::from(t.g2));
                 }
                 "radius" => t.radius = value.as_f64().unwrap_or(t.radius).max(0.0),
                 "curvature" => t.curvature = value.as_f64().unwrap_or(t.curvature).clamp(-1.0, 1.0),

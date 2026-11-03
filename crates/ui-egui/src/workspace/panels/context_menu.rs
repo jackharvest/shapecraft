@@ -91,7 +91,7 @@ pub(super) fn variant_menu(ws: &mut Workspace, ui: &mut Ui, label: &'static str,
     let top = pos2(at.x, at.y.min(vp.bottom() - 12.0 - toolbar::group_height(defs.len())));
     let hit = Rect::from_min_size(top, vec2(Tokens::TOOL_BUTTON + 120.0, toolbar::group_height(defs.len())));
     if let Some(i) = toolbar::group(ui, top, &defs, &active, true, "variants") {
-        ws.variants.insert(label, i);
+        ws.variants.insert(label.into(), i);
         ws.variant_menu = None;
         // Restart the tool in its new variant (Pattern switches between its linear and circular tools).
         match label {

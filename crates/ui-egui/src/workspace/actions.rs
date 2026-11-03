@@ -88,20 +88,20 @@ impl Workspace {
             UiAction::ToolOption => match &mut self.tool {
                 Tool::Mirror(t) if t.split && !t.with.is_empty() => {
                     let t = tools::MirrorTool { keep: !t.keep, ..t.clone() };
-                    self.variants.insert("Split Keep", usize::from(t.keep));
+                    self.variants.insert("Split Keep".into(), usize::from(t.keep));
                     self.apply_split(t);
                 }
                 Tool::Mirror(t) => {
                     t.keep = !t.keep;
                     if t.split {
                         let keep = t.keep;
-                        self.variants.insert("Split Keep", usize::from(keep));
+                        self.variants.insert("Split Keep".into(), usize::from(keep));
                     }
                 }
                 Tool::Translate { copy, .. } => *copy = !*copy,
                 Tool::Move(_) => {
                     let off = self.auto_orient();
-                    self.variants.insert(super::AUTO_ORIENT, usize::from(off));
+                    self.variants.insert(super::AUTO_ORIENT.into(), usize::from(off));
                 }
                 Tool::CircularPattern(t) => {
                     t.uniform = !t.uniform;
@@ -195,7 +195,7 @@ impl Workspace {
                 self.visualizing = true;
             }
             UiAction::MeasureMode(i) => {
-                self.variants.insert("Measure mode", (i as usize).min(2));
+                self.variants.insert("Measure mode".into(), (i as usize).min(2));
                 self.measuring = true;
                 self.measure_points.clear();
             }

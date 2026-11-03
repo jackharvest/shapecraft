@@ -63,6 +63,8 @@ pub struct Settings {
     /// The first run's second question (navigation style) has been answered or skipped.
     pub nav_asked: bool,
     pub last_export_dir: Option<String>,
+    /// Each tool's picked variant (Rectangle ▸ 3 Points, Fillet ▸ G2 …), by its label.
+    pub tool_variants: std::collections::BTreeMap<String, usize>,
     /// Export ▸ Slicer: the slicer last opened (its name).
     pub slicer: String,
     /// The in-app tutorials finished (their ids), ticked on their cards.
@@ -115,6 +117,7 @@ impl Default for Settings {
             nav_asked: false,
             last_export_dir: None,
             slicer: String::new(),
+            tool_variants: Default::default(),
             custom_keys: Vec::new(),
             tutorials_done: Vec::new(),
             update_check: true,

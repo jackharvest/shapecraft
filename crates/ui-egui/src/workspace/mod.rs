@@ -263,7 +263,7 @@ pub struct Workspace {
     /// A running tool's key pressed again cycled an option: which badge, and when (the bubble shows for a while).
     pub(crate) cycled: Option<(badges::Badge, f64)>,
     /// The picked variant of each tool that has them (by label; see `toolbar::variants`).
-    pub(crate) variants: std::collections::HashMap<&'static str, usize>,
+    pub(crate) variants: std::collections::HashMap<String, usize>,
     /// Revolve's automatic Result as the engine works it out, for (revision, params): the Result menu's row.
     pub(crate) revolve_auto: std::cell::RefCell<Option<(u64, String, usize)>>,
     /// A tool's variant cascade, open beside its button.
@@ -514,7 +514,7 @@ impl Workspace {
             distance_menu: None,
             badge_menu: None,
             cycled: None,
-            variants: Default::default(),
+            variants: settings.tool_variants.iter().map(|(k, v)| (k.clone(), *v)).collect(),
             revolve_auto: Default::default(),
             variant_menu: None,
             sketch_drag: None,
@@ -597,6 +597,14 @@ impl Workspace {
     /// Move/Rotate's Auto-orientation (on unless switched off; remembered like a variant).
     pub(crate) fn auto_orient(&self) -> bool {
         self.variants.get(AUTO_ORIENT) != Some(&1)
+    }
+
+    /// Copies the picked tool variants into the settings (saved with them), so they outlast the project and the run.
+    pub fn keep_variants(&mut self) {
+        let kept = &self.settings.tool_variants;
+        if self.variants.len() != kept.len() || self.variants.iter().any(|(k, v)| kept.get(k) != Some(v)) {
+            self.settings.tool_variants = self.variants.iter().map(|(k, v)| (k.clone(), *v)).collect();
+        }
     }
 
     pub(crate) fn variant(&self, label: &str) -> usize {

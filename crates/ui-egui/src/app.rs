@@ -1103,6 +1103,10 @@ impl ShapeCraftApp {
         match self.ws.as_deref_mut() {
             Some(ws) => {
                 ws.ui(ui, render_state);
+                // Tutorials run on the default tool types and leave the remembered ones alone.
+                if ws.tutorial.is_none() {
+                    ws.keep_variants();
+                }
                 if ws.settings != self.settings {
                     self.settings = ws.settings.clone();
                     if let Some(path) = &self.settings_file
@@ -1309,6 +1313,7 @@ impl ShapeCraftApp {
         session.selection.clear();
         let base = tutorials::snapshot(&session);
         let mut ws = Workspace::new(session, self.settings.clone());
+        ws.variants.clear();
         ws.show_items = false;
         ws.show_history = false;
         if let Err(e) = setup {
