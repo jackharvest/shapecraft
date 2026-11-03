@@ -70,6 +70,8 @@ pub struct Landing {
     art: HashMap<String, TextureHandle>,
     whats_new_scroll: f32,
     whats_new_open: Option<usize>,
+    /// Whether the projects folder can be read yet (the app checks it off the UI thread; see `folder_access`).
+    access: crate::folder_access::Access,
 }
 
 /// Where the in-window menus start on this screen (Linux, Windows): the top of the sidebar, free without window buttons.
@@ -99,7 +101,25 @@ impl Landing {
             art: HashMap::new(),
             whats_new_scroll: 0.0,
             whats_new_open: None,
+            access: crate::folder_access::Access::Ready(PathBuf::new()),
         }
+    }
+
+    /// The projects folder's state, every frame. Once it's ready the list is read (from the folder actually in use:
+    /// the old Shayper3D one when it couldn't be moved).
+    pub fn set_access(&mut self, access: crate::folder_access::Access) {
+        if access == self.access {
+            return;
+        }
+        if let crate::folder_access::Access::Ready(root) = &access
+            && !root.as_os_str().is_empty()
+            && *root != self.root
+        {
+            self.root = root.clone();
+            self.folder = root.clone();
+        }
+        self.access = access;
+        self.rescan();
     }
 
     pub fn rescan(&mut self) {
@@ -107,7 +127,7 @@ impl Landing {
     }
 
     fn refresh(&mut self, now: f64) {
-        if self.scanned.is_some_and(|t| now - t < 2.0) {
+        if self.scanned.is_some_and(|t| now - t < 2.0) || !matches!(self.access, crate::folder_access::Access::Ready(_)) {
             return;
         }
         if !self.folder.starts_with(&self.root) || !self.folder.is_dir() {
@@ -407,7 +427,33 @@ impl Landing {
         // Folders come first when browsing, as tiles of their own.
         let mut tiles: Vec<Tile> = self.folders.iter().cloned().map(Tile::Folder).collect();
         tiles.extend(list.iter().map(|p| Tile::Project(p.dir.clone())));
-        if tiles.is_empty() {
+        // Waiting for the projects folder, or not allowed in: say so rather than look empty or stuck.
+        let waiting = match &self.access {
+            crate::folder_access::Access::Ready(_) => None,
+            crate::folder_access::Access::Pending(since) => Some((
+                "Opening your projects folder…".to_string(),
+                (since.elapsed() >= crate::folder_access::HINT_AFTER)
+                    .then(|| "If macOS asks to let ShapeCraft use your Documents folder, choose Allow.".to_string()),
+            )),
+            crate::folder_access::Access::Denied(why) => Some((
+                why.clone(),
+                Some(if cfg!(target_os = "macos") {
+                    "Turn ShapeCraft on in System Settings ▸ Privacy & Security ▸ Files & Folders, then reopen it.".to_string()
+                } else {
+                    "Check the folder's permissions, then reopen ShapeCraft.".to_string()
+                }),
+            )),
+        };
+        if let Some((line, hint)) = waiting {
+            if matches!(self.access, crate::folder_access::Access::Pending(_)) {
+                ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+            }
+            let c = pos2(content.center().x, y + 120.0);
+            p.text(c, Align2::CENTER_CENTER, line, theme::strong(13.0), Tokens::text());
+            if let Some(hint) = hint {
+                p.text(c + vec2(0.0, 20.0), Align2::CENTER_CENTER, hint, theme::body(11.0), Tokens::text_dim());
+            }
+        } else if tiles.is_empty() {
             let c = pos2(content.center().x, y + 120.0);
             p.text(c, Align2::CENTER_CENTER, "No projects yet", theme::strong(13.0), Tokens::text());
             p.text(

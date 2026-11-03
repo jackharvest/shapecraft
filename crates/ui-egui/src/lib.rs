@@ -6,6 +6,7 @@
 mod app;
 pub mod control;
 pub mod crash_log;
+pub mod folder_access;
 pub mod graphics;
 pub mod i18n;
 pub mod icons;

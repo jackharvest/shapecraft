@@ -31,18 +31,24 @@ pub struct Options {
 }
 
 impl Options {
+    /// Where projects live: $SHAPECRAFT_PROJECTS, else ~/Documents/ShapeCraft. No file is touched here: the folder
+    /// is made, moved over from its old name and first read off the UI thread (see `folder_access`).
     pub fn default_root() -> PathBuf {
-        // SHAYPER3D_PROJECTS and ~/Documents/Shayper3D are the names from before the rename.
+        // SHAYPER3D_PROJECTS is the name from before the rename.
         if let Some(p) = std::env::var_os("SHAPECRAFT_PROJECTS").or_else(|| std::env::var_os("SHAYPER3D_PROJECTS")) {
             return PathBuf::from(p);
         }
-        let docs = dirs::document_dir().or_else(dirs::home_dir).unwrap_or_else(|| PathBuf::from("."));
-        let (root, old) = (docs.join("ShapeCraft"), docs.join("Shayper3D"));
-        // Move the old projects folder once; if it can't be moved, keep using it where it is.
-        if !root.exists() && old.is_dir() && std::fs::rename(&old, &root).is_err() {
-            return old;
-        }
-        root
+        Self::documents().join("ShapeCraft")
+    }
+
+    /// The projects folder from before the rename (~/Documents/Shayper3D), moved over once.
+    pub fn legacy_root() -> Option<PathBuf> {
+        let named = std::env::var_os("SHAPECRAFT_PROJECTS").or_else(|| std::env::var_os("SHAYPER3D_PROJECTS")).is_some();
+        (!named).then(|| Self::documents().join("Shayper3D"))
+    }
+
+    fn documents() -> PathBuf {
+        dirs::document_dir().or_else(dirs::home_dir).unwrap_or_else(|| PathBuf::from("."))
     }
 }
 
@@ -58,6 +64,8 @@ pub struct ShapeCraftApp {
     /// A scrap of GPU memory written every frame to learn that the device is gone before painting does (see `gpu_gone`).
     gpu_probe: Option<wgpu::Buffer>,
     kernel: Arc<dyn Kernel>,
+    /// The first touch of the projects folder (made, moved over, read once) and how it went.
+    folder: crate::folder_access::FolderAccess,
     landing: Landing,
     /// Where a new project's folder goes when it's first saved.
     new_parent: Option<PathBuf>,
@@ -99,7 +107,16 @@ pub struct ShapeCraftApp {
 
 impl ShapeCraftApp {
     pub fn new(kernel: Arc<dyn Kernel>, opts: Options, ctx: &egui::Context) -> Self {
-        let _ = std::fs::create_dir_all(&opts.projects_root);
+        // The desktop app opens its window before touching the projects folder (macOS may ask first); snapshots and
+        // tests settle it right here.
+        let folder = if opts.native_menu {
+            let ctx = ctx.clone();
+            let legacy = if opts.projects_root == Options::default_root() { Options::legacy_root() } else { None };
+            crate::folder_access::FolderAccess::start(opts.projects_root.clone(), legacy, move || ctx.request_repaint())
+        } else {
+            let _ = std::fs::create_dir_all(&opts.projects_root);
+            crate::folder_access::FolderAccess::ready(opts.projects_root.clone())
+        };
         let control = opts.control_port.and_then(|port| {
             let ctx = ctx.clone();
             match Server::start(port, move || ctx.request_repaint()) {
@@ -145,6 +162,7 @@ impl ShapeCraftApp {
             updates: Default::default(),
             kernel,
             landing: Landing::new(opts.projects_root),
+            folder,
             new_parent: None,
             ws: None,
             control,
@@ -199,7 +217,12 @@ impl ShapeCraftApp {
     /// Projects save themselves, like the reference app; ours go to a folder on disk.
     fn save(&mut self) {
         let root = self.new_parent.clone().unwrap_or_else(|| self.landing.root.clone());
+        let folder_ready = self.folder.is_ready();
         let Some(ws) = self.ws.as_deref_mut() else { return };
+        // A new project waits for the projects folder (macOS may still be asking); it stays unsaved till then.
+        if ws.session.path.is_none() && !folder_ready {
+            return;
+        }
         // A tutorial's scenes are scratch: they never become projects.
         if ws.session.doc.is_empty() && ws.session.path.is_none() || ws.tutorial.is_some() {
             return;
@@ -336,6 +359,12 @@ impl ShapeCraftApp {
 
     /// Import Project (⇧⌘P): the local projects in a sheet to pick from.
     fn import_project_sheet(&mut self) {
+        if !self.folder.is_ready() {
+            if let Some(ws) = self.ws.as_deref_mut() {
+                ws.toast("The projects folder isn't open yet".to_string());
+            }
+            return;
+        }
         let root = self.landing.root.clone();
         let Some(ws) = self.ws.as_deref_mut() else { return };
         let projects = shapecraft_doc::project::list_all(&root).into_iter().map(|p| (p.name, p.dir, p.thumbnail, p.modified)).collect();
@@ -703,6 +732,7 @@ impl ShapeCraftApp {
                 self.landing.show_section(section).map_err(|e| e.to_string())?;
                 Ok(Value::Null)
             }
+            "project.list" if !self.folder.is_ready() => Err("the projects folder isn't open yet".into()),
             "project.list" => {
                 let root = self.landing.root.clone();
                 let dir = params.get("folder").and_then(Value::as_str).map(PathBuf::from).unwrap_or_else(|| root.clone());
@@ -711,6 +741,9 @@ impl ShapeCraftApp {
                 }
                 let projects: Vec<Value> = project::list(&dir).iter().map(|p| json!({ "name": p.name, "path": p.dir })).collect();
                 Ok(json!({ "folders": project::folders(&dir), "projects": projects }))
+            }
+            "project.new_folder" | "project.rename" | "project.duplicate" | "project.delete" if !self.folder.is_ready() => {
+                Err("the projects folder isn't open yet".into())
             }
             "project.new_folder" | "project.rename" | "project.duplicate" | "project.delete" => {
                 let root = self.landing.root.clone();
@@ -1125,6 +1158,7 @@ impl ShapeCraftApp {
                 }
             }
             None => {
+                self.landing.set_access(self.folder.state());
                 if self.landing.tutorials_done != self.settings.tutorials_done {
                     self.landing.tutorials_done = self.settings.tutorials_done.clone();
                 }
