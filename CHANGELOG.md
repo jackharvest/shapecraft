@@ -2,6 +2,15 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.4.2-alpha
+
+Fixed:
+- Help ▸ What's New lists the newest features, as the home screen's cards do (it showed made-up entries).
+- Windows: updates find the folder ShapeCraft runs from in its plain form, so the portable zip's files are replaced
+  cleanly.
+- Release builds: macOS binaries leave room for the bundle's library paths (the Intel build couldn't be packaged), and
+  the Windows build uses Microsoft's linker.
+
 ## 0.4.1-alpha
 
 The first public release.

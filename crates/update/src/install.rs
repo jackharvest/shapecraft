@@ -206,6 +206,14 @@ fn same_or_inside(a: &Path, b: &Path, ignore_case: bool) -> bool {
     !b.is_empty() && !b.ends_with(':') && (a == b || a.strip_prefix(&b).is_some_and(|rest| rest.starts_with('/')))
 }
 
+/// A path without Windows' `\\?\` prefix (canonicalize adds it), which robocopy and some programs don't take.
+fn plain(p: PathBuf) -> PathBuf {
+    match p.to_str().and_then(|s| s.strip_prefix(r"\\?\")) {
+        Some(rest) if !rest.starts_with("UNC") => PathBuf::from(rest),
+        _ => p,
+    }
+}
+
 /// This machine's installation.
 pub fn this_install() -> Install {
     use std::io::Read;
@@ -220,7 +228,7 @@ pub fn this_install() -> Install {
         os: std::env::consts::OS,
         release_build: crate::release_build(),
         env: &env,
-        exe: std::env::current_exe().ok().map(|e| e.canonicalize().unwrap_or(e)),
+        exe: std::env::current_exe().ok().map(|e| plain(e.canonicalize().unwrap_or(e))),
         exists: &exists,
         read: &read,
     })
@@ -301,6 +309,13 @@ mod tests {
             probe("linux", "/x/usr/bin/shapecraft", &[("APPIMAGE", exe), ("HOME", "/home/a")], &[], Some(relative)),
             Install::AppImage(exe.into())
         );
+    }
+
+    #[test]
+    fn the_long_path_prefix_goes() {
+        assert_eq!(plain(PathBuf::from(r"\\?\C:\sc\portable")), PathBuf::from(r"C:\sc\portable"));
+        assert_eq!(plain(PathBuf::from(r"\\?\UNC\srv\share")), PathBuf::from(r"\\?\UNC\srv\share"));
+        assert_eq!(plain(PathBuf::from("/Applications/ShapeCraft.app")), PathBuf::from("/Applications/ShapeCraft.app"));
     }
 
     #[test]

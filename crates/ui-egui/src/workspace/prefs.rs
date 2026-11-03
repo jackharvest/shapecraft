@@ -10,10 +10,6 @@ use crate::icons::{self, Icon};
 use crate::settings::{Button, Mods, NavAction, PRESETS, Settings};
 use crate::theme::{self, Tokens, radius};
 
-/// Our own release notes for the What's New list (version, what changed).
-const WHATS_NEW: &[(&str, &str)] =
-    &[("0.4", "Parametric history"), ("0.3", "Drawings and Visualization"), ("0.2", "Loft, Sweep and Revolve")];
-
 /// The Variables dialog: named values with their expressions and what they come to.
 fn variables(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     let Some(mut rows) = ws.variables_dialog.take() else { return };
@@ -175,11 +171,12 @@ pub(super) fn help(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
         y += 26.0;
         p.text(pos2(left, y), Align2::LEFT_CENTER, "What's New?", theme::body(12.0), Tokens::text_dim());
         y += 22.0;
-        for (version, text) in WHATS_NEW {
+        // The newest features, as the home screen's What's new cards name them.
+        for e in crate::whats_new::ENTRIES.iter().take(3) {
             let chip = Rect::from_min_size(pos2(left, y - 8.0), vec2(40.0, 16.0));
             p.rect_filled(chip, radius(8), theme::c(0x48484b));
-            p.text(chip.center(), Align2::CENTER_CENTER, *version, theme::body(10.0), Tokens::text());
-            p.text(pos2(chip.right() + 10.0, y), Align2::LEFT_CENTER, *text, theme::body(11.5), Tokens::text_strong());
+            p.text(chip.center(), Align2::CENTER_CENTER, e.version, theme::body(10.0), Tokens::text());
+            p.text(pos2(chip.right() + 10.0, y), Align2::LEFT_CENTER, e.title, theme::body(11.5), Tokens::text_strong());
             y += 21.0;
         }
         y += 6.0;
