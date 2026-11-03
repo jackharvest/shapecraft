@@ -2,7 +2,7 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## Unreleased
+## 0.5.1-alpha
 
 New:
 - Edit ▸ Copy and Paste (⌘C / ⌘V): copy bodies or construction planes and paste them in place as separate,
