@@ -19,6 +19,13 @@ pub struct Entry {
 
 pub const ENTRIES: &[Entry] = &[
     Entry {
+        version: "0.5.0",
+        title: "Make yourself at home",
+        text: "The first launch asks which app's navigation your hands already know, so orbit, pan and zoom work the \
+               way you're used to. Change it any time under Preferences ▸ Navigation Presets.",
+        art: "new-navigation",
+    },
+    Entry {
         version: "0.3.0",
         title: "Learn in 7 minutes",
         text: "Three short in-app tutorials (a phone stand, a pencil cup and a key tag) walk you through sketching, \
@@ -55,7 +62,7 @@ pub const ENTRIES: &[Entry] = &[
     },
     Entry {
         version: "0.1.0",
-        title: "Your Shapr3D projects open here",
+        title: "Your .shapr projects open here",
         text: ".shapr files open with their bodies, sketches and steps, and projects you save from ShapeCraft keep \
                their editable history.",
         art: "new-shapr",

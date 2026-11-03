@@ -2,7 +2,7 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## Unreleased
+## 0.5.0-alpha
 
 New:
 - The first launch asks a second question after the device: which app's navigation feels like home. Your existing
@@ -19,7 +19,7 @@ For scripts and agents:
   narrows to one `body` or `sketch`, with `faces: false` to leave out face lists.
 - `"look": false` keeps the open app's camera still when a script starts a sketch. `visual_settings` says that
   environments show in Visualize.
-- docs/mcp.md: a one-line Claude Code setup, the sketch axis table, and conventions that used to need testing.
+- docs/mcp.md: a one-line setup for agent tools, the sketch axis table, and conventions that used to need testing.
 
 ## 0.4.3-alpha
 

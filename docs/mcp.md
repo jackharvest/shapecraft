@@ -20,12 +20,13 @@ Client configuration (any MCP client):
 { "mcpServers": { "shapecraft": { "command": "shapecraft-cli", "args": ["mcp"] } } }
 ```
 
-Claude Code, in one line (bridged to the open app; drop `--connect …` for headless). The CLI ships inside the
+Agent tools that add MCP servers from the command line take the same thing in one line (bridged to the open app;
+drop `--connect …` for headless; the first words are your tool's own command). The CLI ships inside the
 download: `/Applications/ShapeCraft.app/Contents/MacOS/shapecraft-cli` on a Mac, next to `shapecraft.exe` on
 Windows, `~/.local/bin/shapecraft-cli` after the Linux install script.
 
 ```sh
-claude mcp add shapecraft -- shapecraft-cli mcp --connect 127.0.0.1:47811
+<your-agent> mcp add shapecraft -- shapecraft-cli mcp --connect 127.0.0.1:47811
 ```
 
 ## Tools
