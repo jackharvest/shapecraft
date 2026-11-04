@@ -128,6 +128,7 @@ Needs Rust (stable) and Open CASCADE 7.8 or newer, linked dynamically. Set `OCCT
   conda-forge (`micromamba create -n occt -c conda-forge occt`, then point the two variables at
   `$CONDA_PREFIX/include/opencascade` and `$CONDA_PREFIX/lib`). The window also needs the usual X11/Wayland
   development libraries (xkbcommon, wayland, X11, Xcursor, Xrandr, Xi, GL).
+- Nix (Linux): `nix develop`, or `direnv allow` with nix-direnv, sets all of the above up.
 - Windows (MSVC): OCCT from conda-forge (`Library\include\opencascade`, `Library\lib`) or vcpkg; put the OCCT DLLs
   on `PATH` to run.
 

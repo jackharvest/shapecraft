@@ -8,7 +8,8 @@ of change goes. Project rules are in [`AGENTS.md`](AGENTS.md) (clean room, never
 
 ## Build and check
 
-See the README for OpenCASCADE. Then:
+See the README for OpenCASCADE. With Nix, `nix develop` (or `direnv allow`) gives the toolchain, OCCT and the window
+libraries instead. Then:
 
 ```sh
 cargo build
