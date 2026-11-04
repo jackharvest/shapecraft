@@ -40,6 +40,7 @@ unsafe extern "C" {
     pub fn sk_mesh_edge(m: *const SkMesh, i: usize) -> *const f32;
     pub fn sk_write_step(shapes: *const *const SkShape, n: usize, path: *const c_char) -> i32;
     pub fn sk_read_step(path: *const c_char, out: *mut *mut *mut SkShape, n: *mut usize) -> i32;
+    pub fn sk_read_step_roots(path: *const c_char, out: *mut *mut *mut SkShape, n: *mut usize) -> i32;
     pub fn sk_write_step_schema(shapes: *const *const SkShape, n: usize, path: *const c_char, schema: i32) -> i32;
     pub fn sk_read_step_doc(path: *const c_char, out: *mut *mut *mut SkShape, n: *mut usize) -> i32;
     pub fn sk_last_meta() -> *const c_char;

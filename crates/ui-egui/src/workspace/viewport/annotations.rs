@@ -6,8 +6,8 @@ use shapecraft_doc::{Pick, SketchEntity, SketchPlane, format_length};
 
 use super::handles::SECTION_FLIP;
 use super::paint::{
-    DASHED_RADIUS, DIAMETER, PILL_INK, RADIAL, axis_pill, copy_pill, dashed_radius, diameter_dim, double_arrow, leader_dim, link_pill,
-    padlock, pill, radius_dim, screen_dim, sketch_dimension, target_badge, value_box,
+    DASHED_RADIUS, DIAMETER, PILL_INK, RADIAL, axis_pill, copy_pill, dashed_radius, diameter_dim, double_arrow, face_arrow, lead_drop,
+    leader_dim, link_pill, padlock, pill, radius_dim, screen_dim, sketch_dimension, target_badge, value_box,
 };
 use super::snap::ellipse_minor;
 use crate::theme::{self, Tokens, radius};
@@ -870,10 +870,16 @@ impl Workspace {
                 && let Some(b0) = self.to_screen(anchor)
             {
                 painter.add(egui::Shape::dashed_line(&[b0, s0], Stroke::new(1.3, Color32::from_white_alpha(210)), 5.0, 4.0));
+                // Offset Face's lead starts in a drop where the face was (26.202, s37).
+                if matches!(self.tool, Tool::OffsetFace(_)) && (s0 - b0).length() > 14.0 {
+                    lead_drop(&painter, b0, (b0 - s0).normalized(), Color32::from_white_alpha(235));
+                }
             }
             if matches!(self.tool, Tool::Fillet(_)) {
                 // As observed (280): a bold blue ↔ starting at the edge and pointing out of the part.
                 double_arrow(&painter, s0 - sdir * 20.0, sdir, 16.0, blue, theme::c(0x5a5d66));
+            } else if let Tool::OffsetFace(t) = &self.tool {
+                face_arrow(&painter, s0, sdir, t.dragging.is_some());
             } else {
                 double_arrow(&painter, s0, sdir, 14.0, blue, theme::c(0x5a5d66));
             }
@@ -894,40 +900,43 @@ impl Workspace {
                 label_at = s0 + sdir * 44.0;
                 kind_pill = Some((s0 + sdir * 112.0, ""));
             } else if let Tool::OffsetFace(t) = &self.tool {
-                let kind = match (self.offset_total, t.radius.is_some()) {
-                    (false, _) => "Offset ⌄",
-                    (true, true) => "Radius ⌄",
-                    (true, false) => "Total ⌄",
+                use crate::workspace::tools::OffsetKind as K;
+                let mode = self.offset_kind(t);
+                let kind = match mode {
+                    K::Offset => "Offset ⌄",
+                    K::Total => "Total ⌄",
+                    K::Radius => "Radius ⌄",
+                    K::Diameter => "Diameter ⌄",
                 };
-                kind_pill = Some((s0 + sdir * 40.0, kind));
+                // Offset, as observed: only the arrow until it's pulled.
+                if mode != K::Offset || t.distance.abs() > 1e-9 || typed.is_some() {
+                    kind_pill = Some((s0 + sdir * 40.0, kind));
+                }
                 label_at = s0 + sdir * 86.0;
-                // Radius, as observed: a dashed line from the handle in to the axis, arrowhead there; the pills stay
-                // outside the part.
-                if self.offset_total
-                    && let Some((_, foot)) = t.radius
-                    && let Some(e) = self.to_screen(foot)
+                let ink = Color32::from_white_alpha(235);
+                // Radius: a dashed lead from the handle in to the axis. Diameter: on through it to the far wall
+                // (26.202, s37). The pills stay outside the part.
+                let far = match (mode, t.radius) {
+                    (K::Radius, Some((_, foot))) => Some(foot),
+                    (K::Diameter, Some((_, foot))) => Some(foot * 2.0 - t.anchor),
+                    _ => None,
+                };
+                if let Some(e) = far.and_then(|p| self.to_screen(p))
                     && (e - s0).length() > 20.0
                 {
                     let ldir = (e - s0).normalized();
-                    let ink = Color32::from_white_alpha(235);
-                    painter.add(egui::Shape::dashed_line(&[s0 + ldir * 14.0, e], Stroke::new(1.3, ink), 5.0, 4.0));
-                    let lp = vec2(-ldir.y, ldir.x);
-                    painter.add(egui::Shape::convex_polygon(
-                        vec![e, e - ldir * 11.0 + lp * 4.0, e - ldir * 11.0 - lp * 4.0],
-                        ink,
-                        Stroke::NONE,
-                    ));
+                    painter.add(egui::Shape::dashed_line(&[s0 + ldir * 13.0, e], Stroke::new(1.3, ink), 5.0, 4.0));
+                    lead_drop(&painter, e, ldir, ink);
                 }
                 // Total, as observed: a dashed dimension through the part to the opposite wall, arrowheads at
                 // both ends; the pills sit in its middle when there's room, else beyond the handle.
-                if self.offset_total
+                if mode == K::Total
                     && let Some(th) = t.thickness
                     && let Some(e) = self.to_screen(t.anchor - t.dir * th)
                     && let Some(ldir) = ((e - s0).length() > 1.0).then(|| (e - s0).normalized())
                 {
                     let start = s0 + ldir * 18.0;
                     if (e - start).dot(ldir) > 8.0 {
-                        let ink = Color32::from_white_alpha(235);
                         painter.add(egui::Shape::dashed_line(&[start, e], Stroke::new(1.3, ink), 5.0, 4.0));
                         let lp = vec2(-ldir.y, ldir.x);
                         for (tip, d) in [(start, -ldir), (e, ldir)] {
@@ -960,27 +969,48 @@ impl Workspace {
             }
             let shown = match &self.tool {
                 Tool::OffsetFace(t) if t.fillet.is_some() => {
+                    let k = self.offset_kind(t);
                     let d = typed.and_then(crate::workspace::tools::parse_length).map(|v| {
                         let mut c = t.clone();
-                        c.set_shown(self.offset_total, v);
-                        c.shown(self.offset_total)
+                        c.set_shown(k, v);
+                        c.shown(k)
                     });
-                    format!("R{}", format_length(d.unwrap_or(t.shown(self.offset_total)), units))
+                    format!("R{}", format_length(d.unwrap_or(t.shown(k)), units))
                 }
-                Tool::OffsetFace(t) if t.radius.is_some() && self.offset_total => format!("R{}", format_length(t.shown(true), units)),
-                Tool::OffsetFace(t) => format_length(t.shown(self.offset_total), units),
+                // A round face reads "R7.5 mm" or "⌀10 mm" (26.202, s37).
+                Tool::OffsetFace(t) => {
+                    let k = self.offset_kind(t);
+                    let prefix = match k {
+                        crate::workspace::tools::OffsetKind::Radius => "R",
+                        crate::workspace::tools::OffsetKind::Diameter => "⌀",
+                        _ => "",
+                    };
+                    format!("{prefix}{}", format_length(t.shown(k), units))
+                }
                 // As observed: a fillet reads "R5 mm", a chamfer just its length.
                 Tool::Fillet(t) if t.chamfer => format_length(t.radius, units),
                 Tool::Fillet(t) => format!("R{}", format_length(t.radius, units)),
                 _ => format_length(value, units),
             };
+            // Offset, Radius and Diameter (26.202, s37): the value comes first along the line, the type pill after
+            // it. Total keeps the type first.
+            let value_first = matches!(&self.tool, Tool::OffsetFace(t)
+                if t.fillet.is_none() && self.offset_kind(t) != crate::workspace::tools::OffsetKind::Total)
+                && typed.is_none();
             if let Some((at, kind)) = kind_pill {
-                let pr = axis_pill(&painter, at, label_dir, kind, false);
+                let half = shown.chars().count() as f32 * 2.9 + 6.0;
+                let kind_at = if value_first {
+                    label_at = at + label_dir * (half - 12.0);
+                    let kind_half = kind.chars().count() as f32 * 2.9 + 6.0;
+                    label_at + label_dir * (half + 5.0 + kind_half)
+                } else {
+                    at
+                };
+                let pr = axis_pill(&painter, kind_at, label_dir, kind, false);
                 ui.ctx().data_mut(|d| d.insert_temp(ui.scope_id().with("offset-kind-pill"), pr));
                 // The value follows the type pill along the same line, a small gap after it however long it reads.
-                if matches!(&self.tool, Tool::OffsetFace(t) if t.fillet.is_none()) && typed.is_none() {
+                if !value_first && matches!(&self.tool, Tool::OffsetFace(t) if t.fillet.is_none()) && typed.is_none() {
                     let along = (pr.width().max(pr.height()) / 2.0).max(10.0);
-                    let half = shown.chars().count() as f32 * 2.9 + 6.0;
                     label_at = at + label_dir * (along + 5.0 + half);
                 }
             }
@@ -1015,9 +1045,12 @@ impl Workspace {
                     painter.circle_stroke(knob, 5.0, Stroke::new(1.2, Color32::WHITE));
                 }
             }
+            // Offset Face's plain Offset shows no value until it's pulled (as observed, s37).
+            let unpulled_offset = matches!(&self.tool, Tool::OffsetFace(t)
+                if t.fillet.is_none() && t.distance.abs() < 1e-9 && self.offset_kind(t) == crate::workspace::tools::OffsetKind::Offset);
             if typed.is_some() {
                 value_box(&painter, label_at + label_dir * 30.0, &shown, typed);
-            } else {
+            } else if !unpulled_offset {
                 axis_pill(&painter, label_at, label_dir, &shown, true);
             }
             if matches!(self.tool, Tool::Fillet(_)) {

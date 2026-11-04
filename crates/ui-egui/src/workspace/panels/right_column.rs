@@ -303,11 +303,39 @@ impl Workspace {
         let mut visible: Vec<&(DVec3, Vec<DVec3>)> = pieces.iter().filter(|(n, _)| n.dot(back) > 1e-3).collect();
         visible.sort_by(|a, b| a.0.dot(back).total_cmp(&b.0.dot(back)));
         let hover = resp.hover_pos().filter(|_| !resp.dragged());
-        let hovered = visible
-            .iter()
-            .rev()
-            .find(|(_, pts)| hover.is_some_and(|h| point_in_poly(h, &pts.iter().map(|p| proj(*p)).collect::<Vec<_>>())))
-            .map(|(n, _)| *n);
+        // What a click picks: the face under the pointer, but its outer band counts as the edge (or corner) next
+        // to it, not just the thin bevel. As observed (26.202, s37-cubehit): 40% of the way from a face's middle to
+        // its edge picks the face, 80% the edge.
+        let on_cube = hover.filter(|h| visible.iter().any(|(_, pts)| point_in_poly(*h, &pts.iter().map(|p| proj(*p)).collect::<Vec<_>>())));
+        let hovered = on_cube.and_then(|h| {
+            const ZONE: f64 = 0.55;
+            let mut faces: Vec<DVec3> = axes.iter().flat_map(|a| [*a, -*a]).filter(|n| n.dot(back) > 1e-3).collect();
+            faces.sort_by(|a, b| b.dot(back).total_cmp(&a.dot(back)));
+            faces.into_iter().find_map(|n| {
+                let (u, v) = face_frame(n);
+                let p0 = proj(n);
+                let (du, dv) = (proj(n + u) - p0, proj(n + v) - p0);
+                let det = (du.x * dv.y - du.y * dv.x) as f64;
+                if det.abs() < 1e-6 {
+                    return None;
+                }
+                let d = h - p0;
+                let a = (d.x * dv.y - d.y * dv.x) as f64 / det;
+                let b = (du.x * d.y - du.y * d.x) as f64 / det;
+                if a.abs() > 1.02 || b.abs() > 1.02 {
+                    return None;
+                }
+                let mut m = n;
+                if a.abs() > ZONE {
+                    m += u * a.signum();
+                }
+                if b.abs() > ZONE {
+                    m += v * b.signum();
+                }
+                Some(m.normalize())
+            })
+        });
+        let is_hovered = |n: &DVec3| hovered.is_some_and(|h| h.dot(*n) > 0.999);
 
         // Axes: drawn under the cube where the edge they follow is out of sight, over it otherwise.
         let o = DVec3::splat(-1.12);
@@ -317,21 +345,22 @@ impl Workspace {
             if d.dot(back).abs() > 0.97 {
                 return; // pointing at the viewer: nothing to see
             }
-            ui.painter().line_segment([proj(o), proj(o + d * 2.75)], Stroke::new(1.6, axis_cols[i]));
-            ui.painter().text(proj(o + d * 3.15), Align2::CENTER_CENTER, ["X", "Y", "Z"][i], theme::body(11.0), axis_cols[i]);
+            // About two thirds of the cube's width (26.202, s37), the letter just past the end.
+            ui.painter().line_segment([proj(o), proj(o + d * 1.85)], Stroke::new(1.6, axis_cols[i]));
+            ui.painter().text(proj(o + d * 2.25), Align2::CENTER_CENTER, ["X", "Y", "Z"][i], theme::body(11.0), axis_cols[i]);
         };
         let axis_seen = |i: usize| axes.iter().enumerate().any(|(j, a)| j != i && (-*a).dot(back) > 0.0);
         for i in (0..3).filter(|i| !axis_seen(*i)) {
             paint_axis(ui, i);
         }
-        let light = DVec3::new(-0.3, -0.4, 1.0).normalize();
         for (n, pts) in &visible {
             let face = n.abs().max_element() > 0.99;
-            let base: f64 = if face { 58.0 } else { 82.0 };
-            let lum = (base * (0.85 + 0.25 * n.dot(light).max(0.0))).min(255.0) as u8;
+            // Flat, unlit shades (26.202, s37): every face #333333, every chamfer #505050; the contrast is what
+            // makes the edges read as cut, not rounded.
+            let lum: u8 = if face { 51 } else { 80 };
             // Light: the faces read #F2F2F2/#E9E9E9/#FCFCFC where the dark ones read #333333/#3B3B3B/#494949 (s23).
             let lum = if theme::is_light() { (242.0 + (lum as f32 - 51.0) * 0.5).clamp(0.0, 255.0) as u8 } else { lum };
-            let fill = if hovered == Some(*n) { theme::c(0x3a64c8) } else { Color32::from_gray(lum) };
+            let fill = if is_hovered(n) { theme::c(0x3a64c8) } else { Color32::from_gray(lum) };
             let poly: Vec<Pos2> = pts.iter().map(|p| proj(*p)).collect();
             ui.painter().add(Shape::convex_polygon(poly, fill, Stroke::new(0.6, fill)));
             if face && n.dot(back) > 0.2 {

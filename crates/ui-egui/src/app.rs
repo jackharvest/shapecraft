@@ -216,7 +216,7 @@ impl ShapeCraftApp {
                 self.saved_generation = 0;
             }
             // The bodies file is unreadable: open the rest and make the bodies again from the History.
-            Err(project::ProjectError::Kernel(e)) => match self.recover(&dir) {
+            Err(e @ (project::ProjectError::Kernel(_) | project::ProjectError::Bodies(_))) => match self.recover(&dir) {
                 Some(note) => {
                     if let Some(ws) = self.ws.as_deref_mut() {
                         ws.toast(note);

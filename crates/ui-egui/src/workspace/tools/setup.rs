@@ -198,7 +198,12 @@ impl ExtrudeTool {
     }
 
     pub fn overlays(&self, out: &mut Vec<Overlay>) {
-        let ghost = Rgba::hex(0x1db3dc);
+        self.overlays_in(out, Rgba::hex(0x1db3dc));
+    }
+
+    /// The pulled volume in one colour: caps, faint walls, lines up the sharp corners. A cut shows it red over
+    /// the live result (26.202, s36-disc-pull: the volume that goes reads pinkish red through the part).
+    pub fn overlays_in(&self, out: &mut Vec<Overlay>, ghost: Rgba) {
         // Start ▸ Offset lifts the profile; Symmetric pulls it both ways.
         let base = self.normal * self.start_offset.unwrap_or(0.0);
         let off = self.normal * self.distance;
@@ -572,9 +577,16 @@ impl OffsetFaceTool {
             s.kernel.axis_of(&b.shape, shapecraft_kernel::SubShape::Face(first)).ok().flatten().and_then(|axis| {
                 let dir = axis.dir.try_normalize()?;
                 let foot = axis.origin + dir * (anchor - axis.origin).dot(dir);
-                let r = anchor.distance(foot);
+                // The click lands on a flat mesh facet, a little inside the true surface: read the radius off the
+                // face's mesh points instead (they lie on it), so a 5 mm cylinder reads 5, not 4.9907.
+                let r = surface_radius(&b.mesh, first, axis.origin, dir, anchor).unwrap_or_else(|| anchor.distance(foot));
                 (r > 1e-6).then_some((r, foot))
             })
+        };
+        // The handle sits on the true surface too.
+        let anchor = match radius {
+            Some((r, foot)) => (anchor - foot).try_normalize().map_or(anchor, |u| foot + u * r),
+            None => anchor,
         };
         let thickness = if radius.is_some() { None } else { opposite_face_distance(&b.mesh, anchor, dir, first) };
         let fillet = match faces.as_slice() {
@@ -591,37 +603,41 @@ impl OffsetFaceTool {
         if self.dir.dot(self.anchor - foot) >= 0.0 { 1.0 } else { -1.0 }
     }
 
-    /// The value shown and typed: the offset, or with "Total" the part's whole thickness after it (a turned face:
-    /// its radius after it).
-    pub fn shown(&self, total: bool) -> f64 {
+    /// The value shown and typed for a distance type: the offset itself, the part's whole thickness after it
+    /// (Total), or a turned face's radius or diameter after it.
+    pub fn shown(&self, kind: OffsetKind) -> f64 {
         if let Some(f) = &self.fillet {
             return f.radius_after(self.distance);
         }
-        if let Some((r, foot)) = self.radius
-            && total
-        {
-            return r + self.radius_sign(foot) * self.distance;
+        if let Some((r, foot)) = self.radius {
+            let after = r + self.radius_sign(foot) * self.distance;
+            return match kind {
+                OffsetKind::Radius => after,
+                OffsetKind::Diameter => 2.0 * after,
+                _ => self.distance,
+            };
         }
         match self.thickness {
-            Some(t) if total => t + self.distance,
+            Some(t) if kind == OffsetKind::Total => t + self.distance,
             _ => self.distance,
         }
     }
 
-    pub fn set_shown(&mut self, total: bool, v: f64) {
+    pub fn set_shown(&mut self, kind: OffsetKind, v: f64) {
         // A typed radius for a fillet's face.
         if let Some(f) = &self.fillet {
             self.distance = if f.convex { f.radius - v } else { v - f.radius };
             return;
         }
-        if let Some((r, foot)) = self.radius
-            && total
-        {
-            self.distance = (v - r) * self.radius_sign(foot);
-            return;
+        if let Some((r, foot)) = self.radius {
+            match kind {
+                OffsetKind::Radius => return self.distance = (v - r) * self.radius_sign(foot),
+                OffsetKind::Diameter => return self.distance = (v / 2.0 - r) * self.radius_sign(foot),
+                _ => {}
+            }
         }
         self.distance = match self.thickness {
-            Some(t) if total => v - t,
+            Some(t) if kind == OffsetKind::Total => v - t,
             _ => v,
         };
     }
@@ -998,6 +1014,36 @@ fn nearest_on(curves: &[shapecraft_doc::SketchEntity], p: DVec2) -> Option<DVec2
         .min_by(|a, b| a.distance(p).total_cmp(&b.distance(p)))
 }
 
+/// A turned face's radius level with `at`, read off its mesh points (which lie on the true surface): the two rings
+/// of points nearest `at` along the axis, interpolated (exact for cylinders and cones).
+fn surface_radius(m: &shapecraft_kernel::Mesh, face: u32, origin: DVec3, dir: DVec3, at: DVec3) -> Option<f64> {
+    let h = (at - origin).dot(dir);
+    // (height along the axis, radius) of the nearest mesh point at or below `at`, and at or above it.
+    let mut below: Option<(f64, f64)> = None;
+    let mut above: Option<(f64, f64)> = None;
+    for (t, f) in m.triangle_faces.iter().enumerate() {
+        if *f != face {
+            continue;
+        }
+        for k in 0..3 {
+            let Some(p) = m.indices.get(t * 3 + k).and_then(|i| m.positions.get(*i as usize)) else { continue };
+            let p = DVec3::from(p.map(f64::from)) - origin;
+            let (ph, pr) = (p.dot(dir), p.reject_from_normalized(dir).length());
+            if ph <= h && below.is_none_or(|(bh, _)| ph > bh) {
+                below = Some((ph, pr));
+            }
+            if ph >= h && above.is_none_or(|(ah, _)| ph < ah) {
+                above = Some((ph, pr));
+            }
+        }
+    }
+    match (below, above) {
+        (Some((h0, r0)), Some((h1, r1))) if h1 - h0 > 1e-9 => Some(r0 + (r1 - r0) * (h - h0) / (h1 - h0)),
+        (Some((_, r)), _) | (_, Some((_, r))) => Some(r),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1021,15 +1067,18 @@ mod tests {
         // A shaft: out of the part points away from the axis, so pulling out grows the radius.
         let mut shaft = turned(DVec3::X * 5.0, DVec3::X);
         shaft.distance = 2.0;
-        assert!((shaft.shown(true) - 7.0).abs() < 1e-9);
-        assert!((shaft.shown(false) - 2.0).abs() < 1e-9);
-        shaft.set_shown(true, 4.0);
+        assert!((shaft.shown(OffsetKind::Radius) - 7.0).abs() < 1e-9);
+        assert!((shaft.shown(OffsetKind::Diameter) - 14.0).abs() < 1e-9);
+        assert!((shaft.shown(OffsetKind::Offset) - 2.0).abs() < 1e-9);
+        shaft.set_shown(OffsetKind::Radius, 4.0);
         assert!((shaft.distance + 1.0).abs() < 1e-9);
+        shaft.set_shown(OffsetKind::Diameter, 12.0);
+        assert!((shaft.distance - 1.0).abs() < 1e-9);
         // A hole: out of the part points at the axis, so pulling out shrinks it.
         let mut hole = turned(DVec3::X * 5.0, -DVec3::X);
         hole.distance = 2.0;
-        assert!((hole.shown(true) - 3.0).abs() < 1e-9);
-        hole.set_shown(true, 6.0);
+        assert!((hole.shown(OffsetKind::Radius) - 3.0).abs() < 1e-9);
+        hole.set_shown(OffsetKind::Radius, 6.0);
         assert!((hole.distance + 1.0).abs() < 1e-9);
     }
 }

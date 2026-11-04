@@ -387,11 +387,15 @@ impl Workspace {
                 out.push(Overlay::Line { a: sk.plane.to_world(w[0]), b: sk.plane.to_world(w[1]), color: Rgba::hex(0xd0861a), width: 2.0 });
             }
         }
-        // The ghost only stands in until the live geometry is ready (or if the kernel refuses).
-        if let Tool::Extrude(t) = &self.tool
-            && !self.has_live_preview()
-        {
-            t.overlays(&mut out);
+        // A cut (Subtract, picked or auto) shows the volume it takes away tinted red over the part, live or not
+        // (26.202, s36-disc-pull). Otherwise the ghost only stands in until the live geometry is ready (or if the
+        // kernel refuses).
+        if let Tool::Extrude(t) = &self.tool {
+            if self.badge_current(crate::workspace::badges::Badge::Result) == Some(3) {
+                t.overlays_in(&mut out, Rgba::hex(0xe8506e));
+            } else if !self.has_live_preview() {
+                t.overlays(&mut out);
+            }
         }
         self.section_cap_overlays(&mut out, self.camera.world_per_pixel(self.size().y));
         out

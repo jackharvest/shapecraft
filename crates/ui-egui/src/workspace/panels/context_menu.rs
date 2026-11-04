@@ -115,28 +115,37 @@ pub(super) fn variant_menu(ws: &mut Workspace, ui: &mut Ui, label: &'static str,
     }
 }
 
-/// Offset Face's Distance Type menu, as observed: a dim title, then Offset and Total with a check on the current one,
-/// in a popover pointing left at the pill.
+/// Offset Face's Distance Type menu, as observed: a dim title, then Offset and Total (a round face: Offset, Radius,
+/// Diameter; s37) with a check on the current one, in a popover pointing left at the pill.
 pub(super) fn distance_menu(ws: &mut Workspace, ui: &mut Ui, at: Pos2) {
     // Offset Face: Offset / Total; Linear Pattern: Total / Spacing (327). (label, means "Total")
     // Chamfer/Fillet's kind pill (394): ✓ Fillet / Chamfer under a dim "Chamfer/Fillet". (true = Chamfer)
-    let options: [(&str, bool); 2] = match ws.tool {
-        Tool::OffsetFace(_) => [("Offset", false), ("Total", true)],
-        Tool::Pattern(_) => [("Total", true), ("Spacing", false)],
-        Tool::Fillet(_) => [("Fillet", false), ("Chamfer", true)],
+    use crate::workspace::tools::OffsetKind as K;
+    let round = matches!(&ws.tool, Tool::OffsetFace(t) if t.radius.is_some());
+    let options: &[(&str, u8)] = match ws.tool {
+        Tool::OffsetFace(_) if round => &[("Offset", 0), ("Radius", 2), ("Diameter", 3)],
+        Tool::OffsetFace(_) => &[("Offset", 0), ("Total", 1)],
+        Tool::Pattern(_) => &[("Total", 1), ("Spacing", 0)],
+        Tool::Fillet(_) => &[("Fillet", 0), ("Chamfer", 1)],
         _ => {
             ws.distance_menu = None;
             return;
         }
     };
-    let current = match &ws.tool {
-        Tool::Pattern(_) => ws.pattern_total,
-        Tool::Fillet(t) => t.chamfer,
-        _ => ws.offset_total,
+    let current: u8 = match &ws.tool {
+        Tool::Pattern(_) => ws.pattern_total as u8,
+        Tool::Fillet(t) => t.chamfer as u8,
+        Tool::OffsetFace(t) => match ws.offset_kind(t) {
+            K::Offset => 0,
+            K::Total => 1,
+            K::Radius => 2,
+            K::Diameter => 3,
+        },
+        _ => 0,
     };
     let title = if matches!(ws.tool, Tool::Fillet(_)) { "Chamfer/Fillet" } else { "Distance Type" };
     let (width, row_h) = (128.0, 24.0);
-    let rect = Rect::from_min_size(pos2(at.x + 6.0, at.y - 38.0), vec2(width, 22.0 + row_h * 2.0 + 8.0));
+    let rect = Rect::from_min_size(pos2(at.x + 6.0, at.y - 38.0), vec2(width, 22.0 + row_h * options.len() as f32 + 8.0));
     let mut chosen = None;
     let shown = egui::Area::new(ui.scope_id().with("distance-menu"))
         .fixed_pos(rect.min - vec2(8.0, 0.0))
@@ -156,7 +165,7 @@ pub(super) fn distance_menu(ws: &mut Workspace, ui: &mut Ui, at: Pos2) {
                 Stroke::NONE,
             ));
             p.text(pos2(rect.left() + 14.0, rect.top() + 15.0), Align2::LEFT_CENTER, title, theme::body(12.5), Tokens::text_dim());
-            for (i, (label, total)) in options.into_iter().enumerate() {
+            for (i, &(label, total)) in options.iter().enumerate() {
                 let row = Rect::from_min_size(pos2(rect.left() + 5.0, rect.top() + 26.0 + row_h * i as f32), vec2(width - 10.0, row_h));
                 let resp = ui.interact(row, ui.scope_id().with(("distance-type", i)), Sense::click());
                 if resp.hovered() {
@@ -173,14 +182,15 @@ pub(super) fn distance_menu(ws: &mut Workspace, ui: &mut Ui, at: Pos2) {
         });
     let outside = ws.now - ws.popup_opened_at > 0.15
         && ui.input(|i| i.pointer.primary_clicked() && i.pointer.interact_pos().is_some_and(|q| !shown.response.rect.contains(q)));
-    if let Some(total) = chosen {
+    if let Some(v) = chosen {
         match &mut ws.tool {
             Tool::Pattern(t) => {
-                ws.pattern_total = total;
-                t.total = total;
+                ws.pattern_total = v == 1;
+                t.total = v == 1;
             }
-            Tool::Fillet(t) => t.chamfer = total,
-            _ => ws.offset_total = total,
+            Tool::Fillet(t) => t.chamfer = v == 1,
+            _ if round => ws.offset_round = [K::Offset, K::Total, K::Radius, K::Diameter][v as usize],
+            _ => ws.offset_total = v == 1,
         }
         ws.preview = None;
     }

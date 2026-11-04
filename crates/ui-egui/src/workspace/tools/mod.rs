@@ -559,6 +559,27 @@ pub struct MirrorTool {
     pub pieces: Vec<ItemId>,
 }
 
+/// Offset Face's Distance Type (26.202, s37): a flat face offers Offset / Total, a round one Offset / Radius /
+/// Diameter (Diameter first picked).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum OffsetKind {
+    Offset,
+    Total,
+    Radius,
+    Diameter,
+}
+
+impl OffsetKind {
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Offset => "Offset",
+            Self::Total => "Total",
+            Self::Radius => "Radius",
+            Self::Diameter => "Diameter",
+        }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct OffsetFaceTool {
     pub body: ItemId,
@@ -571,7 +592,7 @@ pub struct OffsetFaceTool {
     /// How far the part reaches behind the face to an opposite parallel face (the "Total" distance type).
     pub thickness: Option<f64>,
     /// A face turned about an axis (cylinder, cone): the radius at the anchor and the axis point level with it.
-    /// Its distance type reads "Radius" and the dashed line runs to the axis (side by side, 2026-11-02).
+    /// Its distance type is Radius (dashed line to the axis) or Diameter (dashed line across to the far wall).
     pub radius: Option<(f64, DVec3)>,
     /// A fillet's face (observed 362–364): pulling it changes that fillet's radius ("R0.9 mm", "Edit Fillet 01");
     /// down to nothing removes the fillet.
@@ -1104,9 +1125,12 @@ impl Tool {
             ),
             Tool::Extrude(t) if t.picking == Some("to") => ("Extrude - To Object", "Select the flat face or plane to extrude to"),
             Tool::Extrude(t) if t.picking.is_some() => ("Extrude - From Plane", "Select the face or plane the extrusion starts from"),
-            Tool::Extrude(_) => ("Extrude - One-Sided (E)", "Pull the arrow or type a distance. Return applies"),
-            Tool::Fillet(t) if t.chamfer => ("Chamfer/Fillet (F)", "Pull the arrow or type a distance. Return applies"),
-            Tool::Fillet(_) => ("Chamfer/Fillet (F)", "Pull the arrow or type a radius. Return applies"),
+            // These say what to pick, as the reference does at that moment (26.202, s37), not how to drag.
+            Tool::Extrude(_) => {
+                ("Extrude - One-Sided (E)", "Pick a sketch profile or a flat face, then pull it out to the depth you want.")
+            }
+            Tool::Fillet(t) if t.chamfer => ("Chamfer/Fillet (F)", "Pick edges or faces to cut them back at an angle."),
+            Tool::Fillet(_) => ("Chamfer/Fillet (F)", "Pick edges or faces to round them off."),
             Tool::Shell(_) => {
                 ("Shell (H)", "Pick the faces to take away and hollow the body out; pull the arrow or type the wall thickness.")
             }
@@ -1125,7 +1149,7 @@ impl Tool {
             Tool::Move(_) => ("Move/Rotate (M)", "Pick what to move or turn, then use the gizmo."),
             Tool::Mirror(t) if t.split => ("Split Body", "Select a body to split, then a face, plane or sketch line to split it with."),
             Tool::Mirror(_) => ("Mirror", "Pick what to mirror, then a line, plane or flat face to mirror it across."),
-            Tool::OffsetFace(_) => ("Offset Face", "Pull the arrow or type a distance. Return applies"),
+            Tool::OffsetFace(_) => ("Offset Face", "Pick faces to push them in or pull them out."),
             Tool::Scale(_) => ("Scale (S)", "Pull a handle or type a factor. Drag the center to scale from somewhere else"),
             Tool::Pattern(t) if t.spacing.abs() > 1e-9 => {
                 ("Linear Pattern", "Set the spacing and how many; − / + change the count. Done applies")
@@ -1138,7 +1162,7 @@ impl Tool {
             Tool::Project => ("Project (P)", "Click body edges or faces to copy them into the sketch"),
             Tool::Text { at: None, .. } => return None,
             Tool::Text { .. } => ("Drag the handles to move or turn the text", ""),
-            Tool::OffsetPlane(_) => ("Plane - Offset", "Pull the arrow or type a distance. Return applies"),
+            Tool::OffsetPlane(_) => ("Plane - Offset", "Pick a face or plane to start from, then set how far away."),
             Tool::Plane3 { .. } => ("Plane Through 3 Points", "Click three points on faces"),
             Tool::Axis2 { .. } => ("Axis Through 2 Points", "Click two points on faces or edges"),
             Tool::PointPlane { perp: true, base: None } => ("Plane Perpendicular to Edge", "Select an edge"),

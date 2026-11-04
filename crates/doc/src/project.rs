@@ -33,6 +33,9 @@ pub enum ProjectError {
     Kernel(#[from] shapecraft_kernel::KernelError),
     #[error("{0}")]
     Invalid(String),
+    /// The bodies file is missing or doesn't hold the bodies project.json lists (the rest can still open).
+    #[error("{0}")]
+    Bodies(String),
 }
 
 fn default_bodies_file() -> String {
@@ -319,8 +322,25 @@ pub fn load(kernel: &dyn Kernel, dir: &Path) -> Result<Document, ProjectError> {
     if ![BODIES_FILE, BODIES_FILE_NEXT].contains(&file.bodies_file.as_str()) {
         return Err(ProjectError::Invalid(format!("unknown bodies file {:?}", file.bodies_file)));
     }
-    let shapes = if file.bodies.is_empty() { Vec::new() } else { kernel.read_step(&dir.join(&file.bodies_file))? };
+    let shapes = if file.bodies.is_empty() { Vec::new() } else { read_bodies(kernel, &dir.join(&file.bodies_file), file.bodies.len())? };
     build(file, shapes, kernel, Some(dir))
+}
+
+/// The bodies, one shape per body as they were written; a missing file says so (a project copied or synced
+/// without it reads "STEP import failed" otherwise). Files read the import way, solid by solid, are the fallback.
+fn read_bodies(kernel: &dyn Kernel, path: &Path, want: usize) -> Result<Vec<shapecraft_kernel::Shape>, ProjectError> {
+    if !path.exists() {
+        let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        return Err(ProjectError::Bodies(format!("its bodies file {name} is missing")));
+    }
+    let roots = kernel.read_step_roots(path)?;
+    if roots.len() == want {
+        return Ok(roots);
+    }
+    match kernel.read_step(path) {
+        Ok(solids) if solids.len() == want => Ok(solids),
+        _ => Err(ProjectError::Bodies(format!("the bodies file has {} bodies, project.json lists {want}", roots.len()))),
+    }
 }
 
 /// The project without its bodies (sketches, planes, History and the rest), for when its bodies file can't be read:
@@ -356,11 +376,7 @@ fn build(
     dir: Option<&Path>,
 ) -> Result<Document, ProjectError> {
     if shapes.len() != file.bodies.len() {
-        return Err(ProjectError::Invalid(format!(
-            "the bodies file has {} bodies, project.json lists {}",
-            shapes.len(),
-            file.bodies.len()
-        )));
+        return Err(ProjectError::Bodies(format!("the bodies file has {} bodies, project.json lists {}", shapes.len(), file.bodies.len())));
     }
     let mut doc = Document::new(file.name);
     doc.units = file.units;

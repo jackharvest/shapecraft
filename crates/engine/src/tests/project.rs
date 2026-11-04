@@ -365,3 +365,48 @@ fn an_unreadable_bodies_file_is_rebuilt_from_the_history() {
     assert_eq!(shapecraft_doc::project::load(back.kernel.as_ref(), &dir).unwrap().bodies.len(), 1);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+#[test]
+fn copies_of_a_body_save_and_reopen() {
+    for (n, by, linked) in
+        [(0, [0.0, 0.0, 0.0], false), (1, [6.0, 0.0, 0.0], false), (2, [6.0, 0.0, 0.0], true), (3, [0.0, 0.0, 0.0], true)]
+    {
+        let dir = std::env::temp_dir().join(format!("shapecraft-copies-{}-{n}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut s = session();
+        s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+        s.execute("rectangle", &json!({"center": [0, 0], "size": [4, 4]})).unwrap();
+        let out = s.execute("extrude", &json!({"sketch": s.active_sketch.unwrap().0, "region": 0, "distance": 2})).unwrap();
+        let body = out.value["body"].as_u64().unwrap();
+        s.execute("translate", &json!({"items": [body], "by": by, "copy": true, "linked": linked})).unwrap();
+        assert_eq!(s.doc.bodies.len(), 2, "case {n}");
+        s.execute("save", &json!({"path": dir.to_string_lossy()})).unwrap();
+        let doc = shapecraft_doc::project::load(&OcctKernel::new(), &dir);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(doc.map(|d| d.bodies.len()).map_err(|e| e.to_string()), Ok(2), "case {n}");
+    }
+}
+
+#[test]
+fn a_missing_bodies_file_says_so_and_the_history_can_rebuild_it() {
+    let dir = std::env::temp_dir().join(format!("sc-missing-bodies-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    let mut s = session();
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("rectangle", &json!({"corner": [0, 0], "opposite": [4, 5]})).unwrap();
+    s.execute("extrude", &json!({"sketch": 1, "region": 0, "distance": 3})).unwrap();
+    shapecraft_doc::project::save(&s.doc, s.kernel.as_ref(), &dir).unwrap();
+    // A copy (or a sync) that brought project.json without its bodies file.
+    for e in std::fs::read_dir(&dir).unwrap().flatten().filter(|e| e.path().extension().is_some_and(|x| x == "step")) {
+        std::fs::remove_file(e.path()).unwrap();
+    }
+    match shapecraft_doc::project::load(s.kernel.as_ref(), &dir) {
+        Err(shapecraft_doc::project::ProjectError::Bodies(m)) => assert!(m.contains("missing"), "{m}"),
+        other => panic!("{:?}", other.map(|d| d.bodies.len())),
+    }
+    let doc = shapecraft_doc::project::load_without_bodies(s.kernel.as_ref(), &dir).unwrap();
+    let mut back = crate::Session::with_document(s.kernel.clone(), doc, Some(dir.clone()));
+    assert_eq!(back.rebuild_bodies().unwrap(), 0);
+    assert_eq!(back.doc.bodies.len(), 1);
+    let _ = std::fs::remove_dir_all(&dir);
+}

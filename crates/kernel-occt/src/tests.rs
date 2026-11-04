@@ -557,3 +557,25 @@ fn brep_edge_from_curves_in_its_faces() {
     assert!((v0 - v1).abs() < 1e-4 * v0, "volume {v0} -> {v1}");
     assert_eq!(k.solids(&back).unwrap().len(), 1);
 }
+
+#[test]
+fn a_step_file_written_per_body_reads_back_one_shape_per_body() {
+    let k = k();
+    let a = k.make_box(DVec3::ZERO, DVec3::splat(2.0)).unwrap();
+    let b = k.make_box(DVec3::splat(10.0), DVec3::splat(2.0)).unwrap();
+    let c = k.make_box(DVec3::splat(-10.0), DVec3::splat(3.0)).unwrap();
+    // A surface body, one body of two separate pieces, and a plain solid. Read solid by solid (as an import is),
+    // the surface would go and the pair would come back as two.
+    let sheet = k.face(&c, 0).unwrap();
+    let pair = k.boolean(shapecraft_kernel::BoolOp::Union, &a, &b).unwrap();
+    let solo = k.make_box(DVec3::new(20.0, 0.0, 0.0), DVec3::splat(2.0)).unwrap();
+    let path = std::env::temp_dir().join(format!("sc-step-roots-{}.step", std::process::id()));
+    k.write_step(&[sheet, pair, solo], &path).unwrap();
+    let back = k.read_step_roots(&path).unwrap();
+    assert_eq!(k.read_step(&path).unwrap().len(), 3);
+    let _ = std::fs::remove_file(&path);
+    assert_eq!(back.len(), 3);
+    assert_eq!(k.face_count(&back[0]).unwrap(), 1);
+    assert!((k.mass_props(&back[1]).unwrap().volume - 16.0).abs() < 1e-6);
+    assert!((k.mass_props(&back[2]).unwrap().volume - 8.0).abs() < 1e-6);
+}

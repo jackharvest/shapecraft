@@ -105,11 +105,11 @@ impl Workspace {
             Tool::OffsetFace(mut t) if t.fillet.is_some() => {
                 // A fillet's face edits the fillet's own step (history replays); the tool stays on the new radius.
                 if let Some(v) = typed {
-                    t.set_shown(self.offset_total, v);
+                    t.set_shown(self.offset_kind(&t), v);
                 }
                 if t.distance.abs() > 1e-9 {
                     let (id, params) = t.request(t.distance);
-                    let r = t.shown(self.offset_total);
+                    let r = t.shown(self.offset_kind(&t));
                     if self.run(id, params).is_some() {
                         self.live_step = None;
                         if let (Some(f), true) = (t.fillet.as_mut(), r > 1e-6) {
@@ -127,7 +127,7 @@ impl Workspace {
             }
             Tool::OffsetFace(mut t) => {
                 if let Some(v) = typed {
-                    t.set_shown(self.offset_total, v);
+                    t.set_shown(self.offset_kind(&t), v);
                 }
                 if t.distance.abs() > 1e-9 || self.is_live() {
                     let (id, params) = t.request(t.distance);

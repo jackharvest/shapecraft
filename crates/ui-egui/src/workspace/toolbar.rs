@@ -254,12 +254,12 @@ pub const SKETCHING: &[ToolDef] = &[
     t(Icon::Circle, "Circle", "C", Tool(ToolKind::Circle)),
     t(Icon::Ellipse, "Ellipse", "", Tool(ToolKind::Ellipse)),
     tv(Icon::Polygon, "Polygon", "Pentagon", "G", Tool(ToolKind::Polygon)),
-    t(Icon::Project, "Project", "", Tool(ToolKind::Project)),
+    t(Icon::Project, "Project", "P", Tool(ToolKind::Project)),
     t(Icon::OffsetEdge, "Offset Edge", "O", Tool(ToolKind::OffsetEdge)),
     t(Icon::Fillet, "Fillet", "", Tool(ToolKind::SketchFillet)),
     t(Icon::Text, "Text", "", Tool(ToolKind::Text)),
     t(Icon::SketchMove, "Move/Rotate", "M", Tool(ToolKind::Move)),
-    t(Icon::Scale, "Scale", "", Tool(ToolKind::Scale)),
+    t(Icon::Scale, "Scale", "S", Tool(ToolKind::Scale)),
     t(Icon::SketchPattern, "Pattern - Linear", "", Tool(ToolKind::Pattern)),
     t(Icon::PatternCircular, "Pattern - Circular", "", Tool(ToolKind::CircularPattern)),
     t(Icon::RotateAxis, "Rotate Around Axis", "", Tool(ToolKind::RotateAxis)),
@@ -291,9 +291,9 @@ pub const REGION: &[ToolDef] = &[
     t(Icon::SplitBody, "Split Body", "", Soon),
     t(Icon::Revolve, "Revolve", "V", Tool(ToolKind::Revolve)),
     t(Icon::Sweep, "Sweep", "W", Tool(ToolKind::Sweep)),
-    t(Icon::Visualize, "Fill (Beta)", "", Command("fill")),
+    t(Icon::Fill, "Fill (Beta)", "", Command("fill")),
     t(Icon::OffsetEdge, "Offset Edge", "O", Tool(ToolKind::OffsetEdge)),
-    t(Icon::ProjectSketch, "Project as Sketch", "", Tool(ToolKind::Project)),
+    t(Icon::ProjectSketch, "Project as Sketch", "P", Tool(ToolKind::Project)),
     t(Icon::ProjectEdge, "Project as Edge", "", Tool(ToolKind::ProjectEdge)),
     t(Icon::WrapEmboss, "Wrap & Emboss", "", Tool(ToolKind::WrapEmboss)),
 ];
@@ -303,7 +303,7 @@ pub const REGION: &[ToolDef] = &[
 pub const FACE: &[ToolDef] = &[
     t(Icon::Sketch, "Sketch", "", Tool(ToolKind::Sketch)),
     t(Icon::MoveRotate, "Move/Rotate", "M", Tool(ToolKind::Move)),
-    t(Icon::Scale, "Scale", "", Tool(ToolKind::Scale)),
+    t(Icon::Scale, "Scale", "S", Tool(ToolKind::Scale)),
     t(Icon::Align, "Align", "", Tool(ToolKind::Align)),
     t(Icon::OffsetFace, "Offset Face", "", Tool(ToolKind::OffsetFace)),
     t(Icon::Fillet, "Fillet", "F", Tool(ToolKind::Fillet)),
@@ -324,10 +324,10 @@ pub const FACE: &[ToolDef] = &[
     // The rest goes behind More when the window is too short, which it usually is (s11-122); with only Isolate
     // below (a tool running) Sweep and Replace Face fit (s11-123).
     t(Icon::Sweep, "Sweep", "W", Tool(ToolKind::Sweep)),
-    t(Icon::Visualize, "Fill (Beta)", "", Command("fill")),
+    t(Icon::Fill, "Fill (Beta)", "", Command("fill")),
     t(Icon::ReplaceFace, "Replace Face", "", Tool(ToolKind::ReplaceFace)),
     t(Icon::OffsetEdge, "Offset Edge", "O", Tool(ToolKind::OffsetEdge)),
-    t(Icon::ProjectSketch, "Project as Sketch", "", Tool(ToolKind::Project)),
+    t(Icon::ProjectSketch, "Project as Sketch", "P", Tool(ToolKind::Project)),
     t(Icon::ProjectEdge, "Project as Edge", "", Tool(ToolKind::ProjectEdge)),
     t(Icon::Text, "Text", "", Tool(ToolKind::Text)),
 ];
@@ -338,7 +338,7 @@ pub const MORE_OVERFLOW: ToolDef = ToolDef { flyout: true, ..t(Icon::More, "More
 /// One edge picked (26.200, s11-105).
 pub const EDGE: &[ToolDef] = &[
     t(Icon::MoveRotate, "Move/Rotate", "M", Tool(ToolKind::Move)),
-    t(Icon::Scale, "Scale", "", Tool(ToolKind::Scale)),
+    t(Icon::Scale, "Scale", "S", Tool(ToolKind::Scale)),
     t(Icon::Align, "Align", "", Tool(ToolKind::Align)),
     t(Icon::Fillet, "Fillet", "F", Tool(ToolKind::Fillet)),
     t(Icon::Fillet, "Chamfer", "", Tool(ToolKind::Chamfer)),
@@ -349,14 +349,14 @@ pub const EDGE: &[ToolDef] = &[
     t(Icon::Translate, "Translate", "N", Tool(ToolKind::Translate)),
     t(Icon::RotateAxis, "Rotate Around Axis", "", Tool(ToolKind::RotateAxis)),
     t(Icon::SplitBody, "Split Body", "", Tool(ToolKind::SplitBody)),
-    t(Icon::ProjectSketch, "Project as Sketch", "", Tool(ToolKind::Project)),
+    t(Icon::ProjectSketch, "Project as Sketch", "P", Tool(ToolKind::Project)),
     t(Icon::ProjectEdge, "Project as Edge", "", Tool(ToolKind::ProjectEdge)),
 ];
 
 /// A whole body picked (26.200, s11-108).
 pub const BODY: &[ToolDef] = &[
     t(Icon::MoveRotate, "Move/Rotate", "M", Tool(ToolKind::Move)),
-    t(Icon::Scale, "Scale", "", Tool(ToolKind::Scale)),
+    t(Icon::Scale, "Scale", "S", Tool(ToolKind::Scale)),
     t(Icon::Pattern, "Pattern - Linear", "", Tool(ToolKind::Pattern)),
     t(Icon::PatternCircular, "Pattern - Circular", "", Tool(ToolKind::CircularPattern)),
     t(Icon::Align, "Align", "", Tool(ToolKind::Align)),
@@ -372,7 +372,7 @@ pub const BODY: &[ToolDef] = &[
     t(Icon::Subtract, "Subtract", "⌘B", Tool(ToolKind::Subtract)),
     t(Icon::Intersect, "Intersect", "⌘I", Tool(ToolKind::Intersect)),
     t(Icon::SplitBody, "Split Body", "", Tool(ToolKind::SplitBody)),
-    t(Icon::ProjectSketch, "Project as Sketch", "", Tool(ToolKind::Project)),
+    t(Icon::ProjectSketch, "Project as Sketch", "P", Tool(ToolKind::Project)),
     t(Icon::ProjectEdge, "Project as Edge", "", Tool(ToolKind::ProjectEdge)),
 ];
 
@@ -380,7 +380,7 @@ pub const BODY: &[ToolDef] = &[
 pub const CURVED_FACE: &[ToolDef] = &[
     // As 26.200 lists it (s24 matrix).
     t(Icon::MoveRotate, "Move/Rotate", "M", Tool(ToolKind::Move)),
-    t(Icon::Scale, "Scale", "", Tool(ToolKind::Scale)),
+    t(Icon::Scale, "Scale", "S", Tool(ToolKind::Scale)),
     t(Icon::Align, "Align", "", Tool(ToolKind::Align)),
     t(Icon::OffsetFace, "Offset Face", "", Tool(ToolKind::OffsetFace)),
     t(Icon::Fillet, "Fillet", "F", Tool(ToolKind::Fillet)),
@@ -393,9 +393,9 @@ pub const CURVED_FACE: &[ToolDef] = &[
     t(Icon::RotateAxis, "Rotate Around Axis", "", Tool(ToolKind::RotateAxis)),
     t(Icon::Mirror, "Mirror", "", Tool(ToolKind::Mirror)),
     t(Icon::SplitBody, "Split Body", "", Tool(ToolKind::SplitBody)),
-    t(Icon::Visualize, "Fill (Beta)", "", Command("fill")),
+    t(Icon::Fill, "Fill (Beta)", "", Command("fill")),
     t(Icon::ReplaceFace, "Replace Face", "", Tool(ToolKind::ReplaceFace)),
-    t(Icon::ProjectSketch, "Project as Sketch", "", Tool(ToolKind::Project)),
+    t(Icon::ProjectSketch, "Project as Sketch", "P", Tool(ToolKind::Project)),
     t(Icon::ProjectEdge, "Project as Edge", "", Tool(ToolKind::ProjectEdge)),
     t(Icon::WrapEmboss, "Wrap & Emboss", "", Tool(ToolKind::WrapEmboss)),
 ];
@@ -408,7 +408,7 @@ pub const EDGES: &[ToolDef] = &[
     t(Icon::Fillet, "Fillet", "F", Tool(ToolKind::Fillet)),
     t(Icon::Fillet, "Chamfer", "", Tool(ToolKind::Chamfer)),
     t(Icon::Translate, "Translate", "N", Tool(ToolKind::Translate)),
-    t(Icon::ProjectSketch, "Project as Sketch", "", Tool(ToolKind::Project)),
+    t(Icon::ProjectSketch, "Project as Sketch", "P", Tool(ToolKind::Project)),
     t(Icon::ProjectEdge, "Project as Edge", "", Tool(ToolKind::ProjectEdge)),
 ];
 
@@ -416,14 +416,14 @@ pub const EDGES: &[ToolDef] = &[
 /// Several faces picked (26.200, s11-111).
 pub const FACES: &[ToolDef] = &[
     t(Icon::MoveRotate, "Move/Rotate", "M", Tool(ToolKind::Move)),
-    t(Icon::Scale, "Scale", "", Tool(ToolKind::Scale)),
+    t(Icon::Scale, "Scale", "S", Tool(ToolKind::Scale)),
     t(Icon::OffsetFace, "Offset Face", "", Tool(ToolKind::OffsetFace)),
     t(Icon::Fillet, "Fillet", "F", Tool(ToolKind::Fillet)),
     t(Icon::Fillet, "Chamfer", "", Tool(ToolKind::Chamfer)),
     t(Icon::Extrude, "Extrude", "E", Tool(ToolKind::Extrude)),
     t(Icon::Shell, "Shell", "H", Tool(ToolKind::Shell)),
     t(Icon::Loft, "Loft", "", Tool(ToolKind::Loft)),
-    t(Icon::Visualize, "Fill (Beta)", "", Command("fill")),
+    t(Icon::Fill, "Fill (Beta)", "", Command("fill")),
     t(Icon::ReplaceFace, "Replace Face", "", Tool(ToolKind::ReplaceFace)),
     t(Icon::Visualize, "Visualize", "", U(UiAction::Visualization)),
     t(Icon::Pattern, "Pattern - Linear", "", Tool(ToolKind::Pattern)),
@@ -434,7 +434,7 @@ pub const FACES: &[ToolDef] = &[
     t(Icon::SplitBody, "Split Body", "", Tool(ToolKind::SplitBody)),
     t(Icon::Revolve, "Revolve", "V", Tool(ToolKind::Revolve)),
     t(Icon::Sweep, "Sweep", "W", Tool(ToolKind::Sweep)),
-    t(Icon::ProjectSketch, "Project as Sketch", "", Tool(ToolKind::Project)),
+    t(Icon::ProjectSketch, "Project as Sketch", "P", Tool(ToolKind::Project)),
     t(Icon::ProjectEdge, "Project as Edge", "", Tool(ToolKind::ProjectEdge)),
 ];
 
@@ -580,9 +580,11 @@ const TRANSFORM: &[ToolDef] = &[
     t(Icon::Mirror, "Mirror", "", Tool(ToolKind::Mirror)),
 ];
 
+/// Tools as 26.202 lists it (s37-tools): Fillet and Chamfer apart, Fill (Beta) new.
 const TOOLS: &[ToolDef] = &[
     t(Icon::OffsetFace, "Offset Face", "", Tool(ToolKind::OffsetFace)),
-    t(Icon::Fillet, "Chamfer/Fillet", "F", Tool(ToolKind::Fillet)),
+    t(Icon::Fillet, "Fillet", "F", Tool(ToolKind::Fillet)),
+    t(Icon::Fillet, "Chamfer", "", Tool(ToolKind::Chamfer)),
     t(Icon::Extrude, "Extrude", "E", Tool(ToolKind::Extrude)),
     t(Icon::Shell, "Shell", "H", Tool(ToolKind::Shell)),
     t(Icon::Loft, "Loft", "", Tool(ToolKind::Loft)),
@@ -592,11 +594,10 @@ const TOOLS: &[ToolDef] = &[
     t(Icon::SplitBody, "Split Body", "", Tool(ToolKind::SplitBody)),
     t(Icon::Revolve, "Revolve", "V", Tool(ToolKind::Revolve)),
     t(Icon::Sweep, "Sweep", "W", Tool(ToolKind::Sweep)),
+    t(Icon::Fill, "Fill (Beta)", "", Command("fill")),
     t(Icon::ReplaceFace, "Replace Face", "", Tool(ToolKind::ReplaceFace)),
-    t(Icon::OffsetEdge, "Offset Edge", "O", Tool(ToolKind::OffsetEdge)),
-    t(Icon::Project, "Project", "P", Tool(ToolKind::Project)),
+    t(Icon::ProjectEdge, "Project as Edge", "", Tool(ToolKind::ProjectEdge)),
     t(Icon::WrapEmboss, "Wrap & Emboss", "", Tool(ToolKind::WrapEmboss)),
-    t(Icon::Visualize, "Visualize", "", U(UiAction::Visualization)),
 ];
 
 pub fn flyout(cat: Category) -> &'static [ToolDef] {
@@ -688,6 +689,24 @@ pub fn chip_with(ui: &Ui, anchor: Pos2, def: &ToolDef, sub_text: Option<&str>, l
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Tools the reference marks as new with a small blue dot after the label (26.202: Fill (Beta), the sketch's
+/// Fillet), and the buttons that hold one (Tools; More when one went behind it).
+pub fn is_new(def: &ToolDef) -> bool {
+    match def.action {
+        Action::Command("fill") | Action::Tool(ToolKind::SketchFillet) => true,
+        Action::Flyout(Category::Overflow) => OVERFLOW_NEW.with(std::cell::Cell::get),
+        Action::Flyout(cat) => {
+            flyout(cat).iter().any(|d| matches!(d.action, Action::Command("fill") | Action::Tool(ToolKind::SketchFillet)))
+        }
+        _ => false,
+    }
+}
+
+thread_local! {
+    /// Set each frame by the left column: whether something marked new is behind More.
+    pub static OVERFLOW_NEW: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
 pub fn chip_full(ui: &Ui, anchor: Pos2, def: &ToolDef, sub_text: Option<&str>, left_side: bool, dim: bool, hot: bool, gear: bool) -> Rect {
     let painter = ui.painter();
     // An empty label shows the run-time text as the label itself (the sketch name row).
@@ -702,7 +721,9 @@ pub fn chip_full(ui: &Ui, anchor: Pos2, def: &ToolDef, sub_text: Option<&str>, l
     let text_w = label.size().x.max(sub.as_ref().map_or(0.0, |s| s.size().x));
     let caps_gap = if def.keys.is_empty() { 0.0 } else { 6.0 };
     let gear_w = if gear { 20.0 } else { 0.0 };
-    let w = 8.0 + text_w + caps_gap + caps_w + 7.0 + gear_w;
+    let new_dot = is_new(def);
+    let dot_w = if new_dot { 13.0 } else { 0.0 };
+    let w = 8.0 + text_w + caps_gap + caps_w + 7.0 + gear_w + dot_w;
     let h = Tokens::CHIP_H;
     let min = if left_side { pos2(anchor.x - w, anchor.y - h / 2.0) } else { pos2(anchor.x, anchor.y - h / 2.0) };
     let rect = Rect::from_min_size(min, vec2(w, h));
@@ -720,6 +741,11 @@ pub fn chip_full(ui: &Ui, anchor: Pos2, def: &ToolDef, sub_text: Option<&str>, l
         let x =
             if left_side { rect.right() - 8.0 - label.size().x - caps_gap - caps_w } else { rect.left() + 8.0 + label.size().x + caps_gap };
         keycaps(ui, pos2(x, label_y), def.keys, dim);
+    }
+    if new_dot {
+        // As observed (s37-tools): a small blue dot after the label (and its key caps).
+        let x = if left_side { rect.left() + 10.0 } else { rect.right() - 7.0 - gear_w - 5.0 };
+        painter.circle_filled(pos2(x, label_y), 3.0, Tokens::accent());
     }
     if gear {
         // ≡ with a knob on each bar: the tool's settings (s11-099/108/111).

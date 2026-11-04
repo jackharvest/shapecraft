@@ -404,6 +404,8 @@ impl Workspace {
                 self.tool = Tool::Idle;
             }
             // A tool applied live: Escape is Cancel, taking its step back.
+            // Any tool holding a live result (Cancel / Done showing): Escape is Cancel, never Done.
+            _ if self.is_live() && !matches!(self.tool, Tool::Idle) => self.ui_action(UiAction::ToolCancel),
             Tool::Align { .. } | Tool::Onto(_) | Tool::Mirror(tools::MirrorTool { split: true, .. }) if self.is_live() => {
                 self.ui_action(UiAction::ToolCancel)
             }

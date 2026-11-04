@@ -115,6 +115,8 @@ pub enum Icon {
     AxisDashed,
     /// Replace Face: a plate over an open box.
     ReplaceFace,
+    /// Fill: a grey slab and a grey ball bridged by a light, curved patch.
+    Fill,
     /// Project as Edge (26.200): a line over a curved strip, like Project's. Project as Sketch: an outlined cube with
     /// a sheet beside it (s11-133).
     ProjectEdge,
@@ -954,6 +956,24 @@ fn paint_dark(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
             ]);
             pen.with(grey).line(&[(12.0, 14.5), (12.0, 20.5)]);
             pen.fill(&[(5.0, 9.5), (13.0, 3.0), (21.0, 7.0), (13.5, 13.5)], light);
+        }
+        // Two grey pieces with the light surface that fills the gap between them.
+        Fill => {
+            let (light, grey) = two_tone(color);
+            let slab = Rect::from_min_max(pen.at(3.5, 3.5), pen.at(10.0, 20.5));
+            painter.rect_filled(slab, egui::CornerRadius::same((3.0 * pen.s) as u8), grey);
+            painter.circle_filled(pen.at(16.5, 8.5), 4.8 * pen.s, grey);
+            // The patch: a crescent from the slab's edge round to the ball.
+            let outer: Vec<(f32, f32)> = (0..=8)
+                .map(|i| {
+                    let a = (200.0f32 - 110.0 * i as f32 / 8.0).to_radians();
+                    (17.0 + 6.5 * a.cos(), 8.0 - 6.5 * a.sin())
+                })
+                .collect();
+            for w in outer.windows(2) {
+                pen.fill(&[w[0], w[1], (13.0, 11.0)], light);
+            }
+            pen.fill(&[(10.5, 9.5), (13.0, 11.0), (13.5, 16.5), (10.5, 15.0)], light);
         }
         // A grey plane with a white axis through it (as observed).
         Axis => {

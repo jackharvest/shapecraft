@@ -255,6 +255,8 @@ pub struct Workspace {
     pub wants_image: bool,
     /// Offset Face shows the part's whole thickness ("Total", the reference's default) rather than the offset.
     pub(crate) offset_total: bool,
+    /// A round face's Distance Type (Offset / Radius / Diameter); Diameter until another is picked (26.202, s37).
+    pub(crate) offset_round: tools::OffsetKind,
     /// Linear Pattern's Distance Type: Total (true) or Spacing; kept between uses.
     pub(crate) pattern_total: bool,
     /// Where the last click hit the model: tools started from it put their handle there.
@@ -441,6 +443,15 @@ pub(crate) struct Preview {
 }
 
 impl Workspace {
+    /// The Distance Type Offset Face uses for this face: a round face's own, else Total or Offset.
+    pub(crate) fn offset_kind(&self, t: &tools::OffsetFaceTool) -> tools::OffsetKind {
+        match (t.radius.is_some(), self.offset_total) {
+            (true, _) => self.offset_round,
+            (false, true) => tools::OffsetKind::Total,
+            (false, false) => tools::OffsetKind::Offset,
+        }
+    }
+
     pub fn new(session: Session, settings: crate::settings::Settings) -> Self {
         let mut camera = Camera::default();
         if let Some((min, max)) = session.doc.bounds() {
@@ -516,6 +527,7 @@ impl Workspace {
             wants_capture: false,
             wants_image: false,
             offset_total: true,
+            offset_round: tools::OffsetKind::Diameter,
             pattern_total: false,
             last_hit: None,
             distance_menu: None,

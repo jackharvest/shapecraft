@@ -232,8 +232,20 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     // How many steps (without the breakpoint) come before the one at `i`.
     let plain = |i: usize| i - usize::from(bp_index.is_some_and(|b| b < i));
     let mut gaps: Vec<(f32, usize)> = Vec::new();
-    let steps: Vec<(usize, HistoryStep)> =
-        ws.session.doc.history.iter().chain(&ws.session.doc.future).cloned().enumerate().filter(|(_, h)| !h.quiet).collect();
+    // In a sketch (26.202, s37): its step isn't listed until something is drawn in it; then every step is dimmed
+    // and the sketch's own row is lit grey.
+    let sketching = ws.session.active_sketch;
+    let empty_sketch = sketching.filter(|&k| ws.session.doc.sketch(k).is_some_and(|sk| sk.entities.is_empty()));
+    let steps: Vec<(usize, HistoryStep)> = ws
+        .session
+        .doc
+        .history
+        .iter()
+        .chain(&ws.session.doc.future)
+        .cloned()
+        .enumerate()
+        .filter(|(_, h)| !h.quiet && !(h.kind == "sketch" && empty_sketch.is_some() && h.sketch == empty_sketch))
+        .collect();
     let mut edit_sketch: Option<usize> = None;
     let mut marked = false;
     if steps.is_empty() {
@@ -247,18 +259,25 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     let left = r.left() + 9.0;
     let right = r.right() - 9.0;
     let filter = related_filter(ws);
+    // A tool holding a result not yet applied (Cancel / Done showing) dims the filter and its steps (26.202, s37).
+    let busy = ws.is_live() && !matches!(ws.tool, super::tools::Tool::Idle);
     if filter.is_some() {
         // The filter's row: dark blue, a blue filter badge, the title, and Clear on the right.
         let bar = Rect::from_min_size(pos2(left, r.top() + 34.0), vec2(right - left, 26.0));
         p.rect_filled(bar, radius(6), theme::c(0x2e3957));
         let dot = pos2(bar.left() + 12.0, bar.center().y);
-        p.circle_filled(dot, 6.5, theme::c(0x2f6cf6));
+        let (badge, ink, link) = if busy {
+            (theme::c(0x2e4276), theme::c(0x747c90), theme::c(0x3a4a78))
+        } else {
+            (theme::c(0x2f6cf6), Color32::WHITE, theme::c(0x3a7bf7))
+        };
+        p.circle_filled(dot, 6.5, badge);
         for (dy, half) in [(-2.2, 3.4), (0.0, 2.4), (2.2, 1.3)] {
-            p.line_segment([dot + vec2(-half, dy), dot + vec2(half, dy)], Stroke::new(1.0, Color32::WHITE));
+            p.line_segment([dot + vec2(-half, dy), dot + vec2(half, dy)], Stroke::new(1.0, ink));
         }
-        p.text(pos2(bar.left() + 25.0, bar.center().y), Align2::LEFT_CENTER, "Related to Selection", theme::strong(12.5), Color32::WHITE);
-        let clear = p.text(pos2(bar.right() - 6.0, bar.center().y), Align2::RIGHT_CENTER, "Clear", theme::body(12.5), theme::c(0x3a7bf7));
-        if ui.interact(clear.expand(4.0), ui.scope_id().with("history-clear"), Sense::click()).clicked() {
+        p.text(pos2(bar.left() + 25.0, bar.center().y), Align2::LEFT_CENTER, "Related to Selection", theme::strong(12.5), ink);
+        let clear = p.text(pos2(bar.right() - 6.0, bar.center().y), Align2::RIGHT_CENTER, "Clear", theme::body(12.5), link);
+        if !busy && ui.interact(clear.expand(4.0), ui.scope_id().with("history-clear"), Sense::click()).clicked() {
             ws.history.cleared = Some(ws.session.selection.clone());
         }
         y += 40.0;
@@ -312,8 +331,15 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
         }
         drawn += 1;
         let open = ws.history.open == Some(i) && !future;
-        let dim = future || step.suppressed;
-        let text_color = if dim { Tokens::text_faint() } else { Tokens::text_strong() };
+        let lit = sketching.is_some() && step.kind == "sketch" && step.sketch == sketching;
+        let dim = future || step.suppressed || busy && filter.is_some() || sketching.is_some();
+        let text_color = if lit {
+            theme::c(0x919094)
+        } else if dim {
+            Tokens::text_faint()
+        } else {
+            Tokens::text_strong()
+        };
         let err_h = if open && step.error.is_some() { ERROR_H + 8.0 } else { 0.0 };
         let feature = history::feature(&step.kind);
         let fields = feature.map_or(&[][..], |f| f.fields);
@@ -333,6 +359,8 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
         } else if open {
             p.rect_filled(block, radius(6), theme::c(0x2b2b2d));
             p.rect_filled(row, radius(6), theme::c(0x37373a));
+        } else if lit {
+            p.rect_filled(row, radius(6), theme::c(0x58575d));
         } else if hovered {
             p.rect_filled(row, radius(6), Tokens::row_hover());
         }

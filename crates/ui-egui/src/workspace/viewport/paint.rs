@@ -327,6 +327,41 @@ pub(super) fn double_arrow(painter: &egui::Painter, c: Pos2, dir: egui::Vec2, ha
     painter.add(egui::Shape::convex_polygon(vec![pts[5], pts[6], pts[4]], fill, Stroke::NONE));
 }
 
+/// Offset Face's handle (26.202, s37): a short, stubby double arrow with swept-back barbs, light blue with a grey
+/// rim (deeper blue while it's pulled).
+pub(super) fn face_arrow(painter: &egui::Painter, c: Pos2, dir: egui::Vec2, hot: bool) {
+    let perp = vec2(-dir.y, dir.x);
+    let (half, head, wing, barb, shaft) = (11.5, 6.5, 6.5, 1.6, 2.4);
+    let fill = if hot { theme::c(0x416aff) } else { theme::c(0x6397ff) };
+    let outline = theme::c(0x626265);
+    // One head: tip, a wing tip swept back, the notch where it meets the shaft; the same on the other side.
+    let head_pts = |s: f32| {
+        let d = dir * s;
+        let tip = c + d * half;
+        let base = c + d * (half - head);
+        [tip, base + perp * wing - d * barb, base + perp * shaft, base - perp * shaft, base - perp * wing - d * barb]
+    };
+    let (a, b) = (head_pts(1.0), head_pts(-1.0));
+    // Round the outline: one side of both heads (+perp), then the other.
+    let ring = vec![a[0], a[1], a[2], b[2], b[1], b[0], b[4], b[3], a[3], a[4]];
+    painter.add(egui::Shape::closed_line(ring, Stroke::new(1.6, outline)));
+    painter.add(egui::Shape::convex_polygon(vec![a[2], b[2], b[3], a[3]], fill, Stroke::NONE));
+    for h in [a, b] {
+        // The barbs make a head concave: three triangles from its tip.
+        for tri in [[h[0], h[1], h[2]], [h[0], h[2], h[3]], [h[0], h[3], h[4]]] {
+            painter.add(egui::Shape::convex_polygon(tri.to_vec(), fill, Stroke::NONE));
+        }
+    }
+}
+
+/// The rounded drop at the far end of a dashed lead (26.202, s37): its point runs on along the line.
+pub(super) fn lead_drop(painter: &egui::Painter, tip: Pos2, dir: egui::Vec2, ink: Color32) {
+    let perp = vec2(-dir.y, dir.x);
+    let c = tip - dir * 6.0;
+    painter.circle_filled(c, 3.6, ink);
+    painter.add(egui::Shape::convex_polygon(vec![tip, c + perp * 3.4 - dir * 0.6, c - perp * 3.4 - dir * 0.6], ink, Stroke::NONE));
+}
+
 /// The ink on the white pills and badges over the view. They're white in both themes (s25 light, s11-075 dark), so
 /// their ink isn't themed either.
 pub(in crate::workspace) const PILL_INK: Color32 = Color32::from_rgb(0x1c, 0x1c, 0x1e);

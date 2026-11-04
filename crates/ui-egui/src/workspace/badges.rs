@@ -70,7 +70,11 @@ impl Workspace {
         match &self.tool {
             Tool::Extrude(t) => {
                 // As the engine decides it: on a body, pulling out adds and pushing in cuts; elsewhere a new body.
-                let auto = match self.extrude_body_side(t) {
+                let side = match self.live_extrude_side() {
+                    Some(side) => side,
+                    None => self.extrude_body_side(t),
+                };
+                let auto = match side {
                     None => 0,
                     Some(side) if t.distance * side > 0.0 => 3,
                     Some(_) => 1,
@@ -115,6 +119,23 @@ impl Workspace {
         let mut regions = vec![region];
         regions.extend(t.more.iter().copied());
         self.extrude_side_of(sketch, regions)
+    }
+
+    /// While the extrude is applied live the document already holds its result (a cut leaves the profile over a
+    /// hole, resting on nothing), so the side it worked on is read off its step rather than worked out again.
+    fn live_extrude_side(&self) -> Option<Option<f64>> {
+        if !self.is_live() {
+            return None;
+        }
+        let step = self.session.doc.history.last().filter(|h| h.kind == "extrude")?;
+        let e = step.entries.last()?;
+        let on_body = e.params.get("face").is_some()
+            || e.params
+                .get("sketch")
+                .and_then(serde_json::Value::as_u64)
+                .and_then(|id| self.session.doc.sketch(shapecraft_doc::ItemId(id)))
+                .is_some_and(|s| s.on_body.is_some());
+        Some(if on_body { Some(-1.0) } else { e.params.get("auto_side").and_then(serde_json::Value::as_f64) })
     }
 
     /// [`Self::extrude_body_side`] for a sketch's regions, cached per document revision.
@@ -250,7 +271,7 @@ impl Workspace {
     }
 
     /// Which row of a badge's menu is checked.
-    fn badge_current(&self, b: Badge) -> Option<usize> {
+    pub(in crate::workspace) fn badge_current(&self, b: Badge) -> Option<usize> {
         match b {
             Badge::Result => {
                 let (result, auto) = self.result_choice()?;

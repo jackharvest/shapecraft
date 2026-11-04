@@ -259,11 +259,12 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
     {
         // Edges and sketch curves add their total length in an inner chip, and a round button that opens Measure
         // (as observed: "1 edge | ∿ 7.4 mm | ‹").
-        // A single round face shows its radius in the same chip instead ("1 face | ⊝ 5.6569 mm | ‹", 26.202 s36).
+        // A single round face shows its diameter in the same chip instead ("1 face | ⌀ 10 mm | ‹" for a 10 mm
+        // cylinder, 26.202 s37).
         let units = ws.session.doc.units;
         let (length, round) = match ws.session.selection_length() {
             Some(l) => (Some(shapecraft_doc::format_length(l, units)), false),
-            None => (ws.session.selection_radius().map(|r| shapecraft_doc::format_length(r, units)), true),
+            None => (ws.session.selection_radius().map(|r| shapecraft_doc::format_length(2.0 * r, units)), true),
         };
         let g = p.layout_no_wrap(text.clone(), theme::body(11.0), Tokens::text());
         let lg = length.as_ref().map(|l| p.layout_no_wrap(l.clone(), theme::body(11.0), Tokens::text_strong()));
@@ -293,11 +294,10 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
             let chip = Rect::from_min_size(pos2(r.left() + g.size().x + 14.0 + angle_w, r.top() + 4.0), vec2(lg.size().x + 24.0, 18.0));
             p.rect_filled(chip, radius(9), theme::c(0x48484b));
             if round {
-                // A radius mark: a circle with a stroke from its center to the rim.
+                // A diameter mark: a circle struck through corner to corner.
                 let c = pos2(chip.left() + 10.0, chip.center().y);
-                p.circle_stroke(c, 5.5, Stroke::new(1.1, Tokens::text()));
-                p.circle_filled(c, 1.1, Tokens::text());
-                p.line_segment([c, c + vec2(5.5, 0.0)], Stroke::new(1.1, Tokens::text()));
+                p.circle_stroke(c, 5.0, Stroke::new(1.1, Tokens::text()));
+                p.line_segment([c + vec2(-6.0, 6.0), c + vec2(6.0, -6.0)], Stroke::new(1.1, Tokens::text()));
             } else {
                 // A small wave for "length".
                 let w0 = pos2(chip.left() + 5.0, chip.center().y);

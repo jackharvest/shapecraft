@@ -499,6 +499,8 @@ impl Workspace {
             tools.push(toolbar::MORE_OVERFLOW);
             split = Some(k);
         }
+        let overflow_new = self.overflow.iter().any(toolbar::is_new);
+        toolbar::OVERFLOW_NEW.with(|c| c.set(overflow_new));
         if self.overflow.is_empty() && self.flyout.is_some_and(|(c, _)| c == toolbar::Category::Overflow) {
             self.flyout = None;
         }

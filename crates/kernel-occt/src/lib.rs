@@ -761,6 +761,15 @@ impl Kernel for OcctKernel {
         take_shapes(arr, n)
     }
 
+    fn read_step_roots(&self, path: &Path) -> Result<Vec<Shape>> {
+        let _turn = file_turn();
+        let p = c_path(path)?;
+        let (mut arr, mut n) = (ptr::null_mut(), 0usize);
+        // SAFETY: out-pointers valid for the call.
+        check("STEP import", unsafe { ffi::sk_read_step_roots(p.as_ptr(), &mut arr, &mut n) })?;
+        take_shapes(arr, n)
+    }
+
     fn read_step_parts(&self, path: &Path) -> Result<Vec<(Shape, PartInfo)>> {
         let _turn = file_turn();
         let p = c_path(path)?;

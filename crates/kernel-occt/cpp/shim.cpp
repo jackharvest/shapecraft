@@ -481,6 +481,23 @@ int sk_read_step(const char* path, SkShape*** out, size_t* n) {
   });
 }
 
+// Reads a STEP file one shape per root, as `sk_write_step` wrote them: a project's bodies come back one each,
+// whatever they are (a solid, several solids in one body, a surface).
+int sk_read_step_roots(const char* path, SkShape*** out, size_t* n) {
+  return guard([&] {
+    STEPControl_Reader reader;
+    if (reader.ReadFile(path) != IFSelect_RetDone) return fail("could not read STEP file");
+    reader.TransferRoots();
+    const int m = reader.NbShapes();
+    if (m <= 0) return fail("STEP file has no shapes");
+    auto arr = new SkShape*[static_cast<size_t>(m)];
+    for (int i = 1; i <= m; ++i) arr[i - 1] = new SkShape{reader.Shape(i)};
+    *out = arr;
+    *n = static_cast<size_t>(m);
+    return 0;
+  });
+}
+
 // ---- STEP with names, colors and assembly structure (XCAF) ----
 
 thread_local std::string g_meta;

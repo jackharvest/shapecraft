@@ -434,6 +434,11 @@ pub trait Kernel: Send + Sync {
     fn write_step_ap(&self, shapes: &[Shape], path: &Path, protocol: u32) -> Result<()>;
 
     fn read_step(&self, path: &Path) -> Result<Vec<Shape>>;
+    /// Reads back what [`Kernel::write_step`] wrote, one shape per shape written (a body of several solids, or a
+    /// surface, stays one). Kernels without it read the file as an import does.
+    fn read_step_roots(&self, path: &Path) -> Result<Vec<Shape>> {
+        self.read_step(path)
+    }
 
     /// STEP with its product structure: each solid placed, with the name, color and assembly path it had in the
     /// file. Kernels without that fall back to the bare shapes.

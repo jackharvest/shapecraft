@@ -111,7 +111,7 @@ impl Workspace {
             Tool::OffsetFace(t) => {
                 let mut t = t.clone();
                 if let Some(v) = typed {
-                    t.set_shown(self.offset_total, v);
+                    t.set_shown(self.offset_kind(&t), v);
                 }
                 (t.distance.abs() > 1e-9).then(|| t.request(t.distance))
             }
