@@ -17,10 +17,10 @@ pub(super) fn commands() -> Vec<CommandSpec> {
     vec![
         CommandSpec {
             id: "export_shapr",
-            label: "Shapr3D…",
-            menu: "File/Export to/Shapr3D…",
+            label: ".shapr…",
+            menu: "File/Export to/.shapr…",
             shortcut: None,
-            help: "Export as a Shapr3D project; a project that came from Shapr3D keeps its history and gets the changes as new steps",
+            help: "Export as a .shapr project; a project that came from a .shapr file keeps its history and gets the changes as new steps",
             params: r#"{"path": "/out.shapr"}"#,
             modifies: false,
             enabled: |s| !s.doc.bodies.is_empty() || s.doc.sketches.iter().any(|k| !k.entities.is_empty()) || s.doc.shapr.is_some(),

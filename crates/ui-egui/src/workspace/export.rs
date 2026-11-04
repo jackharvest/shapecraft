@@ -30,7 +30,7 @@ pub enum Format {
 
 /// (format, list label, badge, settings title, our own one-line description).
 const FORMATS: &[(Format, &str, &str, &str, &str)] = &[
-    (Format::Shapr, "Shapr3D", "S3D", "Shapr3D Project", "A Shapr3D project; one that came from Shapr3D keeps its history."),
+    (Format::Shapr, ".shapr", "SHAPR", ".shapr Project", "A .shapr project file; one made in another app keeps its history."),
     (Format::Slicer, "Slicer", "3D", "Open in a Slicer", "A 3MF of the bodies, opened straight in your slicer for printing."),
     (
         Format::ThreeMf,

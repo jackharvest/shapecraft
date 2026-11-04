@@ -391,12 +391,9 @@ impl Workspace {
         // (26.202, s36-disc-pull). Otherwise the ghost only stands in until the live geometry is ready (or if the
         // kernel refuses).
         if let Tool::Extrude(t) = &self.tool {
+            // A typed depth shows once Return applies it (26.202, s39-cut-typed: only the orange profile meanwhile).
             if self.badge_current(crate::workspace::badges::Badge::Result) == Some(3) {
-                let mut t = t.clone();
-                if let Some(d) = self.numeric.as_deref().and_then(crate::workspace::tools::parse_length) {
-                    t.distance = d;
-                }
-                t.overlays_in(&mut out, Rgba::hex(0xe8506e));
+                t.cut_overlays(&mut out);
             } else if !self.has_live_preview() {
                 t.overlays(&mut out);
             }

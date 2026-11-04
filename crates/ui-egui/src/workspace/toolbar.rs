@@ -139,6 +139,10 @@ pub enum UiAction {
     DrawingNext,
     DrawingCancel,
     DrawingProps,
+    /// View ▸ Drawing Properties: the Drawings sheet's properties sidebar, shown.
+    ShowDrawingProps,
+    /// View ▸ Material / Environment / Camera Properties: that page of Visualization's sidebar.
+    VisTab(u8),
     Visualization,
     /// The tool-mode buttons: confirm, abandon, and the tool's on/off option (Keep Originals, Copy).
     ToolDone,

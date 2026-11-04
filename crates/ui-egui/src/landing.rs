@@ -32,6 +32,8 @@ pub enum HomeCmd {
     /// Sort By: 0 date newest first, 1 date oldest first, 2 name A–Z, 3 name Z–A.
     Sort(u8),
     Search,
+    /// Edit ▸ Rename (⌘R): the selected tile's name, edited in place.
+    Rename,
 }
 
 pub enum LandingAction {
@@ -188,6 +190,16 @@ impl Landing {
                     self.renaming = Some((dir, name, true));
                 }
             }
+            HomeCmd::Rename => match self.selected.clone() {
+                Some(dir) => {
+                    let name = match self.projects.iter().find(|p| p.dir == dir) {
+                        Some(p) => Some(p.name.clone()),
+                        None => dir.file_name().map(|n| n.to_string_lossy().into_owned()),
+                    };
+                    self.renaming = Some((dir, name.unwrap_or_default(), true));
+                }
+                None => self.toast = Some(("Select a project or folder to rename".into(), now + 3.0)),
+            },
             HomeCmd::Duplicate => match self.selected.clone() {
                 Some(dir) if self.projects.iter().any(|p| p.dir == dir) => {
                     let r = project::duplicate(&dir);
@@ -545,6 +557,17 @@ impl Landing {
             if let Some(hint) = hint {
                 p.text(c + vec2(0.0, 20.0), Align2::CENTER_CENTER, hint, theme::body(11.0), Tokens::text_dim());
             }
+        } else if tiles.is_empty() && !self.search.is_empty() {
+            // As the reference words and places it, in the middle of the page (26.202, s39-refsearch).
+            let c = content.center() - vec2(0.0, 10.0);
+            p.text(c, Align2::CENTER_CENTER, format!("No results for \"{}\"", self.search), theme::strong(13.0), Tokens::text());
+            p.text(
+                c + vec2(0.0, 20.0),
+                Align2::CENTER_CENTER,
+                "Check the spelling or try a new search.",
+                theme::body(11.0),
+                Tokens::text_dim(),
+            );
         } else if tiles.is_empty() {
             let c = pos2(content.center().x, y + 120.0);
             p.text(c, Align2::CENTER_CENTER, "No projects yet", theme::strong(13.0), Tokens::text());

@@ -85,73 +85,56 @@ impl Workspace {
             _ => self.cut_base = None,
         }
         // A live step at rest is already what the preview would show; leave the selection highlighted (the new cap
-        // stays blue, as observed).
-        if self.is_live() && self.numeric.is_none() && !self.dragging_handle() {
+        // stays blue, as observed). A typed value shows only once Return applies it (26.202: Offset Face s39-of-type15 and a cut s39-cut-typed
+        // keep the part as it was while the field is open).
+        if (self.is_live() || self.numeric.is_some()) && !self.dragging_handle() {
             self.preview = None;
             return;
         }
-        let typed = self.numeric.as_deref().and_then(tools::parse_length);
         let request = match &self.tool {
             Tool::Extrude(t) => {
-                let d = typed.unwrap_or(t.distance);
+                let d = t.distance;
                 (d.abs() > 1e-9).then(|| t.request(d))
             }
             Tool::Fillet(t) => {
-                let r = typed.unwrap_or(t.radius);
+                let r = t.radius;
                 (r > 1e-9).then(|| tools::fillet_request(t, r))
             }
             Tool::Shell(t) => {
-                let th = typed.unwrap_or(t.thickness);
+                let th = t.thickness;
                 (th > 1e-9).then(|| ("shell", json!({ "body": t.body.0, "faces": t.faces, "thickness": th })))
             }
-            Tool::Move(t) => {
-                let v = match t.handle {
-                    tools::Handle::Arrow(_) | tools::Handle::Plane(_) => typed.unwrap_or(t.value),
-                    tools::Handle::Ring(_) => {
-                        self.numeric.as_deref().and_then(|n| n.trim().parse::<f64>().ok()).filter(|a| a.is_finite()).unwrap_or(t.value)
-                    }
-                };
-                t.moves(v).then(|| t.request(v))
-            }
-            Tool::OffsetFace(t) => {
-                let mut t = t.clone();
-                if let Some(v) = typed {
-                    t.set_shown(self.offset_kind(&t), v);
-                }
-                (t.distance.abs() > 1e-9).then(|| t.request(t.distance))
-            }
+            Tool::Move(t) => t.moves(t.value).then(|| t.request(t.value)),
+            Tool::OffsetFace(t) => (t.distance.abs() > 1e-9).then(|| t.request(t.distance)),
             Tool::Scale(t) => {
-                let f = typed.unwrap_or(t.factor);
+                let f = t.factor;
                 t.changed(f).then(|| t.request(f))
             }
             Tool::Pattern(t) => {
-                let sp = typed.unwrap_or(t.spacing);
+                let sp = t.spacing;
                 (sp.abs() > 1e-9).then(|| t.request(sp))
             }
             Tool::OffsetEdge(t) => {
-                let d = typed.unwrap_or(t.distance);
+                let d = t.distance;
                 (d.abs() > 1e-9).then(|| t.request(d))
             }
-            Tool::OffsetPlane(t) => Some(t.request(typed.unwrap_or(t.distance))),
+            Tool::OffsetPlane(t) => Some(t.request(t.distance)),
             Tool::Loft(t) => t.request(),
             Tool::Sweep(t) => t.request(),
             Tool::Revolve(t) => {
-                let a = self.numeric.as_deref().and_then(|n| n.trim().parse::<f64>().ok()).filter(|a| a.is_finite()).unwrap_or(t.angle);
+                let a = t.angle;
                 t.params(a).map(|p| ("revolve", p))
             }
             Tool::CircularPattern(t) => {
-                let a = self.numeric.as_deref().and_then(|n| n.trim().parse::<f64>().ok()).filter(|a| a.is_finite()).unwrap_or(t.angle);
+                let a = t.angle;
                 t.request(a)
             }
             Tool::RotateAxis(t) => {
-                let a = self.numeric.as_deref().and_then(|n| n.trim().parse::<f64>().ok()).filter(|a| a.is_finite()).unwrap_or(t.angle);
+                let a = t.angle;
                 if a.abs() < 1e-9 { None } else { t.request(a) }
             }
             Tool::BodyEdgeOffset(_) => None,
-            Tool::EdgePlane(t) => {
-                let typed_angle = self.numeric.as_deref().and_then(|n| n.trim().parse::<f64>().ok()).filter(|a| a.is_finite() && t.through);
-                Some(t.request(typed_angle.unwrap_or(t.value)))
-            }
+            Tool::EdgePlane(t) => Some(t.request(t.value)),
             _ => None,
         };
         let Some((id, params)) = request else {

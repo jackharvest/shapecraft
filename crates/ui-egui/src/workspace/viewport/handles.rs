@@ -467,8 +467,7 @@ impl Workspace {
     /// Where Extrude's ↔ draft handle sits on screen, and the screen direction it slides along.
     pub(super) fn draft_handle(&self) -> Option<(Pos2, egui::Vec2)> {
         let Tool::Extrude(t) = &self.tool else { return None };
-        let d = self.numeric.as_deref().and_then(crate::workspace::tools::parse_length).unwrap_or(t.distance);
-        let (s0, sdir, _) = self.handle_frame(t.origin + t.normal * d, t.normal)?;
+        let (s0, sdir, _) = self.handle_frame(t.origin + t.normal * t.distance, t.normal)?;
         Some((s0 + sdir * 24.0, vec2(-sdir.y, sdir.x)))
     }
 

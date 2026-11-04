@@ -2,6 +2,28 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.5.8-alpha
+
+Fixed:
+- Offset Face shows its current size as a blue-edged value on the dashed line, after the distance type (0.5.7 opened a
+  big typing box straight away). Typing opens the box right there, and Escape closes just the box: the tool stays
+  open.
+- A typed value now takes effect when you press Return, in every tool: the part, the arrow and the cut stay where
+  they are while you type. Extrude's typing box is the same full-size one as the other tools', just past the arrow.
+- Pushing a sketch into a part: the picked profile turns orange, the volume to be cut is a faint red with a thin
+  dark rim where it ends, and the part stays whole until Done.
+- The Extrude card says "Subtract - Auto" for a cut that's waiting for Done (it said New Body) and lists what it cuts
+  ("Subtract From: 1 body"). While you type a depth, it agrees with the Result badge.
+- Menus: "Wrap & Emboss" and "Foot & Inch Format" lost their "&". View has Material, Environment and Camera
+  Properties (in Visualization) and Drawing Properties (in Drawings), with the reference's separators, and ends with
+  Enter Full Screen. The Window menu has the system's items (Zoom, Fill, Center, Move & Resize, tiling) and lists the
+  window by its project's name. Offset Edge in the Sketch menu is a plain item again.
+- The home screen has its own, shorter menu bar: File (New Project, New Folder, Import as new project, Duplicate),
+  Edit, Go (Recents ⇧⌘1, Projects ⇧⌘2), View (Sort By, Search ⌘F), Window and Help. Edit ▸ Rename (⌘R) renames the
+  selected project or folder. A project's menus no longer carry the home screen's items.
+- A home screen search that finds nothing says so ("No results for …") instead of "No projects yet".
+- The .shapr format is named after its file type everywhere in the app.
+
 ## 0.5.7-alpha
 
 Fixed:

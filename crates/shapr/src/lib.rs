@@ -23,7 +23,7 @@ use shapecraft_kernel::brep::Brep;
 pub enum Error {
     #[error("zip: {0}")]
     Zip(&'static str),
-    #[error("not a Shapr3D project: {0}")]
+    #[error("not a .shapr project: {0}")]
     Format(String),
     #[error("database: {0}")]
     Db(#[from] rusqlite::Error),

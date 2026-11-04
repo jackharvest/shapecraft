@@ -233,6 +233,39 @@ impl ExtrudeTool {
         }
     }
 
+    /// A cut, as the reference draws it once the depth is set (26.202, s39-cut-applied): the profile orange with
+    /// its outline, the volume a faint red with a thin dark rim where it ends, and the part left whole.
+    pub fn cut_overlays(&self, out: &mut Vec<Overlay>) {
+        let base = self.normal * self.start_offset.unwrap_or(0.0);
+        out.push(Overlay::Fill {
+            tris: self.tris.iter().map(|t| [t[0] + base, t[1] + base, t[2] + base]).collect(),
+            color: Rgba::hex(0xda8a2e).with_alpha(235),
+        });
+        for (a, b) in &self.outline {
+            out.push(Overlay::Line { a: *a + base, b: *b + base, color: Rgba::hex(0x1d4eff), width: 1.5 });
+        }
+        if self.distance.abs() <= 1e-9 {
+            return;
+        }
+        let off = self.normal * self.distance;
+        let red = Rgba::hex(0xe8506e);
+        let ends: &[f64] = if self.symmetric { &[1.0, -1.0] } else { &[1.0] };
+        for side in ends {
+            let end = base + off * *side;
+            for (a, b) in &self.outline {
+                out.push(Overlay::Line { a: *a + end, b: *b + end, color: Rgba::hex(0x2a2224).with_alpha(200), width: 1.0 });
+            }
+        }
+        let (from, top) = if self.symmetric { (base - off, base + off) } else { (base, base + off) };
+        let walls = self.outline.iter().flat_map(|(a, b)| [[*a + from, *b + from, *b + top], [*a + from, *b + top, *a + top]]).collect();
+        out.push(Overlay::Fill { tris: walls, color: red.with_alpha(40) });
+        let caps = ends.iter().flat_map(|side| {
+            let end = base + off * *side;
+            self.tris.iter().map(move |t| [t[0] + end, t[1] + end, t[2] + end])
+        });
+        out.push(Overlay::Fill { tris: caps.collect(), color: red.with_alpha(22) });
+    }
+
     /// Outline points where the profile turns sharply (more than ~25°); a tessellated curve has none.
     fn outline_corners(&self) -> Vec<DVec3> {
         let tol = 1e-6 * (1.0 + self.outline.iter().map(|(a, b)| (*b - *a).length()).fold(0.0, f64::max));

@@ -70,10 +70,7 @@ impl Workspace {
         match &self.tool {
             Tool::Extrude(t) => {
                 // As the engine decides it: on a body, pulling out adds and pushing in cuts; elsewhere a new body.
-                let side = match self.live_extrude_side() {
-                    Some(side) => side,
-                    None => self.extrude_body_side(t),
-                };
+                let side = self.extrude_auto_side(t);
                 // A typed depth counts before Return, so the cut shows while the value is typed.
                 let d = self.numeric.as_deref().and_then(crate::workspace::tools::parse_length).unwrap_or(t.distance);
                 let auto = match side {
@@ -121,6 +118,14 @@ impl Workspace {
         let mut regions = vec![region];
         regions.extend(t.more.iter().copied());
         self.extrude_side_of(sketch, regions)
+    }
+
+    /// Which side of its profile an extrude's auto result works on, live or not (`None`: a new body).
+    pub(super) fn extrude_auto_side(&self, t: &super::tools::ExtrudeTool) -> Option<f64> {
+        match self.live_extrude_side() {
+            Some(side) => side,
+            None => self.extrude_body_side(t),
+        }
     }
 
     /// While the extrude is applied live the document already holds its result (a cut leaves the profile over a

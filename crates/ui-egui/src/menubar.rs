@@ -64,6 +64,12 @@ pub enum When {
     Sketching,
     Undo,
     Redo,
+    /// In a project, outside Visualization (it has no History sidebar).
+    Modeling,
+    /// In Visualization.
+    Visualizing,
+    /// In the Drawings sheet.
+    Drawing,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -77,6 +83,8 @@ pub struct MenuState {
     /// The grid's spacing in micrometres (0 outside a project), for "Lock Grid Size (1 mm)".
     pub grid_um: u64,
     pub grid_locked: bool,
+    pub visualizing: bool,
+    pub drawing: bool,
 }
 
 /// "Lock Grid Size (1 mm)", or "Unlock Grid Size (1 mm)" once locked.
@@ -101,6 +109,9 @@ impl When {
             When::Sketching => s.in_project && s.sketching,
             When::Undo => s.in_project && s.undo,
             When::Redo => s.in_project && s.redo,
+            When::Modeling => s.in_project && !s.visualizing,
+            When::Visualizing => s.in_project && s.visualizing,
+            When::Drawing => s.in_project && s.drawing,
         }
     }
 }
@@ -125,9 +136,8 @@ pub const WEBSITE: &str = "https://jackharvest.com/shapecraft/";
 pub const RELEASES: &str = "https://github.com/jackharvest/shapecraft/releases";
 pub const ISSUES: &str = "https://github.com/jackharvest/shapecraft/issues/new/choose";
 
-/// The menus after the application menu, in the reference's order.
+/// The menus after the application menu inside a project, in the reference's order.
 pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
-    use crate::landing::HomeCmd as H;
     use AppAction::*;
     use MenuAction::{App, Command, Display, Tool, Ui, View};
     use When::*;
@@ -140,14 +150,12 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
             "File",
             vec![
                 item("New Project", Some("CmdOrCtrl+N"), App(NewProject), Always),
-                item("New Folder", Some("CmdOrCtrl+Shift+N"), MenuAction::Home(H::NewFolder), Home),
                 sep(),
                 item("New Drawing", None, Ui(UiAction::CreateDrawing), Bodies),
                 item("Import File…", Some("CmdOrCtrl+Shift+I"), App(Import), Always),
                 item("Import Project…", Some("CmdOrCtrl+Shift+P"), App(ImportProject), InProject),
                 item("Import Material…", None, Ui(UiAction::ImportMaterial), InProject),
-                item("Import Image as Decal…", None, Ui(UiAction::ImportDecal), InProject),
-                item("Duplicate", Some("CmdOrCtrl+D"), MenuAction::Home(H::Duplicate), Home),
+                item("Import Image as Decal...", None, Ui(UiAction::ImportDecal), InProject),
                 sep(),
                 item("Save", Some("CmdOrCtrl+S"), App(Save), InProject),
                 item("Close Project", Some("CmdOrCtrl+W"), App(CloseProject), InProject),
@@ -163,7 +171,7 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                         item("Open Screenshot Tool…", None, Ui(UiAction::Screenshot), InProject),
                         item("Open Visualization…", None, Ui(UiAction::Visualization), InProject),
                         sep(),
-                        item("Shapr3D…", None, App(ExportAs(Format::Shapr)), Bodies),
+                        item(".shapr…", None, App(ExportAs(Format::Shapr)), Bodies),
                         item("3MF…", None, App(ExportAs(Format::ThreeMf)), Bodies),
                         item("Parasolid file…", None, App(ExportAs(Format::Parasolid)), Bodies),
                         item("STEP…", None, App(ExportAs(Format::Step)), Bodies),
@@ -197,7 +205,7 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                 item("Delete", None, Command("delete"), Selection),
                 item("Rename", Some("CmdOrCtrl+R"), Ui(UiAction::Rename), Selection),
                 item("Select All", Some("CmdOrCtrl+A"), Command("select_all"), Bodies),
-                item("Select Through…", Some("CmdOrCtrl+Shift+S"), Ui(UiAction::SelectThrough), Bodies),
+                item("Select Through...", Some("CmdOrCtrl+Shift+S"), Ui(UiAction::SelectThrough), Bodies),
                 item("Deselect All", Some("CmdOrCtrl+Shift+A"), Ui(UiAction::DeselectAll), Selection),
             ],
         ),
@@ -255,15 +263,8 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                 },
                 sep(),
                 item("Project as Sketch", None, Tool(ToolKind::Project), InProject),
-                Entry::Sub {
-                    label: "Offset Edge",
-                    items: vec![
-                        item("Recent", None, Tool(ToolKind::OffsetEdge), InProject),
-                        sep(),
-                        item("Single", None, MenuAction::Variant(ToolKind::OffsetEdge, "Offset Edge", 0), InProject),
-                        item("Chain", None, MenuAction::Variant(ToolKind::OffsetEdge, "Offset Edge", 1), InProject),
-                    ],
-                },
+                // A plain item: 26.202 has no submenu here (s39 menu dump).
+                item("Offset Edge", None, Tool(ToolKind::OffsetEdge), InProject),
                 item("Fillet Sketch", None, Tool(ToolKind::SketchFillet), Sketching),
                 item("Text…", None, Tool(ToolKind::Text), InProject),
                 sep(),
@@ -371,24 +372,19 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                 item("Sketch", None, Tool(ToolKind::Sketch), InProject),
             ],
         ),
-        // The home screen's Go menu (only there: the native menu bar takes it out inside a project).
-        (
-            "Go",
-            vec![
-                item("Back", Some("CmdOrCtrl+["), MenuAction::Home(H::Back), Home),
-                item("Forward", Some("CmdOrCtrl+]"), MenuAction::Home(H::Forward), Home),
-                item("Enclosing Folder", Some("CmdOrCtrl+Up"), MenuAction::Home(H::EnclosingFolder), Home),
-                sep(),
-                item("Recents", None, MenuAction::Home(H::Recents), Home),
-                item("Projects", None, MenuAction::Home(H::Projects), Home),
-            ],
-        ),
         (
             "View",
             vec![
-                item("Show History Sidebar", Some("CmdOrCtrl+Alt+P"), Ui(UiAction::ToggleHistory), InProject),
+                item("Show History Sidebar", Some("CmdOrCtrl+Alt+P"), Ui(UiAction::ToggleHistory), Modeling),
                 item("Show Items Sidebar", Some("CmdOrCtrl+Alt+S"), Ui(UiAction::ToggleItems), InProject),
+                sep(),
                 item("Show Properties Sidebar", None, Ui(UiAction::DrawingProps), InProject),
+                sep(),
+                // The properties sidebar's pages (26.202: lit in Visualization, Drawing Properties in Drawings).
+                item("Material Properties", None, Ui(UiAction::VisTab(0)), Visualizing),
+                item("Environment Properties", None, Ui(UiAction::VisTab(1)), Visualizing),
+                item("Camera Properties", None, Ui(UiAction::VisTab(2)), Visualizing),
+                item("Drawing Properties", None, Ui(UiAction::ShowDrawingProps), Drawing),
                 sep(),
                 item("Collapse All", Some("Alt+L"), Ui(UiAction::CollapseAll), InProject),
                 sep(),
@@ -425,6 +421,7 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                 },
                 item("Show Grid", None, Ui(UiAction::ToggleGrid), InProject),
                 item("Show World Axes", None, Ui(UiAction::ToggleAxes), InProject),
+                sep(),
                 item("Field of View…", None, Ui(UiAction::DisplayModes), InProject),
                 sep(),
                 item("Wireframe", Some("Alt+W"), Display(shapecraft_render::DisplayMode::Wireframe), InProject),
@@ -475,18 +472,6 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                 // The live grid size goes in its label (native menu), then a tip that's never enabled (26.200).
                 item("Lock Grid Size", None, Ui(UiAction::LockGrid), InProject),
                 item("Tip: Adjust grid size by zooming", None, MenuAction::Soon("Tip"), Never),
-                // The home screen's View items.
-                sep(),
-                Entry::Sub {
-                    label: "Sort By",
-                    items: vec![
-                        item("Date Modified (Latest to Oldest)", None, MenuAction::Home(H::Sort(0)), Home),
-                        item("Date Modified (Oldest to Latest)", None, MenuAction::Home(H::Sort(1)), Home),
-                        item("Name (A to Z)", None, MenuAction::Home(H::Sort(2)), Home),
-                        item("Name (Z to A)", None, MenuAction::Home(H::Sort(3)), Home),
-                    ],
-                },
-                item("Search", None, MenuAction::Home(H::Search), Home),
             ],
         ),
         (
@@ -514,6 +499,86 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
     ]
 }
 
+/// The home screen's own, smaller set (26.202, s39 menu dump): File, Edit, Go, View and Help. Its Edit and Help are
+/// the project's.
+pub fn home_tree() -> Vec<(&'static str, Vec<Entry>)> {
+    use crate::landing::HomeCmd as H;
+    use MenuAction::{App, Home};
+    use When::{Always, Home as AtHome};
+    let (mut edit, mut help) = (Vec::new(), Vec::new());
+    for (title, entries) in tree() {
+        match title {
+            // Rename works on the selected project or folder here (26.202 keeps ⌘R lit at home).
+            "Edit" => {
+                edit = entries
+                    .into_iter()
+                    .map(|e| match e {
+                        Entry::Item { label: "Rename", accel, .. } => item("Rename", accel, Home(H::Rename), AtHome),
+                        e => e,
+                    })
+                    .collect()
+            }
+            // ⌘F is Search here: Search Commands goes without it, as in 26.202.
+            "Help" => {
+                help = entries
+                    .into_iter()
+                    .map(|e| match e {
+                        Entry::Item { label: "Search Commands", action, when, .. } => item("Search Commands", None, action, when),
+                        e => e,
+                    })
+                    .collect()
+            }
+            _ => {}
+        }
+    }
+    vec![
+        (
+            "File",
+            vec![
+                item("New Project", Some("CmdOrCtrl+N"), App(AppAction::NewProject), Always),
+                item("New Folder", Some("CmdOrCtrl+Shift+N"), Home(H::NewFolder), AtHome),
+                Entry::Separator,
+                item("Import as new project...", Some("CmdOrCtrl+Shift+I"), App(AppAction::Import), Always),
+                Entry::Separator,
+                item("Duplicate", Some("CmdOrCtrl+D"), Home(H::Duplicate), AtHome),
+            ],
+        ),
+        ("Edit", edit),
+        (
+            "Go",
+            vec![
+                item("Back", Some("CmdOrCtrl+["), Home(H::Back), AtHome),
+                item("Forward", Some("CmdOrCtrl+]"), Home(H::Forward), AtHome),
+                item("Enclosing Folder", None, Home(H::EnclosingFolder), AtHome),
+                Entry::Separator,
+                item("Recents", Some("CmdOrCtrl+Shift+1"), Home(H::Recents), AtHome),
+                item("Projects", Some("CmdOrCtrl+Shift+2"), Home(H::Projects), AtHome),
+            ],
+        ),
+        (
+            "View",
+            vec![
+                Entry::Sub {
+                    label: "Sort By",
+                    items: vec![
+                        item("Date Modified (Latest to Oldest)", None, Home(H::Sort(0)), AtHome),
+                        item("Date Modified (Oldest to Latest)", None, Home(H::Sort(1)), AtHome),
+                        item("Name (A to Z)", None, Home(H::Sort(2)), AtHome),
+                        item("Name (Z to A)", None, Home(H::Sort(3)), AtHome),
+                    ],
+                },
+                item("Search", Some("CmdOrCtrl+F"), Home(H::Search), AtHome),
+            ],
+        ),
+        ("Help", help),
+    ]
+}
+
+/// The menus for where the window is: a project's, or the home screen's.
+pub fn menus_for(in_project: bool) -> Vec<(&'static str, Vec<Entry>)> {
+    if in_project { tree() } else { home_tree() }
+}
+
 #[cfg(target_os = "macos")]
 mod native {
     use std::str::FromStr;
@@ -521,17 +586,28 @@ mod native {
     use muda::accelerator::Accelerator;
     use muda::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 
-    use super::{AppAction, Entry, MenuAction, MenuState, When, tree};
+    use super::{AppAction, Entry, MenuAction, MenuState, When, home_tree, tree};
+
+    /// One whole menu bar and its Window menu (which macOS only fills once the bar is the app's).
+    struct Bar {
+        menu: Menu,
+        window: Submenu,
+    }
 
     pub struct MenuBar {
-        menu: Menu,
-        /// The home screen's Go menu and its place in the bar: taken out inside a project, as the reference does.
-        go: Option<(Submenu, usize)>,
-        go_shown: bool,
+        /// A project's menus and the home screen's smaller set, swapped as the reference does.
+        project: Bar,
+        home: Bar,
+        in_project: Option<bool>,
         items: Vec<(MenuItem, MenuAction, When)>,
         state: Option<MenuState>,
         /// Picked items. muda stops filling its own channel once a handler is set, so the handler forwards here.
         picked: std::sync::mpsc::Receiver<MenuEvent>,
+    }
+
+    /// macOS reads "&" as a mnemonic marker and drops it ("Wrap  Emboss"); "&&" shows one.
+    fn native_label(label: &str) -> String {
+        label.replace('&', "&&")
     }
 
     fn fill(sub: &Submenu, entries: Vec<Entry>, items: &mut Vec<(MenuItem, MenuAction, When)>) {
@@ -542,12 +618,12 @@ mod native {
                 }
                 Entry::Item { label, accel, action, when } => {
                     let accel = accel.and_then(|a| Accelerator::from_str(a).ok());
-                    let mi = MenuItem::new(label, true, accel);
+                    let mi = MenuItem::new(native_label(label), true, accel);
                     let _ = sub.append(&mi);
                     items.push((mi, action, when));
                 }
                 Entry::Sub { label, items: children } => {
-                    let child = Submenu::new(label, true);
+                    let child = Submenu::new(native_label(label), true);
                     fill(&child, children, items);
                     let _ = sub.append(&child);
                 }
@@ -555,54 +631,56 @@ mod native {
         }
     }
 
-    impl MenuBar {
-        /// Builds and installs the menu bar. Call on the main thread once the app exists.
-        pub fn install(wake: impl Fn() + Send + Sync + 'static) -> Option<MenuBar> {
-            let menu = Menu::new();
-            let mut items = Vec::new();
-            let app = Submenu::new("ShapeCraft", true);
-            let quit = MenuItem::new("Quit ShapeCraft", true, Accelerator::from_str("CmdOrCtrl+Q").ok());
-            let prefs = MenuItem::new("Preferences…", true, Accelerator::from_str("CmdOrCtrl+Comma").ok());
-            let _ = app.append_items(&[
-                &PredefinedMenuItem::about(Some("About ShapeCraft"), None),
-                &PredefinedMenuItem::separator(),
-                &prefs,
-                &PredefinedMenuItem::separator(),
-                &PredefinedMenuItem::services(None),
-                &PredefinedMenuItem::separator(),
-                &PredefinedMenuItem::hide(Some("Hide ShapeCraft")),
-                &PredefinedMenuItem::hide_others(None),
-                &PredefinedMenuItem::show_all(None),
-                &PredefinedMenuItem::separator(),
-                &quit,
-            ]);
-            items.push((quit, MenuAction::App(AppAction::Quit), When::Always));
-            items.push((prefs, MenuAction::Ui(crate::workspace::toolbar::UiAction::Preferences), When::Always));
-            menu.append(&app).ok()?;
-            let mut go = None;
-            for (k, (title, entries)) in tree().into_iter().enumerate() {
-                let sub = Submenu::new(title, true);
-                fill(&sub, entries, &mut items);
-                if title == "Go" {
-                    // After the app menu and the menus before it (Window is added after View, so it comes later).
-                    go = Some((sub.clone(), k + 1));
-                }
-                if title == "View" {
-                    let _ = sub.append(&PredefinedMenuItem::separator());
-                    let _ = sub.append(&PredefinedMenuItem::fullscreen(None));
-                }
-                menu.append(&sub).ok()?;
-                if title == "View" {
-                    let window = Submenu::new("Window", true);
-                    let _ = window.append_items(&[
-                        &PredefinedMenuItem::minimize(None),
-                        &PredefinedMenuItem::separator(),
-                        &PredefinedMenuItem::bring_all_to_front(None),
-                    ]);
-                    menu.append(&window).ok()?;
-                }
+    fn build(menus: Vec<(&'static str, Vec<Entry>)>, items: &mut Vec<(MenuItem, MenuAction, When)>) -> Option<Bar> {
+        let menu = Menu::new();
+        let app = Submenu::new("ShapeCraft", true);
+        let quit = MenuItem::new("Quit ShapeCraft", true, Accelerator::from_str("CmdOrCtrl+Q").ok());
+        let prefs = MenuItem::new("Preferences…", true, Accelerator::from_str("CmdOrCtrl+Comma").ok());
+        let _ = app.append_items(&[
+            &PredefinedMenuItem::about(Some("About ShapeCraft"), None),
+            &PredefinedMenuItem::separator(),
+            &prefs,
+            &PredefinedMenuItem::separator(),
+            &PredefinedMenuItem::services(None),
+            &PredefinedMenuItem::separator(),
+            &PredefinedMenuItem::hide(Some("Hide ShapeCraft")),
+            &PredefinedMenuItem::hide_others(None),
+            &PredefinedMenuItem::show_all(None),
+            &PredefinedMenuItem::separator(),
+            &quit,
+        ]);
+        items.push((quit, MenuAction::App(AppAction::Quit), When::Always));
+        items.push((prefs, MenuAction::Ui(crate::workspace::toolbar::UiAction::Preferences), When::Always));
+        menu.append(&app).ok()?;
+        // The system's Window menu: macOS adds Fill, Center, Move & Resize, tiling and the window list.
+        let window = Submenu::new("Window", true);
+        let _ = window.append_items(&[
+            &PredefinedMenuItem::minimize(None),
+            &PredefinedMenuItem::maximize(None),
+            &PredefinedMenuItem::separator(),
+            &PredefinedMenuItem::bring_all_to_front(None),
+        ]);
+        for (title, entries) in menus {
+            let sub = Submenu::new(title, true);
+            fill(&sub, entries, items);
+            if title == "View" {
+                // Last, right after the grid tip, as the reference has it (macOS retitles it Exit Full Screen).
+                let _ = sub.append(&PredefinedMenuItem::fullscreen(Some("Enter Full Screen")));
             }
-            menu.init_for_nsapp();
+            menu.append(&sub).ok()?;
+            if title == "View" {
+                menu.append(&window).ok()?;
+            }
+        }
+        Some(Bar { menu, window })
+    }
+
+    impl MenuBar {
+        /// Builds both menu bars and installs the home screen's. Call on the main thread once the app exists.
+        pub fn install(wake: impl Fn() + Send + Sync + 'static) -> Option<MenuBar> {
+            let mut items = Vec::new();
+            let project = build(tree(), &mut items)?;
+            let home = build(home_tree(), &mut items)?;
             let (send, picked) = std::sync::mpsc::channel();
             let send = std::sync::Mutex::new(send);
             MenuEvent::set_event_handler(Some(move |e: MenuEvent| {
@@ -611,7 +689,20 @@ mod native {
                 }
                 wake();
             }));
-            Some(MenuBar { menu, go, go_shown: true, items, state: None, picked })
+            let mut bar = MenuBar { project, home, in_project: None, items, state: None, picked };
+            bar.show_bar(false);
+            Some(bar)
+        }
+
+        fn show_bar(&mut self, in_project: bool) {
+            if self.in_project == Some(in_project) {
+                return;
+            }
+            let bar = if in_project { &self.project } else { &self.home };
+            bar.menu.init_for_nsapp();
+            // Only once the bar is installed does macOS take it as the Window menu.
+            bar.window.set_as_windows_menu_for_nsapp();
+            self.in_project = Some(in_project);
         }
 
         /// Actions picked since the last frame.
@@ -629,16 +720,7 @@ mod native {
             if self.state == Some(state) {
                 return;
             }
-            if let Some((go, at)) = &self.go
-                && self.go_shown == state.in_project
-            {
-                if state.in_project {
-                    let _ = self.menu.remove(go);
-                } else {
-                    let _ = self.menu.insert(go, *at);
-                }
-                self.go_shown = !state.in_project;
-            }
+            self.show_bar(state.in_project);
             for (mi, action, when) in &self.items {
                 mi.set_enabled(when.holds(&state));
                 if matches!(action, MenuAction::Ui(crate::workspace::toolbar::UiAction::LockGrid)) {
@@ -684,7 +766,7 @@ impl WindowMenu {
     /// The menu titles in a row from `at` (the left end of the row's center line), over whatever the screen drew
     /// there. The home screen leaves out the menus it can't use; in a project they all stay, so none of them move.
     pub fn show(&mut self, ui: &mut egui::Ui, at: egui::Pos2) {
-        let menus = window_tree();
+        let menus = window_tree(self.state.in_project);
         let rect = egui::Rect::from_min_max(egui::pos2(at.x, at.y - 13.0), egui::pos2(ui.max_rect().right(), at.y + 13.0));
         let builder = egui::UiBuilder::new().id_salt("window-menu").max_rect(rect);
         let mut strip = ui.new_child(builder.layout(egui::Layout::left_to_right(egui::Align::Center)));
@@ -701,7 +783,7 @@ impl WindowMenu {
 
     /// This frame's menu shortcuts.
     pub fn take_shortcuts(&mut self, ctx: &egui::Context) {
-        for (_, entries) in &window_tree() {
+        for (_, entries) in &window_tree(self.state.in_project) {
             self.shortcuts(ctx, entries);
         }
         // The Windows and Linux redo, beside the reference's Ctrl+Shift+Z.
@@ -769,8 +851,8 @@ fn usable(entries: &[Entry], state: &MenuState) -> bool {
 }
 
 /// The menu tree with what the macOS application menu holds (Preferences, Quit) moved into File.
-fn window_tree() -> Vec<(&'static str, Vec<Entry>)> {
-    let mut menus = tree();
+fn window_tree(in_project: bool) -> Vec<(&'static str, Vec<Entry>)> {
+    let mut menus = menus_for(in_project);
     if let Some((_, file)) = menus.iter_mut().find(|(t, _)| *t == "File") {
         file.push(Entry::Separator);
         file.push(item("Preferences…", Some("CmdOrCtrl+Comma"), MenuAction::Ui(UiAction::Preferences), When::Always));
@@ -865,8 +947,10 @@ mod tests {
 
     #[test]
     fn the_home_screen_only_lists_menus_it_can_use() {
-        let home: Vec<_> = window_tree().into_iter().filter(|(_, e)| usable(e, &MenuState::default())).map(|(t, _)| t).collect();
-        assert!(home.contains(&"File") && !home.contains(&"Sketch"), "{home:?}");
+        let home: Vec<_> = window_tree(false).into_iter().filter(|(_, e)| usable(e, &MenuState::default())).map(|(t, _)| t).collect();
+        assert!(home.contains(&"File") && home.contains(&"Go") && !home.contains(&"Sketch"), "{home:?}");
+        let project: Vec<_> = window_tree(true).into_iter().map(|(t, _)| t).collect();
+        assert!(project.contains(&"Sketch") && !project.contains(&"Go"), "{project:?}");
     }
 
     #[test]
@@ -904,7 +988,7 @@ mod tests {
                 }
             }
         }
-        for (_, entries) in window_tree() {
+        for (_, entries) in window_tree(true).into_iter().chain(window_tree(false)) {
             walk(&entries);
         }
         assert_eq!(shortcut_text("CmdOrCtrl+Shift+P"), "Ctrl+Shift+P");
@@ -912,7 +996,6 @@ mod tests {
 
     #[test]
     fn every_menu_shortcut_parses_and_is_unique() {
-        let mut seen = std::collections::HashSet::new();
         fn walk(entries: &[Entry], seen: &mut std::collections::HashSet<&'static str>) {
             for e in entries {
                 match e {
@@ -925,8 +1008,12 @@ mod tests {
                 }
             }
         }
-        for (_, entries) in tree() {
-            walk(&entries, &mut seen);
+        // Unique within each menu bar: the home screen's ⌘F (Search) is the project's Search Commands.
+        for menus in [tree(), home_tree()] {
+            let mut seen = std::collections::HashSet::new();
+            for (_, entries) in menus {
+                walk(&entries, &mut seen);
+            }
         }
     }
 }

@@ -167,6 +167,16 @@ impl Workspace {
                     d.props = !d.props;
                 }
             }
+            UiAction::ShowDrawingProps => {
+                if let Some(d) = &mut self.drawings {
+                    d.props = true;
+                }
+            }
+            UiAction::VisTab(k) => {
+                if self.visualizing {
+                    self.vis_tab = usize::from(k.min(2));
+                }
+            }
             UiAction::ExportDrawing => self.export_choice = Some(drawings::ExportChoice { pdf: true, dxf: false, svg: false, dwg: false }),
             UiAction::DisplayModes => {
                 self.right_pop = match self.right_pop {
@@ -360,11 +370,11 @@ impl Workspace {
             self.creating_drawing = false;
             return;
         }
-        // A typed value (or a length fixed with Tab) goes first, keeping the segment (s11-015).
-        if self.line_len.take().is_some() | self.numeric.take().is_some() && matches!(self.tool, Tool::Line { last: Some(_), .. }) {
+        // A typed value (or a length fixed with Tab) goes first, keeping the segment (s11-015) or the running tool
+        // (26.202, s39-of-esc1: Offset Face's field closes, the tool stays).
+        if self.line_len.take().is_some() | self.numeric.take().is_some() {
             return;
         }
-        self.numeric = None;
         // An open context menu closes first (as observed).
         if self.context_menu.take().is_some() {
             return;

@@ -456,7 +456,7 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
                 Tokens::text_dim(),
             );
             let n = step.shapr_steps.len();
-            let caption = format!("{n} step{} from Shapr3D", if n == 1 { "" } else { "s" });
+            let caption = format!("{n} step{} from the .shapr file", if n == 1 { "" } else { "s" });
             p.text(pos2(sub.left() + 22.0, sub.center().y), Align2::LEFT_CENTER, caption, theme::body(12.0), Tokens::text_dim());
             if sr.clicked() {
                 ws.history.shapr_open = if listed { None } else { Some(i) };

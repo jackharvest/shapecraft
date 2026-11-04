@@ -194,11 +194,13 @@ struct Extrude {
     result: String,
     /// Which side of the profile's plane auto's body is on, `None` for a new body (see [`result_index`]).
     side: Option<f64>,
+    /// A depth being typed, which the Result row already counts (as the Result badge does).
+    typed: Option<f64>,
     exprs: [Option<String>; 2],
 }
 
 fn extrude_rows(e: &Extrude) -> (Vec<Row>, String) {
-    let (lit, auto) = result_index(&e.result, e.side, e.distance);
+    let (lit, auto) = result_index(&e.result, e.side, e.typed.unwrap_or(e.distance));
     let result_sub = format!("{}{}", ["New Body", "Union", "Subtract", "Intersect"][lit], if auto { " - Auto" } else { "" });
     let mut rows = vec![
         Row::Picks("Profile", "face", e.profile),
@@ -243,11 +245,16 @@ fn extrude_rows(e: &Extrude) -> (Vec<Row>, String) {
         rows.push(Row::Number("Start Offset", "start_offset", FieldKind::Length, o, None));
     }
     rows.push(Row::Segments("Result", "", &[Icon::Body, Icon::Union, Icon::Subtract, Icon::Intersect], lit, "result", RESULTS));
+    // A cut names what it cuts (26.202, s39-cut-card: "Subtract From  1 body  Edit...").
+    if lit == 2 {
+        rows.push(Row::Picks("Subtract From", "body", 1));
+    }
     (rows, result_sub)
 }
 
 fn tool_extrude(ws: &Workspace, t: &ExtrudeTool) -> Extrude {
-    let side = ws.extrude_body_side(t);
+    // Live, the cut is already in the part: read the side off the step, as the Result badge does.
+    let side = ws.extrude_auto_side(t);
     Extrude {
         profile: 1 + t.more.len(),
         symmetric: t.symmetric,
@@ -259,6 +266,7 @@ fn tool_extrude(ws: &Workspace, t: &ExtrudeTool) -> Extrude {
         draft: t.draft,
         result: t.result.to_string(),
         side,
+        typed: ws.numeric.as_deref().and_then(crate::workspace::tools::parse_length),
         exprs: [None, None],
     }
 }
@@ -289,6 +297,7 @@ fn step_extrude(ws: &Workspace, i: usize) -> Option<Extrude> {
         draft: history::value(step, &fields[1], vars),
         result: get("result").and_then(Value::as_str).unwrap_or("auto").to_string(),
         side,
+        typed: None,
         exprs: [history::expression(step, &fields[0]).map(str::to_string), history::expression(step, &fields[1]).map(str::to_string)],
     })
 }
@@ -483,6 +492,7 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
                     if editable && ui.interact(link, ui.scope_id().with(("profile-edit", n)), Sense::click()).clicked() {
                         match (&source, *label) {
                             (Source::Step(i), "Profile") => profile_click = Some(*i),
+                            (_, "Subtract From") => pick_hint = Some("The cut goes into the body the profile rests on"),
                             (Source::Step(_), _) => pick_hint = Some("Pick the edges again: open the step's body and fillet them anew"),
                             (Source::Split { .. }, _) => {
                                 pick_hint = Some("Click bodies, faces, planes or sketches in the view to change them")

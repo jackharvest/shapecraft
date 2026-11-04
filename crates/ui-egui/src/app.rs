@@ -68,6 +68,8 @@ type WaitingReply = Arc<std::sync::Mutex<Option<std::sync::mpsc::Sender<Result<V
 pub struct ShapeCraftApp {
     /// A scrap of GPU memory written every frame to learn that the device is gone before painting does (see `gpu_gone`).
     gpu_probe: Option<wgpu::Buffer>,
+    /// The window's own title (hidden behind ours, but macOS lists it in the Window menu, Mission Control and the Dock).
+    window_title: String,
     kernel: Arc<dyn Kernel>,
     /// The first touch of the projects folder (made, moved over, read once) and how it went.
     folder: crate::folder_access::FolderAccess,
@@ -155,6 +157,7 @@ impl ShapeCraftApp {
         });
         let mut app = Self {
             gpu_probe: None,
+            window_title: "ShapeCraft".to_string(),
             menubar,
             settings,
             settings_file: opts.settings_file,
@@ -358,7 +361,7 @@ impl ShapeCraftApp {
     fn import_dialog(&mut self) {
         let Some(path) = rfd::FileDialog::new()
             .add_filter("All Supported Files", &["shapr", "step", "stp", "x_t", "x_b", "iges", "igs", "stl", "obj", "dxf", "svg"])
-            .add_filter("Shapr3D", &["shapr"])
+            .add_filter(".shapr project", &["shapr"])
             .add_filter("STEP", &["step", "stp"])
             .add_filter("Parasolid", &["x_t", "x_b"])
             .add_filter("IGES", &["iges", "igs"])
@@ -1335,6 +1338,8 @@ impl ShapeCraftApp {
                 redo: ws.session.can_redo(),
                 grid_um: (ws.grid_size() * 1000.0).round().max(0.0) as u64,
                 grid_locked: ws.grid_locked.is_some(),
+                visualizing: ws.visualizing,
+                drawing: ws.drawings.is_some(),
             },
         };
         bar.update(state);
@@ -1677,6 +1682,13 @@ impl eframe::App for ShapeCraftApp {
         self.handle_control(ctx);
         self.autosave(ctx);
         self.update_logic(ctx);
+        // The project's name, as the reference titles its window ("Untitled Project" in Window ▸).
+        let title = self.ws.as_ref().map_or("ShapeCraft", |ws| ws.session.doc.name.as_str());
+        let title = if title.trim().is_empty() { "ShapeCraft" } else { title };
+        if title != self.window_title {
+            self.window_title = title.to_string();
+            ctx.send_viewport_cmd(egui::ViewportCommand::Title(self.window_title.clone()));
+        }
         // A screenshot comes back on a later poll of the device, which an idle app would never make.
         if let Some((waiting, since)) = &self.capture {
             let late = since.elapsed().as_secs() >= 5;

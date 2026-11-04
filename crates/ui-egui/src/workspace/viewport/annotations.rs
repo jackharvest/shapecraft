@@ -8,7 +8,6 @@ use super::handles::SECTION_FLIP;
 use super::paint::{
     DASHED_RADIUS, DIAMETER, PILL_INK, RADIAL, axis_pill, copy_pill, dashed_radius, diameter_dim, double_arrow, face_arrow, lead_drop,
     leader_dim, link_pill, padlock, pill, radius_dim, screen_dim, sketch_dimension, target_badge, value_box, value_field,
-    value_field_seeded,
 };
 use super::snap::ellipse_minor;
 use crate::theme::{self, Tokens, radius};
@@ -753,16 +752,19 @@ impl Workspace {
                 );
             }
         }
-        let typed_len = typed.and_then(crate::workspace::tools::parse_length);
         if let Tool::Extrude(t) = &self.tool
-            && let Some((s0, sdir, _)) = self.handle_frame(t.origin + t.normal * typed_len.unwrap_or(t.distance), t.normal)
+            && let Some((s0, sdir, _)) = self.handle_frame(t.origin + t.normal * t.distance, t.normal)
         {
             // The reference's look: a ↕ glyph on the cap, the length in a pill on a dashed line back to the
             // base, and the ↔ draft handle with its angle pill.
             // A fresh region shows a blue ↕; a face you keep pulling shows a white ↕ and a blue ↔ (as observed).
             let blue = Tokens::accent();
             let fresh = matches!(t.target, crate::workspace::tools::Target::Region { .. });
-            let shown_len = typed_len.unwrap_or(t.distance);
+            let shown_len = t.distance;
+            // The value field (26.202, s39-cut-typed) opens just past the handle, clear of it whichever way the arrow
+            // points, or where the value pill was on the dashed line.
+            let field_reach = 30.0 + sdir.x.abs() * 107.0 + sdir.y.abs() * 20.0;
+            let mut field_at = s0 + sdir * field_reach;
             double_arrow(&painter, s0, sdir, 14.0, if fresh || t.dragging.is_some() { blue } else { Color32::WHITE }, theme::c(0x5a5d66));
             if let Some(b0) = self.to_screen(t.origin) {
                 let len = (s0 - b0).length();
@@ -787,18 +789,15 @@ impl Workspace {
                 let pill_at = if len > 2.0 * stack + 40.0 { b0 + (s0 - b0) * 0.5 } else { s0 + sdir * (42.0 + half) };
                 if typed.is_none() {
                     axis_pill(&painter, pill_at, sdir, &text, true);
+                } else if len > 2.0 * stack + 40.0 {
+                    field_at = pill_at;
                 }
-                // Typing swaps the value for the field above the handle: the badges go on past it.
-                let start = if typed.is_some() {
-                    s0 + sdir * (78.0 + sdir.x.abs() * 62.0 + sdir.y.abs() * 12.0 + 14.0)
-                } else {
-                    pill_at + sdir * (half + 17.0)
-                };
+                // Typing swaps the value for the field: the badges go on past it.
+                let start = if typed.is_some() { field_at + sdir * (field_reach - 2.0) } else { pill_at + sdir * (half + 17.0) };
                 crate::workspace::badges::paint_row(self, ui, &painter, start, sdir);
             }
-            // Typing opens the blue-edged field above the handle.
-            if typed.is_some() {
-                value_box(&painter, s0 + sdir * 78.0, "", typed);
+            if let Some(t) = typed {
+                value_field(&painter, field_at - vec2(13.0, 0.0), t);
             }
             if let Some((at, along)) = self.draft_handle() {
                 let hot = t.drafting.is_some() || self.cursor.is_some_and(|c| (c - at).length() < 16.0);
@@ -995,35 +994,16 @@ impl Workspace {
             };
             // Offset, Radius and Diameter (26.202, s37): the value comes first along the line, the type pill after
             // it. Total keeps the type first.
+            // Typing opens the value field where the value pill was (26.202, s39-of-type15, s39-cut-typed), so the
+            // pills keep their places while it's open. Fillet keeps its own small box (not re-observed).
+            let big_field = typed.is_some() && !matches!(self.tool, Tool::Fillet(_));
+            let lay_typed = if big_field { None } else { typed };
             let value_first = matches!(&self.tool, Tool::OffsetFace(t)
                 if t.fillet.is_none() && self.offset_kind(t) != crate::workspace::tools::OffsetKind::Total)
-                && typed.is_none();
-            // Offset Face opens its value field at once (26.202, s37-wall: "10" selected for a Ø10 wall, Total
-            // thickness on a flat face), below and right of the arrow; typing replaces it, a pull closes it.
-            let field_tool = matches!(&self.tool, Tool::OffsetFace(t) if t.fillet.is_none());
-            let seeded = matches!(&self.tool, Tool::OffsetFace(t) if t.fillet.is_none()
-                && t.distance.abs() < 1e-9
-                && t.dragging.is_none()
-                && self.offset_kind(t) != crate::workspace::tools::OffsetKind::Offset)
-                && typed.is_none();
-            let field_center = s0 + vec2(20.0, 30.0);
-            let field_rect = Rect::from_center_size(field_center + vec2(13.0, 0.0), vec2(214.0, 34.0)).expand(4.0);
-            let in_field = seeded || (field_tool && typed.is_some());
+                && lay_typed.is_none();
             if let Some((at, kind)) = kind_pill {
                 let half = shown.chars().count() as f32 * 2.9 + 6.0;
-                let kind_at = if in_field {
-                    // The type pill goes on along the arrow's line, clear of the field.
-                    let kind_half = kind.chars().count() as f32 * 2.9 + 6.0;
-                    let mut d = 30.0;
-                    while d < 400.0
-                        && (field_rect.contains(s0 + label_dir * (d - kind_half))
-                            || field_rect.contains(s0 + label_dir * d)
-                            || field_rect.contains(s0 + label_dir * (d + kind_half)))
-                    {
-                        d += 4.0;
-                    }
-                    s0 + label_dir * (d + kind_half + 4.0)
-                } else if value_first {
+                let kind_at = if value_first {
                     label_at = at + label_dir * (half - 12.0);
                     let kind_half = kind.chars().count() as f32 * 2.9 + 6.0;
                     label_at + label_dir * (half + 5.0 + kind_half)
@@ -1033,7 +1013,7 @@ impl Workspace {
                 let pr = axis_pill(&painter, kind_at, label_dir, kind, false);
                 ui.ctx().data_mut(|d| d.insert_temp(ui.scope_id().with("offset-kind-pill"), pr));
                 // The value follows the type pill along the same line, a small gap after it however long it reads.
-                if !value_first && matches!(&self.tool, Tool::OffsetFace(t) if t.fillet.is_none()) && typed.is_none() {
+                if !value_first && matches!(&self.tool, Tool::OffsetFace(t) if t.fillet.is_none()) && lay_typed.is_none() {
                     let along = (pr.width().max(pr.height()) / 2.0).max(10.0);
                     label_at = at + label_dir * (along + 5.0 + half);
                 }
@@ -1072,17 +1052,10 @@ impl Workspace {
             // Offset Face's plain Offset shows no value until it's pulled (as observed, s37).
             let unpulled_offset = matches!(&self.tool, Tool::OffsetFace(t)
                 if t.fillet.is_none() && t.distance.abs() < 1e-9 && self.offset_kind(t) == crate::workspace::tools::OffsetKind::Offset);
-            if seeded {
-                // The bare number, as the reference shows it ("10", not "⌀10 mm").
-                let k = match &self.tool {
-                    Tool::OffsetFace(t) => t.shown(self.offset_kind(t)),
-                    _ => 0.0,
-                };
-                let bare = format_length(k, units);
-                let bare = bare.trim_end_matches(|c: char| c.is_alphabetic()).trim_end();
-                value_field_seeded(&painter, field_center, bare);
-            } else if let (true, Some(t)) = (field_tool, typed) {
-                value_field(&painter, field_center, t);
+            // Before anything is typed the value is the blue-rimmed pill on the line (26.202, s39-of-side: "13 mm"
+            // after "Total ⌄"); a key opens the field over it.
+            if let (true, Some(t)) = (big_field, typed) {
+                value_field(&painter, label_at - vec2(13.0, 0.0), t);
             } else if typed.is_some() {
                 value_box(&painter, label_at + label_dir * 30.0, &shown, typed);
             } else if !unpulled_offset {
