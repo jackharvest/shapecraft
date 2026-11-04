@@ -604,7 +604,9 @@ impl OffsetFaceTool {
             }
         };
         let flat = s.kernel.face_plane(&b.shape, first).ok().flatten().is_some();
-        let radius = if flat {
+        // Only a cylinder's wall reads as a radius; a cone or a sphere just offsets (26.202, s40-023/024).
+        let round = !flat && s.face_radius(body, first).is_some();
+        let radius = if !round {
             None
         } else {
             s.kernel.axis_of(&b.shape, shapecraft_kernel::SubShape::Face(first)).ok().flatten().and_then(|axis| {
@@ -621,14 +623,15 @@ impl OffsetFaceTool {
             Some((r, foot)) => (anchor - foot).try_normalize().map_or(anchor, |u| foot + u * r),
             None => anchor,
         };
-        let thickness = if radius.is_some() { None } else { opposite_face_distance(&b.mesh, anchor, dir, first) };
+        let thickness = if flat { opposite_face_distance(&b.mesh, anchor, dir, first) } else { None };
         let fillet = match faces.as_slice() {
             [f] => shapecraft_engine::history::fillet_step_for(s, body, *f).and_then(|(step, radius, convex)| {
                 Some(FilletFace { step, label: s.doc.history.get(step)?.label.clone(), radius, convex })
             }),
             _ => None,
         };
-        Some(Self { body, faces, distance: 0.0, anchor, dir, dragging: None, thickness, radius, fillet })
+        let kinds = flat || radius.is_some();
+        Some(Self { body, faces, distance: 0.0, anchor, dir, dragging: None, thickness, radius, fillet, kinds })
     }
 
     /// +1 when pulling out of the part grows the radius (a shaft), -1 when it shrinks it (a hole).
@@ -1092,6 +1095,7 @@ mod tests {
             thickness: None,
             radius: Some((5.0, DVec3::ZERO)),
             fillet: None,
+            kinds: true,
         }
     }
 

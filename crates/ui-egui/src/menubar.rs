@@ -85,6 +85,41 @@ pub struct MenuState {
     pub grid_locked: bool,
     pub visualizing: bool,
     pub drawing: bool,
+    /// Which items carry a check mark: one bit per [`check_bit`].
+    pub checks: u32,
+}
+
+/// The items that show a check mark when on (as the reference's View menu does, s40), and their bit in
+/// [`MenuState::checks`].
+pub fn check_bit(action: &MenuAction) -> Option<u32> {
+    use shapecraft_render::DisplayMode as D;
+    Some(match action {
+        MenuAction::Ui(UiAction::ToggleHistory) => 0,
+        MenuAction::Ui(UiAction::ToggleItems) => 1,
+        MenuAction::Ui(UiAction::ToggleGrid) => 2,
+        MenuAction::Ui(UiAction::ToggleAxes) => 3,
+        MenuAction::Ui(UiAction::ToggleEdges) => 4,
+        MenuAction::Ui(UiAction::ToggleSketches) => 5,
+        MenuAction::Ui(UiAction::ToggleHiddenEdges) => 6,
+        MenuAction::Ui(UiAction::ToggleDecals) => 7,
+        MenuAction::Ui(UiAction::TogglePinned) => 8,
+        MenuAction::Display(D::Shaded) => 9,
+        MenuAction::Display(D::Wireframe) => 10,
+        MenuAction::Display(D::XRay) => 11,
+        MenuAction::Display(D::Zebra { .. }) => 12,
+        MenuAction::Display(D::Curvature { .. }) => 13,
+        MenuAction::Ui(UiAction::Units(i)) if *i < 5 => 14 + u32::from(*i),
+        MenuAction::Ui(UiAction::FeetArchitectural(on)) => 19 + u32::from(!on),
+        MenuAction::Ui(UiAction::DegreesFractional(on)) => 21 + u32::from(!on),
+        _ => return None,
+    })
+}
+
+impl MenuState {
+    /// Whether a check item is on (`None` for an item without a check mark).
+    pub fn checked(&self, action: &MenuAction) -> Option<bool> {
+        check_bit(action).map(|b| self.checks & (1 << b) != 0)
+    }
 }
 
 /// "Lock Grid Size (1 mm)", or "Unlock Grid Size (1 mm)" once locked.
@@ -537,6 +572,7 @@ pub fn home_tree() -> Vec<(&'static str, Vec<Entry>)> {
             vec![
                 item("New Project", Some("CmdOrCtrl+N"), App(AppAction::NewProject), Always),
                 item("New Folder", Some("CmdOrCtrl+Shift+N"), Home(H::NewFolder), AtHome),
+                item("New Folder with Selection", Some("CmdOrCtrl+Alt+N"), Home(H::NewFolderWithSelection), AtHome),
                 Entry::Separator,
                 item("Import as new project...", Some("CmdOrCtrl+Shift+I"), App(AppAction::Import), Always),
                 Entry::Separator,
@@ -584,7 +620,7 @@ mod native {
     use std::str::FromStr;
 
     use muda::accelerator::Accelerator;
-    use muda::{Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
+    use muda::{CheckMenuItem, Menu, MenuEvent, MenuItem, PredefinedMenuItem, Submenu};
 
     use super::{AppAction, Entry, MenuAction, MenuState, When, home_tree, tree};
 
@@ -599,10 +635,37 @@ mod native {
         project: Bar,
         home: Bar,
         in_project: Option<bool>,
-        items: Vec<(MenuItem, MenuAction, When)>,
+        items: Vec<(Native, MenuAction, When)>,
         state: Option<MenuState>,
         /// Picked items. muda stops filling its own channel once a handler is set, so the handler forwards here.
         picked: std::sync::mpsc::Receiver<MenuEvent>,
+    }
+
+    /// A native item: plain, or one that shows a check mark.
+    enum Native {
+        Plain(MenuItem),
+        Check(CheckMenuItem),
+    }
+
+    impl Native {
+        fn id(&self) -> &muda::MenuId {
+            match self {
+                Native::Plain(m) => m.id(),
+                Native::Check(m) => m.id(),
+            }
+        }
+        fn set_enabled(&self, on: bool) {
+            match self {
+                Native::Plain(m) => m.set_enabled(on),
+                Native::Check(m) => m.set_enabled(on),
+            }
+        }
+        fn set_text(&self, text: String) {
+            match self {
+                Native::Plain(m) => m.set_text(text),
+                Native::Check(m) => m.set_text(text),
+            }
+        }
     }
 
     /// macOS reads "&" as a mnemonic marker and drops it ("Wrap  Emboss"); "&&" shows one.
@@ -610,7 +673,7 @@ mod native {
         label.replace('&', "&&")
     }
 
-    fn fill(sub: &Submenu, entries: Vec<Entry>, items: &mut Vec<(MenuItem, MenuAction, When)>) {
+    fn fill(sub: &Submenu, entries: Vec<Entry>, items: &mut Vec<(Native, MenuAction, When)>) {
         for e in entries {
             match e {
                 Entry::Separator => {
@@ -618,8 +681,15 @@ mod native {
                 }
                 Entry::Item { label, accel, action, when } => {
                     let accel = accel.and_then(|a| Accelerator::from_str(a).ok());
-                    let mi = MenuItem::new(native_label(label), true, accel);
-                    let _ = sub.append(&mi);
+                    let mi = if super::check_bit(&action).is_some() {
+                        let mi = CheckMenuItem::new(native_label(label), true, false, accel);
+                        let _ = sub.append(&mi);
+                        Native::Check(mi)
+                    } else {
+                        let mi = MenuItem::new(native_label(label), true, accel);
+                        let _ = sub.append(&mi);
+                        Native::Plain(mi)
+                    };
                     items.push((mi, action, when));
                 }
                 Entry::Sub { label, items: children } => {
@@ -631,7 +701,7 @@ mod native {
         }
     }
 
-    fn build(menus: Vec<(&'static str, Vec<Entry>)>, items: &mut Vec<(MenuItem, MenuAction, When)>) -> Option<Bar> {
+    fn build(menus: Vec<(&'static str, Vec<Entry>)>, items: &mut Vec<(Native, MenuAction, When)>) -> Option<Bar> {
         let menu = Menu::new();
         let app = Submenu::new("ShapeCraft", true);
         let quit = MenuItem::new("Quit ShapeCraft", true, Accelerator::from_str("CmdOrCtrl+Q").ok());
@@ -649,8 +719,8 @@ mod native {
             &PredefinedMenuItem::separator(),
             &quit,
         ]);
-        items.push((quit, MenuAction::App(AppAction::Quit), When::Always));
-        items.push((prefs, MenuAction::Ui(crate::workspace::toolbar::UiAction::Preferences), When::Always));
+        items.push((Native::Plain(quit), MenuAction::App(AppAction::Quit), When::Always));
+        items.push((Native::Plain(prefs), MenuAction::Ui(crate::workspace::toolbar::UiAction::Preferences), When::Always));
         menu.append(&app).ok()?;
         // The system's Window menu: macOS adds Fill, Center, Move & Resize, tiling and the window list.
         let window = Submenu::new("Window", true);
@@ -726,6 +796,9 @@ mod native {
                 if matches!(action, MenuAction::Ui(crate::workspace::toolbar::UiAction::LockGrid)) {
                     mi.set_text(super::grid_label(&state));
                 }
+                if let (Native::Check(c), Some(on)) = (mi, state.checked(action)) {
+                    c.set_checked(on);
+                }
             }
             self.state = Some(state);
         }
@@ -797,7 +870,13 @@ impl WindowMenu {
             match e {
                 Entry::Item { label, accel, action, when } => {
                     let text = accel.map(shortcut_text).unwrap_or_default();
-                    if ui.add_enabled(when.holds(&self.state), egui::Button::new(*label).shortcut_text(text)).clicked() {
+                    // Check items lead with ✓ when on, and keep the space when off so the labels line up.
+                    let label = match self.state.checked(action) {
+                        Some(true) => format!("✓ {label}"),
+                        Some(false) => format!("    {label}"),
+                        None => label.to_string(),
+                    };
+                    if ui.add_enabled(when.holds(&self.state), egui::Button::new(label).shortcut_text(text)).clicked() {
                         self.pending.push(*action);
                         ui.close();
                     }

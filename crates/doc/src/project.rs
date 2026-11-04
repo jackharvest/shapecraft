@@ -683,10 +683,30 @@ pub fn list_all(root: &Path) -> Vec<ProjectSummary> {
     out
 }
 
-/// A new, empty folder inside `parent`.
+/// A new, empty folder inside `parent`: "Untitled Folder", then "Untitled Folder 1", "Untitled Folder 2" … (as the
+/// reference names them).
 pub fn new_folder(parent: &Path) -> Result<PathBuf, ProjectError> {
-    let dir = unique_dir(parent, "New Folder");
+    let mut dir = parent.join("Untitled Folder");
+    let mut n = 1;
+    while dir.exists() {
+        dir = parent.join(format!("Untitled Folder {n}"));
+        n += 1;
+    }
     fs::create_dir_all(&dir)?;
+    Ok(dir)
+}
+
+/// File ▸ New Folder with Selection: a new folder beside `item` (a project or a folder), with `item` moved into it.
+/// Returns the new folder.
+pub fn new_folder_with(item: &Path) -> Result<PathBuf, ProjectError> {
+    let parent = item.parent().ok_or_else(|| ProjectError::Invalid("no parent folder".into()))?;
+    let name = item.file_name().ok_or_else(|| ProjectError::Invalid("no name".into()))?.to_owned();
+    let dir = new_folder(parent)?;
+    if let Err(e) = replace(item, &dir.join(name)) {
+        // Leave nothing half done: an empty folder isn't what was asked for.
+        let _ = fs::remove_dir(&dir);
+        return Err(e.into());
+    }
     Ok(dir)
 }
 
@@ -755,6 +775,20 @@ fn no_views(v: &[Option<crate::SavedView>; 8]) -> bool {
 mod file_ops_tests {
     #![allow(clippy::unwrap_used)]
     use super::*;
+
+    #[test]
+    fn new_folder_names_and_new_folder_with_selection() {
+        let root = std::env::temp_dir().join(format!("sc-newfolder-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(root.join("Part")).unwrap();
+        fs::write(root.join("Part").join(PROJECT_FILE), b"{}").unwrap();
+        assert_eq!(new_folder(&root).unwrap(), root.join("Untitled Folder"));
+        let wrapped = new_folder_with(&root.join("Part")).unwrap();
+        assert_eq!(wrapped, root.join("Untitled Folder 1"));
+        assert!(wrapped.join("Part").join(PROJECT_FILE).exists());
+        assert!(!root.join("Part").exists());
+        let _ = fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn folders_rename_duplicate_and_trash() {

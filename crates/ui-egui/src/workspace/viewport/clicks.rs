@@ -891,7 +891,13 @@ impl Workspace {
                 }
                 let hit = self.pick_at(c);
                 self.last_hit = hit.map(|(_, at)| at);
-                match hit.map(|(p, _)| p) {
+                // A body that is one face all round (a sphere) is picked whole by a plain click (26.202, s40-022).
+                let whole = awaiting.is_none() && (matches!(self.tool, Tool::Idle) || self.predicted);
+                let hit_pick = hit.map(|(p, _)| match p {
+                    Pick::Face { body, .. } if whole && self.one_face_body(body) => Pick::Body { body },
+                    p => p,
+                });
+                match hit_pick {
                     Some(p) => {
                         // With "Require holding shift" off in Preferences, every click adds to the selection; a waiting
                         // tool gathers what's clicked.

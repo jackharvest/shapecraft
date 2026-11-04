@@ -315,7 +315,12 @@ impl Workspace {
                     flyout: false,
                 });
             }
-        } else if !self.session.selection.is_empty() || self.isolated.is_some() || matches!(self.tool, Tool::Onto(_) | Tool::Mirror(_)) {
+        } else if !self.session.selection.is_empty()
+            || self.isolated.is_some()
+            || matches!(self.tool, Tool::Onto(_) | Tool::Mirror(_))
+            || self.is_live() && !matches!(self.tool, Tool::Idle)
+        {
+            // A result waiting for Done keeps Isolate too (26.202: Extrude, Fillet, Offset Face; s40-010, s40-014).
             bottom.push(ToolDef {
                 icon: Icon::Isolate,
                 label: "Isolate",
@@ -425,6 +430,9 @@ impl Workspace {
         } else if idle_column && matches!(self.tool, Tool::Extrude(_)) {
             // Extrude picked or pulled: the idle set, then Extrude in its own group, lit (s24-007).
             toolbar::def_for(ToolKind::Extrude).into_iter().collect()
+        } else if idle_column && matches!(&self.tool, Tool::Fillet(t) if !t.chamfer) {
+            // Fillet pulled (26.202, s40-010): the same, with Fillet lit.
+            toolbar::def_for(ToolKind::Fillet).into_iter().collect()
         } else if let Tool::Onto(t) = &self.tool {
             // Applied, nothing is picked: the idle set, then the running tool in its own group (s11-130, s11-135).
             toolbar::FACE.iter().filter(|d| d.label == t.title()).copied().collect()

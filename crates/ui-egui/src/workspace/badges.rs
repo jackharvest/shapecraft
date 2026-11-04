@@ -22,8 +22,6 @@ pub enum Badge {
     Continuity,
     /// Fillet's Size Type: Radius / Chord Width.
     SizeType,
-    /// Fillet's Corners: Rolling Ball / Setback.
-    Corner,
     /// Chamfer's Equal Distance / Two-Distance.
     ChamferType,
     /// Offset Edge's Single / Chain (whole connected chains of the picked curves).
@@ -224,11 +222,8 @@ impl Workspace {
             }
             Tool::Scale(t) => out.push((Badge::ScaleMode, Face::Icon(if t.uniform { Icon::Scale } else { Icon::ScaleFree }))),
             Tool::Fillet(t) if t.chamfer => out.push((Badge::ChamferType, Face::Text(if t.two.is_some() { "2" } else { "=" }))),
-            Tool::Fillet(t) => {
-                out.push((Badge::Continuity, Face::Text(if t.g2 { "G2" } else { "G1" })));
-                out.push((Badge::SizeType, Face::Text(if t.chordal { "C" } else { "R" })));
-                out.push((Badge::Corner, Face::Text(if t.setback { "SB" } else { "RB" })));
-            }
+            // On canvas only Continuity (26.200 s29, 26.202 s40-010); Type and Corner live in the card.
+            Tool::Fillet(t) => out.push((Badge::Continuity, Face::Text(if t.g2 { "G2" } else { "G1" }))),
             // Shown on a whole region too, as observed (s11-075).
             Tool::OffsetEdge(t) if t.face.is_none() => out
                 .push((Badge::OffsetType, Face::Icon(if self.variant("Offset Edge") == 1 { Icon::OffsetChain } else { Icon::OffsetEdge }))),
@@ -300,10 +295,6 @@ impl Workspace {
                 Tool::Fillet(t) => Some(usize::from(t.chordal)),
                 _ => None,
             },
-            Badge::Corner => match &self.tool {
-                Tool::Fillet(t) => Some(usize::from(t.setback)),
-                _ => None,
-            },
             Badge::ChamferType => match &self.tool {
                 Tool::Fillet(t) => Some(usize::from(t.two.is_some())),
                 _ => None,
@@ -329,7 +320,6 @@ impl Workspace {
             // G2 is built for straight outside edges between flat faces (engine fillet_g2); others refuse with a toast.
             Badge::Continuity => ("Continuity", vec![("G1 - Tangent", None, true), ("G2 - Curvature", None, true)]),
             Badge::SizeType => ("Size Type", vec![("Radius", None, true), ("Chord Width", None, true)]),
-            Badge::Corner => ("Corners", vec![("Rolling Ball", None, true), ("Setback", None, true)]),
             Badge::ChamferType => ("Type", vec![("Equal Distance", None, true), ("Two-Distance", None, true)]),
             Badge::OffsetType => ("Type", vec![("Single", Some(Icon::OffsetEdge), true), ("Chain", Some(Icon::OffsetChain), true)]),
             Badge::Definition => ("Definition", vec![("Total Angle", None, true), ("Spacing Angle", None, true)]),
@@ -376,13 +366,9 @@ impl Workspace {
             }
             return;
         }
-        if let (Badge::SizeType | Badge::Corner, Tool::Fillet(t)) = (b, &self.tool) {
+        if let (Badge::SizeType, Tool::Fillet(t)) = (b, &self.tool) {
             let mut t = t.clone();
-            if b == Badge::SizeType {
-                t.chordal = i == 1;
-            } else {
-                t.setback = i == 1;
-            }
+            t.chordal = i == 1;
             self.tool = Tool::Fillet(t.clone());
             self.preview = None;
             if t.radius > 1e-9 {

@@ -704,6 +704,9 @@ impl ShapeCraftApp {
                 let ws = self.ws.as_deref_mut().ok_or("no project")?;
                 let command = params.get("command").and_then(Value::as_str).ok_or("'command' is required")?;
                 let p = params.get("params").cloned().unwrap_or(json!({}));
+                // A modeling tool left open (Offset Face, Fillet …) ends first, keeping what it already applied, as
+                // a menu command would: its handles, pills and hint would otherwise stay on screen over the new model.
+                ws.end_model_tool();
                 let out = ws.session.execute(command, &p).map_err(|e| e.to_string())?;
                 // Entering a sketch over the control channel looks at its plane, unless the call says "look": false
                 // (scripts that place the camera themselves, recordings). ui.camera also stops a move under way.
@@ -1340,6 +1343,7 @@ impl ShapeCraftApp {
                 grid_locked: ws.grid_locked.is_some(),
                 visualizing: ws.visualizing,
                 drawing: ws.drawings.is_some(),
+                checks: ws.menu_checks(),
             },
         };
         bar.update(state);

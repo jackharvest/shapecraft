@@ -49,8 +49,13 @@ fn error_panel() -> Color32 {
 const ERROR_H: f32 = 46.0;
 
 /// With something selected, History lists only the steps that made it (as observed); `None` shows everything.
-fn related_filter(ws: &mut Workspace) -> Option<Vec<bool>> {
+fn related_filter(ws: &mut Workspace, busy: bool) -> Option<Vec<bool>> {
     use shapecraft_doc::Pick;
+    // While a result waits for Done the filter stays as it was when the tool began, dimmed (26.202, s40-010): the
+    // live step and whatever the tool did to the selection don't change it.
+    if busy {
+        return ws.history.related.as_ref().and_then(|(_, _, r)| r.clone()).filter(|r| r.iter().any(|x| *x));
+    }
     let sel = &ws.session.selection;
     if sel.is_empty() || ws.history.cleared.as_ref() == Some(sel) {
         return None;
@@ -236,6 +241,9 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     // and the sketch's own row is lit grey.
     let sketching = ws.session.active_sketch;
     let empty_sketch = sketching.filter(|&k| ws.session.doc.sketch(k).is_some_and(|sk| sk.entities.is_empty()));
+    // A tool holding a result not yet applied (Cancel / Done showing) dims the filter and its steps (26.202, s37).
+    let busy = ws.is_live() && !matches!(ws.tool, super::tools::Tool::Idle);
+    let live = busy && past > 0;
     let steps: Vec<(usize, HistoryStep)> = ws
         .session
         .doc
@@ -245,6 +253,8 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
         .cloned()
         .enumerate()
         .filter(|(_, h)| !h.quiet && !(h.kind == "sketch" && empty_sketch.is_some() && h.sketch == empty_sketch))
+        // A result waiting for Done isn't a step yet (26.202, s40-010, s40-014: Extrude, Fillet).
+        .filter(|(i, _)| !(live && *i + 1 == past))
         .collect();
     let mut edit_sketch: Option<usize> = None;
     let mut marked = false;
@@ -258,9 +268,7 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     let mut y = r.top() + 62.0 - ROW_H / 2.0;
     let left = r.left() + 9.0;
     let right = r.right() - 9.0;
-    let filter = related_filter(ws);
-    // A tool holding a result not yet applied (Cancel / Done showing) dims the filter and its steps (26.202, s37).
-    let busy = ws.is_live() && !matches!(ws.tool, super::tools::Tool::Idle);
+    let filter = related_filter(ws, busy);
     if filter.is_some() {
         // The filter's row: dark blue, a blue filter badge, the title, and Clear on the right.
         let bar = Rect::from_min_size(pos2(left, r.top() + 34.0), vec2(right - left, 26.0));

@@ -451,7 +451,59 @@ pub(crate) struct Preview {
 
 impl Workspace {
     /// The Distance Type Offset Face uses for this face: a round face's own, else Total or Offset.
+    /// The menu bar's check marks (menubar::check_bit): sidebars, view options, display mode, units and formats.
+    pub(crate) fn menu_checks(&self) -> u32 {
+        use crate::menubar::{MenuAction as M, check_bit};
+        use shapecraft_doc::Units;
+        use toolbar::UiAction;
+        let o = &self.view_opts;
+        let units = match self.session.doc.units {
+            Units::Millimeter => 0,
+            Units::Centimeter => 1,
+            Units::Meter => 2,
+            Units::Inch => 3,
+            Units::Foot => 4,
+        };
+        let on = [
+            (M::Ui(UiAction::ToggleHistory), self.show_history),
+            (M::Ui(UiAction::ToggleItems), self.show_items),
+            (M::Ui(UiAction::ToggleGrid), o.grid),
+            (M::Ui(UiAction::ToggleAxes), o.axes),
+            (M::Ui(UiAction::ToggleEdges), o.edges),
+            (M::Ui(UiAction::ToggleSketches), o.sketches),
+            (M::Ui(UiAction::ToggleHiddenEdges), o.hidden_edges),
+            (M::Ui(UiAction::ToggleDecals), o.decals),
+            (M::Ui(UiAction::TogglePinned), o.pinned),
+            (M::Display(self.display), true),
+            (M::Ui(UiAction::Units(units)), true),
+            (M::Ui(UiAction::FeetArchitectural(self.feet_architectural)), true),
+            (M::Ui(UiAction::DegreesFractional(self.degrees_fractional)), true),
+        ];
+        on.iter().filter(|(_, v)| *v).filter_map(|(a, _)| check_bit(a)).fold(0, |acc, b| acc | (1 << b))
+    }
+
+    /// Ends a running modeling tool, keeping a result it already applied (as Done does). Sketch tools and plane
+    /// picking stay.
+    pub(crate) fn end_model_tool(&mut self) {
+        if matches!(self.tool, tools::Tool::Idle | tools::Tool::PickPlane { .. }) || self.tool.is_sketch_tool() {
+            return;
+        }
+        self.live_step = None;
+        self.numeric = None;
+        self.preview = None;
+        self.predicted = false;
+        self.tool = tools::Tool::Idle;
+    }
+
+    /// A body made of a single face (a sphere, a closed free-form shape).
+    pub(crate) fn one_face_body(&self, body: shapecraft_doc::ItemId) -> bool {
+        self.session.doc.body(body).is_some_and(|b| self.session.kernel.face_count(&b.shape).is_ok_and(|n| n == 1))
+    }
+
     pub(crate) fn offset_kind(&self, t: &tools::OffsetFaceTool) -> tools::OffsetKind {
+        if !t.kinds {
+            return tools::OffsetKind::Offset;
+        }
         match (t.radius.is_some(), self.offset_total) {
             (true, _) => self.offset_round,
             (false, true) => tools::OffsetKind::Total,

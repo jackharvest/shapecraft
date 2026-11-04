@@ -2,87 +2,78 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.5.8-alpha
+## 0.5.9-alpha
 
-Fixed:
-- Offset Face shows its current size as a blue-edged value on the dashed line, after the distance type (0.5.7 opened a
-  big typing box straight away). Typing opens the box right there, and Escape closes just the box: the tool stays
-  open.
-- A typed value now takes effect when you press Return, in every tool: the part, the arrow and the cut stay where
-  they are while you type. Extrude's typing box is the same full-size one as the other tools', just past the arrow.
-- Pushing a sketch into a part: the picked profile turns orange, the volume to be cut is a faint red with a thin
-  dark rim where it ends, and the part stays whole until Done.
-- The Extrude card says "Subtract - Auto" for a cut that's waiting for Done (it said New Body) and lists what it cuts
-  ("Subtract From: 1 body"). While you type a depth, it agrees with the Result badge.
-- Menus: "Wrap & Emboss" and "Foot & Inch Format" lost their "&". View has Material, Environment and Camera
-  Properties (in Visualization) and Drawing Properties (in Drawings), with the reference's separators, and ends with
-  Enter Full Screen. The Window menu has the system's items (Zoom, Fill, Center, Move & Resize, tiling) and lists the
-  window by its project's name. Offset Edge in the Sketch menu is a plain item again.
-- The home screen has its own, shorter menu bar: File (New Project, New Folder, Import as new project, Duplicate),
-  Edit, Go (Recents ⇧⌘1, Projects ⇧⌘2), View (Sort By, Search ⌘F), Window and Help. Edit ▸ Rename (⌘R) renames the
-  selected project or folder. A project's menus no longer carry the home screen's items.
-- A home screen search that finds nothing says so ("No results for …") instead of "No projects yet".
-- The .shapr format is named after its file type everywhere in the app.
+**Fillet, Offset Face and Extrude now wait for Return before a typed value takes effect, Return finishes a tool,
+and a result waiting for Done looks the same in every tool. The home screen gets its own menus and folder commands,
+the View menu shows check marks, and multi-colour 3MF files land on separate filaments in Bambu Studio and
+OrcaSlicer.** Everything since 0.5.3 is below.
 
-## 0.5.7-alpha
+### New
+- **Open in your slicer with one click.** Export ▸ Slicer lists an "Open in …" row for each slicer found on your
+  computer. One click exports the model and opens it there.
+- **Multi-colour 3MF.** Each body colour arrives in Bambu Studio and OrcaSlicer (Snapmaker Orca tested) on its own
+  filament. Before, every body landed on filament 1. The slicer still picks the filament colours for those slots.
+- **Home screen menus.** The home screen has its own menu bar: File (New Project, New Folder ⇧⌘N, New Folder with
+  Selection ⌥⌘N, Import as new project ⇧⌘I, Duplicate ⌘D), Edit (Rename ⌘R), Go (Back, Forward, Enclosing Folder,
+  Recents ⇧⌘1, Projects ⇧⌘2), View (Sort By, Search ⌘F), Window and Help.
+- **New Folder with Selection** (⌥⌘N) puts the selected project or folder into a new folder in its place, with the
+  name ready to type.
+- **Sketch menu submenus.** Spline, Rectangle and Polygon start as the type you pick there (Rectangle ▸ 3 Points,
+  Polygon ▸ Hexagon …) or as last used.
+- **View menu.** Show Sketches; Lock Grid Size shows the size it would lock, with a tip that zooming changes it;
+  Material, Environment and Camera Properties (in Visualization) and Drawing Properties (in Drawings). The sidebars,
+  view options, display mode, units and formats show a check mark when they're on.
+- **Return with nothing to finish** opens Search Commands where the pointer is.
 
-Fixed:
-- Offset Face opens its value field straight away with the current size in it (the diameter of a round face, the
-  thickness of a flat one), already selected, so you can just type the new number. Pulling the arrow still works.
-- While you push a sketch into a part, the part stays whole with the red volume to be cut drawn over it, instead
-  of already showing the hole. Typing a depth shows the red volume too. Done makes the cut.
-- Return with nothing to finish opens Search Commands where the pointer is.
-- Multi-colour 3MF: each body colour now arrives in Bambu Studio and OrcaSlicer (Snapmaker Orca tested) on its own
-  filament. Before, every body landed on filament 1. The slicer still uses its own filament colours for those slots.
+### Changed
+- **Typed values take effect on Return**, in every tool. The part, the arrow and the cut stay where they are while
+  you type, and the typing box opens where the value was. Escape closes just the box; the tool stays open. Fillet
+  uses the same full-size box as the other tools.
+- **Offset Face** shows its value on the dashed line after the distance type. A flat face offers Offset and Total
+  (its thickness). A round face, such as a shaft or a hole, offers Offset, Radius and Diameter, starts on Diameter and
+  reads exactly ("⌀10 mm", not 9.98). Cones, spheres and free-form faces just offset, with the value always shown.
+  The arrow is a shorter, lighter double arrow.
+- **Fillet on the canvas** reads "0 mm" before you pull, then "R2 mm" with one badge, Continuity (G1 or G2). Type and
+  Corner are in the Fillet card.
+- **Pushing a sketch into a part** shows the picked profile in orange and the volume to be cut in faint red, with a
+  thin dark rim where it ends. The part stays whole until Done, and the Result badge says Subtract the whole time.
+- **While a result waits for Done**, the left column shows the usual tools with the running one lit below them
+  (Fillet now too) and Isolate at the bottom. History dims its filter and steps and lists the new step only once you
+  press Done. While you sketch, History dims every step but the sketch you're in, and an empty new sketch isn't listed
+  yet.
+- **Selection.** A round face shows its diameter at the bottom ("⌀ 10 mm"). A sphere is picked whole with one click
+  and shows its diameter too.
+- **Tool hints** say what to pick (faces, edges, a profile) instead of how to drag.
+- **View cube.** Its edges look cut rather than rounded, its axes are shorter, and clicking near a face's edge or
+  corner picks that view without having to hit the thin bevel.
+- **New tools are marked.** Fill (Beta) has its own icon. It and the sketch Fillet carry a small blue dot, as do the
+  Tools and More buttons that hold them. The Tools list shows Fillet and Chamfer separately and includes Fill. Scale
+  and Project show their S and P keys.
+- **Home screen.** New folders are called "Untitled Folder", and a folder says how many items it holds. A search that
+  finds nothing says "No results for …". Project names stop at two lines.
+- **Menus.** "Wrap & Emboss" and "Foot & Inch Format" show their "&". The Window menu has the system's items (Zoom,
+  Fill, Center, Move & Resize, tiling) and lists the window by its project's name. A project's menus no longer carry
+  the home screen's items. The .shapr format is named after its file type everywhere in the app.
 
-Added:
-- Export ▸ Slicer lists one "Open in …" row per slicer found on your computer. One click exports and opens it there.
-- Sketch menu: Spline, Rectangle, Polygon and Offset Edge have submenus to start them as a particular type
-  (Rectangle ▸ 3 Points, Polygon ▸ Hexagon, …) or as last used.
-- View ▸ Show Sketches hides every sketch except the one you're editing. View ▸ Lock Grid Size shows the grid size
-  it would lock, with a tip that zooming changes it.
-- Home screen menus: File ▸ New Folder and Duplicate, a Go menu (Back, Forward, Enclosing Folder, Recents,
-  Projects), and View ▸ Sort By (date or name, either direction) and Search.
-
-## 0.5.6-alpha
-
-Fixed:
-- Offset Face on a round face (a shaft, a hole) now offers Offset, Radius and Diameter, starting on Diameter.
-  The value is exact (a 10 mm cylinder reads "⌀10 mm", not 9.98), the dashed line runs to the axis for Radius and
-  across to the far side for Diameter, and the value comes before the type. Plain Offset shows only the arrow
-  until you pull it. The arrow itself is a shorter, lighter double arrow.
-- Selecting a round face shows its diameter at the bottom ("⌀ 10 mm"); 0.5.3 showed the radius.
-- Cancel and Escape after pulling a tool (Extrude, Offset Face and the rest) now throw the result away. Before,
-  they kept it as if you had pressed Done.
-- Pushing a sketch into a part shows the material that will be cut away in red while you pull, and the Result
-  badge says Subtract the whole time instead of flipping to New Body once the cut appears.
-- History dims its filter and steps while a tool's result waits for Done, and while you sketch it dims every step
-  but the sketch you're in. A new sketch with nothing drawn in it isn't listed yet.
-- The view cube's edges look cut rather than rounded, its axes are shorter, and clicking near a face's edge or
-  corner picks that edge or corner view without having to hit the thin bevel exactly.
-- Tool hints now say what to pick (faces, edges, a profile) instead of how to drag.
-- Fill (Beta) has its own icon, and it and the sketch Fillet carry a small blue "new" dot, as do the Tools and
-  More buttons that hold them. The Tools list now shows Fillet and Chamfer separately and includes Fill. Scale and
-  Project show their S and P keys.
-- Projects keep each body exactly as it was saved: a surface body, or one body made of separate pieces, could
-  come back wrong or missing. A project whose bodies file is missing says so and rebuilds its bodies from the
-  History instead of failing with "STEP import failed".
-
-## 0.5.5-alpha
-
-Fixed:
-- Long names in the Items and History lists ran out of the panel into the model. They now end in "…", and
-  project names on the home screen stop at two lines.
-- A project whose saved bodies file was damaged wouldn't open at all ("STEP import failed"). It now opens, its
-  bodies are rebuilt from the History, and a message tells you; the damaged file is kept beside it.
-
-## 0.5.4-alpha
-
-Fixed:
-- After an update, ShapeCraft could sit with no window for as long as macOS was waiting for you to allow access
-  to the Documents folder (where projects live), so it looked stuck. The window now opens right away, the home
-  screen says it's opening your projects folder, and it tells you to choose Allow if macOS asks. If access was
-  turned down, it says where to turn it back on instead of showing an empty home screen.
+### Fixed
+- **Return finishes a tool.** With a result already applied and nothing typed, Return now acts as Done, as the
+  button's ↵ says. Before, it applied the same result again and the tool stayed open.
+- **Cancel and Escape throw a pulled result away** (Extrude, Offset Face and the rest). They used to keep it as if
+  you had pressed Done.
+- **Offset Face on a cone** showed a wrong diameter ("⌀15.6576 mm"), and on a sphere it offered Total. Both now
+  just offset.
+- **The Extrude card** said New Body for a cut waiting for Done. It now says "Subtract - Auto" and lists what it
+  cuts, and agrees with the Result badge while you type a depth.
+- **Projects keep each body exactly as saved.** A surface body, or one body made of separate pieces, could come back
+  wrong or missing. A project whose bodies file is missing or damaged now opens, rebuilds its bodies from the History
+  and tells you, instead of failing with "STEP import failed". A damaged file is kept beside it.
+- **Long names** in the Items and History lists ran out of the panel. They now end in "…".
+- **Slow to open after an update (macOS).** ShapeCraft could sit with no window while macOS waited for you to allow
+  access to the Documents folder. The window now opens right away, says it's opening your projects folder, and tells
+  you to choose Allow. If access was turned down, it says where to turn it back on.
+- **Scripts and agents.** A command sent over the control channel or MCP while a modeling tool was open left that
+  tool's handles and hint on screen. The tool now closes first, keeping what it already applied.
 
 ## 0.5.3-alpha
 

@@ -15,8 +15,9 @@ A MINOR bump resets PATCH to 0. A batch that mixes features and fixes is a MINOR
 ## Each version
 
 1. Set the version in `Cargo.toml`.
-2. Add the version's section to [`CHANGELOG.md`](../CHANGELOG.md): what's new (one line per feature), then what was
-   fixed.
+2. Write the version's section in [`CHANGELOG.md`](../CHANGELOG.md) for someone updating from the last public
+   release: a bold one-line summary, then `### New`, `### Changed` and `### Fixed`, one bold lead phrase per line
+   ("**Return finishes a tool.** …"). Leave out headings that would be empty.
 3. For every new feature worth showing, add a card to What's new on the home screen
    (`crates/ui-egui/src/whats_new.rs`): its version, a title, a short text, and a picture in `assets/home/` (our own
    renders or screenshots, 340 × 438, see-through around the model). Newest first.
@@ -26,14 +27,17 @@ A MINOR bump resets PATCH to 0. A batch that mixes features and fixes is a MINOR
 
 Work is versioned as it's finished, but published at most once a day (security fixes excepted).
 
-- Every batch of finished, verified work gets the next version on its own: `Cargo.toml`, a `CHANGELOG.md` section, a
-  commit and a **local** tag. Fixes found while checking a version go into the next one (0.5.1, then 0.5.2), never
-  back into a version that's already tagged.
+- Every batch of finished, verified work gets the next version on its own: `Cargo.toml`, a commit and a **local**
+  tag. Fixes found while checking a version go into the next one (0.5.1, then 0.5.2), never back into a version
+  that's already tagged.
 - Most of these versions are never published. The day's one push publishes only the newest, so a GitHub release
   is often several versions past the previous public one. That is normal.
+- `CHANGELOG.md` has one section per **public** release. People update from one public version to the next, so the
+  versions in between don't get sections of their own: each batch adds its changes to the section of the version
+  that will be published next, merged into its New / Changed / Fixed lists (a later change to the same thing
+  replaces the earlier line rather than adding to it). Retitle the section whenever a newer version is tagged.
 - Push `main` and **only the newest tag**. An older tag pushed on its own would start a release of its own.
-- The release notes are every `CHANGELOG.md` section since the last public release (newest first; the older ones
-  under "Also in …"), so nothing done in between goes unmentioned.
+- The release notes are that one section.
 
 ## Publishing
 

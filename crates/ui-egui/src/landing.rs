@@ -23,6 +23,8 @@ pub enum Section {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HomeCmd {
     NewFolder,
+    /// The selected project or folder, moved into a new folder in its place (⌥⌘N).
+    NewFolderWithSelection,
     Duplicate,
     Back,
     Forward,
@@ -190,6 +192,18 @@ impl Landing {
                     self.renaming = Some((dir, name, true));
                 }
             }
+            HomeCmd::NewFolderWithSelection => match self.selected.clone() {
+                // As the reference: only where the project actually sits, not in Recents.
+                Some(item) if self.section == Section::All => {
+                    if let Some(dir) = self.report(now, project::new_folder_with(&item)) {
+                        let name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                        self.selected = Some(dir.clone());
+                        self.renaming = Some((dir, name, true));
+                    }
+                }
+                Some(_) => self.toast = Some(("Open Projects to put this in a new folder".into(), now + 3.0)),
+                None => self.toast = Some(("Select a project or folder to put in a new folder".into(), now + 3.0)),
+            },
             HomeCmd::Rename => match self.selected.clone() {
                 Some(dir) => {
                     let name = match self.projects.iter().find(|p| p.dir == dir) {
@@ -611,8 +625,9 @@ impl Landing {
                 Tile::Folder(dir) => {
                     icons::paint(&p, Rect::from_center_size(tile.center(), vec2(64.0, 64.0)), Icon::Folder, Tokens::text_dim());
                     let name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                    let n = project::list(dir).len();
-                    (dir.clone(), name, format!("{n} project{}", if n == 1 { "" } else { "s" }))
+                    // Projects and folders inside, as the reference counts them ("1 item", "0 items"; s40-034).
+                    let n = project::list(dir).len() + project::folders(dir).len();
+                    (dir.clone(), name, format!("{n} item{}", if n == 1 { "" } else { "s" }))
                 }
                 Tile::Project(dir) => {
                     let Some(proj) = list.iter().find(|p| &p.dir == dir) else { continue };

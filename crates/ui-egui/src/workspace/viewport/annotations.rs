@@ -909,7 +909,7 @@ impl Workspace {
                     K::Diameter => "Diameter ⌄",
                 };
                 // Offset, as observed: only the arrow until it's pulled.
-                if mode != K::Offset || t.distance.abs() > 1e-9 || typed.is_some() {
+                if t.kinds && (mode != K::Offset || t.distance.abs() > 1e-9 || typed.is_some()) {
                     kind_pill = Some((s0 + sdir * 40.0, kind));
                 }
                 label_at = s0 + sdir * 86.0;
@@ -989,18 +989,17 @@ impl Workspace {
                 }
                 // As observed: a fillet reads "R5 mm", a chamfer just its length.
                 Tool::Fillet(t) if t.chamfer => format_length(t.radius, units),
+                // Before a pull it reads just "0 mm"; pulled, "R2 mm" (26.202, s40-008 / s40-010).
+                Tool::Fillet(t) if t.radius.abs() < 1e-9 => format_length(0.0, units),
                 Tool::Fillet(t) => format!("R{}", format_length(t.radius, units)),
                 _ => format_length(value, units),
             };
             // Offset, Radius and Diameter (26.202, s37): the value comes first along the line, the type pill after
             // it. Total keeps the type first.
             // Typing opens the value field where the value pill was (26.202, s39-of-type15, s39-cut-typed), so the
-            // pills keep their places while it's open. Fillet keeps its own small box (not re-observed).
-            let big_field = typed.is_some() && !matches!(self.tool, Tool::Fillet(_));
-            let lay_typed = if big_field { None } else { typed };
+            // pills keep their places while it's open. Fillet too (26.202, s40-009: the field over its "0 mm").
             let value_first = matches!(&self.tool, Tool::OffsetFace(t)
-                if t.fillet.is_none() && self.offset_kind(t) != crate::workspace::tools::OffsetKind::Total)
-                && lay_typed.is_none();
+                if t.fillet.is_none() && self.offset_kind(t) != crate::workspace::tools::OffsetKind::Total);
             if let Some((at, kind)) = kind_pill {
                 let half = shown.chars().count() as f32 * 2.9 + 6.0;
                 let kind_at = if value_first {
@@ -1013,7 +1012,7 @@ impl Workspace {
                 let pr = axis_pill(&painter, kind_at, label_dir, kind, false);
                 ui.ctx().data_mut(|d| d.insert_temp(ui.scope_id().with("offset-kind-pill"), pr));
                 // The value follows the type pill along the same line, a small gap after it however long it reads.
-                if !value_first && matches!(&self.tool, Tool::OffsetFace(t) if t.fillet.is_none()) && lay_typed.is_none() {
+                if !value_first && matches!(&self.tool, Tool::OffsetFace(t) if t.fillet.is_none()) {
                     let along = (pr.width().max(pr.height()) / 2.0).max(10.0);
                     label_at = at + label_dir * (along + 5.0 + half);
                 }
@@ -1051,20 +1050,22 @@ impl Workspace {
             }
             // Offset Face's plain Offset shows no value until it's pulled (as observed, s37).
             let unpulled_offset = matches!(&self.tool, Tool::OffsetFace(t)
-                if t.fillet.is_none() && t.distance.abs() < 1e-9 && self.offset_kind(t) == crate::workspace::tools::OffsetKind::Offset);
+                if t.kinds && t.fillet.is_none() && t.distance.abs() < 1e-9 && self.offset_kind(t) == crate::workspace::tools::OffsetKind::Offset);
             // Before anything is typed the value is the blue-rimmed pill on the line (26.202, s39-of-side: "13 mm"
             // after "Total ⌄"); a key opens the field over it.
-            if let (true, Some(t)) = (big_field, typed) {
+            if let Some(t) = typed {
                 value_field(&painter, label_at - vec2(13.0, 0.0), t);
-            } else if typed.is_some() {
-                value_box(&painter, label_at + label_dir * 30.0, &shown, typed);
             } else if !unpulled_offset {
                 axis_pill(&painter, label_at, label_dir, &shown, true);
             }
-            if matches!(self.tool, Tool::Fillet(_)) {
+            // Its badge (G1, or the chamfer's Type) once there's a fillet to change; none before the pull or while
+            // the field is open (26.202, s40-008..010).
+            if let Tool::Fillet(t) = &self.tool
+                && typed.is_none()
+                && (t.chamfer || t.radius.abs() > 1e-9)
+            {
                 let half = shown.chars().count() as f32 * 3.3 + 6.0;
-                let start = if typed.is_some() { label_at + label_dir * 110.0 } else { label_at + label_dir * (half + 17.0) };
-                crate::workspace::badges::paint_row(self, ui, &painter, start, label_dir);
+                crate::workspace::badges::paint_row(self, ui, &painter, label_at + label_dir * (half + 17.0), label_dir);
             }
         }
         // Two-Distance chamfer's second arrow, on the other face, with its own dashed dimension back to the edge.

@@ -94,6 +94,8 @@ impl Workspace {
         matches!(self.tool, Tool::Await { kind: super::toolbar::ToolKind::Move, .. })
             || self.card_tool() && self.options_menu.is_some()
             || matches!(self.tool, Tool::Extrude(_)) && (!self.predicted || self.is_live())
+            // A pulled fillet waits for Done under the idle set (26.202, s40-010, s40-012).
+            || matches!(&self.tool, Tool::Fillet(t) if !t.chamfer) && self.is_live()
     }
 
     /// A running tool whose ≡ opens a Parameter Card (step_card.rs) rather than an options menu.

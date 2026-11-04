@@ -455,7 +455,35 @@ impl Session {
     /// hole), for the selection pill ("1 face | ⊝ 5.6569 mm | ‹" in the reference, 26.202 s36). Cones, spheres and
     /// anything else answer `None`.
     pub fn selection_radius(&self) -> Option<f64> {
-        let [Pick::Face { body, face }] = self.selection[..] else { return None };
+        match self.selection[..] {
+            [Pick::Face { body, face }] => self.face_radius(body, face),
+            // A one-face body picked whole: a sphere reads its diameter too (26.202, s40-022: "⌀ 16 mm").
+            [Pick::Body { body }] => self.sphere_radius(body),
+            _ => None,
+        }
+    }
+
+    /// A body that is a single sphere: its radius, from its display mesh's points around their middle.
+    fn sphere_radius(&self, body: ItemId) -> Option<f64> {
+        let b = self.doc.body(body)?;
+        if self.kernel.face_count(&b.shape).ok()? != 1 {
+            return None;
+        }
+        let pts: Vec<glam::DVec3> = b.mesh.positions.iter().map(|p| glam::DVec3::from(p.map(f64::from))).collect();
+        let (lo, hi) = pts.iter().fold((glam::DVec3::splat(f64::MAX), glam::DVec3::splat(f64::MIN)), |(l, h), p| (l.min(*p), h.max(*p)));
+        let c = (lo + hi) / 2.0;
+        let (mut rlo, mut rhi) = (f64::MAX, f64::MIN);
+        for p in &pts {
+            let r = p.distance(c);
+            rlo = rlo.min(r);
+            rhi = rhi.max(r);
+        }
+        (rhi >= rlo && rlo > 1e-6 && rhi - rlo <= 1e-4 * rhi.max(1.0)).then_some((rlo + rhi) / 2.0)
+    }
+
+    /// A face's radius when it's the same all over about its axis (a cylinder's wall, a hole); `None` for flat faces,
+    /// cones, spheres and free-form ones.
+    pub fn face_radius(&self, body: ItemId, face: u32) -> Option<f64> {
         let b = self.doc.body(body)?;
         if self.kernel.face_plane(&b.shape, face).ok().flatten().is_some() {
             return None;
