@@ -71,11 +71,9 @@ impl Workspace {
                 }
             }
             UiAction::ToolCancel => {
-                // Abandons the tool, taking back a step it already made (Align, observed 389); what was selected
-                // stays selected.
-                if self.is_live()
-                    && matches!(&self.tool, Tool::Align { .. } | Tool::Onto(_) | Tool::Mirror(tools::MirrorTool { split: true, .. }))
-                {
+                // Abandons the tool, taking back a step it already made (Align, observed 389; a pulled Extrude
+                // or Offset Face too: Cancel never keeps the result); what was selected stays selected.
+                if self.is_live() && !matches!(self.tool, Tool::Idle) {
                     let selection = self.session.selection.clone();
                     self.session.drop_last_step();
                     self.session.selection = selection;
@@ -403,12 +401,8 @@ impl Workspace {
                 self.pending_tool = None;
                 self.tool = Tool::Idle;
             }
-            // A tool applied live: Escape is Cancel, taking its step back.
-            // Any tool holding a live result (Cancel / Done showing): Escape is Cancel, never Done.
-            _ if self.is_live() && !matches!(self.tool, Tool::Idle) => self.ui_action(UiAction::ToolCancel),
-            Tool::Align { .. } | Tool::Onto(_) | Tool::Mirror(tools::MirrorTool { split: true, .. }) if self.is_live() => {
-                self.ui_action(UiAction::ToolCancel)
-            }
+            // A tool holding a live result (Cancel / Done showing): Escape is Cancel, taking its step back.
+            _ if self.is_live() => self.ui_action(UiAction::ToolCancel),
             _ => {
                 self.tool = Tool::Idle;
             }
