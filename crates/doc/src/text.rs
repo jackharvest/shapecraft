@@ -24,28 +24,52 @@ const CANDIDATES: &[(&str, u32)] = &[
 
 pub const MAX_CHARS: usize = 500;
 
-fn font_data() -> Option<&'static (Vec<u8>, u32)> {
-    static FONT: OnceLock<Option<(Vec<u8>, u32)>> = OnceLock::new();
-    FONT.get_or_init(|| {
-        CANDIDATES.iter().find_map(|(path, index)| {
-            let bytes = std::fs::read(path).ok()?;
-            FontRef::from_index(&bytes, *index).ok()?;
-            Some((bytes, *index))
-        })
-    })
-    .as_ref()
+/// The plain sans-serif text is drawn with when no family is chosen.
+struct DefaultFont {
+    bytes: Vec<u8>,
+    index: u32,
+    name: String,
 }
 
-/// The family name of the font text is drawn with ("Helvetica", "Arial"…), from its file name.
-pub fn font_name() -> Option<String> {
-    font_data()?;
-    let path = CANDIDATES.iter().find(|(path, _)| std::path::Path::new(path).exists())?.0;
+fn font_data() -> Option<&'static DefaultFont> {
+    static FONT: OnceLock<Option<DefaultFont>> = OnceLock::new();
+    FONT.get_or_init(|| candidate_font().or_else(installed_sans)).as_ref()
+}
+
+fn candidate_font() -> Option<DefaultFont> {
+    CANDIDATES.iter().find_map(|(path, index)| {
+        let bytes = std::fs::read(path).ok()?;
+        FontRef::from_index(&bytes, *index).ok()?;
+        Some(DefaultFont { bytes, index: *index, name: name_from_path(path)? })
+    })
+}
+
+/// The family name of a candidate ("Helvetica", "Arial"…), from its file name.
+fn name_from_path(path: &str) -> Option<String> {
     let stem = path.rsplit(['/', '\\']).next()?.split('.').next()?;
     Some(match stem {
         "arial" => "Arial".into(),
         "segoeui" => "Segoe UI".into(),
         s => s.split('-').next().unwrap_or(s).to_string(),
     })
+}
+
+/// A sans-serif from the system's font directories, for systems that keep fonts outside the candidate paths
+/// (NixOS and Guix have no /usr/share/fonts). The generic family follows fontconfig's sans-serif alias.
+fn installed_sans() -> Option<DefaultFont> {
+    use fontdb::Family;
+    let db = system_fonts();
+    let families = [Family::SansSerif, Family::Name("DejaVu Sans"), Family::Name("Liberation Sans"), Family::Name("Noto Sans")];
+    let id = db.query(&fontdb::Query { families: &families, ..Default::default() })?;
+    let name = db.face(id)?.families.first()?.0.clone();
+    let (bytes, index) = db.with_face_data(id, |data, index| (data.to_vec(), index))?;
+    FontRef::from_index(&bytes, index).ok()?;
+    Some(DefaultFont { bytes, index, name })
+}
+
+/// The family name of the font text is drawn with ("Helvetica", "Arial"…).
+pub fn font_name() -> Option<String> {
+    font_data().map(|f| f.name.clone())
 }
 
 fn system_fonts() -> &'static fontdb::Database {
@@ -171,7 +195,7 @@ pub fn outlines_in(family: Option<&str>, text: &str, origin: DVec2, size: f64, a
     let chosen = family.and_then(family_data);
     let (bytes, index) = match (&chosen, font_data()) {
         (Some(d), _) => (&d.0, d.1),
-        (None, Some((b, i))) => (b, *i),
+        (None, Some(f)) => (&f.bytes, f.index),
         (None, None) => return Vec::new(),
     };
     let Ok(font) = FontRef::from_index(bytes, index) else { return Vec::new() };
