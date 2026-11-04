@@ -2,6 +2,30 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.5.6-alpha
+
+Fixed:
+- Offset Face on a round face (a shaft, a hole) now offers Offset, Radius and Diameter, starting on Diameter.
+  The value is exact (a 10 mm cylinder reads "⌀10 mm", not 9.98), the dashed line runs to the axis for Radius and
+  across to the far side for Diameter, and the value comes before the type. Plain Offset shows only the arrow
+  until you pull it. The arrow itself is a shorter, lighter double arrow.
+- Selecting a round face shows its diameter at the bottom ("⌀ 10 mm"); 0.5.3 showed the radius.
+- Cancel and Escape after pulling a tool (Extrude, Offset Face and the rest) now throw the result away. Before,
+  they kept it as if you had pressed Done.
+- Pushing a sketch into a part shows the material that will be cut away in red while you pull, and the Result
+  badge says Subtract the whole time instead of flipping to New Body once the cut appears.
+- History dims its filter and steps while a tool's result waits for Done, and while you sketch it dims every step
+  but the sketch you're in. A new sketch with nothing drawn in it isn't listed yet.
+- The view cube's edges look cut rather than rounded, its axes are shorter, and clicking near a face's edge or
+  corner picks that edge or corner view without having to hit the thin bevel exactly.
+- Tool hints now say what to pick (faces, edges, a profile) instead of how to drag.
+- Fill (Beta) has its own icon, and it and the sketch Fillet carry a small blue "new" dot, as do the Tools and
+  More buttons that hold them. The Tools list now shows Fillet and Chamfer separately and includes Fill. Scale and
+  Project show their S and P keys.
+- Projects keep each body exactly as it was saved: a surface body, or one body made of separate pieces, could
+  come back wrong or missing. A project whose bodies file is missing says so and rebuilds its bodies from the
+  History instead of failing with "STEP import failed".
+
 ## 0.5.5-alpha
 
 Fixed:
