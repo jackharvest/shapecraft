@@ -922,11 +922,16 @@ impl Renderer {
                 color = t.linear();
             }
             // A selected body is drawn see-through cyan (observed 329, 377), so what's inside and behind shows.
-            let see_through = ghost.is_none() && !sketching && scene.display.solid() && crate::scene::fully_selected(body, scene.selection);
+            // A tint with alpha (a face growing out under Extrude) is see-through the same way, at its own alpha.
+            let tinted_through = color[3] < 0.999;
+            let see_through = ghost.is_none()
+                && !sketching
+                && scene.display.solid()
+                && (tinted_through || crate::scene::fully_selected(body, scene.selection));
             if let Some(g) = ghost {
                 color = [g[0], g[1], g[2], 0.3];
             } else if see_through {
-                color[3] = 0.85;
+                color[3] = color[3].min(0.85);
             } else if scene.display == DisplayMode::XRay {
                 color[3] = c.xray.clamp(0.02, 0.95);
             } else if sketching {

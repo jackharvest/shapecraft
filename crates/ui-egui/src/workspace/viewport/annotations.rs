@@ -757,7 +757,8 @@ impl Workspace {
         {
             // The reference's look: a ↕ glyph on the cap, the length in a pill on a dashed line back to the
             // base, and the ↔ draft handle with its angle pill.
-            // A fresh region shows a blue ↕; a face you keep pulling shows a white ↕ and a blue ↔ (as observed).
+            // The ↕ is blue for a region and for a body face, before and after the pull (26.202, s41-011/014; the
+            // white ↕ on a face was 26.142). A face shows no ↔ draft handle.
             let blue = Tokens::accent();
             let fresh = matches!(t.target, crate::workspace::tools::Target::Region { .. });
             let shown_len = t.distance;
@@ -765,7 +766,7 @@ impl Workspace {
             // points, or where the value pill was on the dashed line.
             let field_reach = 30.0 + sdir.x.abs() * 107.0 + sdir.y.abs() * 20.0;
             let mut field_at = s0 + sdir * field_reach;
-            double_arrow(&painter, s0, sdir, 14.0, if fresh || t.dragging.is_some() { blue } else { Color32::WHITE }, theme::c(0x5a5d66));
+            double_arrow(&painter, s0, sdir, 14.0, blue, theme::c(0x5a5d66));
             if let Some(b0) = self.to_screen(t.origin) {
                 let len = (s0 - b0).length();
                 if len > 30.0 {

@@ -2,9 +2,10 @@
 
 use std::sync::Arc;
 
+use crate::theme;
 use glam::{DVec2, DVec3};
 use shapecraft_doc::{Pick, SketchEntity};
-use shapecraft_render::{Overlay, Rgba};
+use shapecraft_render::{Overlay, Rgba, SceneColors};
 
 use super::snap::ellipse_minor;
 use crate::workspace::Workspace;
@@ -394,7 +395,7 @@ impl Workspace {
             // A typed depth shows once Return applies it (26.202, s39-cut-typed: only the orange profile meanwhile).
             if self.badge_current(crate::workspace::badges::Badge::Result) == Some(3) {
                 t.cut_overlays(&mut out);
-            } else if !self.has_live_preview() {
+            } else if !self.has_live_preview() && self.growing_face().is_none() {
                 t.overlays(&mut out);
             }
         }
@@ -405,7 +406,12 @@ impl Workspace {
     /// Bodies a boolean shows see-through (observed 383–384): Subtract's target blue, what it cuts away cyan; a
     /// Union's or Intersect's bodies cyan once there are two.
     /// Split Body applied, before Done: the pieces grey-teal, the cuts showing as edges (s12-018).
+    /// A face growing out (Extrude): the grown body in its own grey, see-through (26.202, s41-014).
     pub(super) fn split_tints(&self) -> Vec<(shapecraft_doc::ItemId, Rgba)> {
+        if let Some((body, _)) = self.growing_face() {
+            let c = if theme::is_light() { SceneColors::light() } else { SceneColors::default() }.body;
+            return vec![(body, Rgba(c.0, c.1, c.2, 150))];
+        }
         match &self.tool {
             Tool::Mirror(t) if t.split && self.is_live() => t.items.iter().chain(&t.pieces).map(|b| (*b, Rgba::hex(0x7da6b4))).collect(),
             _ => Vec::new(),

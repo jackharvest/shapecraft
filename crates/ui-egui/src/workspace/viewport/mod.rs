@@ -101,7 +101,10 @@ impl Workspace {
         // bodies (same ids), so they stay selected as they move, as observed.
         // A box being dragged shows what it would take.
         let boxed: Option<Vec<Pick>> = self.area.as_ref().map(|a| self.area_picks(a));
-        let kept: Vec<Pick> = if live && matches!(self.tool, Tool::Move(_) | Tool::Scale(_) | Tool::Pattern(_) | Tool::RotateAxis(_)) {
+        let kept: Vec<Pick> = if let Some((body, face)) = self.growing_face() {
+            // The face it grew from stays picked on the part as it was; the new end face isn't (s41-014).
+            vec![Pick::Face { body: Self::before_id(body), face }]
+        } else if live && matches!(self.tool, Tool::Move(_) | Tool::Scale(_) | Tool::Pattern(_) | Tool::RotateAxis(_)) {
             self.session.selection.iter().filter(|p| matches!(p, Pick::Body { .. } | Pick::Plane { .. })).copied().collect()
         } else if self.side_drag.is_some() {
             // A side being pushed keeps its place in the sketch, so it stays picked.
@@ -116,14 +119,18 @@ impl Workspace {
             doc: &shown,
             selection: if let Some(b) = &boxed {
                 b
-            } else if live {
+            } else if live || self.growing_face().is_some() {
                 &kept
             } else if self.offsetting_region() || matches!(self.tool, Tool::SketchFillet { .. }) {
                 &[]
             } else {
                 &self.session.selection
             },
-            hover: if live || self.offsetting_region() { None } else { self.menu_hover.or(self.hover).or(self.items_hover) },
+            hover: if live || self.offsetting_region() || self.growing_face().is_some() {
+                None
+            } else {
+                self.menu_hover.or(self.hover).or(self.items_hover)
+            },
             active_sketch: self.session.active_sketch,
             plane_tiles: &tiles,
             overlays: &overlays,

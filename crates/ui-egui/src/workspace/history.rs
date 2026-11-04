@@ -241,9 +241,16 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     // and the sketch's own row is lit grey.
     let sketching = ws.session.active_sketch;
     let empty_sketch = sketching.filter(|&k| ws.session.doc.sketch(k).is_some_and(|sk| sk.entities.is_empty()));
-    // A tool holding a result not yet applied (Cancel / Done showing) dims the filter and its steps (26.202, s37).
-    let busy = ws.is_live() && !matches!(ws.tool, super::tools::Tool::Idle);
-    let live = busy && past > 0;
+    // A tool holding a result not yet applied (Cancel / Done showing) dims the filter and its steps (26.202, s37),
+    // and so does a modeling tool the moment it's started, before any pull (s41-011: Extrude with only Cancel); a
+    // tool merely predicted for the selection doesn't (s41-010).
+    let held = ws.is_live() && !matches!(ws.tool, super::tools::Tool::Idle);
+    let started = !matches!(ws.tool, super::tools::Tool::Idle | super::tools::Tool::PickPlane { .. })
+        && !ws.tool.is_sketch_tool()
+        && !ws.predicted
+        && sketching.is_none();
+    let busy = held || started;
+    let live = held && past > 0;
     let steps: Vec<(usize, HistoryStep)> = ws
         .session
         .doc

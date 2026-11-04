@@ -465,8 +465,12 @@ impl Workspace {
     }
 
     /// Where Extrude's ↔ draft handle sits on screen, and the screen direction it slides along.
+    /// A body face pushed out has none: 26.202 shows just the badges, the value and the ↕ there (s41-011/014).
     pub(super) fn draft_handle(&self) -> Option<(Pos2, egui::Vec2)> {
         let Tool::Extrude(t) = &self.tool else { return None };
+        if matches!(t.target, crate::workspace::tools::Target::Face { .. }) && t.draft == 0.0 {
+            return None;
+        }
         let (s0, sdir, _) = self.handle_frame(t.origin + t.normal * t.distance, t.normal)?;
         Some((s0 + sdir * 24.0, vec2(-sdir.y, sdir.x)))
     }

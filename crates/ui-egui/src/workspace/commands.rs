@@ -151,6 +151,22 @@ impl Workspace {
         self.preview = Some(Preview { key, computed_at: self.now, doc });
     }
 
+    /// A body face pushed out (Extrude on a face, not a cut) once it has a result, live or previewed: 26.202 draws the
+    /// part as it was with the face still picked, and the grown body see-through over it (s41-012/014).
+    pub(crate) fn growing_face(&self) -> Option<(shapecraft_doc::ItemId, u32)> {
+        let Tool::Extrude(t) = &self.tool else { return None };
+        let crate::workspace::tools::Target::Face { body, face } = t.target else { return None };
+        let applied = self.is_live() || self.has_live_preview();
+        let cut = self.badge_current(crate::workspace::badges::Badge::Result) == Some(3);
+        (applied && !cut && t.distance.abs() > 1e-9 && self.cut_base.as_ref().is_some_and(|d| d.body(body).is_some()))
+            .then_some((body, face))
+    }
+
+    /// The stand-in id of the part as it was, drawn under a growing face's see-through result.
+    pub(crate) fn before_id(body: shapecraft_doc::ItemId) -> shapecraft_doc::ItemId {
+        shapecraft_doc::ItemId(body.0 | (1 << 62))
+    }
+
     pub(crate) fn has_live_preview(&self) -> bool {
         self.preview.as_ref().is_some_and(|p| p.doc.is_some())
     }
@@ -196,6 +212,17 @@ impl Workspace {
             }
             _ => std::borrow::Cow::Borrowed(base),
         };
+        // A face growing out: the part as it was goes in under the grown body (drawn see-through, see split_tints).
+        let base = match (show_uncut, self.growing_face(), &self.cut_base) {
+            (true, Some((body, _)), Some(before)) if let Some(old) = before.body(body) => {
+                let mut d = base.into_owned();
+                let mut was = old.clone();
+                was.id = Self::before_id(body);
+                d.bodies.push(was);
+                std::borrow::Cow::Owned(d)
+            }
+            _ => base,
+        };
         if !self.view_opts.decals && base.images.iter().any(|i| i.visible) {
             let mut d = base.into_owned();
             for i in &mut d.images {
@@ -208,8 +235,8 @@ impl Workspace {
             }
             return std::borrow::Cow::Owned(d);
         }
-        // View ▸ Show Sketches off: only the sketch being edited stays.
-        let base = if self.view_opts.sketches {
+        // View ▸ Show Sketches off: in the Visualized look only the sketch being edited stays (26.202, s41-006/007).
+        let base = if self.view_opts.sketches || !self.visualizing {
             base
         } else {
             let mut d = base.into_owned();

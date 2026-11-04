@@ -125,13 +125,14 @@ pub struct ViewOptions {
     pub decals: bool,
     /// View ▸ Show Pinned Measurements.
     pub pinned: bool,
-    /// View ▸ Show Sketches (off hides every sketch but the one being edited).
+    /// View ▸ Show Sketches: off (the default, as 26.202) hides sketches in the Visualized look only; while
+    /// modeling a sketch shows by its own eye either way (s41-004..007).
     pub sketches: bool,
 }
 
 impl Default for ViewOptions {
     fn default() -> Self {
-        Self { grid: false, axes: true, edges: true, hidden_edges: false, decals: true, pinned: true, sketches: true }
+        Self { grid: false, axes: true, edges: true, hidden_edges: false, decals: true, pinned: true, sketches: false }
     }
 }
 
