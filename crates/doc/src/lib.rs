@@ -870,6 +870,15 @@ impl Document {
         }
     }
 
+    /// The next free "Imported NN": parts read from a STEP or IGES file are numbered so, whatever the file calls
+    /// them (26.202, s41-026: a file naming its parts "Body 01"/"Body 02" came in as "Imported 01"/"Imported 02").
+    pub fn next_imported_name(&self) -> String {
+        (1..=100_000)
+            .map(|n| format!("Imported {n:02}"))
+            .find(|name| !self.bodies.iter().any(|b| &b.name == name))
+            .unwrap_or_else(|| "Imported".into())
+    }
+
     /// A copy's name, as observed (379): "Body 01" → "Body 01 (1)", then "(2)"… whichever is free.
     pub fn copy_name(&self, of: &str) -> String {
         let base = match of.rsplit_once(" (") {

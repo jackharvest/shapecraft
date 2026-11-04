@@ -435,6 +435,16 @@ impl Kernel for OcctKernel {
         shape_out("mirror", |out| unsafe { ffi::sk_mirror(s, origin.x, origin.y, origin.z, normal.x, normal.y, normal.z, out) })
     }
 
+    fn heal(&self, shape: &Shape, opts: shapecraft_kernel::HealOptions) -> Result<Shape> {
+        let flags = i32::from(opts.repair) | i32::from(opts.edges) << 1 | i32::from(opts.sew) << 2 | i32::from(opts.simplify) << 3;
+        if flags == 0 {
+            return Ok(shape.clone());
+        }
+        let s = raw(shape)?;
+        // SAFETY: plain values in.
+        shape_out("heal", |out| unsafe { ffi::sk_heal(s, flags, out) })
+    }
+
     fn scale(&self, shape: &Shape, center: DVec3, factors: DVec3) -> Result<Shape> {
         finite("scale", &[center.x, center.y, center.z, factors.x, factors.y, factors.z])?;
         if factors.min_element() <= 0.0 || factors.max_element() > 1e6 || factors.min_element() < 1e-6 {

@@ -178,3 +178,37 @@ fn files_without_an_extension_are_told_apart_by_their_contents() {
     }
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A STEP file's parts come in as "Imported NN" whatever the file names them, nothing selected (26.202, s41-024..026),
+/// and every Import Preferences clean-up keeps a sound solid.
+#[test]
+fn step_parts_are_numbered_imported_and_left_unselected() {
+    let mut s = session();
+    for (corner, opposite) in [([0, 0], [20, 10]), ([40, 0], [50, 10])] {
+        s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+        s.execute("rectangle", &json!({"corner": corner, "opposite": opposite})).unwrap();
+        let sketch = s.active_sketch.unwrap();
+        s.execute("extrude", &json!({"sketch": sketch.0, "region": 0, "distance": 5})).unwrap();
+    }
+    let dir = std::env::temp_dir().join(format!("shapecraft-heal-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("two.step").to_string_lossy().into_owned();
+    s.execute("export_step", &json!({"path": path})).unwrap();
+    for heal in
+        [json!(null), json!("quality"), json!("speed"), json!({"repair": true, "sew": true}), json!({"simplify": true, "edges": true})]
+    {
+        let mut t = session();
+        let out = t.execute("import_file", &json!({"path": path, "heal": heal})).unwrap().value;
+        assert_eq!(out["bodies"].as_array().unwrap().len(), 2, "{heal}");
+        let names: Vec<_> = t.doc.bodies.iter().map(|b| b.name.clone()).collect();
+        assert_eq!(names, ["Imported 01", "Imported 02"], "{heal}");
+        assert!(t.selection.is_empty(), "{heal}");
+        let v: f64 = t.doc.bodies.iter().map(|b| t.kernel.mass_props(&b.shape).unwrap().volume).sum();
+        assert!((v - 1500.0).abs() < 1e-3, "{heal}: {v}");
+    }
+    // A second import goes on counting.
+    s.execute("import_file", &json!({"path": path})).unwrap();
+    assert!(s.doc.bodies.iter().any(|b| b.name == "Imported 02"));
+    assert!(s.execute("import_file", &json!({"path": path, "heal": 3})).is_err());
+    let _ = std::fs::remove_dir_all(&dir);
+}

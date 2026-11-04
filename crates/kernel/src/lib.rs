@@ -440,6 +440,12 @@ pub trait Kernel: Send + Sync {
         self.read_step(path)
     }
 
+    /// Cleans up a shape read from a file, as the import options ask. Kernels without it leave it as it is.
+    fn heal(&self, shape: &Shape, opts: HealOptions) -> Result<Shape> {
+        let _ = opts;
+        Ok(shape.clone())
+    }
+
     /// STEP with its product structure: each solid placed, with the name, color and assembly path it had in the
     /// file. Kernels without that fall back to the bare shapes.
     fn read_step_parts(&self, path: &Path) -> Result<Vec<(Shape, PartInfo)>> {
@@ -480,4 +486,22 @@ pub trait Kernel: Send + Sync {
     fn to_brep(&self, _shape: &Shape) -> Result<Vec<brep::Brep>> {
         Err(KernelError::Operation { op: "to_brep", message: "not supported by this kernel".into() })
     }
+}
+
+/// What to clean up on a shape read from a file (Import Preferences ▸ Custom). All off = take it as it is.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct HealOptions {
+    /// Fix gaps, small edges and wrongly oriented pieces.
+    pub repair: bool,
+    /// Rebuild edge curves from their faces and make tolerances agree.
+    pub edges: bool,
+    /// Join touching faces into shells, closed ones into solids.
+    pub sew: bool,
+    /// Merge faces and edges lying on one surface or curve (fewer, larger faces).
+    pub simplify: bool,
+}
+
+impl HealOptions {
+    /// Everything on: Import Preferences ▸ Quality.
+    pub const ALL: Self = Self { repair: true, edges: true, sew: true, simplify: true };
 }

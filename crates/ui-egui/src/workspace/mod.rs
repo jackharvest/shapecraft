@@ -16,6 +16,7 @@ mod decals;
 mod drawings;
 pub mod export;
 mod history;
+pub mod import_prefs;
 pub mod import_project;
 mod keys;
 mod measure;
@@ -168,6 +169,9 @@ pub struct Workspace {
     /// Import Project's sheet, and a double-clicked card asking to import at once.
     pub import_sheet: Option<import_project::ImportSheet>,
     import_go: bool,
+    /// Import Preferences, open over a file waiting to come in; then the file and its "heal" to import (app.rs).
+    pub import_prefs: Option<import_prefs::ImportPrefs>,
+    pub import_file_go: Option<(std::path::PathBuf, serde_json::Value)>,
     /// Set when Export was pressed: the app asks where to save, then writes each format.
     pub wants_export: Option<export::ExportDialog>,
     /// The Visualization workspace: materials on, edges off.
@@ -531,6 +535,8 @@ impl Workspace {
             export: None,
             import_sheet: None,
             import_go: false,
+            import_prefs: None,
+            import_file_go: None,
             wants_export: None,
             visualizing: false,
             vis_sidebar: true,
@@ -899,6 +905,7 @@ impl Workspace {
             || self.export_choice.is_some()
             || self.export.is_some()
             || self.import_sheet.is_some()
+            || self.import_prefs.is_some()
             || self.prefs_open
             || self.nav_presets.is_some()
             || self.variables_dialog.is_some()
@@ -917,6 +924,9 @@ impl Workspace {
                 }
                 if self.import_sheet.is_some() {
                     import_project::dialog(self, ui, full);
+                }
+                if self.import_prefs.is_some() {
+                    import_prefs::dialog(self, ui, full);
                 }
                 prefs::modals(self, ui, full);
             });

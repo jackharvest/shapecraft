@@ -228,7 +228,7 @@ fn label(p: &egui::Painter, x: f32, y: f32, text: &str, sub: Option<&str>) {
 }
 
 /// An iOS-style switch, right-aligned at `right`.
-fn switch(ui: &Ui, p: &egui::Painter, right: f32, y: f32, id: (&str, usize), on: &mut bool) {
+pub(super) fn switch(ui: &Ui, p: &egui::Painter, right: f32, y: f32, id: (&str, usize), on: &mut bool) {
     let r = Rect::from_min_size(pos2(right - 38.0, y - 10.0), vec2(38.0, 20.0));
     if ui.interact(r, ui.scope_id().with(id), Sense::click()).clicked() {
         *on = !*on;
@@ -239,7 +239,15 @@ fn switch(ui: &Ui, p: &egui::Painter, right: f32, y: f32, id: (&str, usize), on:
 }
 
 /// A segmented control, right-aligned at `right`; returns the picked segment.
-fn segmented(ui: &Ui, p: &egui::Painter, right: f32, y: f32, id: (&str, usize), items: &[&str], current: usize) -> Option<usize> {
+pub(super) fn segmented(
+    ui: &Ui,
+    p: &egui::Painter,
+    right: f32,
+    y: f32,
+    id: (&str, usize),
+    items: &[&str],
+    current: usize,
+) -> Option<usize> {
     let w = 74.0;
     let r = Rect::from_min_size(pos2(right - w * items.len() as f32, y - 10.0), vec2(w * items.len() as f32, 20.0));
     p.rect_filled(r, radius(6), theme::c(0x2c2c2c));

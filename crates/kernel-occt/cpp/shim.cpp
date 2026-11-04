@@ -63,6 +63,7 @@
 #include <BRepOffsetAPI_MakeOffsetShape.hxx>
 #include <BRepLib.hxx>
 #include <ShapeFix_Solid.hxx>
+#include <ShapeFix_Shape.hxx>
 #include <gp_GTrsf.hxx>
 #include <gp_Lin.hxx>
 #include <GeomLib_IsPlanarSurface.hxx>
@@ -2788,6 +2789,61 @@ int sk_fillet_edges_ex(const SkShape* s, const uint32_t* ids, size_t n, double s
       if (volume_of(body) < 0) body.Reverse();
     }
     return put_checked(out, body, s->shape, "setback corners failed", true);
+  });
+}
+
+// Cleans up a shape read from a file (the import options): flags 1 = repair (ShapeFix), 2 = rebuild edge curves and
+// make their tolerances agree, 4 = sew open faces into shells (closed ones into solids), 8 = merge faces and edges
+// that lie on the same surface or curve. Any step that fails leaves the shape as it was before that step.
+int sk_heal(const SkShape* s, int flags, SkShape** out) {
+  return guard([&] {
+    TopoDS_Shape r = s->shape;
+    if (r.IsNull()) return fail("empty shape");
+    if (flags & 4) {
+      try {
+        BRepBuilderAPI_Sewing sew(1e-3);
+        sew.Add(r);
+        sew.Perform();
+        TopoDS_Shape sewn = sew.SewedShape();
+        if (!sewn.IsNull() && r.ShapeType() != TopAbs_SOLID) {
+          if (sewn.ShapeType() == TopAbs_SHELL && BRep_Tool::IsClosed(TopoDS::Shell(sewn))) {
+            ShapeFix_Solid fix;
+            fix.Init(BRepBuilderAPI_MakeSolid(TopoDS::Shell(sewn)).Solid());
+            fix.Perform();
+            if (!fix.Solid().IsNull()) sewn = fix.Solid();
+          }
+          r = sewn;
+        }
+      } catch (const Standard_Failure&) {
+      }
+    }
+    if (flags & 2) {
+      try {
+        TopoDS_Shape c = r;
+        BRepLib::BuildCurves3d(c);
+        BRepLib::SameParameter(c, 1e-5, Standard_True);
+        r = c;
+      } catch (const Standard_Failure&) {
+      }
+    }
+    if (flags & 1) {
+      try {
+        Handle(ShapeFix_Shape) fix = new ShapeFix_Shape(r);
+        fix->Perform();
+        if (!fix->Shape().IsNull()) r = fix->Shape();
+      } catch (const Standard_Failure&) {
+      }
+    }
+    if (flags & 8) {
+      try {
+        ShapeUpgrade_UnifySameDomain unify(r, Standard_True, Standard_True, Standard_False);
+        unify.Build();
+        if (!unify.Shape().IsNull()) r = unify.Shape();
+      } catch (const Standard_Failure&) {
+      }
+    }
+    BRepTools::Clean(r);
+    return put(out, r);
   });
 }
 

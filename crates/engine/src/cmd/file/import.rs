@@ -87,7 +87,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             menu: "File/Import File…",
             shortcut: Some("⇧⌘I"),
             help: "Import STEP or IGES bodies, STL or OBJ meshes as bodies, or DXF or SVG drawings as a sketch",
-            params: r#"{"path": "/in.step|.stp|.iges|.igs|.stl|.obj|.dxf|.svg", "plane": "top"|"front"|"right"? (DXF/SVG: the sketch plane, default top), "units": "mm"|"cm"|"m"|"in"|"ft"? (STL/OBJ: what the file's numbers are in, default mm)}"#,
+            params: r#"{"path": "/in.step|.stp|.iges|.igs|.stl|.obj|.dxf|.svg", "plane": "top"|"front"|"right"? (DXF/SVG: the sketch plane, default top), "units": "mm"|"cm"|"m"|"in"|"ft"? (STL/OBJ: what the file's numbers are in, default mm), "heal": "quality"|"speed"|{"repair": bool, "edges": bool, "sew": bool, "simplify": bool}? (STEP/IGES/Parasolid clean-up, default speed = none)}"#,
             modifies: true,
             enabled: always,
             run: import_file,
@@ -221,7 +221,7 @@ fn import_any(s: &mut Session, p: &Params) -> Result<Value> {
         return Err(bad(format!("no file at {}", path.display())));
     }
     match ext.as_str() {
-        "step" | "stp" => import_step(s, &path),
+        "step" | "stp" => import_step(s, &path, heal_options(p)?),
         "shapr" => import_shapr(s, &path),
         "x_t" | "x_b" | "xmt_txt" | "xmt_bin" => {
             let bytes = read_capped(&path)?;
@@ -229,22 +229,25 @@ fn import_any(s: &mut Session, p: &Params) -> Result<Value> {
             let bodies = shapecraft_xt::bodies(&file).map_err(|e| bad(e.to_string()))?;
             let mut ids = Vec::new();
             for (k, b) in bodies.into_iter().enumerate() {
-                let shape = s.kernel.from_brep(&b.brep)?;
+                let shape = s.kernel.heal(&s.kernel.from_brep(&b.brep)?, heal_options(p)?)?;
                 let name = b.name.unwrap_or_else(|| format!("Imported {:02}", k + 1));
                 ids.extend(add_bodies(s, vec![shape], Some(&name))?);
             }
             let folder = file_folder(s, &path, &ids);
-            s.selection = ids.iter().map(|&body| Pick::Body { body }).collect();
+            s.selection.clear();
             Ok(json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>(), "folder": folder }))
         }
         "iges" | "igs" => {
             let shapes = s.kernel.read_iges(&path)?;
             let mut ids = Vec::new();
-            for (k, shape) in shapes.into_iter().enumerate() {
-                ids.extend(add_bodies(s, vec![shape], Some(&format!("Imported {:02}", k + 1)))?);
+            let heal = heal_options(p)?;
+            for shape in shapes {
+                let shape = s.kernel.heal(&shape, heal)?;
+                let name = s.doc.next_imported_name();
+                ids.extend(add_bodies(s, vec![shape], Some(&name))?);
             }
             let folder = file_folder(s, &path, &ids);
-            s.selection = ids.iter().map(|&body| Pick::Body { body }).collect();
+            s.selection.clear();
             Ok(json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>(), "folder": folder }))
         }
         "stl" | "obj" => {
@@ -257,7 +260,7 @@ fn import_any(s: &mut Session, p: &Params) -> Result<Value> {
             let (pts, idx) = formats::weld(&pts, &tris);
             let shape = s.kernel.shape_from_mesh(&pts, &idx)?;
             let ids = add_bodies(s, vec![shape], Some(&stem))?;
-            s.selection = ids.iter().map(|&body| Pick::Body { body }).collect();
+            s.selection.clear();
             Ok(json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>() }))
         }
         "dxf" | "svg" => {
@@ -279,6 +282,24 @@ fn import_any(s: &mut Session, p: &Params) -> Result<Value> {
         "" => Err(EngineError::NotAvailable(format!("can't tell what kind of file {} is", path.display()))),
         _ => Err(EngineError::NotAvailable(format!("importing .{ext} files isn't supported"))),
     }
+}
+
+/// Import Preferences (26.202, s41-027/028): "heal" is "quality" (every clean-up), "speed" (none, the default for
+/// scripts) or an object picking them: {"repair", "edges", "sew", "simplify"}.
+fn heal_options(p: &Params) -> Result<shapecraft_kernel::HealOptions> {
+    use shapecraft_kernel::HealOptions;
+    Ok(match p.raw("heal") {
+        None | Some(Value::Null) => HealOptions::default(),
+        Some(Value::String(m)) if m == "quality" => HealOptions::ALL,
+        Some(Value::String(m)) if m == "speed" => HealOptions::default(),
+        Some(Value::Object(o)) => {
+            let on = |k: &str| o.get(k).and_then(Value::as_bool).unwrap_or(false);
+            HealOptions { repair: on("repair"), edges: on("edges"), sew: on("sew"), simplify: on("simplify") }
+        }
+        Some(other) => {
+            return Err(EngineError::BadParams(format!("heal is \"quality\", \"speed\" or an object of switches, not {other}")));
+        }
+    })
 }
 
 /// Imported bodies go into an Items folder named after the file, as Shapr3D's Import File does ("box.step").
@@ -320,7 +341,7 @@ fn sniff(path: &std::path::Path) -> Option<String> {
 
 /// A STEP file's parts as bodies with the names and colors the file gives them; parts inside assemblies go into an
 /// Items folder per assembly ("Engine / Piston" for nested ones).
-fn import_step(s: &mut Session, path: &std::path::Path) -> Result<Value> {
+fn import_step(s: &mut Session, path: &std::path::Path, heal: shapecraft_kernel::HealOptions) -> Result<Value> {
     let parts = s.kernel.read_step_parts(path)?;
     if parts.len() > 10_000 {
         return Err(EngineError::BadParams("that file has too many parts to import".into()));
@@ -329,9 +350,10 @@ fn import_step(s: &mut Session, path: &std::path::Path) -> Result<Value> {
     let mut folders: Vec<(String, Vec<shapecraft_doc::ItemId>)> = Vec::new();
     // Everything lands in a folder named after the file, parts of assemblies in folders below it.
     let file = path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
-    for (k, (shape, mut info)) in parts.into_iter().enumerate() {
-        let fallback = format!("Imported {:02}", k + 1);
-        let made = add_bodies(s, vec![shape], Some(info.name.as_deref().filter(|n| !n.is_empty()).unwrap_or(&fallback)))?;
+    for (shape, mut info) in parts {
+        let shape = s.kernel.heal(&shape, heal)?;
+        let name = s.doc.next_imported_name();
+        let made = add_bodies(s, vec![shape], Some(&name))?;
         info.path.insert(0, file.clone());
         for &id in &made {
             if let (Some(c), Some(b)) = (info.color, s.doc.body_mut(id)) {
@@ -353,6 +375,7 @@ fn import_step(s: &mut Session, path: &std::path::Path) -> Result<Value> {
         s.doc.folders.push(shapecraft_doc::Folder { id, name: name.chars().take(200).collect(), items });
         made_folders.push(id.0);
     }
-    s.selection = ids.iter().map(|&body| Pick::Body { body }).collect();
+    // Nothing is selected after an import (26.202, s41-024).
+    s.selection.clear();
     Ok(json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>(), "folders": made_folders }))
 }

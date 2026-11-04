@@ -374,13 +374,34 @@ impl ShapeCraftApp {
         if self.ws.is_none() {
             self.new_project();
         }
+        let Some(ws) = self.ws.as_deref_mut() else { return };
+        // STEP, IGES and Parasolid first ask how to clean the geometry up, unless told not to (26.202, s41-023).
+        let mode = crate::workspace::import_prefs::mode_index(&ws.settings.import_mode);
+        if crate::workspace::import_prefs::wants_sheet(&path) && !ws.settings.import_skip_prefs {
+            ws.import_prefs =
+                Some(crate::workspace::import_prefs::ImportPrefs { path, mode, custom: ws.settings.import_custom, dont_show: false });
+            return;
+        }
+        let heal = crate::workspace::import_prefs::heal_param(mode, ws.settings.import_custom);
+        self.import_file(path, heal);
+    }
+
+    /// Brings a file into the open project (after Import Preferences, when it asked).
+    fn import_file(&mut self, path: std::path::PathBuf, heal: serde_json::Value) {
         if let Some(ws) = self.ws.as_deref_mut() {
-            if ws.session.doc.name == "Untitled Project"
+            // A project made for the import takes the file's name; one with work in it keeps its own (26.202, s41-024).
+            let empty = ws.session.doc.bodies.is_empty() && ws.session.doc.sketches.is_empty();
+            if empty
+                && ws.session.doc.name == "Untitled Project"
                 && let Some(stem) = path.file_stem()
             {
                 ws.session.doc.name = stem.to_string_lossy().into_owned();
             }
-            if let Some(done) = ws.run("import_file", json!({ "path": path })) {
+            let mut params = json!({ "path": path });
+            if crate::workspace::import_prefs::wants_sheet(&path) {
+                params["heal"] = heal;
+            }
+            if let Some(done) = ws.run("import_file", params) {
                 ws.standard_view(StandardView::Default);
                 // Solids with geometry we can't read yet are left out; say so rather than lose them quietly.
                 let skipped = done["unreadable"].as_array().map_or(0, Vec::len);
@@ -1184,6 +1205,10 @@ impl ShapeCraftApp {
                 if ws.tutorial.is_none() {
                     ws.keep_variants();
                 }
+                if let Some((path, heal)) = ws.import_file_go.take() {
+                    self.import_file(path, heal);
+                }
+                let Some(ws) = self.ws.as_deref_mut() else { return };
                 if ws.settings != self.settings {
                     self.settings = ws.settings.clone();
                     if let Some(path) = &self.settings_file

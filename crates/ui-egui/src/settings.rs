@@ -76,6 +76,11 @@ pub struct Settings {
     pub update_on_close: String,
     /// A version passed over with Skip This Version (`0.4.1`); a newer one is offered again.
     pub update_skip: String,
+    /// Import Preferences: "Quality", "Speed" or "Custom", Custom's switches (simplify, healing, edges, sewing), and
+    /// "Don't show this again".
+    pub import_mode: String,
+    pub import_custom: [bool; 4],
+    pub import_skip_prefs: bool,
 }
 
 impl Default for Settings {
@@ -124,6 +129,9 @@ impl Default for Settings {
             update_download: true,
             update_on_close: "Ask".into(),
             update_skip: String::new(),
+            import_mode: "Quality".into(),
+            import_custom: [true; 4],
+            import_skip_prefs: false,
         }
     }
 }
