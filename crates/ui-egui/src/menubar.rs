@@ -178,8 +178,9 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
     use When::*;
     let sep = || Entry::Separator;
     // As 26.200 has them (plan/shapr3d/04-menu-tree-workspace-26200.txt), less the cloud items (View in Browser,
-    // Copy Link, Share…, Publish…) and the online help links; Save and Projects are ours (local files). Single-key
-    // shortcuts aren't menu accelerators here: a bare key in the menu would take letters typed into fields.
+    // Copy Link, Share…, Publish…) and the online help links; Save and Projects are ours (local files). The tools'
+    // single keys show as in 26.202 (L, A, C… s41 AX dump); a bare key typed in the workspace still goes to the
+    // workspace (see `bare_key`), so typing into fields and the keys' in-tool meanings (E flips Sides…) stay.
     vec![
         (
             "File",
@@ -262,12 +263,12 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
         (
             "Sketch",
             vec![
-                item("Line", None, Tool(ToolKind::Line), InProject),
-                item("Arc", None, Tool(ToolKind::Arc), InProject),
+                item("Line", Some("L"), Tool(ToolKind::Line), InProject),
+                item("Arc", Some("A"), Tool(ToolKind::Arc), InProject),
                 Entry::Sub {
                     label: "Spline",
                     items: vec![
-                        item("Recent", None, Tool(ToolKind::Spline), InProject),
+                        item("Recent", Some("I"), Tool(ToolKind::Spline), InProject),
                         sep(),
                         item("Control", None, MenuAction::Variant(ToolKind::Spline, "Spline", 0), InProject),
                         item("Fit", None, MenuAction::Variant(ToolKind::Spline, "Spline", 1), InProject),
@@ -276,19 +277,19 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                 Entry::Sub {
                     label: "Rectangle",
                     items: vec![
-                        item("Recent", None, Tool(ToolKind::Rectangle), InProject),
+                        item("Recent", Some("R"), Tool(ToolKind::Rectangle), InProject),
                         sep(),
                         item("Center", None, MenuAction::Variant(ToolKind::Rectangle, "Rectangle", 0), InProject),
                         item("Diagonal", None, MenuAction::Variant(ToolKind::Rectangle, "Rectangle", 1), InProject),
                         item("3 Points", None, MenuAction::Variant(ToolKind::Rectangle, "Rectangle", 2), InProject),
                     ],
                 },
-                item("Circle", None, Tool(ToolKind::Circle), InProject),
+                item("Circle", Some("C"), Tool(ToolKind::Circle), InProject),
                 item("Ellipse", None, Tool(ToolKind::Ellipse), InProject),
                 Entry::Sub {
                     label: "Polygon",
                     items: vec![
-                        item("Recent", None, Tool(ToolKind::Polygon), InProject),
+                        item("Recent", Some("G"), Tool(ToolKind::Polygon), InProject),
                         sep(),
                         item("Triangle", None, MenuAction::Variant(ToolKind::Polygon, "Polygon", 0), InProject),
                         item("Pentagon", None, MenuAction::Variant(ToolKind::Polygon, "Polygon", 1), InProject),
@@ -297,7 +298,7 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                     ],
                 },
                 sep(),
-                item("Project as Sketch", None, Tool(ToolKind::Project), InProject),
+                item("Project as Sketch", Some("P"), Tool(ToolKind::Project), InProject),
                 // A plain item: 26.202 has no submenu here (s39 menu dump).
                 item("Offset Edge", None, Tool(ToolKind::OffsetEdge), InProject),
                 item("Fillet Sketch", None, Tool(ToolKind::SketchFillet), Sketching),
@@ -309,7 +310,7 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                 item("Rotate Sketch Around Axis", None, Tool(ToolKind::RotateAxis), Selection),
                 item("Mirror Sketch", None, Tool(ToolKind::Mirror), Selection),
                 sep(),
-                item("Trim", None, Tool(ToolKind::Trim), InProject),
+                item("Trim", Some("T"), Tool(ToolKind::Trim), InProject),
             ],
         ),
         (
@@ -351,9 +352,9 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
         (
             "Transform",
             vec![
-                item("Move/Rotate", None, Tool(ToolKind::Move), InProject),
-                item("Scale", None, Tool(ToolKind::Scale), InProject),
-                item("Translate", None, Tool(ToolKind::Translate), InProject),
+                item("Move/Rotate", Some("M"), Tool(ToolKind::Move), InProject),
+                item("Scale", Some("S"), Tool(ToolKind::Scale), InProject),
+                item("Translate", Some("N"), Tool(ToolKind::Translate), InProject),
                 Entry::Sub {
                     label: "Pattern",
                     items: vec![
@@ -370,10 +371,10 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
             "Tools",
             vec![
                 item("Offset Face", None, Tool(ToolKind::OffsetFace), InProject),
-                item("Fillet", None, Tool(ToolKind::Fillet), Bodies),
+                item("Fillet", Some("F"), Tool(ToolKind::Fillet), Bodies),
                 item("Chamfer", None, Tool(ToolKind::Chamfer), Bodies),
-                item("Extrude", None, Tool(ToolKind::Extrude), InProject),
-                item("Shell", None, Tool(ToolKind::Shell), Bodies),
+                item("Extrude", Some("E"), Tool(ToolKind::Extrude), InProject),
+                item("Shell", Some("H"), Tool(ToolKind::Shell), Bodies),
                 item("Loft", None, Tool(ToolKind::Loft), InProject),
                 sep(),
                 item("Union", Some("CmdOrCtrl+U"), Tool(ToolKind::Union), TwoBodies),
@@ -381,8 +382,8 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                 item("Intersect", Some("CmdOrCtrl+I"), Tool(ToolKind::Intersect), TwoBodies),
                 sep(),
                 item("Split Body", None, Tool(ToolKind::SplitBody), Bodies),
-                item("Revolve", None, Tool(ToolKind::Revolve), InProject),
-                item("Sweep", None, Tool(ToolKind::Sweep), InProject),
+                item("Revolve", Some("V"), Tool(ToolKind::Revolve), InProject),
+                item("Sweep", Some("W"), Tool(ToolKind::Sweep), InProject),
                 item("Fill (Beta)", None, Command("fill"), Selection),
                 item("Replace Face", None, Tool(ToolKind::ReplaceFace), Bodies),
                 item("Project as Edge", None, Tool(ToolKind::ProjectEdge), Bodies),
@@ -635,10 +636,12 @@ mod native {
         project: Bar,
         home: Bar,
         in_project: Option<bool>,
-        items: Vec<(Native, MenuAction, When)>,
+        /// Each item with its action, when it's enabled, and its single key if it has one.
+        items: Vec<(Native, MenuAction, When, Option<egui::Key>)>,
         state: Option<MenuState>,
-        /// Picked items. muda stops filling its own channel once a handler is set, so the handler forwards here.
-        picked: std::sync::mpsc::Receiver<MenuEvent>,
+        /// Picked items, and whether a key press picked them. muda stops filling its own channel once a handler is
+        /// set, so the handler forwards here.
+        picked: std::sync::mpsc::Receiver<(MenuEvent, bool)>,
     }
 
     /// A native item: plain, or one that shows a check mark.
@@ -668,19 +671,28 @@ mod native {
         }
     }
 
+    /// Whether the menu item being run was picked by a key equivalent rather than by the pointer: AppKit runs it
+    /// while handling that key-down event.
+    fn picked_by_key() -> bool {
+        use objc2_app_kit::{NSApplication, NSEventType};
+        let Some(mtm) = objc2::MainThreadMarker::new() else { return false };
+        NSApplication::sharedApplication(mtm).currentEvent().is_some_and(|e| e.r#type() == NSEventType::KeyDown)
+    }
+
     /// macOS reads "&" as a mnemonic marker and drops it ("Wrap  Emboss"); "&&" shows one.
     fn native_label(label: &str) -> String {
         label.replace('&', "&&")
     }
 
-    fn fill(sub: &Submenu, entries: Vec<Entry>, items: &mut Vec<(Native, MenuAction, When)>) {
+    fn fill(sub: &Submenu, entries: Vec<Entry>, items: &mut Vec<(Native, MenuAction, When, Option<egui::Key>)>) {
         for e in entries {
             match e {
                 Entry::Separator => {
                     let _ = sub.append(&PredefinedMenuItem::separator());
                 }
-                Entry::Item { label, accel, action, when } => {
-                    let accel = accel.and_then(|a| Accelerator::from_str(a).ok());
+                Entry::Item { label, accel: shown, action, when } => {
+                    let bare = shown.and_then(super::bare_key);
+                    let accel = shown.and_then(|a| Accelerator::from_str(a).ok());
                     let mi = if super::check_bit(&action).is_some() {
                         let mi = CheckMenuItem::new(native_label(label), true, false, accel);
                         let _ = sub.append(&mi);
@@ -690,7 +702,7 @@ mod native {
                         let _ = sub.append(&mi);
                         Native::Plain(mi)
                     };
-                    items.push((mi, action, when));
+                    items.push((mi, action, when, bare));
                 }
                 Entry::Sub { label, items: children } => {
                     let child = Submenu::new(native_label(label), true);
@@ -701,7 +713,7 @@ mod native {
         }
     }
 
-    fn build(menus: Vec<(&'static str, Vec<Entry>)>, items: &mut Vec<(Native, MenuAction, When)>) -> Option<Bar> {
+    fn build(menus: Vec<(&'static str, Vec<Entry>)>, items: &mut Vec<(Native, MenuAction, When, Option<egui::Key>)>) -> Option<Bar> {
         let menu = Menu::new();
         let app = Submenu::new("ShapeCraft", true);
         let quit = MenuItem::new("Quit ShapeCraft", true, Accelerator::from_str("CmdOrCtrl+Q").ok());
@@ -719,8 +731,8 @@ mod native {
             &PredefinedMenuItem::separator(),
             &quit,
         ]);
-        items.push((Native::Plain(quit), MenuAction::App(AppAction::Quit), When::Always));
-        items.push((Native::Plain(prefs), MenuAction::Ui(crate::workspace::toolbar::UiAction::Preferences), When::Always));
+        items.push((Native::Plain(quit), MenuAction::App(AppAction::Quit), When::Always, None));
+        items.push((Native::Plain(prefs), MenuAction::Ui(crate::workspace::toolbar::UiAction::Preferences), When::Always, None));
         menu.append(&app).ok()?;
         // The system's Window menu: macOS adds Fill, Center, Move & Resize, tiling and the window list.
         let window = Submenu::new("Window", true);
@@ -754,8 +766,9 @@ mod native {
             let (send, picked) = std::sync::mpsc::channel();
             let send = std::sync::Mutex::new(send);
             MenuEvent::set_event_handler(Some(move |e: MenuEvent| {
+                let keyed = picked_by_key();
                 if let Ok(send) = send.lock() {
-                    let _ = send.send(e);
+                    let _ = send.send((e, keyed));
                 }
                 wake();
             }));
@@ -775,12 +788,13 @@ mod native {
             self.in_project = Some(in_project);
         }
 
-        /// Actions picked since the last frame.
-        pub fn poll(&self) -> Vec<MenuAction> {
+        /// Actions picked since the last frame. An item with a single key that the key itself picked comes back as
+        /// that key, for the workspace to take as typed (a text field, E flipping Sides while extruding…).
+        pub fn poll(&self) -> Vec<(MenuAction, Option<egui::Key>)> {
             let mut out = Vec::new();
-            while let Ok(ev) = self.picked.try_recv() {
-                if let Some((_, action, _)) = self.items.iter().find(|(mi, ..)| *mi.id() == ev.id) {
-                    out.push(*action);
+            while let Ok((ev, keyed)) = self.picked.try_recv() {
+                if let Some((_, action, _, bare)) = self.items.iter().find(|(mi, ..)| *mi.id() == ev.id) {
+                    out.push((*action, bare.filter(|_| keyed)));
                 }
             }
             out
@@ -791,7 +805,7 @@ mod native {
                 return;
             }
             self.show_bar(state.in_project);
-            for (mi, action, when) in &self.items {
+            for (mi, action, when, _) in &self.items {
                 mi.set_enabled(when.holds(&state));
                 if matches!(action, MenuAction::Ui(crate::workspace::toolbar::UiAction::LockGrid)) {
                     mi.set_text(super::grid_label(&state));
@@ -832,8 +846,9 @@ impl WindowMenu {
         self.state = state;
     }
 
-    pub fn poll(&mut self) -> Vec<MenuAction> {
-        std::mem::take(&mut self.pending)
+    /// Actions picked since the last frame (never by a single key: those stay the workspace's here).
+    pub fn poll(&mut self) -> Vec<(MenuAction, Option<egui::Key>)> {
+        std::mem::take(&mut self.pending).into_iter().map(|a| (a, None)).collect()
     }
 
     /// The menu titles in a row from `at` (the left end of the row's center line), over whatever the screen drew
@@ -894,7 +909,7 @@ impl WindowMenu {
     fn shortcuts(&mut self, ctx: &egui::Context, entries: &[Entry]) {
         for e in entries {
             match e {
-                Entry::Item { accel: Some(a), action, when, .. } if when.holds(&self.state) => {
+                Entry::Item { accel: Some(a), action, when, .. } if when.holds(&self.state) && bare_key(a).is_none() => {
                     if let Some(sc) = shortcut(a)
                         && pressed(ctx, &sc)
                     {
@@ -955,6 +970,11 @@ fn shortcut(accel: &str) -> Option<egui::KeyboardShortcut> {
     Some(egui::KeyboardShortcut::new(mods, key?))
 }
 
+/// A tool's single key (no modifier, "L"): the menu shows it, the workspace handles the key itself.
+pub fn bare_key(accel: &str) -> Option<egui::Key> {
+    (!accel.contains('+')).then(|| egui::Key::from_name(accel)).flatten()
+}
+
 /// "CmdOrCtrl+Shift+P" as shown beside the item off macOS: "Ctrl+Shift+P".
 fn shortcut_text(accel: &str) -> String {
     accel.replace("CmdOrCtrl", "Ctrl").replace("Comma", ",")
@@ -1010,7 +1030,7 @@ mod tests {
         input.events.push(egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers });
         let mut out = ctx.run_ui(input, |ui| m.take_shortcuts(ui.ctx()));
         out.textures_delta.clear();
-        m.poll()
+        m.poll().into_iter().map(|(a, _)| a).collect()
     }
 
     #[test]
@@ -1061,7 +1081,7 @@ mod tests {
         fn walk(entries: &[Entry]) {
             for e in entries {
                 match e {
-                    Entry::Item { accel: Some(a), .. } => assert!(shortcut(a).is_some(), "{a}"),
+                    Entry::Item { accel: Some(a), .. } => assert!(shortcut(a).is_some() || bare_key(a).is_some(), "{a}"),
                     Entry::Sub { items, .. } => walk(items),
                     _ => {}
                 }
@@ -1079,7 +1099,7 @@ mod tests {
             for e in entries {
                 match e {
                     Entry::Item { accel: Some(a), .. } => {
-                        assert!(a.contains('+'), "{a}: bare-key shortcuts belong to the workspace, not the menu");
+                        assert!(a.contains('+') || bare_key(a).is_some(), "{a}: a bare key must be one key");
                         assert!(seen.insert(a), "duplicate shortcut {a}");
                     }
                     Entry::Sub { items, .. } => walk(items, seen),

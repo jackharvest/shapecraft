@@ -241,9 +241,9 @@ fn import_any(s: &mut Session, p: &Params) -> Result<Value> {
             let shapes = s.kernel.read_iges(&path)?;
             let mut ids = Vec::new();
             let heal = heal_options(p)?;
-            for shape in shapes {
+            for (k, shape) in shapes.into_iter().enumerate() {
                 let shape = s.kernel.heal(&shape, heal)?;
-                let name = s.doc.next_imported_name();
+                let name = format!("Imported {:02}", k + 1);
                 ids.extend(add_bodies(s, vec![shape], Some(&name))?);
             }
             let folder = file_folder(s, &path, &ids);
@@ -350,9 +350,11 @@ fn import_step(s: &mut Session, path: &std::path::Path, heal: shapecraft_kernel:
     let mut folders: Vec<(String, Vec<shapecraft_doc::ItemId>)> = Vec::new();
     // Everything lands in a folder named after the file, parts of assemblies in folders below it.
     let file = path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
-    for (shape, mut info) in parts {
+    // Parts are "Imported 01", "02"… in each file, whatever the file calls them (26.202, s41-026/035: "Bracket
+    // Plate" and "Pin" came in as Imported 01/02, and a second file starts at 01 again).
+    for (k, (shape, mut info)) in parts.into_iter().enumerate() {
         let shape = s.kernel.heal(&shape, heal)?;
-        let name = s.doc.next_imported_name();
+        let name = format!("Imported {:02}", k + 1);
         let made = add_bodies(s, vec![shape], Some(&name))?;
         info.path.insert(0, file.clone());
         for &id in &made {

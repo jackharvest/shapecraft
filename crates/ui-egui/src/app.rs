@@ -1372,7 +1372,25 @@ impl ShapeCraftApp {
             },
         };
         bar.update(state);
-        for action in bar.poll() {
+        for (action, key) in bar.poll() {
+            // A tool's single key picked the item (macOS key equivalent): hand the key to the workspace as typed, so a
+            // text field gets its letter and a running tool its own meaning of the key (E flips Sides…).
+            if let Some(key) = key {
+                let ch = key.name().to_lowercase();
+                ctx.input_mut(|i| {
+                    for pressed in [true, false] {
+                        i.events.push(egui::Event::Key {
+                            key,
+                            physical_key: Some(key),
+                            pressed,
+                            repeat: false,
+                            modifiers: egui::Modifiers::NONE,
+                        });
+                    }
+                    i.events.push(egui::Event::Text(ch));
+                });
+                continue;
+            }
             match action {
                 MenuAction::App(a) => match a {
                     AppAction::NewProject => self.new_project(),
