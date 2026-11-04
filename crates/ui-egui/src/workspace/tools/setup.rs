@@ -405,10 +405,37 @@ impl MoveTool {
                 items.push(b);
             }
         }
+        // Faces of one body (nothing else picked): they move on their own, the gizmo at their middle.
+        if let Some((body, faces)) = picked_faces(s) {
+            let b = s.doc.body(body)?;
+            let mut min = DVec3::splat(f64::INFINITY);
+            let mut max = DVec3::splat(f64::NEG_INFINITY);
+            for &f in &faces {
+                let bb = s.kernel.face(&b.shape, f).and_then(|face| s.kernel.bounds(&face)).ok()?;
+                min = min.min(bb.min);
+                max = max.max(bb.max);
+            }
+            return Some(Self {
+                items: Vec::new(),
+                faces: Some((body, faces)),
+                frame: GizmoFrame::WORLD,
+                pivot: (min + max) / 2.0,
+                dragging: None,
+                value: 0.0,
+                handle: Handle::Arrow(2),
+                planar: DVec3::ZERO,
+                planar_start: DVec3::ZERO,
+                relocating: false,
+                snapped: false,
+                copy: false,
+                unlinked: false,
+            });
+        }
         if items.is_empty() {
             let (frame, pivot, _) = selected_curves_center(s)?;
             return Some(Self {
                 items,
+                faces: None,
                 frame,
                 pivot,
                 dragging: None,
@@ -437,6 +464,7 @@ impl MoveTool {
         }
         Some(Self {
             items,
+            faces: None,
             frame: GizmoFrame::WORLD,
             pivot: (min + max) / 2.0,
             dragging: None,
@@ -464,6 +492,11 @@ impl MoveTool {
                 json!({ "origin": [self.pivot.x, self.pivot.y, self.pivot.z], "axis": [ax.x, ax.y, ax.z], "angle": value })
             }
         };
+        if let Some((body, faces)) = &self.faces {
+            v["body"] = json!(body.0);
+            v["faces"] = json!(faces);
+            return ("move_faces", v);
+        }
         with_items(&mut v, &self.items);
         if self.copy && !self.items.is_empty() {
             v["copy"] = json!(true);
@@ -498,6 +531,25 @@ impl MoveTool {
             _ => value.abs() > 1e-9,
         }
     }
+}
+
+/// The picked faces when the pick is only faces, all of one body (outside a sketch).
+pub(crate) fn picked_faces(s: &Session) -> Option<(ItemId, Vec<u32>)> {
+    if s.active_sketch.is_some() {
+        return None;
+    }
+    let mut body = None;
+    let mut faces = Vec::new();
+    for p in &s.selection {
+        match *p {
+            Pick::Face { body: b, face } if body.is_none_or(|x| x == b) => {
+                body = Some(b);
+                faces.push(face);
+            }
+            _ => return None,
+        }
+    }
+    Some((body?, faces))
 }
 
 fn selected_items_and_center(s: &Session) -> Option<(Vec<ItemId>, DVec3)> {

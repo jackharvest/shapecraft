@@ -156,9 +156,32 @@ pub(crate) fn body_edges(scene: &SceneInput) -> Vec<Segment> {
             Some(Pick::Face { body: b, face }) if b == body.id => Some(face),
             _ => None,
         };
+        let solid_view = scene.display.solid() && scene.active_sketch.is_none();
         for (i, (line, &edge)) in body.mesh.edges.iter().zip(&body.mesh.edge_ids).enumerate() {
             let pick = Pick::Edge { body: body.id, edge };
             let around_hovered_face = hovered_face.is_some_and(|f| body.mesh.edge_faces.get(i).is_some_and(|ab| ab.contains(&f)));
+            // Picked edges, the outline of picked faces and of a body hovered in the Items list also show faintly
+            // where faces hide them (a pocket's floor, a body inside another), as the faces do in the renderer.
+            let around_picked_face =
+                body.mesh.edge_faces.get(i).is_some_and(|ab| {
+                    ab.iter().any(|f| *f != u32::MAX && scene.selection.contains(&Pick::Face { body: body.id, face: *f }))
+                });
+            let through = if scene.selection.contains(&pick) {
+                Some((c.selected.with_alpha(150), 2.0))
+            } else if around_picked_face {
+                Some((c.selected.with_alpha(130), 1.4))
+            } else if hovered_body {
+                Some((c.hover.with_alpha(110), 1.2))
+            } else {
+                None
+            };
+            if let Some((color, width)) = through.filter(|_| solid_view) {
+                for w in line.windows(2) {
+                    let a = DVec3::new(w[0][0] as f64, w[0][1] as f64, w[0][2] as f64);
+                    let b = DVec3::new(w[1][0] as f64, w[1][1] as f64, w[1][2] as f64);
+                    out.segments.push(Segment { a, b, color, width, overlay: true, clip: true });
+                }
+            }
             let (color, width) = if scene.selection.contains(&pick) {
                 (c.selected, 3.0)
             } else if scene.hover == Some(pick) {

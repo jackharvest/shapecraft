@@ -424,3 +424,93 @@ pub(super) fn project_edge(s: &mut Session, p: &Params) -> Result<Value> {
     s.selection = vec![Pick::Body { body }];
     Ok(json!({ "body": body.0 }))
 }
+
+/// Moves or turns some of a body's faces, the way Move/Rotate does with faces picked: the rest of the body
+/// follows. Flat faces slid along their own normal are offset; anything else is cut out of the body as a feature
+/// (the body with those faces removed, against the body as it is) and put back moved.
+pub(super) fn move_faces(s: &mut Session, p: &Params) -> Result<Value> {
+    let (body, faces) = face_target(s, p, "select the faces to move")?;
+    if faces.is_empty() {
+        return Err(EngineError::NotAvailable("select the faces to move".into()));
+    }
+    let b = s.doc.body(body).ok_or_else(|| EngineError::BadParams(format!("no body {}", body.0)))?;
+    let count = s.kernel.face_count(&b.shape)?;
+    if let Some(f) = faces.iter().find(|f| **f >= count) {
+        return Err(EngineError::BadParams(format!("body {} has no face {f}", body.0)));
+    }
+    let shape = b.shape.clone();
+    let by = if p.has("by") { p.vec3("by")? } else { DVec3::ZERO };
+    let turn = if p.has("angle") {
+        let (origin, dir, angle) = (p.vec3("origin")?, p.vec3("axis")?, p.f64("angle")?);
+        if !angle.is_finite() || dir.length() < 1e-12 {
+            return Err(EngineError::BadParams("rotate needs an axis and a finite angle".into()));
+        }
+        (angle.abs() > 1e-12).then(|| (shapecraft_kernel::Axis::new(origin, dir.normalize()), angle.to_radians()))
+    } else {
+        None
+    };
+    if !by.is_finite() {
+        return Err(EngineError::BadParams("by must be finite".into()));
+    }
+    if by.length() < 1e-12 && turn.is_none() {
+        return Ok(json!({ "body": body.0 }));
+    }
+    // Flat faces sharing one normal, slid along it: an offset keeps every neighbour attached.
+    if turn.is_none() {
+        let mut normal = None;
+        let mut flat = true;
+        for &f in &faces {
+            match s.kernel.face_plane(&shape, f)? {
+                Some(fp) if normal.is_none_or(|n: DVec3| n.dot(fp.normal) > 1.0 - 1e-9) => normal = Some(fp.normal),
+                _ => flat = false,
+            }
+        }
+        if let Some(n) = normal.filter(|_| flat)
+            && by.normalize().dot(n).abs() > 1.0 - 1e-9
+            && let Ok(moved) = s.kernel.offset_faces(&shape, &faces, by.dot(n))
+        {
+            return moved_faces(s, body, &faces, count, moved);
+        }
+    }
+    let place = |s: &Session, piece: &Shape| -> Result<Shape> {
+        let mut out = piece.clone();
+        if let Some((axis, angle)) = turn {
+            out = s.kernel.rotate(&out, axis, angle)?;
+        }
+        if by.length() > 1e-12 {
+            out = s.kernel.translate(&out, by)?;
+        }
+        Ok(out)
+    };
+    let without = s
+        .kernel
+        .remove_faces(&shape, &faces)
+        .map_err(|_| EngineError::NotAvailable("these faces can't be moved on their own; pick the whole feature".into()))?;
+    let volume = |s: &Session, sh: &Shape| s.kernel.mass_props(sh).map(|m| m.volume).unwrap_or(0.0);
+    let tiny = 1e-9 * volume(s, &shape).abs().max(1.0);
+    let cut = s.kernel.boolean(BoolOp::Subtract, &without, &shape).ok().filter(|c| volume(s, c) > tiny);
+    let added = s.kernel.boolean(BoolOp::Subtract, &shape, &without).ok().filter(|a| volume(s, a) > tiny);
+    if cut.is_none() && added.is_none() {
+        return Err(EngineError::NotAvailable("these faces can't be moved on their own; pick the whole feature".into()));
+    }
+    let mut out = without;
+    if let Some(c) = &cut {
+        out = s.kernel.boolean(BoolOp::Subtract, &out, &place(s, c)?)?;
+    }
+    if let Some(a) = &added {
+        out = s.kernel.boolean(BoolOp::Union, &out, &place(s, a)?)?;
+    }
+    if volume(s, &out) <= tiny {
+        return Err(EngineError::NotAvailable("moving these faces leaves nothing of the body".into()));
+    }
+    moved_faces(s, body, &faces, count, out)
+}
+
+/// Puts the moved body in and keeps the moved faces picked while the body still has the same faces (so the
+/// gizmo's next drag works on them), else picks the body.
+fn moved_faces(s: &mut Session, body: ItemId, faces: &[u32], count: u32, shape: Shape) -> Result<Value> {
+    let same = s.kernel.face_count(&shape).is_ok_and(|n| n == count);
+    set_body_shape(s, body, shape)?;
+    s.selection = if same { faces.iter().map(|&face| Pick::Face { body, face }).collect() } else { vec![Pick::Body { body }] };
+    Ok(json!({ "body": body.0 }))
+}

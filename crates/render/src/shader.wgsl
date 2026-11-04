@@ -124,6 +124,22 @@ fn face_selected(face: u32) -> bool {
     return false;
 }
 
+// The part of a selection (picked faces, a picked body) or of a body hovered in the Items list that's hidden
+// behind other faces: drawn faintly over them so it can be found, e.g. a pocket's floor or a body inside another.
+@fragment
+fn fs_through(v: MeshOut) -> @location(0) vec4<f32> {
+    if (cut_away(v.world)) {
+        discard;
+    }
+    if (face_selected(v.face) || b.flags.x != 0u) {
+        return vec4<f32>(b.sel_color.rgb, 0.3);
+    }
+    if (b.flags.w == 1u) {
+        return vec4<f32>(b.hover_color.rgb, 0.22);
+    }
+    discard;
+}
+
 @fragment
 fn fs_mesh(v: MeshOut) -> @location(0) vec4<f32> {
     if (cut_away(v.world)) {

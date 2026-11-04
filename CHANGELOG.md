@@ -2,6 +2,21 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.5.11-alpha
+
+**What's picked stays in sight: hidden faces, edges and bodies show through the part, and Move/Rotate works on faces.**
+
+### New
+- **Move/Rotate on faces.** Pick faces of a body and press M: the gizmo comes up at them and moves or turns just
+  those faces, the rest of the body following. A flat face slides along itself, and a whole pocket or hole moves
+  to a new spot.
+
+### Changed
+- **Hidden picks show through.** A picked face behind or inside the part (a pocket's floor, a hole's wall), a
+  picked edge, a picked body inside another and a body you point at in the Items list are drawn faintly in blue
+  over whatever hides them, with their outlines. Tools started on them (Extrude, Offset Face, Fillet) show where
+  they are.
+
 ## 0.5.10-alpha
 
 **STEP, IGES and Parasolid imports ask how to clean the geometry up, pushing a face out looks the way it will turn

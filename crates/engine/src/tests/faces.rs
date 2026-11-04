@@ -440,3 +440,57 @@ fn a_chordal_fillet_keeps_its_chord_where_the_angle_changes() {
     let after = volume(&mut s);
     assert!(after < before && before - after < 10.0, "{before} {after}");
 }
+
+/// A 20 mm block with a blind round pocket (r 4, 10 deep) from the top, centred.
+fn pocketed_block(s: &mut Session) -> shapecraft_doc::ItemId {
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("rectangle", &json!({"corner": [0, 0], "opposite": [20, 20]})).unwrap();
+    s.execute("extrude", &json!({"sketch": 1, "region": 0, "distance": 20})).unwrap();
+    let body = s.doc.bodies[0].id;
+    let top = top_face(s);
+    s.execute("sketch", &json!({"body": body.0, "face": top})).unwrap();
+    s.execute("circle", &json!({"center": [0, 0], "radius": 4})).unwrap();
+    let sk = s.active_sketch.unwrap();
+    let inner = s.doc.sketch(sk).unwrap().regions().iter().find(|r| r.area < 60.0).map(|r| r.index).unwrap();
+    s.execute("extrude", &json!({"sketch": sk.0, "region": inner, "distance": -10})).unwrap();
+    assert_eq!(s.doc.bodies.len(), 1);
+    body
+}
+
+/// Faces of the first body: (index, planar centre z or None, normal z).
+fn faces_of(s: &mut Session) -> Vec<(u64, Option<f64>, f64)> {
+    let v = s.execute("inspect", &json!({})).unwrap().value;
+    v["bodies"][0]["faces"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| (f["face"].as_u64().unwrap(), f["center"][2].as_f64(), f["normal"][2].as_f64().unwrap_or(0.0)))
+        .collect()
+}
+
+#[test]
+fn moving_faces_raises_a_pocket_floor_and_slides_a_whole_pocket() {
+    let mut s = session();
+    let body = pocketed_block(&mut s);
+    let full = 8000.0;
+    let pocket = std::f64::consts::PI * 16.0 * 10.0;
+    assert!((volume(&mut s) - (full - pocket)).abs() < 1.0);
+    // The floor (flat, facing up, 10 mm down) slid up along its normal: an offset, the pocket gets shallower.
+    let floor = faces_of(&mut s).into_iter().find(|f| f.1.is_some_and(|z| (z - 10.0).abs() < 1e-3) && f.2 > 0.999).unwrap().0;
+    s.execute("move_faces", &json!({"body": body.0, "faces": [floor], "by": [0, 0, 4]})).unwrap();
+    assert!((volume(&mut s) - (full - pocket * 0.6)).abs() < 1.0, "floor raised 4 mm: {}", volume(&mut s));
+    // The wall and floor together slid sideways: the same pocket somewhere else, the volume unchanged.
+    let faces: Vec<u64> =
+        faces_of(&mut s).into_iter().filter(|f| f.1.is_none() || f.1.is_some_and(|z| (z - 14.0).abs() < 1e-3)).map(|f| f.0).collect();
+    assert_eq!(faces.len(), 2, "pocket wall + floor");
+    let before = volume(&mut s);
+    let c0 = s.kernel.mass_props(&s.doc.bodies[0].shape).unwrap().centroid;
+    s.execute("move_faces", &json!({"body": body.0, "faces": faces, "by": [3, 0, 0]})).unwrap();
+    assert!((volume(&mut s) - before).abs() < 1.0);
+    let bb = s.kernel.bounds(&s.doc.bodies[0].shape).unwrap();
+    assert!((bb.max.x - 20.0).abs() < 1e-6 && bb.min.x.abs() < 1e-6, "the block itself stays put");
+    let c1 = s.kernel.mass_props(&s.doc.bodies[0].shape).unwrap().centroid;
+    assert!(c1.x < c0.x - 0.01, "the pocket went +x, so the material's centre went -x");
+    assert!(s.execute("move_faces", &json!({"body": body.0, "faces": [99], "by": [1, 0, 0]})).is_err());
+    assert!(s.execute("move_faces", &json!({"body": body.0, "faces": [0], "by": [f64::NAN, 0, 0]})).is_err());
+}

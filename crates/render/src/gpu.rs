@@ -224,6 +224,8 @@ pub struct Renderer {
     mesh_pipeline: wgpu::RenderPipeline,
     xray_pipeline: wgpu::RenderPipeline,
     ghost_pipeline: wgpu::RenderPipeline,
+    /// The hidden part of what's selected (or hovered in the Items list), faintly over what hides it.
+    through_pipeline: wgpu::RenderPipeline,
     /// Sketching: bodies write depth only, then their nearest surface is blended over what's behind.
     depth_only_pipeline: wgpu::RenderPipeline,
     fade_pipeline: wgpu::RenderPipeline,
@@ -469,6 +471,19 @@ impl Renderer {
                 blend: alpha,
             },
         );
+        let through_pipeline = make(
+            &mesh_layout,
+            PipelineSpec {
+                label: "hidden selection",
+                vs: "vs_mesh",
+                fs: "fs_through",
+                buffers: &mesh_buf,
+                topology: tri,
+                depth_write: false,
+                depth_compare: wgpu::CompareFunction::Greater,
+                blend: alpha,
+            },
+        );
         let keep = wgpu::BlendComponent {
             src_factor: wgpu::BlendFactor::Zero,
             dst_factor: wgpu::BlendFactor::One,
@@ -667,6 +682,7 @@ impl Renderer {
             queue,
             mesh_pipeline,
             xray_pipeline,
+            through_pipeline,
             ghost_pipeline,
             depth_only_pipeline,
             fade_pipeline,
@@ -908,6 +924,7 @@ impl Renderer {
         let mut draws = Vec::new();
         let mut ghost_draws = Vec::new();
         let mut see_draws = Vec::new();
+        let mut through_draws = Vec::new();
         for body in scene.doc.bodies.iter().filter(|b| b.visible) {
             let key = body.id.0 as usize;
             let mut color = c.body.linear();
@@ -981,6 +998,10 @@ impl Renderer {
                 gpu.written = bytes.to_vec();
                 let uniform = gpu.uniform.clone();
                 self.queue.write_buffer(&uniform, 0, bytes);
+            }
+            // Anything picked or hovered from the Items list also shows where other faces hide it.
+            if ghost.is_none() && !sketching && scene.display.solid() && (n > 0 || uni.flags[0] == 1 || uni.flags[3] == 1) {
+                through_draws.push(key);
             }
             if ghost.is_some() {
                 ghost_draws.push(key);
@@ -1063,6 +1084,19 @@ impl Renderer {
             for mp in mesh_passes {
                 pass.set_pipeline(mp);
                 for key in &draws {
+                    if let Some(b) = self.bodies.get(key) {
+                        pass.set_bind_group(1, &b.bind, &[]);
+                        pass.set_vertex_buffer(0, b.vertices.slice(..));
+                        pass.set_index_buffer(b.indices.slice(..), wgpu::IndexFormat::Uint32);
+                        pass.draw_indexed(0..b.count, 0, 0..1);
+                    }
+                }
+            }
+            // What's picked but hidden, faintly over the solid bodies that hide it (before the see-through
+            // selected bodies write their depth, so those only hide it where they're not themselves picked).
+            if !through_draws.is_empty() {
+                pass.set_pipeline(&self.through_pipeline);
+                for key in &through_draws {
                     if let Some(b) = self.bodies.get(key) {
                         pass.set_bind_group(1, &b.bind, &[]);
                         pass.set_vertex_buffer(0, b.vertices.slice(..));

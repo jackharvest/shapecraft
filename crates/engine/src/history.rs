@@ -61,6 +61,7 @@ pub const FEATURES: &[Feature] = &[
     Feature { command: "scale", name: "Scale", fields: &[f("factor", "Factor", Factor, 1.0)] },
     Feature { command: "translate", name: "Movement/Rotation", fields: &[] },
     Feature { command: "rotate", name: "Rotate", fields: &[f("angle", "Angle", Angle, 0.0)] },
+    Feature { command: "move_faces", name: "Movement/Rotation", fields: &[] },
     Feature { command: "mirror", name: "Mirror", fields: &[] },
     Feature { command: "unlinked_copy", name: "Unlinked Copy", fields: &[] },
     Feature { command: "align", name: "Alignment", fields: &[] },

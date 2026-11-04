@@ -13,7 +13,7 @@ use crate::{EngineError, Params, Result, Session};
 use boolean::{boolean_spec, split_body};
 use extrude::extrude;
 pub use extrude::extrude_auto_body;
-use faces::{chamfer, edge_target, fillet, offset_face, project_edge, replace_face, shell};
+use faces::{chamfer, edge_target, fillet, move_faces, offset_face, project_edge, replace_face, shell};
 pub use sweep::revolve_auto;
 use sweep::{loft, revolve, sweep};
 use transform::{align, mirror, pattern, pattern_circular, rotate, scale, translate};
@@ -216,6 +216,17 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             modifies: true,
             enabled: has_bodies,
             run: offset_face,
+        },
+        CommandSpec {
+            id: "move_faces",
+            label: "Move Faces",
+            menu: "",
+            shortcut: None,
+            help: "Move or turn the selected faces of a body (Move/Rotate with faces picked); the rest of the body follows",
+            params: r#"{"by": [dx,dy,dz]? | "origin": [x,y,z], "axis": [x,y,z], "angle": degrees, "body": id?, "faces": [n]?}  (default: the selected faces)"#,
+            modifies: true,
+            enabled: has_bodies,
+            run: move_faces,
         },
         CommandSpec {
             id: "wrap_emboss",

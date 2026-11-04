@@ -189,7 +189,7 @@ impl Workspace {
         }
         // Auto-orientation: over a flat face the gizmo turns to it (its Z along the face's normal).
         let turned = pointer
-            .filter(|_| self.auto_orient() && matches!(&self.tool, Tool::Move(t) if !t.items.is_empty()))
+            .filter(|_| self.auto_orient() && matches!(&self.tool, Tool::Move(t) if !t.items.is_empty() || t.faces.is_some()))
             .and_then(|p| self.face_frame_at(p));
         if let Some(p) = pointer
             && let Some((at, snapped)) = self.relocation_target(p)

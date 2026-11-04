@@ -171,6 +171,7 @@ impl Workspace {
         // Moving sketch curves: a "Copy" pill under the gizmo (bodies have theirs already), s11-088.
         if let Tool::Move(t) = &self.tool
             && t.items.is_empty()
+            && t.faces.is_none()
             && t.dragging.is_none()
             && let Some(o) = self.to_screen(t.shown_pivot())
         {

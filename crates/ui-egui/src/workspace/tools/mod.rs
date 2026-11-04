@@ -15,6 +15,7 @@ use super::toolbar::ToolKind;
 mod commit;
 mod setup;
 
+pub(crate) use setup::picked_faces;
 use setup::{selected_items_bounds, v3, with_items};
 
 #[derive(Clone, Debug)]
@@ -677,8 +678,10 @@ pub struct MoveTool {
     pub copy: bool,
     /// The Link badge turned off: copies keep their own geometry (an "Unlinked Copy" step).
     pub unlinked: bool,
-    /// Bodies; empty when moving the selected sketch curves.
+    /// Bodies; empty when moving the selected sketch curves or faces.
     pub items: Vec<ItemId>,
+    /// Picked faces of one body, moved on their own (the rest of the body follows); empty otherwise.
+    pub faces: Option<(ItemId, Vec<u32>)>,
     pub frame: GizmoFrame,
     pub pivot: DVec3,
     /// The handle being dragged: where the drag started and the value then.
