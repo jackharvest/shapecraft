@@ -134,7 +134,7 @@ fn step_keeps_part_names_and_colors_both_ways() {
         let mut t = session();
         let out = t.execute("import_file", &json!({"path": path})).unwrap();
         assert_eq!(out.value["bodies"].as_array().unwrap().len(), 2);
-        // The names go out in the file; coming in, parts are numbered as the reference does (s41-035).
+        // The names go out in the file; coming in, parts are numbered per file.
         let text = std::fs::read_to_string(&path).unwrap();
         assert!(text.contains("'Bracket Plate'") && text.contains("'Pin'"), "{ap}");
         let names: Vec<&str> = t.doc.bodies.iter().map(|b| b.name.as_str()).collect();
@@ -182,7 +182,7 @@ fn files_without_an_extension_are_told_apart_by_their_contents() {
     let _ = std::fs::remove_dir_all(&dir);
 }
 
-/// A STEP file's parts come in as "Imported NN" whatever the file names them, nothing selected (26.202, s41-024..026),
+/// A STEP file's parts come in as "Imported NN" whatever the file names them, nothing selected,
 /// and every Import Preferences clean-up keeps a sound solid.
 #[test]
 fn step_parts_are_numbered_imported_and_left_unselected() {
@@ -209,7 +209,7 @@ fn step_parts_are_numbered_imported_and_left_unselected() {
         let v: f64 = t.doc.bodies.iter().map(|b| t.kernel.mass_props(&b.shape).unwrap().volume).sum();
         assert!((v - 1500.0).abs() < 1e-3, "{heal}: {v}");
     }
-    // A second file starts at 01 again (s41-035).
+    // A second file starts at 01 again.
     s.execute("import_file", &json!({"path": path})).unwrap();
     s.execute("import_file", &json!({"path": path})).unwrap();
     assert_eq!(s.doc.bodies.iter().filter(|b| b.name == "Imported 01").count(), 2);

@@ -406,7 +406,7 @@ impl Workspace {
     /// Bodies a boolean shows see-through (observed 383–384): Subtract's target blue, what it cuts away cyan; a
     /// Union's or Intersect's bodies cyan once there are two.
     /// Split Body applied, before Done: the pieces grey-teal, the cuts showing as edges (s12-018).
-    /// A face growing out (Extrude): the grown body in its own grey, see-through (26.202, s41-014).
+    /// A face growing out (Extrude): the grown body in its own grey, see-through.
     pub(super) fn split_tints(&self) -> Vec<(shapecraft_doc::ItemId, Rgba)> {
         if let Some((body, _)) = self.growing_face() {
             let c = if theme::is_light() { SceneColors::light() } else { SceneColors::default() }.body;

@@ -375,7 +375,7 @@ impl ShapeCraftApp {
             self.new_project();
         }
         let Some(ws) = self.ws.as_deref_mut() else { return };
-        // STEP, IGES and Parasolid first ask how to clean the geometry up, unless told not to (26.202, s41-023).
+        // STEP, IGES and Parasolid first ask how to clean the geometry up, unless told not to.
         let mode = crate::workspace::import_prefs::mode_index(&ws.settings.import_mode);
         if crate::workspace::import_prefs::wants_sheet(&path) && !ws.settings.import_skip_prefs {
             ws.import_prefs =
@@ -389,7 +389,7 @@ impl ShapeCraftApp {
     /// Brings a file into the open project (after Import Preferences, when it asked).
     fn import_file(&mut self, path: std::path::PathBuf, heal: serde_json::Value) {
         if let Some(ws) = self.ws.as_deref_mut() {
-            // A project made for the import takes the file's name; one with work in it keeps its own (26.202, s41-024).
+            // A project made for the import takes the file's name; one with work in it keeps its own.
             let empty = ws.session.doc.bodies.is_empty() && ws.session.doc.sketches.is_empty();
             if empty
                 && ws.session.doc.name == "Untitled Project"

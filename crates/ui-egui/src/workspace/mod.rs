@@ -126,8 +126,8 @@ pub struct ViewOptions {
     pub decals: bool,
     /// View ▸ Show Pinned Measurements.
     pub pinned: bool,
-    /// View ▸ Show Sketches: off (the default, as 26.202) hides sketches in the Visualized look only; while
-    /// modeling a sketch shows by its own eye either way (s41-004..007).
+    /// View ▸ Show Sketches: off (the default) hides sketches in the Visualized look only; while
+    /// modeling a sketch shows by its own eye either way.
     pub sketches: bool,
 }
 

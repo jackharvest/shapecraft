@@ -1,7 +1,6 @@
-//! Import Preferences, as observed (26.202, s41-023/027/028): before a STEP, IGES or Parasolid file comes in, a
+//! Import Preferences: before a STEP, IGES or Parasolid file comes in, a
 //! sheet asks what to optimize the import for. Quality cleans the geometry up, Speed takes it as it is (with a
 //! warning), Custom picks the clean-ups one by one. "Don't show this again" keeps the choice and skips the sheet.
-//! The wording is ours; the reference's names the third-party healers it runs.
 
 use std::path::PathBuf;
 
@@ -24,7 +23,7 @@ pub struct ImportPrefs {
 
 pub const MODES: [&str; 3] = ["Quality", "Speed", "Custom"];
 
-/// Custom's rows: title and what it does (in the reference's order, without the vendor names).
+/// Custom's rows: title and what it does.
 const ROWS: [(&str, &str); 4] = [
     ("Simplify Geometry", "Merge faces and edges that lie on one surface or curve. Fewer, larger faces; small details can change."),
     ("Healing", "Close small gaps, drop tiny edges and faces, and turn faces that point the wrong way."),
@@ -54,7 +53,7 @@ pub fn mode_index(name: &str) -> usize {
 
 pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     let Some(mut d) = ws.import_prefs.take() else { return };
-    // Measured from s41-022: about 560 wide, 640 tall, centred.
+    // About 560 wide, 640 tall, centred.
     let r = Rect::from_center_size(full.center(), vec2(560.0, 640.0));
     let p = ui.painter().clone();
     p.rect_filled(full, 0.0, Color32::from_black_alpha(90));
@@ -74,7 +73,7 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     let mut y = head.bottom() + 12.0;
     match d.mode {
         1 => {
-            // Speed: a warning box (the reference's yellow triangle, drawn here).
+            // Speed: a warning box with a yellow triangle.
             let b = Rect::from_min_max(pos2(x0, y), pos2(x1, y + 64.0));
             p.rect_filled(b, radius(7), theme::c(0x262626));
             let c = pos2(b.left() + 24.0, b.top() + 26.0);

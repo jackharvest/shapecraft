@@ -102,7 +102,7 @@ impl Workspace {
         // A box being dragged shows what it would take.
         let boxed: Option<Vec<Pick>> = self.area.as_ref().map(|a| self.area_picks(a));
         let kept: Vec<Pick> = if let Some((body, face)) = self.growing_face() {
-            // The face it grew from stays picked on the part as it was; the new end face isn't (s41-014).
+            // The face it grew from stays picked on the part as it was; the new end face isn't.
             vec![Pick::Face { body: Self::before_id(body), face }]
         } else if live && matches!(self.tool, Tool::Move(_) | Tool::Scale(_) | Tool::Pattern(_) | Tool::RotateAxis(_)) {
             self.session.selection.iter().filter(|p| matches!(p, Pick::Body { .. } | Pick::Plane { .. })).copied().collect()

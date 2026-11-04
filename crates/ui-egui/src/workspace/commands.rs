@@ -151,8 +151,8 @@ impl Workspace {
         self.preview = Some(Preview { key, computed_at: self.now, doc });
     }
 
-    /// A body face pushed out (Extrude on a face, not a cut) once it has a result, live or previewed: 26.202 draws the
-    /// part as it was with the face still picked, and the grown body see-through over it (s41-012/014).
+    /// A body face pushed out (Extrude on a face, not a cut) once it has a result, live or previewed: it shows the
+    /// part as it was with the face still picked, and the grown body see-through over it.
     pub(crate) fn growing_face(&self) -> Option<(shapecraft_doc::ItemId, u32)> {
         let Tool::Extrude(t) = &self.tool else { return None };
         let crate::workspace::tools::Target::Face { body, face } = t.target else { return None };
@@ -235,7 +235,7 @@ impl Workspace {
             }
             return std::borrow::Cow::Owned(d);
         }
-        // View ▸ Show Sketches off: in the Visualized look only the sketch being edited stays (26.202, s41-006/007).
+        // View ▸ Show Sketches off: in the Visualized look only the sketch being edited stays.
         let base = if self.view_opts.sketches || !self.visualizing {
             base
         } else {

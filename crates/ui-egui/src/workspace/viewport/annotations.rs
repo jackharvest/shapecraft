@@ -757,8 +757,7 @@ impl Workspace {
         {
             // The reference's look: a ↕ glyph on the cap, the length in a pill on a dashed line back to the
             // base, and the ↔ draft handle with its angle pill.
-            // The ↕ is blue for a region and for a body face, before and after the pull (26.202, s41-011/014; the
-            // white ↕ on a face was 26.142). A face shows no ↔ draft handle.
+            // The ↕ is blue for a region and for a body face, before and after the pull. A face shows no ↔ draft handle.
             let blue = Tokens::accent();
             let fresh = matches!(t.target, crate::workspace::tools::Target::Region { .. });
             let shown_len = t.distance;

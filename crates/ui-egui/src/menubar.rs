@@ -179,7 +179,7 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
     let sep = || Entry::Separator;
     // As 26.200 has them (plan/shapr3d/04-menu-tree-workspace-26200.txt), less the cloud items (View in Browser,
     // Copy Link, Share…, Publish…) and the online help links; Save and Projects are ours (local files). The tools'
-    // single keys show as in 26.202 (L, A, C… s41 AX dump); a bare key typed in the workspace still goes to the
+    // single keys show beside them (L, A, C…); a bare key typed in the workspace still goes to the
     // workspace (see `bare_key`), so typing into fields and the keys' in-tool meanings (E flips Sides…) stay.
     vec![
         (

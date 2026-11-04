@@ -284,7 +284,7 @@ fn import_any(s: &mut Session, p: &Params) -> Result<Value> {
     }
 }
 
-/// Import Preferences (26.202, s41-027/028): "heal" is "quality" (every clean-up), "speed" (none, the default for
+/// Import Preferences: "heal" is "quality" (every clean-up), "speed" (none, the default for
 /// scripts) or an object picking them: {"repair", "edges", "sew", "simplify"}.
 fn heal_options(p: &Params) -> Result<shapecraft_kernel::HealOptions> {
     use shapecraft_kernel::HealOptions;
@@ -350,8 +350,7 @@ fn import_step(s: &mut Session, path: &std::path::Path, heal: shapecraft_kernel:
     let mut folders: Vec<(String, Vec<shapecraft_doc::ItemId>)> = Vec::new();
     // Everything lands in a folder named after the file, parts of assemblies in folders below it.
     let file = path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
-    // Parts are "Imported 01", "02"… in each file, whatever the file calls them (26.202, s41-026/035: "Bracket
-    // Plate" and "Pin" came in as Imported 01/02, and a second file starts at 01 again).
+    // Parts are "Imported 01", "02"… in each file, whatever the file calls them.
     for (k, (shape, mut info)) in parts.into_iter().enumerate() {
         let shape = s.kernel.heal(&shape, heal)?;
         let name = format!("Imported {:02}", k + 1);
@@ -377,7 +376,7 @@ fn import_step(s: &mut Session, path: &std::path::Path, heal: shapecraft_kernel:
         s.doc.folders.push(shapecraft_doc::Folder { id, name: name.chars().take(200).collect(), items });
         made_folders.push(id.0);
     }
-    // Nothing is selected after an import (26.202, s41-024).
+    // Nothing is selected after an import.
     s.selection.clear();
     Ok(json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>(), "folders": made_folders }))
 }
