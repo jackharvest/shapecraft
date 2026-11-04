@@ -7,7 +7,8 @@ use shapecraft_doc::{Pick, SketchEntity, SketchPlane, format_length};
 use super::handles::SECTION_FLIP;
 use super::paint::{
     DASHED_RADIUS, DIAMETER, PILL_INK, RADIAL, axis_pill, copy_pill, dashed_radius, diameter_dim, double_arrow, face_arrow, lead_drop,
-    leader_dim, link_pill, padlock, pill, radius_dim, screen_dim, sketch_dimension, target_badge, value_box,
+    leader_dim, link_pill, padlock, pill, radius_dim, screen_dim, sketch_dimension, target_badge, value_box, value_field,
+    value_field_seeded,
 };
 use super::snap::ellipse_minor;
 use crate::theme::{self, Tokens, radius};
@@ -997,9 +998,32 @@ impl Workspace {
             let value_first = matches!(&self.tool, Tool::OffsetFace(t)
                 if t.fillet.is_none() && self.offset_kind(t) != crate::workspace::tools::OffsetKind::Total)
                 && typed.is_none();
+            // Offset Face opens its value field at once (26.202, s37-wall: "10" selected for a Ø10 wall, Total
+            // thickness on a flat face), below and right of the arrow; typing replaces it, a pull closes it.
+            let field_tool = matches!(&self.tool, Tool::OffsetFace(t) if t.fillet.is_none());
+            let seeded = matches!(&self.tool, Tool::OffsetFace(t) if t.fillet.is_none()
+                && t.distance.abs() < 1e-9
+                && t.dragging.is_none()
+                && self.offset_kind(t) != crate::workspace::tools::OffsetKind::Offset)
+                && typed.is_none();
+            let field_center = s0 + vec2(20.0, 30.0);
+            let field_rect = Rect::from_center_size(field_center + vec2(13.0, 0.0), vec2(214.0, 34.0)).expand(4.0);
+            let in_field = seeded || (field_tool && typed.is_some());
             if let Some((at, kind)) = kind_pill {
                 let half = shown.chars().count() as f32 * 2.9 + 6.0;
-                let kind_at = if value_first {
+                let kind_at = if in_field {
+                    // The type pill goes on along the arrow's line, clear of the field.
+                    let kind_half = kind.chars().count() as f32 * 2.9 + 6.0;
+                    let mut d = 30.0;
+                    while d < 400.0
+                        && (field_rect.contains(s0 + label_dir * (d - kind_half))
+                            || field_rect.contains(s0 + label_dir * d)
+                            || field_rect.contains(s0 + label_dir * (d + kind_half)))
+                    {
+                        d += 4.0;
+                    }
+                    s0 + label_dir * (d + kind_half + 4.0)
+                } else if value_first {
                     label_at = at + label_dir * (half - 12.0);
                     let kind_half = kind.chars().count() as f32 * 2.9 + 6.0;
                     label_at + label_dir * (half + 5.0 + kind_half)
@@ -1048,7 +1072,18 @@ impl Workspace {
             // Offset Face's plain Offset shows no value until it's pulled (as observed, s37).
             let unpulled_offset = matches!(&self.tool, Tool::OffsetFace(t)
                 if t.fillet.is_none() && t.distance.abs() < 1e-9 && self.offset_kind(t) == crate::workspace::tools::OffsetKind::Offset);
-            if typed.is_some() {
+            if seeded {
+                // The bare number, as the reference shows it ("10", not "⌀10 mm").
+                let k = match &self.tool {
+                    Tool::OffsetFace(t) => t.shown(self.offset_kind(t)),
+                    _ => 0.0,
+                };
+                let bare = format_length(k, units);
+                let bare = bare.trim_end_matches(|c: char| c.is_alphabetic()).trim_end();
+                value_field_seeded(&painter, field_center, bare);
+            } else if let (true, Some(t)) = (field_tool, typed) {
+                value_field(&painter, field_center, t);
+            } else if typed.is_some() {
                 value_box(&painter, label_at + label_dir * 30.0, &shown, typed);
             } else if !unpulled_offset {
                 axis_pill(&painter, label_at, label_dir, &shown, true);

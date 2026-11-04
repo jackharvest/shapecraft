@@ -1333,6 +1333,8 @@ impl ShapeCraftApp {
                 sketching: ws.session.active_sketch.is_some(),
                 undo: ws.session.can_undo(),
                 redo: ws.session.can_redo(),
+                grid_um: (ws.grid_size() * 1000.0).round().max(0.0) as u64,
+                grid_locked: ws.grid_locked.is_some(),
             },
         };
         bar.update(state);
@@ -1364,6 +1366,12 @@ impl ShapeCraftApp {
                     }
                     AppAction::OpenPage(url) => open_page(url),
                 },
+                MenuAction::Home(cmd) => {
+                    if self.ws.is_none() {
+                        let now = ctx.input(|i| i.time);
+                        self.landing.command(cmd, now);
+                    }
+                }
                 MenuAction::Ui(crate::workspace::toolbar::UiAction::Preferences) if self.ws.is_none() => {
                     self.home_prefs.get_or_insert(0);
                 }
@@ -1378,6 +1386,8 @@ impl ShapeCraftApp {
                         MenuAction::View(v) => ws.standard_view(v),
                         MenuAction::Display(d) => ws.display = d,
                         MenuAction::Soon(label) => ws.toast(format!("{label} is coming soon")),
+                        MenuAction::Variant(kind, key, i) => ws.start_variant(kind, key, i),
+                        MenuAction::Home(_) => {}
                         MenuAction::App(_) => {}
                     }
                 }

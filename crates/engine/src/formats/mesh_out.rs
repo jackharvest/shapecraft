@@ -78,21 +78,32 @@ pub fn write_obj(bodies: &[ExportBody], mtl_name: &str) -> (String, String) {
 }
 
 /// A 3MF package: one welded mesh object per body, coloured from its appearance, in millimetres.
+///
+/// Colours go in a Materials-extension colour group (Bambu Studio and OrcaSlicer read those from other apps and put
+/// each colour on its own filament), and `Metadata/model_settings.config` names that filament per object (OrcaSlicer
+/// only keeps it from there). The core `basematerials` list stays for readers without the extension. No project
+/// settings are written: a partial one makes OrcaSlicer crash.
 pub fn write_3mf(bodies: &[ExportBody]) -> Option<Vec<u8>> {
+    let group = bodies.len() + 2;
     let mut model = String::from(
-        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<model unit=\"millimeter\" xml:lang=\"en-US\" xmlns=\"http://schemas.microsoft.com/3dmanufacturing/core/2015/02\">\n <metadata name=\"Application\">ShapeCraft</metadata>\n <resources>\n  <basematerials id=\"1\">\n",
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<model unit=\"millimeter\" xml:lang=\"en-US\" xmlns=\"http://schemas.microsoft.com/3dmanufacturing/core/2015/02\" xmlns:m=\"http://schemas.microsoft.com/3dmanufacturing/material/2015/02\">\n <metadata name=\"Application\">ShapeCraft</metadata>\n <resources>\n  <basematerials id=\"1\">\n",
     );
     for b in bodies {
         let _ = writeln!(model, "   <base name=\"{}\" displaycolor=\"{}\" />", xml_escape(b.name), hex(b.color));
     }
     model.push_str("  </basematerials>\n");
+    let _ = writeln!(model, "  <m:colorgroup id=\"{group}\">");
+    for b in bodies {
+        let _ = writeln!(model, "   <m:color color=\"{}FF\" />", hex(b.color));
+    }
+    model.push_str("  </m:colorgroup>\n");
     for (i, b) in bodies.iter().enumerate() {
         let pts: Vec<DVec3> = b.mesh.positions.iter().map(|p| DVec3::new(f64::from(p[0]), f64::from(p[1]), f64::from(p[2]))).collect();
         let tris: Vec<[u32; 3]> = b.mesh.indices.as_chunks::<3>().0.to_vec();
         let (pts, idx) = super::weld(&pts, &tris);
         let _ = write!(
             model,
-            "  <object id=\"{}\" name=\"{}\" type=\"model\" pid=\"1\" pindex=\"{i}\">\n   <mesh>\n    <vertices>\n",
+            "  <object id=\"{}\" name=\"{}\" type=\"model\" pid=\"{group}\" pindex=\"{i}\">\n   <mesh>\n    <vertices>\n",
             i + 2,
             xml_escape(b.name)
         );
@@ -110,13 +121,38 @@ pub fn write_3mf(bodies: &[ExportBody]) -> Option<Vec<u8>> {
         let _ = writeln!(model, "  <item objectid=\"{}\" />", i + 2);
     }
     model.push_str(" </build>\n</model>\n");
-    let types = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\" /><Default Extension=\"model\" ContentType=\"application/vnd.ms-package.3dmanufacturing-3dmodel+xml\" /></Types>\n";
+    let types = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Types xmlns=\"http://schemas.openxmlformats.org/package/2006/content-types\"><Default Extension=\"rels\" ContentType=\"application/vnd.openxmlformats-package.relationships+xml\" /><Default Extension=\"model\" ContentType=\"application/vnd.ms-package.3dmanufacturing-3dmodel+xml\" /><Default Extension=\"config\" ContentType=\"text/xml\" /></Types>\n";
     let rels = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<Relationships xmlns=\"http://schemas.openxmlformats.org/package/2006/relationships\"><Relationship Target=\"/3D/3dmodel.model\" Id=\"rel0\" Type=\"http://schemas.microsoft.com/3dmanufacturing/2013/01/3dmodel\" /></Relationships>\n";
     super::zip::store(&[
         ("[Content_Types].xml", types.as_bytes().to_vec()),
         ("_rels/.rels", rels.as_bytes().to_vec()),
         ("3D/3dmodel.model", model.into_bytes()),
+        ("Metadata/model_settings.config", filament_slots(bodies).into_bytes()),
     ])
+}
+
+/// The slicer's per-object filament (1-based): one per distinct body colour, in the order they first appear.
+fn filament_slots(bodies: &[ExportBody]) -> String {
+    let mut colours: Vec<String> = Vec::new();
+    let mut out = String::from("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<config>\n");
+    for (i, b) in bodies.iter().enumerate() {
+        let c = hex(b.color);
+        let slot = match colours.iter().position(|x| *x == c) {
+            Some(k) => k + 1,
+            None => {
+                colours.push(c);
+                colours.len()
+            }
+        };
+        let _ = write!(
+            out,
+            "  <object id=\"{}\">\n    <metadata key=\"name\" value=\"{}\"/>\n    <metadata key=\"extruder\" value=\"{slot}\"/>\n  </object>\n",
+            i + 2,
+            xml_escape(b.name)
+        );
+    }
+    out.push_str("</config>\n");
+    out
 }
 
 /// Binary glTF 2.0: one node per body under a root that turns Z-up millimetres into Y-up metres, with a PBR
@@ -274,4 +310,31 @@ pub fn write_usdz(bodies: &[ExportBody]) -> Option<Vec<u8>> {
     }
     usda.push_str("    }\n}\n");
     super::zip::store_aligned(&[("model.usda", usda.into_bytes())], 64)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn body(name: &str, color: [f32; 3]) -> ExportBody<'_> {
+        let mesh =
+            Mesh { positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], indices: vec![0, 1, 2], ..Default::default() };
+        ExportBody { name, mesh: Arc::new(mesh), color, metal: 0.0, gloss: 0.5 }
+    }
+
+    #[test]
+    fn same_colours_share_a_filament() {
+        let red = [0.9, 0.1, 0.1];
+        let blue = [0.1, 0.2, 0.9];
+        let bodies = [body("A", red), body("B", blue), body("C & D", red)];
+        let cfg = filament_slots(&bodies);
+        assert!(cfg.contains("<object id=\"2\">\n    <metadata key=\"name\" value=\"A\"/>\n    <metadata key=\"extruder\" value=\"1\"/>"));
+        assert!(cfg.contains("<object id=\"3\">\n    <metadata key=\"name\" value=\"B\"/>\n    <metadata key=\"extruder\" value=\"2\"/>"));
+        assert!(cfg.contains("value=\"C &amp; D\"/>\n    <metadata key=\"extruder\" value=\"1\"/>"));
+        let bytes = write_3mf(&bodies).unwrap_or_default();
+        let text = String::from_utf8_lossy(&bytes);
+        assert!(text.contains("<m:colorgroup id=\"5\">"));
+        assert!(text.contains("pid=\"5\" pindex=\"2\""));
+        assert!(text.contains("Metadata/model_settings.config"));
+    }
 }

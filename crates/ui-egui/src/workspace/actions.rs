@@ -11,6 +11,11 @@ use super::tools::{self, Tool};
 use super::{RightPop, Search, Section, Workspace, annotate, drawings, sheet_views};
 
 impl Workspace {
+    /// The grid's spacing now: the locked one, else what the zoom gives.
+    pub(crate) fn grid_size(&self) -> f64 {
+        self.grid_locked.unwrap_or_else(|| shapecraft_render::grid_step(self.camera.world_per_pixel(self.size().y)))
+    }
+
     /// The toolbar button / shortcut path for every action.
     pub fn act(&mut self, action: Action, label: &str) {
         self.flyout = None;
@@ -39,6 +44,7 @@ impl Workspace {
             UiAction::ToggleEdges => self.view_opts.edges = !self.view_opts.edges,
             UiAction::ToggleHiddenEdges => self.view_opts.hidden_edges = !self.view_opts.hidden_edges,
             UiAction::ToggleDecals => self.view_opts.decals = !self.view_opts.decals,
+            UiAction::ToggleSketches => self.view_opts.sketches = !self.view_opts.sketches,
             UiAction::Units(i) => {
                 if let Some(name) = ["Millimeter", "Centimeter", "Meter", "Inch", "Foot"].get(i as usize) {
                     let _ = self.run("set_units", json!({ "units": name }));
@@ -47,7 +53,7 @@ impl Workspace {
             UiAction::FeetArchitectural(on) => self.feet_architectural = on,
             UiAction::DegreesFractional(on) => self.degrees_fractional = on,
             UiAction::LockGrid => {
-                let step = shapecraft_render::grid_step(self.camera.world_per_pixel(self.viewport_rect.height() as f64));
+                let step = self.grid_size();
                 self.grid_locked = if self.grid_locked.is_some() { None } else { Some(step) };
             }
             UiAction::CollapseAll => self.items_expanded.clear(),
@@ -55,7 +61,7 @@ impl Workspace {
             UiAction::ToggleHistory => self.show_history = !self.show_history,
             UiAction::Search => {
                 let at = self.viewport_rect.center() - vec2(125.0, 60.0);
-                self.search = Some(Search { query: String::new(), at, selected: 0, opened_frame: true });
+                self.search = Some(Search { query: String::new(), at, selected: 0, opened_frame: true, at_pointer: false });
             }
             UiAction::ToolDone => {
                 // A live step is already applied: Done just ends the tool.

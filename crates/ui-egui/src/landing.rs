@@ -19,6 +19,21 @@ pub enum Section {
     All,
 }
 
+/// What the home screen's menu bar items ask for (File, Go and View on the home screen).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HomeCmd {
+    NewFolder,
+    Duplicate,
+    Back,
+    Forward,
+    EnclosingFolder,
+    Recents,
+    Projects,
+    /// Sort By: 0 date newest first, 1 date oldest first, 2 name A–Z, 3 name Z–A.
+    Sort(u8),
+    Search,
+}
+
 pub enum LandingAction {
     Open(PathBuf),
     /// A new project in this folder.
@@ -57,6 +72,10 @@ pub struct Landing {
     thumbs: HashMap<PathBuf, (SystemTime, TextureHandle)>,
     pub toast: Option<(String, f64)>,
     sort: Sort,
+    /// Sort By's reversed orders (date oldest first, name Z to A).
+    sort_reversed: bool,
+    /// View ▸ Search: the search field takes the keyboard next frame.
+    focus_search: bool,
     sort_menu: Option<egui::Pos2>,
     menu: Option<(Tile, egui::Pos2, f64)>,
     /// A tile being renamed in place: its path, the text, and whether to grab focus.
@@ -93,6 +112,8 @@ impl Landing {
             thumbs: HashMap::new(),
             toast: None,
             sort: Sort::Date,
+            sort_reversed: false,
+            focus_search: false,
             sort_menu: None,
             menu: None,
             renaming: None,
@@ -139,12 +160,80 @@ impl Landing {
         if self.sort == Sort::Name {
             self.projects.sort_by_key(|p| p.name.to_lowercase());
         }
+        if self.sort_reversed {
+            self.projects.reverse();
+            if self.sort == Sort::Name {
+                self.folders.reverse();
+            }
+        }
         self.scanned = Some(now);
     }
 
     /// Where a new project or folder goes: the folder being browsed, else the root.
     pub fn target_dir(&self) -> PathBuf {
         if self.section == Section::All { self.folder.clone() } else { self.root.clone() }
+    }
+
+    /// A home-screen menu bar item.
+    pub fn command(&mut self, cmd: HomeCmd, now: f64) {
+        match cmd {
+            HomeCmd::NewFolder => {
+                if self.section != Section::All {
+                    let root = self.root.clone();
+                    self.go_to(root);
+                }
+                let parent = self.folder.clone();
+                if let Some(dir) = self.report(now, project::new_folder(&parent)) {
+                    let name = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                    self.renaming = Some((dir, name, true));
+                }
+            }
+            HomeCmd::Duplicate => match self.selected.clone() {
+                Some(dir) if self.projects.iter().any(|p| p.dir == dir) => {
+                    let r = project::duplicate(&dir);
+                    self.report(now, r);
+                }
+                _ => self.toast = Some(("Select a project to duplicate".into(), now + 3.0)),
+            },
+            HomeCmd::Back => {
+                if self.section == Section::All
+                    && let Some(prev) = self.back.pop()
+                {
+                    self.forward.push(std::mem::replace(&mut self.folder, prev));
+                    self.rescan();
+                }
+            }
+            HomeCmd::Forward => {
+                if self.section == Section::All
+                    && let Some(next) = self.forward.pop()
+                {
+                    self.back.push(std::mem::replace(&mut self.folder, next));
+                    self.rescan();
+                }
+            }
+            HomeCmd::EnclosingFolder => {
+                if self.section == Section::All
+                    && self.folder != self.root
+                    && let Some(up) = self.folder.parent().map(Path::to_path_buf)
+                {
+                    self.go_to(up);
+                }
+            }
+            HomeCmd::Recents => {
+                self.section = Section::Recents;
+                self.rescan();
+            }
+            HomeCmd::Projects => {
+                self.section = Section::All;
+                self.rescan();
+            }
+            HomeCmd::Sort(i) => {
+                self.sort = if i < 2 { Sort::Date } else { Sort::Name };
+                self.sort_reversed = i % 2 == 1;
+                self.rescan();
+            }
+            HomeCmd::Search => self.focus_search = true,
+        }
     }
 
     fn go_to(&mut self, folder: PathBuf) {
@@ -260,6 +349,9 @@ impl Landing {
         );
         let searched = ui
             .put(field, egui::TextEdit::singleline(&mut self.search).hint_text("Search").frame(egui::Frame::NONE).font(theme::body(12.0)));
+        if std::mem::take(&mut self.focus_search) {
+            searched.request_focus();
+        }
         if searched.changed() && !self.search.is_empty() && !matches!(self.section, Section::Recents | Section::All) {
             self.section = Section::Recents;
         }
@@ -941,6 +1033,7 @@ impl Landing {
             match chosen {
                 Some(i) => {
                     self.sort = if i == 0 { Sort::Date } else { Sort::Name };
+                    self.sort_reversed = false;
                     self.sort_menu = None;
                     self.rescan();
                 }

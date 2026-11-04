@@ -43,6 +43,21 @@ impl Workspace {
         self.tool = Tool::Await { kind, title, hint };
     }
 
+    /// A tool type picked from the menu bar (Sketch ▸ Rectangle ▸ 3 Points): remembered as the toolbar's
+    /// pick, then the tool starts that way. A running Offset Edge switches its Type in place.
+    pub fn start_variant(&mut self, kind: ToolKind, key: &str, i: usize) {
+        if kind == ToolKind::OffsetEdge && matches!(self.tool, Tool::OffsetEdge(_)) {
+            self.badge_pick(super::badges::Badge::OffsetType, i);
+            return;
+        }
+        self.variants.insert(key.to_string(), i);
+        // An armed drawing tool of the same kind restarts as the new type (its key would cycle it instead).
+        if matches!(self.tool, Tool::Rectangle { .. } | Tool::Rect3 { .. } | Tool::Polygon { .. } | Tool::Spline { .. }) {
+            self.tool = Tool::Idle;
+        }
+        self.start_tool(kind);
+    }
+
     pub fn start_tool(&mut self, kind: ToolKind) {
         // The key of the tool a pick already started leaves it as it is (s24 matrix).
         let same = match &self.tool {

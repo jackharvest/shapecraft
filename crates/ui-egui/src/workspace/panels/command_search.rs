@@ -77,7 +77,15 @@ pub(super) fn command_search(ws: &mut Workspace, ui: &mut Ui) {
     // title bar, whatever the pointer; it grows downwards, four rows at most, then it scrolls.
     let w = 288.0;
     let view = ws.view_rect;
-    let at = pos2(view.center().x - w / 2.0, view.center().y - 45.0);
+    let at = if search.at_pointer {
+        // Kept inside the view.
+        pos2(
+            search.at.x.clamp(view.left(), (view.right() - w).max(view.left())),
+            search.at.y.clamp(view.top(), (view.bottom() - 160.0).max(view.top())),
+        )
+    } else {
+        pos2(view.center().x - w / 2.0, view.center().y - 45.0)
+    };
     let typing = !search.query.is_empty();
     search.selected = search.selected.min(entries.len().saturating_sub(1));
     let first = search.selected.saturating_sub(3);

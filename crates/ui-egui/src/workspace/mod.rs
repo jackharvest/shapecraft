@@ -75,6 +75,8 @@ pub struct Search {
     pub at: Pos2,
     pub selected: usize,
     pub opened_frame: bool,
+    /// Opened by Return with nothing to finish: it sits at the pointer (`at`), not centred (26.202, s36).
+    pub at_pointer: bool,
 }
 
 /// Which right-column popover is open.
@@ -123,11 +125,13 @@ pub struct ViewOptions {
     pub decals: bool,
     /// View ▸ Show Pinned Measurements.
     pub pinned: bool,
+    /// View ▸ Show Sketches (off hides every sketch but the one being edited).
+    pub sketches: bool,
 }
 
 impl Default for ViewOptions {
     fn default() -> Self {
-        Self { grid: false, axes: true, edges: true, hidden_edges: false, decals: true, pinned: true }
+        Self { grid: false, axes: true, edges: true, hidden_edges: false, decals: true, pinned: true, sketches: true }
     }
 }
 
@@ -286,6 +290,9 @@ pub struct Workspace {
     /// The revision a pulled tool's step left (Extrude, Offset Face, Shell, Chamfer/Fillet): pulling again amends
     /// that step, as the reference's live handles do, until another tool or selection takes over.
     pub(crate) live_step: Option<u64>,
+    /// The document as it was when Extrude started: a cut shows the part whole with the red volume over it
+    /// (26.202), not the hole the live step already made.
+    pub(crate) cut_base: Option<shapecraft_doc::Document>,
     /// Done / Cancel this frame (Some(whether Done shows)), last frame's (what the toolbar's ✓ / ✕ cells show), and a
     /// cell's click waiting for the code that owns those buttons.
     /// The Text tool's font family (none = the plain sans-serif), kept for the next text; and its font list while
@@ -542,6 +549,7 @@ impl Workspace {
             just_drawn: Vec::new(),
             defined: None,
             live_step: None,
+            cut_base: None,
             text_font: None,
             font_list: None,
             seen_banner: String::new(),

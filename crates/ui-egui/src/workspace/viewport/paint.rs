@@ -211,6 +211,16 @@ pub(super) fn sketch_dimension_label(painter: &egui::Painter, mid: Pos2, u: egui
 /// The value field opened by typing (26.200, s11-014): a dark rounded panel holding a blue-rimmed field with the
 /// text, an "x+" variable glyph at its right end, and a "123" keypad key beside it.
 pub(super) fn value_field(painter: &egui::Painter, center: Pos2, typed: &str) {
+    value_field_ex(painter, center, typed, false);
+}
+
+/// The value field opened by a tool on its own (Offset Face, 26.202 s37-wall): the current value already in it and
+/// selected, so the first key typed replaces it.
+pub(super) fn value_field_seeded(painter: &egui::Painter, center: Pos2, value: &str) {
+    value_field_ex(painter, center, value, true);
+}
+
+fn value_field_ex(painter: &egui::Painter, center: Pos2, typed: &str, selected: bool) {
     let panel = Rect::from_center_size(center + vec2(13.0, 0.0), vec2(214.0, 34.0));
     painter.rect_filled(panel, radius(9), theme::c(0x262525));
     let field = Rect::from_min_size(panel.min + vec2(4.0, 4.0), vec2(176.0, 26.0));
@@ -218,10 +228,18 @@ pub(super) fn value_field(painter: &egui::Painter, center: Pos2, typed: &str) {
     painter.rect_stroke(field, radius(7), Stroke::new(2.0, theme::c(0x2f4793)), StrokeKind::Inside);
     let g = painter.layout_no_wrap(typed.to_string(), theme::body(14.0), Tokens::text_strong());
     let tw = g.size().x;
-    painter.galley(pos2(field.left() + 8.0, field.center().y - g.size().y / 2.0), g, Tokens::text_strong());
+    let text_at = pos2(field.left() + 8.0, field.center().y - g.size().y / 2.0);
+    if selected {
+        // Selected text: a blue highlight behind it, no caret.
+        let hl = Rect::from_min_size(text_at - vec2(2.0, 1.0), vec2(tw + 4.0, g.size().y + 2.0));
+        painter.rect_filled(hl, radius(2), theme::c(0x2f4fa8));
+    }
+    painter.galley(text_at, g, Tokens::text_strong());
     // The caret right after the text.
     let cx = field.left() + 9.0 + tw;
-    painter.line_segment([pos2(cx, field.top() + 6.0), pos2(cx, field.bottom() - 6.0)], Stroke::new(1.5, Tokens::accent()));
+    if !selected {
+        painter.line_segment([pos2(cx, field.top() + 6.0), pos2(cx, field.bottom() - 6.0)], Stroke::new(1.5, Tokens::accent()));
+    }
     let ink = theme::c(0xd8d8d8);
     let x = pos2(field.right() - 15.0, field.center().y);
     painter.text(x, Align2::CENTER_CENTER, "x", egui::FontId::new(15.0, egui::FontFamily::Proportional), ink);

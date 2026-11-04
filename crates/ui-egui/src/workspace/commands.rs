@@ -79,6 +79,11 @@ impl Workspace {
 
     /// Recomputes the live result of the running tool when its value changed (at most every 30 ms).
     pub(super) fn update_preview(&mut self) {
+        match &self.tool {
+            Tool::Extrude(_) if self.cut_base.is_none() && !self.is_live() => self.cut_base = Some(self.session.doc.clone()),
+            Tool::Extrude(_) => {}
+            _ => self.cut_base = None,
+        }
         // A live step at rest is already what the preview would show; leave the selection highlighted (the new cap
         // stays blue, as observed).
         if self.is_live() && self.numeric.is_none() && !self.dragging_handle() {
@@ -169,6 +174,15 @@ impl Workspace {
 
     /// The document as shown: with Isolate on, everything else is hidden.
     pub(crate) fn shown_doc(&self) -> std::borrow::Cow<'_, shapecraft_doc::Document> {
+        self.doc_as_shown(true)
+    }
+
+    /// What picking sees: as shown, but a cut's part with its live hole (face numbers follow the real shape).
+    pub(crate) fn pick_doc(&self) -> std::borrow::Cow<'_, shapecraft_doc::Document> {
+        self.doc_as_shown(false)
+    }
+
+    fn doc_as_shown(&self, show_uncut: bool) -> std::borrow::Cow<'_, shapecraft_doc::Document> {
         // Sketch Fillet shows the rounded sketch in place of the original (s11-095).
         if let (Tool::SketchFillet { corners, radius, .. }, Some(id)) = (&self.tool, self.session.active_sketch) {
             let r = self.numeric.as_deref().and_then(tools::parse_length).map(f64::abs).unwrap_or(*radius);
@@ -181,8 +195,26 @@ impl Workspace {
             return std::borrow::Cow::Owned(d);
         }
         let base = self.preview.as_ref().and_then(|p| p.doc.as_ref()).unwrap_or(&self.session.doc);
+        // A cut shows the part still whole, the red volume it takes drawn over it (26.202, s36-disc-pull).
+        let base: std::borrow::Cow<'_, shapecraft_doc::Document> = match &self.cut_base {
+            Some(before)
+                if show_uncut
+                    && matches!(self.tool, Tool::Extrude(_))
+                    && self.badge_current(crate::workspace::badges::Badge::Result) == Some(3) =>
+            {
+                let mut d = base.clone();
+                for b in &mut d.bodies {
+                    if let Some(old) = before.body(b.id) {
+                        b.shape = old.shape.clone();
+                        b.mesh = old.mesh.clone();
+                    }
+                }
+                std::borrow::Cow::Owned(d)
+            }
+            _ => std::borrow::Cow::Borrowed(base),
+        };
         if !self.view_opts.decals && base.images.iter().any(|i| i.visible) {
-            let mut d = base.clone();
+            let mut d = base.into_owned();
             for i in &mut d.images {
                 i.visible = false;
             }
@@ -193,9 +225,21 @@ impl Workspace {
             }
             return std::borrow::Cow::Owned(d);
         }
+        // View ▸ Show Sketches off: only the sketch being edited stays.
+        let base = if self.view_opts.sketches {
+            base
+        } else {
+            let mut d = base.into_owned();
+            for s in &mut d.sketches {
+                if Some(s.id) != self.session.active_sketch {
+                    s.visible = false;
+                }
+            }
+            std::borrow::Cow::Owned(d)
+        };
         // Section Only / 2D Section View: the bodies give way to their cut faces (drawn as overlays).
         if self.section.is_some_and(|s| s.caps_only()) {
-            let mut d = base.clone();
+            let mut d = base.into_owned();
             for b in &mut d.bodies {
                 b.visible = false;
             }
@@ -205,9 +249,9 @@ impl Workspace {
             return std::borrow::Cow::Owned(d);
         }
         match &self.isolated {
-            None => std::borrow::Cow::Borrowed(base),
+            None => base,
             Some(ids) => {
-                let mut d = base.clone();
+                let mut d = base.into_owned();
                 for b in &mut d.bodies {
                     b.visible &= ids.contains(&b.id);
                 }

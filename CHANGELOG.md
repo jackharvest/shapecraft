@@ -2,6 +2,26 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.5.7-alpha
+
+Fixed:
+- Offset Face opens its value field straight away with the current size in it (the diameter of a round face, the
+  thickness of a flat one), already selected, so you can just type the new number. Pulling the arrow still works.
+- While you push a sketch into a part, the part stays whole with the red volume to be cut drawn over it, instead
+  of already showing the hole. Typing a depth shows the red volume too. Done makes the cut.
+- Return with nothing to finish opens Search Commands where the pointer is.
+- Multi-colour 3MF: each body colour now arrives in Bambu Studio and OrcaSlicer (Snapmaker Orca tested) on its own
+  filament. Before, every body landed on filament 1. The slicer still uses its own filament colours for those slots.
+
+Added:
+- Export ▸ Slicer lists one "Open in …" row per slicer found on your computer. One click exports and opens it there.
+- Sketch menu: Spline, Rectangle, Polygon and Offset Edge have submenus to start them as a particular type
+  (Rectangle ▸ 3 Points, Polygon ▸ Hexagon, …) or as last used.
+- View ▸ Show Sketches hides every sketch except the one you're editing. View ▸ Lock Grid Size shows the grid size
+  it would lock, with a tip that zooming changes it.
+- Home screen menus: File ▸ New Folder and Duplicate, a Go menu (Back, Forward, Enclosing Folder, Recents,
+  Projects), and View ▸ Sort By (date or name, either direction) and Search.
+
 ## 0.5.6-alpha
 
 Fixed:

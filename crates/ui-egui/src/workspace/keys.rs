@@ -163,6 +163,17 @@ impl Workspace {
                 }
             }
             Key::Escape => self.escape(),
+            // Return with nothing to finish opens Search Commands at the pointer (26.202, s36).
+            Key::Enter if !typing && !self.is_live() && self.nothing_to_finish() => {
+                let at = self.cursor.filter(|c| self.viewport_rect.contains(*c)).unwrap_or(self.viewport_rect.center());
+                self.search = Some(super::Search {
+                    query: String::new(),
+                    at: at - egui::vec2(20.0, 20.0),
+                    selected: 0,
+                    opened_frame: true,
+                    at_pointer: true,
+                });
+            }
             Key::Enter => {
                 if matches!(self.tool, Tool::Revolve(_) | Tool::RotateAxis(_) | Tool::CircularPattern(_))
                     || matches!(&self.tool, Tool::EdgePlane(t) if t.through)
@@ -395,6 +406,22 @@ impl Workspace {
             Key::O => self.start_tool(ToolKind::OffsetEdge),
             Key::W => self.start_tool(ToolKind::Sweep),
             _ => {}
+        }
+    }
+
+    /// No tool running, or a sketch tool armed with nothing drawn yet: Return has nothing to apply.
+    fn nothing_to_finish(&self) -> bool {
+        match &self.tool {
+            Tool::Idle => self.drawings.is_none() && !self.visualizing,
+            Tool::Line { first: None, last: None }
+            | Tool::Rectangle { first: None }
+            | Tool::Circle { center: None }
+            | Tool::Polygon { center: None }
+            | Tool::Arc { a: None, b: None }
+            | Tool::Ellipse { center: None, major: None }
+            | Tool::Rect3 { a: None, b: None } => true,
+            Tool::Spline { points, .. } => points.is_empty(),
+            _ => false,
         }
     }
 }

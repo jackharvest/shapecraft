@@ -176,7 +176,7 @@ impl Workspace {
     }
 
     pub(in crate::workspace) fn pick_at(&self, cursor: Pos2) -> Option<(Pick, DVec3)> {
-        let doc = self.shown_doc();
+        let doc = self.pick_doc();
         let ctx = PickContext {
             doc: &doc,
             active_sketch: self.session.active_sketch,
@@ -203,7 +203,7 @@ impl Workspace {
 
     /// Everything under a screen point, nearest first (for "Select Through This Point…").
     pub(in crate::workspace) fn picks_through(&self, cursor: Pos2) -> Vec<Pick> {
-        let doc = self.shown_doc();
+        let doc = self.pick_doc();
         let ctx = PickContext {
             doc: &doc,
             active_sketch: self.session.active_sketch,

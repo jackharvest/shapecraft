@@ -43,12 +43,20 @@ pub enum MenuAction {
     View(StandardView),
     Display(shapecraft_render::DisplayMode),
     Soon(&'static str),
+    /// A tool started as one of its types: (tool, the toolbar's variant key, which type).
+    Variant(ToolKind, &'static str, usize),
+    /// A home-screen item (New Folder, Go ▸ Back, View ▸ Sort By …).
+    Home(crate::landing::HomeCmd),
 }
 
 /// When an item is enabled.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum When {
     Always,
+    /// A note in the menu, never clickable.
+    Never,
+    /// Only on the home screen.
+    Home,
     InProject,
     Bodies,
     TwoBodies,
@@ -66,12 +74,26 @@ pub struct MenuState {
     pub sketching: bool,
     pub undo: bool,
     pub redo: bool,
+    /// The grid's spacing in micrometres (0 outside a project), for "Lock Grid Size (1 mm)".
+    pub grid_um: u64,
+    pub grid_locked: bool,
+}
+
+/// "Lock Grid Size (1 mm)", or "Unlock Grid Size (1 mm)" once locked.
+pub fn grid_label(s: &MenuState) -> String {
+    let mm = s.grid_um as f64 / 1000.0;
+    let size = format!("{mm:.3}");
+    let size = size.trim_end_matches('0').trim_end_matches('.');
+    let verb = if s.grid_locked { "Unlock" } else { "Lock" };
+    if s.grid_um == 0 { format!("{verb} Grid Size") } else { format!("{verb} Grid Size ({size} mm)") }
 }
 
 impl When {
     pub fn holds(self, s: &MenuState) -> bool {
         match self {
             When::Always => true,
+            When::Never => false,
+            When::Home => !s.in_project,
             When::InProject => s.in_project,
             When::Bodies => s.in_project && s.bodies > 0,
             When::TwoBodies => s.in_project && s.bodies > 1,
@@ -105,6 +127,7 @@ pub const ISSUES: &str = "https://github.com/jackharvest/shapecraft/issues/new/c
 
 /// The menus after the application menu, in the reference's order.
 pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
+    use crate::landing::HomeCmd as H;
     use AppAction::*;
     use MenuAction::{App, Command, Display, Tool, Ui, View};
     use When::*;
@@ -117,12 +140,14 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
             "File",
             vec![
                 item("New Project", Some("CmdOrCtrl+N"), App(NewProject), Always),
+                item("New Folder", Some("CmdOrCtrl+Shift+N"), MenuAction::Home(H::NewFolder), Home),
                 sep(),
                 item("New Drawing", None, Ui(UiAction::CreateDrawing), Bodies),
                 item("Import File…", Some("CmdOrCtrl+Shift+I"), App(Import), Always),
                 item("Import Project…", Some("CmdOrCtrl+Shift+P"), App(ImportProject), InProject),
                 item("Import Material…", None, Ui(UiAction::ImportMaterial), InProject),
                 item("Import Image as Decal…", None, Ui(UiAction::ImportDecal), InProject),
+                item("Duplicate", Some("CmdOrCtrl+D"), MenuAction::Home(H::Duplicate), Home),
                 sep(),
                 item("Save", Some("CmdOrCtrl+S"), App(Save), InProject),
                 item("Close Project", Some("CmdOrCtrl+W"), App(CloseProject), InProject),
@@ -196,14 +221,49 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
             vec![
                 item("Line", None, Tool(ToolKind::Line), InProject),
                 item("Arc", None, Tool(ToolKind::Arc), InProject),
-                item("Spline", None, Tool(ToolKind::Spline), InProject),
-                item("Rectangle", None, Tool(ToolKind::Rectangle), InProject),
+                Entry::Sub {
+                    label: "Spline",
+                    items: vec![
+                        item("Recent", None, Tool(ToolKind::Spline), InProject),
+                        sep(),
+                        item("Control", None, MenuAction::Variant(ToolKind::Spline, "Spline", 0), InProject),
+                        item("Fit", None, MenuAction::Variant(ToolKind::Spline, "Spline", 1), InProject),
+                    ],
+                },
+                Entry::Sub {
+                    label: "Rectangle",
+                    items: vec![
+                        item("Recent", None, Tool(ToolKind::Rectangle), InProject),
+                        sep(),
+                        item("Center", None, MenuAction::Variant(ToolKind::Rectangle, "Rectangle", 0), InProject),
+                        item("Diagonal", None, MenuAction::Variant(ToolKind::Rectangle, "Rectangle", 1), InProject),
+                        item("3 Points", None, MenuAction::Variant(ToolKind::Rectangle, "Rectangle", 2), InProject),
+                    ],
+                },
                 item("Circle", None, Tool(ToolKind::Circle), InProject),
                 item("Ellipse", None, Tool(ToolKind::Ellipse), InProject),
-                item("Polygon", None, Tool(ToolKind::Polygon), InProject),
+                Entry::Sub {
+                    label: "Polygon",
+                    items: vec![
+                        item("Recent", None, Tool(ToolKind::Polygon), InProject),
+                        sep(),
+                        item("Triangle", None, MenuAction::Variant(ToolKind::Polygon, "Polygon", 0), InProject),
+                        item("Pentagon", None, MenuAction::Variant(ToolKind::Polygon, "Polygon", 1), InProject),
+                        item("Hexagon", None, MenuAction::Variant(ToolKind::Polygon, "Polygon", 2), InProject),
+                        item("Octagon", None, MenuAction::Variant(ToolKind::Polygon, "Polygon", 3), InProject),
+                    ],
+                },
                 sep(),
                 item("Project as Sketch", None, Tool(ToolKind::Project), InProject),
-                item("Offset Edge", None, Tool(ToolKind::OffsetEdge), InProject),
+                Entry::Sub {
+                    label: "Offset Edge",
+                    items: vec![
+                        item("Recent", None, Tool(ToolKind::OffsetEdge), InProject),
+                        sep(),
+                        item("Single", None, MenuAction::Variant(ToolKind::OffsetEdge, "Offset Edge", 0), InProject),
+                        item("Chain", None, MenuAction::Variant(ToolKind::OffsetEdge, "Offset Edge", 1), InProject),
+                    ],
+                },
                 item("Fillet Sketch", None, Tool(ToolKind::SketchFillet), Sketching),
                 item("Text…", None, Tool(ToolKind::Text), InProject),
                 sep(),
@@ -311,6 +371,18 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                 item("Sketch", None, Tool(ToolKind::Sketch), InProject),
             ],
         ),
+        // The home screen's Go menu (only there: the native menu bar takes it out inside a project).
+        (
+            "Go",
+            vec![
+                item("Back", Some("CmdOrCtrl+["), MenuAction::Home(H::Back), Home),
+                item("Forward", Some("CmdOrCtrl+]"), MenuAction::Home(H::Forward), Home),
+                item("Enclosing Folder", Some("CmdOrCtrl+Up"), MenuAction::Home(H::EnclosingFolder), Home),
+                sep(),
+                item("Recents", None, MenuAction::Home(H::Recents), Home),
+                item("Projects", None, MenuAction::Home(H::Projects), Home),
+            ],
+        ),
         (
             "View",
             vec![
@@ -368,6 +440,7 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                 item("Curvature Map", Some("Alt+C"), Display(shapecraft_render::DisplayMode::Curvature { scale: 100 }), InProject),
                 sep(),
                 item("Show Edges", None, Ui(UiAction::ToggleEdges), InProject),
+                item("Show Sketches", None, Ui(UiAction::ToggleSketches), InProject),
                 item("Show Hidden Edges", None, Ui(UiAction::ToggleHiddenEdges), InProject),
                 item("Show Decals", None, Ui(UiAction::ToggleDecals), InProject),
                 sep(),
@@ -399,7 +472,21 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                         item("Decimal (e.g. 27.25°)", None, Ui(UiAction::DegreesFractional(false)), InProject),
                     ],
                 },
+                // The live grid size goes in its label (native menu), then a tip that's never enabled (26.200).
                 item("Lock Grid Size", None, Ui(UiAction::LockGrid), InProject),
+                item("Tip: Adjust grid size by zooming", None, MenuAction::Soon("Tip"), Never),
+                // The home screen's View items.
+                sep(),
+                Entry::Sub {
+                    label: "Sort By",
+                    items: vec![
+                        item("Date Modified (Latest to Oldest)", None, MenuAction::Home(H::Sort(0)), Home),
+                        item("Date Modified (Oldest to Latest)", None, MenuAction::Home(H::Sort(1)), Home),
+                        item("Name (A to Z)", None, MenuAction::Home(H::Sort(2)), Home),
+                        item("Name (Z to A)", None, MenuAction::Home(H::Sort(3)), Home),
+                    ],
+                },
+                item("Search", None, MenuAction::Home(H::Search), Home),
             ],
         ),
         (
@@ -437,7 +524,10 @@ mod native {
     use super::{AppAction, Entry, MenuAction, MenuState, When, tree};
 
     pub struct MenuBar {
-        _menu: Menu,
+        menu: Menu,
+        /// The home screen's Go menu and its place in the bar: taken out inside a project, as the reference does.
+        go: Option<(Submenu, usize)>,
+        go_shown: bool,
         items: Vec<(MenuItem, MenuAction, When)>,
         state: Option<MenuState>,
         /// Picked items. muda stops filling its own channel once a handler is set, so the handler forwards here.
@@ -489,9 +579,14 @@ mod native {
             items.push((quit, MenuAction::App(AppAction::Quit), When::Always));
             items.push((prefs, MenuAction::Ui(crate::workspace::toolbar::UiAction::Preferences), When::Always));
             menu.append(&app).ok()?;
-            for (title, entries) in tree() {
+            let mut go = None;
+            for (k, (title, entries)) in tree().into_iter().enumerate() {
                 let sub = Submenu::new(title, true);
                 fill(&sub, entries, &mut items);
+                if title == "Go" {
+                    // After the app menu and the menus before it (Window is added after View, so it comes later).
+                    go = Some((sub.clone(), k + 1));
+                }
                 if title == "View" {
                     let _ = sub.append(&PredefinedMenuItem::separator());
                     let _ = sub.append(&PredefinedMenuItem::fullscreen(None));
@@ -516,7 +611,7 @@ mod native {
                 }
                 wake();
             }));
-            Some(MenuBar { _menu: menu, items, state: None, picked })
+            Some(MenuBar { menu, go, go_shown: true, items, state: None, picked })
         }
 
         /// Actions picked since the last frame.
@@ -534,8 +629,21 @@ mod native {
             if self.state == Some(state) {
                 return;
             }
-            for (mi, _, when) in &self.items {
+            if let Some((go, at)) = &self.go
+                && self.go_shown == state.in_project
+            {
+                if state.in_project {
+                    let _ = self.menu.remove(go);
+                } else {
+                    let _ = self.menu.insert(go, *at);
+                }
+                self.go_shown = !state.in_project;
+            }
+            for (mi, action, when) in &self.items {
                 mi.set_enabled(when.holds(&state));
+                if matches!(action, MenuAction::Ui(crate::workspace::toolbar::UiAction::LockGrid)) {
+                    mi.set_text(super::grid_label(&state));
+                }
             }
             self.state = Some(state);
         }
@@ -699,7 +807,15 @@ mod tests {
     fn the_window_menu_draws_and_takes_its_shortcuts() {
         let ctx = egui::Context::default();
         let mut m = WindowMenu::default();
-        m.update(MenuState { in_project: true, bodies: 1, selection: true, sketching: false, undo: true, redo: false });
+        m.update(MenuState {
+            in_project: true,
+            bodies: 1,
+            selection: true,
+            sketching: false,
+            undo: true,
+            redo: false,
+            ..Default::default()
+        });
         let mut input = egui::RawInput::default();
         input.events.push(egui::Event::Key {
             key: egui::Key::Z,
@@ -720,7 +836,15 @@ mod tests {
     fn press(key: egui::Key, modifiers: egui::Modifiers) -> Vec<MenuAction> {
         let ctx = egui::Context::default();
         let mut m = WindowMenu::default();
-        m.update(MenuState { in_project: true, bodies: 1, selection: true, sketching: false, undo: true, redo: true });
+        m.update(MenuState {
+            in_project: true,
+            bodies: 1,
+            selection: true,
+            sketching: false,
+            undo: true,
+            redo: true,
+            ..Default::default()
+        });
         let mut input = egui::RawInput::default();
         input.events.push(egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers });
         let mut out = ctx.run_ui(input, |ui| m.take_shortcuts(ui.ctx()));

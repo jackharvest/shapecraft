@@ -85,6 +85,7 @@ pub enum UiAction {
     ToggleEdges,
     ToggleHiddenEdges,
     ToggleDecals,
+    ToggleSketches,
     /// Units: Millimeter, Centimeter, Meter, Inch, Foot.
     Units(u8),
     /// Foot & Inch Format ▸ Architectural (true) / Decimal.

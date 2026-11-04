@@ -74,9 +74,11 @@ impl Workspace {
                     Some(side) => side,
                     None => self.extrude_body_side(t),
                 };
+                // A typed depth counts before Return, so the cut shows while the value is typed.
+                let d = self.numeric.as_deref().and_then(crate::workspace::tools::parse_length).unwrap_or(t.distance);
                 let auto = match side {
                     None => 0,
-                    Some(side) if t.distance * side > 0.0 => 3,
+                    Some(side) if d * side > 0.0 => 3,
                     Some(_) => 1,
                 };
                 Some((t.result, auto))

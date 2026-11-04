@@ -392,6 +392,10 @@ impl Workspace {
         // kernel refuses).
         if let Tool::Extrude(t) = &self.tool {
             if self.badge_current(crate::workspace::badges::Badge::Result) == Some(3) {
+                let mut t = t.clone();
+                if let Some(d) = self.numeric.as_deref().and_then(crate::workspace::tools::parse_length) {
+                    t.distance = d;
+                }
                 t.overlays_in(&mut out, Rgba::hex(0xe8506e));
             } else if !self.has_live_preview() {
                 t.overlays(&mut out);

@@ -108,6 +108,7 @@ impl Format {
             "shapr" => Format::Shapr,
             "x_b" => Format::Parasolid,
             "3mf" => Format::ThreeMf,
+            "slicer" => Format::Slicer,
             "step" | "stp" => Format::Step,
             "iges" | "igs" => Format::Iges,
             "stl" => Format::Stl,
@@ -142,6 +143,8 @@ pub struct ExportDialog {
     pub slicer: String,
     /// Quick Export: straight into this folder, no save dialog.
     pub quick: Option<std::path::PathBuf>,
+    /// An "Open in …" row was clicked: export now, into that slicer.
+    go: bool,
     scroll: f32,
     list_scroll: f32,
 }
@@ -165,6 +168,7 @@ impl ExportDialog {
             step_ap: 0,
             slicer: super::slicers::pick(""),
             quick: None,
+            go: false,
             scroll: 0.0,
             list_scroll: 0.0,
         }
@@ -269,20 +273,40 @@ fn settings(d: &mut ExportDialog, ui: &mut Ui, p: &egui::Painter, f: Format, k: 
         r
     };
     if f == Format::Slicer {
-        let r = row(&mut y, CARD_H);
+        // One action row per slicer, as the reference lists its targets ("Open in PrusaSlicer"): a click exports
+        // and opens it there. The last one used sits first.
+        let mut names = super::slicers::choices();
+        if let Some(i) = names.iter().position(|n| *n == d.slicer) {
+            let last = names.remove(i);
+            names.insert(0, last);
+        }
+        let r = row(&mut y, CARD_H * names.len() as f32 + (names.len().saturating_sub(1)) as f32 * 2.0);
         if paint {
             card(p, r);
-            label(p, r.left() + 10.0, r.center().y, "Slicer", None);
-            let names: Vec<String> = super::slicers::choices().iter().map(|s| s.to_string()).collect();
-            if let Some(i) = super::popover::pill_select(
-                ui,
-                &format!("exp-slicer{k}"),
-                pos2(r.right() - 10.0, r.center().y),
-                110.0,
-                &names,
-                names.iter().position(|n| *n == d.slicer),
-            ) {
-                d.slicer = names.get(i).cloned().unwrap_or_default();
+            for (i, name) in names.iter().enumerate() {
+                let line = Rect::from_min_size(pos2(r.left(), r.top() + i as f32 * (CARD_H + 2.0)), vec2(r.width(), CARD_H));
+                let resp = ui.interact(line, ui.scope_id().with(("exp-open-in", k, i)), Sense::click());
+                if resp.hovered() {
+                    p.rect_filled(line.shrink(2.0), radius(6), theme::c(0x2e2e30));
+                }
+                if i > 0 {
+                    p.line_segment(
+                        [pos2(line.left() + 10.0, line.top() - 1.0), pos2(line.right() - 10.0, line.top() - 1.0)],
+                        Stroke::new(1.0, theme::c(0x2c2c2c)),
+                    );
+                }
+                label(p, line.left() + 10.0, line.center().y, &format!("Open in {name}"), None);
+                // An arrow out of a box: it leaves for another app.
+                let c = pos2(line.right() - 18.0, line.center().y);
+                let ink = Stroke::new(1.4, Tokens::text_strong());
+                p.rect_stroke(Rect::from_center_size(c + vec2(-1.5, 1.5), vec2(10.0, 10.0)), radius(2), ink, StrokeKind::Inside);
+                p.line_segment([c + vec2(-1.0, 1.0), c + vec2(5.0, -5.0)], ink);
+                p.line_segment([c + vec2(1.0, -5.0), c + vec2(5.0, -5.0)], ink);
+                p.line_segment([c + vec2(5.0, -5.0), c + vec2(5.0, -1.0)], ink);
+                if resp.clicked() {
+                    d.slicer = (*name).to_string();
+                    d.go = true;
+                }
             }
         }
     }
@@ -580,7 +604,8 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     if cr.clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
         return;
     }
-    if can && (er.clicked() || enter) {
+    let go = std::mem::take(&mut d.go);
+    if can && (er.clicked() || enter || go) {
         ws.wants_export = Some(d);
         return;
     }
