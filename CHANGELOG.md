@@ -2,6 +2,29 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.5.10-alpha
+
+**STEP, IGES and Parasolid imports ask how to clean the geometry up, pushing a face out looks the way it will turn
+out, the menus show each tool's single key, and History dims as soon as a tool starts.**
+
+### New
+- **Import Preferences.** Before a STEP, IGES or Parasolid file comes in, choose Quality (repair, rebuild edges, sew
+  and simplify), Speed (take the file as it is) or Custom (pick the clean-ups one by one). "Don't show this again"
+  keeps your choice.
+- **Single keys in the menus.** Sketch, Transform and Tools show each tool's key (L, A, C, P, T, M, S, N, F, E, H, V,
+  W; I, R and G for the Recent Spline, Rectangle and Polygon). Typing in a field and a tool's own keys, such as E
+  flipping Sides while you extrude, work as before.
+
+### Changed
+- **Pushing a body's face out** shows the part as it was with the face still picked and the added volume
+  see-through over it. The arrow is blue from the start, and there's no draft handle on a body face.
+- **The face's tools stay in the left column** with Extrude lit after you press E, until you pull or type a depth.
+- **History dims** the moment a modeling tool starts, not only once a result waits for Done.
+- **Imported parts** are called "Imported 01", "Imported 02"… in each file, and nothing is selected after an import.
+  Importing into a project that has work in it keeps the project's name.
+- **View ▸ Show Sketches** is off by default and applies to the Visualized look. While modeling, a sketch shows or
+  hides by its own eye in Items.
+
 ## 0.5.9-alpha
 
 **Fillet, Offset Face and Extrude now wait for Return before a typed value takes effect, Return finishes a tool,
