@@ -2,20 +2,24 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.5.12-alpha
+## 0.5.13-alpha
 
-**The arrows come up for whatever you pick, however you pick it: hidden faces, edges and bodies show through the
-part, Move/Rotate works on faces, and sketch curves scale and turn.**
+**The arrows come up for whatever you pick, however you pick it: edges and faces move and turn on their own, hidden
+picks show through the part, and sketch curves scale and turn.**
 
 ### New
 - **Move/Rotate on faces.** Pick faces of a body and press M: the gizmo comes up at them and moves or turns just
   those faces, the rest of the body following. A flat face slides along itself, and a whole pocket or hole moves
   to a new spot.
+- **Move an edge.** Pick a straight edge and press M: the gizmo comes up at its middle, and dragging it moves the edge
+  while the faces beside it tilt to follow.
+- **Turn faces around an edge.** Pick faces (or bodies), then Shift-click an edge: Rotate Around Axis comes up with
+  that edge as the axis. A face turned about one of its own edges tilts, the rest of the body following.
 - **Scale and Rotate Around Axis on sketch curves.** Pick curves in a sketch and choose Scale: the handle comes up in
-  their middle. Rotate Around Axis turns them about a circle, an arc or a sketch point you click.
+  their middle. Rotate Around Axis takes more curves as you click them, then turns them about a sketch point.
 - **View ▸ Visualized (⌥V) is a display mode.** The part gets the Visualize look (no edges or grid, the backdrop and
-  a floor shadow) while the modeling tools, the left column and History stay where they are. Pick another display
-  mode, or press ⌥V again, to go back.
+  a floor shadow) while the modeling tools, the left column and History stay where they are; what you pick is
+  outlined. Pick another display mode, or press ⌥V again, to go back.
 
 ### Changed
 - **Hidden picks show through.** A picked face behind or inside the part (a pocket's floor, a hole's wall), a
@@ -25,6 +29,10 @@ part, Move/Rotate works on faces, and sketch curves scale and turn.**
 - **Revolve waits for an axis.** With a sketch region picked, nothing spins and nothing previews until you click a
   line, an edge or a round face to turn it around, as it already did for a face.
 - **Shift-click on something already picked takes it back out of the selection.**
+- **Several faces picked:** the arrow sits on the face picked last, with a plain distance (no Total choice).
+- **Fillet chosen with F or the column** shows its G1 badge from the start, and its handle sits on the newest edge (a
+  face's inner loop, such as a hole's rim).
+- **A picked body** draws as one solid tinted body, without its own hidden edges showing through.
 
 ### Fixed
 - **Picking a body in the Items list** (or with Select All) after a face or an edge left the old Offset Face or
