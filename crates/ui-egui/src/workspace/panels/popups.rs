@@ -86,10 +86,13 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
         let mut job = egui::text::LayoutJob::simple(text.clone(), theme::body(13.0), Tokens::text_strong(), 280.0);
         job.halign = egui::Align::Center;
         let g = p.layout_job(job);
-        let r = Rect::from_center_size(pos2(vp.center().x, vp.top() + 28.0), vec2(g.size().x.max(200.0) + 28.0, g.size().y + 12.0));
+        // A one-word notice ("Visualized") is a small pill; a refusal a wider chip.
+        let short = !text.contains(' ') && text.len() <= 20;
+        let size = if short { vec2(g.size().x + 20.0, g.size().y + 8.0) } else { vec2(g.size().x.max(200.0) + 28.0, g.size().y + 12.0) };
+        let r = Rect::from_center_size(pos2(vp.center().x, vp.top() + if short { 18.0 } else { 28.0 }), size);
         banner_bottom = r.bottom();
         p.rect_filled(r, radius(8), theme::c(0x171616));
-        p.galley(pos2(r.center().x, r.top() + 6.0), g, Tokens::text_strong());
+        p.galley(pos2(r.center().x, r.top() + if short { 4.0 } else { 6.0 }), g, Tokens::text_strong());
     } else if let Some((title, body)) = predicted {
         let title_g = p.layout_no_wrap(title.to_string(), theme::strong(12.0), Tokens::text_strong());
         let body_g = p.layout_no_wrap(body.to_string(), theme::body(11.0), Tokens::text_dim());

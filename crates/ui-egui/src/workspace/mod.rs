@@ -689,7 +689,8 @@ impl Workspace {
         use shapecraft_render::DisplayMode as D;
         self.display = if self.display == D::Visualized { D::Shaded } else { D::Visualized };
         if self.display == D::Visualized {
-            self.toast("Visualized");
+            // Briefly in the hint banner's place, as a small pill.
+            self.notice = Some(("Visualized".into(), self.now + 1.5));
         }
     }
 

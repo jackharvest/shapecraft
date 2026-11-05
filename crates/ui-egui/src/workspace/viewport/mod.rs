@@ -172,6 +172,7 @@ impl Workspace {
         if let Tool::Move(t) = &self.tool
             && t.items.is_empty()
             && t.faces.is_none()
+            && t.edge.is_none()
             && t.dragging.is_none()
             && let Some(o) = self.to_screen(t.shown_pivot())
         {

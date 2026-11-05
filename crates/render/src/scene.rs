@@ -153,7 +153,24 @@ pub(crate) fn edges_key(scene: &SceneInput) -> u64 {
 pub(crate) fn body_edges(scene: &SceneInput) -> Vec<Segment> {
     let c = &scene.colors;
     let mut out = Built::default();
-    for body in scene.doc.bodies.iter().filter(|b| b.visible && !scene.presentation) {
+    for body in scene.doc.bodies.iter().filter(|b| b.visible) {
+        // The Visualize look draws no edges, only the outline of what's picked (a picked face isn't filled there).
+        if scene.presentation {
+            for (i, (line, &edge)) in body.mesh.edges.iter().zip(&body.mesh.edge_ids).enumerate() {
+                let picked = scene.selection.contains(&Pick::Edge { body: body.id, edge })
+                    || body.mesh.edge_faces.get(i).is_some_and(|ab| {
+                        ab.iter().any(|f| *f != u32::MAX && scene.selection.contains(&Pick::Face { body: body.id, face: *f }))
+                    });
+                if picked {
+                    for w in line.windows(2) {
+                        let a = DVec3::new(w[0][0] as f64, w[0][1] as f64, w[0][2] as f64);
+                        let b = DVec3::new(w[1][0] as f64, w[1][1] as f64, w[1][2] as f64);
+                        out.segments.push(Segment { a, b, color: c.selected, width: 2.4, overlay: false, clip: true });
+                    }
+                }
+            }
+            continue;
+        }
         let selected_body = fully_selected(body, scene.selection);
         let hovered_body = scene.hover == Some(Pick::Body { body: body.id });
         let hovered_face = match scene.hover {
@@ -202,14 +219,7 @@ pub(crate) fn body_edges(scene: &SceneInput) -> Vec<Segment> {
                 }
                 continue;
             } else if selected_body {
-                // A selected body is see-through (as observed): its edges behind show faintly.
-                if scene.display.solid() && scene.active_sketch.is_none() {
-                    for w in line.windows(2) {
-                        let a = DVec3::new(w[0][0] as f64, w[0][1] as f64, w[0][2] as f64);
-                        let b = DVec3::new(w[1][0] as f64, w[1][1] as f64, w[1][2] as f64);
-                        out.segments.push(Segment { a, b, color: c.selected.with_alpha(110), width: 1.0, overlay: true, clip: true });
-                    }
-                }
+                // A selected body's own hidden edges stay hidden: it reads as one solid tinted body.
                 (c.selected, 1.4)
             } else if scene.display.solid() {
                 (c.edge, 1.5)

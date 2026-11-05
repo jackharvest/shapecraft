@@ -682,6 +682,8 @@ pub struct MoveTool {
     pub items: Vec<ItemId>,
     /// Picked faces of one body, moved on their own (the rest of the body follows); empty otherwise.
     pub faces: Option<(ItemId, Vec<u32>)>,
+    /// One picked straight edge, moved on its own (the faces beside it tilt).
+    pub edge: Option<(ItemId, u32)>,
     pub frame: GizmoFrame,
     pub pivot: DVec3,
     /// The handle being dragged: where the drag started and the value then.
@@ -699,19 +701,22 @@ pub const AXES: [DVec3; 3] = [DVec3::X, DVec3::Y, DVec3::Z];
 pub struct GizmoFrame {
     pub axes: [DVec3; 3],
     pub planar: bool,
+    /// Turning rings shown (not for an edge, which only moves).
+    pub turns: bool,
 }
 
 impl GizmoFrame {
-    pub const WORLD: GizmoFrame = GizmoFrame { axes: AXES, planar: false };
+    pub const WORLD: GizmoFrame = GizmoFrame { axes: AXES, planar: false, turns: true };
 
     pub fn sketch(plane: &shapecraft_doc::SketchPlane) -> Self {
-        Self { axes: [plane.x, plane.y, plane.normal()], planar: true }
+        Self { axes: [plane.x, plane.y, plane.normal()], planar: true, turns: true }
     }
 
     pub fn has(&self, h: Handle) -> bool {
         match h {
             Handle::Arrow(a) => !self.planar || a < 2,
-            Handle::Ring(a) | Handle::Plane(a) => !self.planar || a == 2,
+            Handle::Ring(a) => self.turns && (!self.planar || a == 2),
+            Handle::Plane(a) => !self.planar || a == 2,
         }
     }
 }
@@ -919,35 +924,85 @@ pub struct RotateAxisTool {
     pub copy: bool,
     /// The Link badge turned off: an Unlinked Copy step.
     pub unlinked: bool,
+    /// Faces of one body turning on their own (picked faces plus the edge they turn around).
+    pub faces: Option<(ItemId, Vec<u32>)>,
 }
 
 impl RotateAxisTool {
+    /// Faces of one body, or bodies, picked together with one straight or round edge: they turn around that edge
+    /// straight away (the pick brings Rotate Around Axis up, the edge drawn as the axis).
+    pub fn items_and_axis(s: &Session) -> Option<Self> {
+        let edges: Vec<Pick> = s.selection.iter().copied().filter(|p| matches!(p, Pick::Edge { .. })).collect();
+        let [edge] = edges.as_slice() else { return None };
+        let rest: Vec<Pick> = s.selection.iter().copied().filter(|p| !matches!(p, Pick::Edge { .. })).collect();
+        let mut t = if rest.iter().all(|p| matches!(p, Pick::Body { .. })) && !rest.is_empty() {
+            let items: Vec<ItemId> = rest.iter().filter_map(Pick::body).collect();
+            let (mut min, mut max) = (DVec3::splat(f64::INFINITY), DVec3::splat(f64::NEG_INFINITY));
+            for id in &items {
+                let bb = s.doc.body(*id).and_then(|b| s.kernel.bounds(&b.shape).ok())?;
+                min = min.min(bb.min);
+                max = max.max(bb.max);
+            }
+            Self {
+                items,
+                about: None,
+                angle: 0.0,
+                center: (min + max) / 2.0,
+                axis: None,
+                dragging: None,
+                copy: false,
+                unlinked: false,
+                faces: None,
+            }
+        } else {
+            let mut body = None;
+            let mut faces = Vec::new();
+            for p in &rest {
+                match *p {
+                    Pick::Face { body: b, face } if body.is_none_or(|x| x == b) => {
+                        body = Some(b);
+                        faces.push(face);
+                    }
+                    _ => return None,
+                }
+            }
+            let body = body?;
+            let b = s.doc.body(body)?;
+            let (mut min, mut max) = (DVec3::splat(f64::INFINITY), DVec3::splat(f64::NEG_INFINITY));
+            for f in &faces {
+                let bb = s.kernel.face(&b.shape, *f).and_then(|face| s.kernel.bounds(&face)).ok()?;
+                min = min.min(bb.min);
+                max = max.max(bb.max);
+            }
+            Self {
+                items: Vec::new(),
+                about: None,
+                angle: 0.0,
+                center: (min + max) / 2.0,
+                axis: None,
+                dragging: None,
+                copy: false,
+                unlinked: false,
+                faces: Some((body, faces)),
+            }
+        };
+        t.set_axis(s, *edge).then_some(t)
+    }
+
     /// Picked bodies, or (with none) picked sketch curves, which then turn in their sketch's plane.
     pub fn from_selection(s: &Session) -> Option<Self> {
         let (items, center) = match selected_items_bounds(s) {
             Some((items, min, max)) => (items, (min + max) / 2.0),
             None => (Vec::new(), selected_curves_center(s)?.1),
         };
-        Some(Self { items, about: None, angle: 0.0, center, axis: None, dragging: None, copy: false, unlinked: false })
+        Some(Self { items, about: None, angle: 0.0, center, axis: None, dragging: None, copy: false, unlinked: false, faces: None })
     }
 
     /// Takes a straight or round edge (or a round face) as the axis. Sketch curves turn in their plane, so for them
-    /// the axis is square to the sketch: through a clicked circle's, arc's, polygon's or ellipse's center, or a
-    /// clicked sketch point.
+    /// the axis is square to the sketch, through a clicked sketch point (a clicked curve joins what turns instead).
     pub fn set_axis(&mut self, s: &Session, p: Pick) -> bool {
-        if self.items.is_empty() {
+        if self.items.is_empty() && self.faces.is_none() {
             let at = match p {
-                Pick::SketchEntity { sketch, entity } => s.doc.sketch(sketch).and_then(|sk| {
-                    let e = sk.entities.get(entity as usize)?;
-                    let c = match e {
-                        shapecraft_doc::SketchEntity::Circle { center, .. }
-                        | shapecraft_doc::SketchEntity::Ellipse { center, .. }
-                        | shapecraft_doc::SketchEntity::Polygon { center, .. } => *center,
-                        shapecraft_doc::SketchEntity::Arc { .. } => *shapecraft_doc::constraints::points(e).get(2)?,
-                        _ => return None,
-                    };
-                    Some((sk.plane.to_world(c), sk.plane.normal()))
-                }),
                 Pick::SketchPoint { sketch, entity, index } => s.doc.sketch(sketch).and_then(|sk| {
                     let q = *shapecraft_doc::constraints::points(sk.entities.get(entity as usize)?).get(index as usize)?;
                     Some((sk.plane.to_world(q), sk.plane.normal()))
@@ -993,6 +1048,13 @@ impl RotateAxisTool {
     }
 
     pub fn request(&self, angle: f64) -> Option<(&'static str, serde_json::Value)> {
+        if let Some((body, faces)) = &self.faces {
+            let (o, d) = self.axis?;
+            return Some((
+                "move_faces",
+                json!({ "body": body.0, "faces": faces, "origin": [o.x, o.y, o.z], "axis": [d.x, d.y, d.z], "angle": angle }),
+            ));
+        }
         if self.items.is_empty() {
             // Sketch curves: about the axis square to their sketch.
             let (o, d) = self.axis?;
@@ -1181,7 +1243,7 @@ impl Tool {
             }
             Tool::Revolve(_) => ("Revolve (V)", "Type an angle, or click a line or edge to spin around it. Return applies"),
             Tool::RotateAxis(t) if t.about.is_none() && t.items.is_empty() => {
-                ("Rotate Around Axis", "Click a circle, an arc or a sketch point to turn the curves around it")
+                ("Rotate Around Axis", "Click more curves to turn, then a sketch point to turn them around")
             }
             Tool::RotateAxis(t) if t.about.is_none() => {
                 ("Rotate Around Axis", "Click a straight or round edge, or a round face, to turn around")

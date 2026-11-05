@@ -304,8 +304,9 @@ impl FilletTool {
         let b = s.doc.body(body)?;
         let bb = s.kernel.bounds(&b.shape).ok()?;
         let center = (bb.min + bb.max) / 2.0;
+        // The handle sits on the newest pick (the edge just added, or a face's inner loop, which comes last).
         let line: Vec<DVec3> = edges
-            .first()
+            .last()
             .and_then(|e| b.mesh.edge_ids.iter().position(|x| x == e))
             .and_then(|i| b.mesh.edges.get(i))
             .map(|line| line.iter().map(|p| v3(*p)).collect())
@@ -352,11 +353,11 @@ impl FilletTool {
         Some(TwoDistance { faces, dirs, d2, dragging: None })
     }
 
-    /// Two-Distance's frame: the first picked edge's two faces and, for each, the way along it from the anchor away from
+    /// Two-Distance's frame: the handle's (newest) edge's two faces and, for each, the way along it from the anchor away from
     /// the edge (perpendicular to the edge, on the face).
     fn sides(&self, s: &Session) -> Option<([u32; 2], [DVec3; 2])> {
         let m = &s.doc.body(self.body)?.mesh;
-        let k = m.edge_ids.iter().position(|e| Some(e) == self.edges.first())?;
+        let k = m.edge_ids.iter().position(|e| Some(e) == self.edges.last())?;
         let faces = *m.edge_faces.get(k)?;
         if faces.contains(&u32::MAX) || faces[0] == faces[1] {
             return None;
@@ -405,6 +406,32 @@ impl MoveTool {
                 items.push(b);
             }
         }
+        // One straight edge (nothing else picked): it moves on its own, the gizmo at its middle, no turning rings.
+        if let [Pick::Edge { body, edge }] = s.selection.as_slice()
+            && let Some(b) = s.doc.body(*body)
+            && let Some(k) = b.mesh.edge_ids.iter().position(|e| e == edge)
+            && let Some(line) = b.mesh.edges.get(k)
+            && let (Some(a), Some(z)) = (line.first().map(|q| v3(*q)), line.last().map(|q| v3(*q)))
+            && line.iter().all(|q| (v3(*q) - a).cross((z - a).normalize_or_zero()).length() < 1e-6 * (1.0 + (z - a).length()))
+            && (z - a).length() > 1e-9
+        {
+            return Some(Self {
+                items: Vec::new(),
+                faces: None,
+                edge: Some((*body, *edge)),
+                frame: GizmoFrame { turns: false, ..GizmoFrame::WORLD },
+                pivot: (a + z) / 2.0,
+                dragging: None,
+                value: 0.0,
+                handle: Handle::Arrow(2),
+                planar: DVec3::ZERO,
+                planar_start: DVec3::ZERO,
+                relocating: false,
+                snapped: false,
+                copy: false,
+                unlinked: false,
+            });
+        }
         // Faces of one body (nothing else picked): they move on their own, the gizmo at their middle.
         if let Some((body, faces)) = picked_faces(s) {
             let b = s.doc.body(body)?;
@@ -418,6 +445,7 @@ impl MoveTool {
             return Some(Self {
                 items: Vec::new(),
                 faces: Some((body, faces)),
+                edge: None,
                 frame: GizmoFrame::WORLD,
                 pivot: (min + max) / 2.0,
                 dragging: None,
@@ -436,6 +464,7 @@ impl MoveTool {
             return Some(Self {
                 items,
                 faces: None,
+                edge: None,
                 frame,
                 pivot,
                 dragging: None,
@@ -465,6 +494,7 @@ impl MoveTool {
         Some(Self {
             items,
             faces: None,
+            edge: None,
             frame: GizmoFrame::WORLD,
             pivot: (min + max) / 2.0,
             dragging: None,
@@ -492,6 +522,14 @@ impl MoveTool {
                 json!({ "origin": [self.pivot.x, self.pivot.y, self.pivot.z], "axis": [ax.x, ax.y, ax.z], "angle": value })
             }
         };
+        if let Some((body, edge)) = self.edge {
+            let by = match self.handle {
+                Handle::Arrow(a) => self.frame.axes[a.min(2)] * value,
+                Handle::Plane(_) => self.planar,
+                Handle::Ring(_) => DVec3::ZERO,
+            };
+            return ("move_edge", json!({ "body": body.0, "edge": edge, "by": [by.x, by.y, by.z] }));
+        }
         if let Some((body, faces)) = &self.faces {
             v["body"] = json!(body.0);
             v["faces"] = json!(faces);
@@ -628,7 +666,8 @@ impl OffsetFaceTool {
         }
         let body = body?;
         let b = s.doc.body(body)?;
-        let first = *faces.first()?;
+        // The arrow sits on the face picked last (where the last click was).
+        let first = *faces.last()?;
         let (anchor, dir) = match s.kernel.face_plane(&b.shape, first).ok().flatten() {
             Some(fp) => match at {
                 Some(p) if (p - fp.origin).dot(fp.normal).abs() < 1e-3 => (p, fp.normal),
@@ -682,7 +721,8 @@ impl OffsetFaceTool {
             }),
             _ => None,
         };
-        let kinds = flat || radius.is_some();
+        // Several faces just offset: a plain "0 mm" pill, no Total / Radius choice.
+        let kinds = (flat || radius.is_some()) && faces.len() == 1;
         Some(Self { body, faces, distance: 0.0, anchor, dir, dragging: None, thickness, radius, fillet, kinds })
     }
 

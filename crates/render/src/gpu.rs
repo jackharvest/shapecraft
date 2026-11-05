@@ -938,7 +938,7 @@ impl Renderer {
             if let Some((_, t)) = scene.tints.iter().find(|(id, _)| *id == body.id) {
                 color = t.linear();
             }
-            // A selected body is drawn see-through cyan (observed 329, 377), so what's inside and behind shows.
+            // A selected body is drawn a little see-through cyan (only its nearest surface).
             // A tint with alpha (a face growing out under Extrude) is see-through the same way, at its own alpha.
             let tinted_through = color[3] < 0.999;
             let see_through = ghost.is_none()
@@ -983,7 +983,8 @@ impl Renderer {
                     _ => {}
                 }
             }
-            uni.flags[2] = n as u32;
+            // The Visualize look outlines picked faces instead of filling them.
+            uni.flags[2] = if scene.presentation { 0 } else { n as u32 };
             if let Some(Pick::Face { body: b, face }) = scene.hover
                 && b == body.id
             {
@@ -999,8 +1000,9 @@ impl Renderer {
                 let uniform = gpu.uniform.clone();
                 self.queue.write_buffer(&uniform, 0, bytes);
             }
-            // Anything picked or hovered from the Items list also shows where other faces hide it.
-            if ghost.is_none() && !sketching && scene.display.solid() && (n > 0 || uni.flags[0] == 1 || uni.flags[3] == 1) {
+            // Picked faces and a body hovered in the Items list also show where other faces hide them. A whole picked
+            // body doesn't: it reads as one solid tinted body, its own back and inner faces staying hidden.
+            if ghost.is_none() && !sketching && !scene.presentation && scene.display.solid() && (n > 0 || uni.flags[3] == 1) {
                 through_draws.push(key);
             }
             if ghost.is_some() {

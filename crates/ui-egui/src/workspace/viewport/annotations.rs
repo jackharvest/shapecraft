@@ -1058,11 +1058,11 @@ impl Workspace {
             } else if !unpulled_offset {
                 axis_pill(&painter, label_at, label_dir, &shown, true);
             }
-            // Its badge (G1, or the chamfer's Type) once there's a fillet to change; none before the pull or while
-            // the field is open (26.202, s40-008..010).
+            // Its badge (G1, or the chamfer's Type) once there's a fillet to change, and from the start when Fillet
+            // was chosen (F, the column) rather than brought up by picking an edge; never while the field is open.
             if let Tool::Fillet(t) = &self.tool
                 && typed.is_none()
-                && (t.chamfer || t.radius.abs() > 1e-9)
+                && (t.chamfer || t.radius.abs() > 1e-9 || !self.predicted)
             {
                 let half = shown.chars().count() as f32 * 3.3 + 6.0;
                 crate::workspace::badges::paint_row(self, ui, &painter, label_at + label_dir * (half + 17.0), label_dir);

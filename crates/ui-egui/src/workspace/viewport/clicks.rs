@@ -831,9 +831,28 @@ impl Workspace {
                     self.preview = None;
                 }
             }
+            // Brought up by the pick itself (faces or bodies plus an edge): a click picks again, as on a bare
+            // selection, and what that predicts takes over.
+            Tool::RotateAxis(_) if self.predicted => {
+                self.tool = Tool::Idle;
+                self.click_at(c, shift);
+            }
             Tool::RotateAxis(mut t) => {
-                // Turning sketch curves: a sketch point under the pointer can be the axis too.
+                // Turning sketch curves: a sketch point under the pointer is the axis, a curve joins (or leaves)
+                // what turns.
                 let point = if t.items.is_empty() { self.sketch_point_at(c) } else { None };
+                if t.items.is_empty()
+                    && t.about.is_none()
+                    && point.is_none()
+                    && let Some((p @ Pick::SketchEntity { .. }, _)) = self.pick_at(c)
+                {
+                    let _ = self.session.execute("select", &json!({ "picks": [p], "add": true, "toggle": true }));
+                    if let Some(n) = crate::workspace::tools::RotateAxisTool::from_selection(&self.session) {
+                        t.center = n.center;
+                    }
+                    self.tool = Tool::RotateAxis(t);
+                    return;
+                }
                 if t.about.is_none()
                     && let Some(p) = point.or_else(|| self.pick_at(c).map(|(p, _)| p))
                     && t.set_axis(&self.session, p)

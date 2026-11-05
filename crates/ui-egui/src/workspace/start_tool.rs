@@ -112,10 +112,11 @@ impl Workspace {
         let only_faces = !self.session.selection.is_empty() && self.session.selection.iter().all(|p| matches!(p, Pick::Face { .. }));
         match kind {
             // M over faces, edges or regions waits for items to move, keeping the pick (s24 matrix).
-            // Faces of one body move on their own (the gizmo comes up at them).
+            // Faces of one body, or one straight edge, move on their own (the gizmo comes up at them).
             ToolKind::Move
                 if self.session.active_sketch.is_none()
                     && tools::picked_faces(&self.session).is_none()
+                    && tools::MoveTool::from_selection(&self.session).is_none_or(|t| t.edge.is_none())
                     && !self.session.selection.is_empty()
                     && self.session.selection.iter().all(|p| matches!(p, Pick::Face { .. } | Pick::Edge { .. } | Pick::Region { .. })) =>
             {
@@ -644,6 +645,12 @@ impl Workspace {
     /// Chamfer/Fillet, a whole body → Move/Rotate (handles show at once). Regions only get the hint.
     pub(super) fn predict_tool(&mut self) {
         if !matches!(self.tool, Tool::Idle) || self.session.active_sketch.is_some() || self.visualizing || self.drawings.is_some() {
+            return;
+        }
+        // Faces or bodies picked with one edge: they turn around it (Rotate Around Axis, the edge as the axis).
+        if let Some(t) = tools::RotateAxisTool::items_and_axis(&self.session) {
+            self.tool = Tool::RotateAxis(t);
+            self.predicted = true;
             return;
         }
         let kind = match self.session.selection_kind() {

@@ -310,7 +310,11 @@ impl Workspace {
             .map(|a| a - n * a.dot(n))
             .max_by(|a, b| a.length().total_cmp(&b.length()))?
             .normalize_or_zero();
-        (n.length() > 0.5 && x.length() > 0.5).then(|| crate::workspace::tools::GizmoFrame { axes: [x, n.cross(x), n], planar: false })
+        (n.length() > 0.5 && x.length() > 0.5).then(|| crate::workspace::tools::GizmoFrame {
+            axes: [x, n.cross(x), n],
+            planar: false,
+            turns: true,
+        })
     }
 }
 
