@@ -762,7 +762,7 @@ pub struct ShellTool {
 pub struct RevolveTool {
     /// A sketch region or a flat face.
     pub profile: Pick,
-    /// What it spins around; a region uses its sketch's vertical axis until something is picked.
+    /// What it spins around; nothing until a line, edge, round face or axis is clicked.
     pub axis: Option<AxisPick>,
     pub angle: f64,
     /// The Result badge's choice: "auto", "new", "union", "subtract" or "intersect".
@@ -922,13 +922,44 @@ pub struct RotateAxisTool {
 }
 
 impl RotateAxisTool {
+    /// Picked bodies, or (with none) picked sketch curves, which then turn in their sketch's plane.
     pub fn from_selection(s: &Session) -> Option<Self> {
-        let (items, min, max) = selected_items_bounds(s)?;
-        Some(Self { items, about: None, angle: 0.0, center: (min + max) / 2.0, axis: None, dragging: None, copy: false, unlinked: false })
+        let (items, center) = match selected_items_bounds(s) {
+            Some((items, min, max)) => (items, (min + max) / 2.0),
+            None => (Vec::new(), selected_curves_center(s)?.1),
+        };
+        Some(Self { items, about: None, angle: 0.0, center, axis: None, dragging: None, copy: false, unlinked: false })
     }
 
-    /// Takes a straight or round edge (or a round face) as the axis.
+    /// Takes a straight or round edge (or a round face) as the axis. Sketch curves turn in their plane, so for them
+    /// the axis is square to the sketch: through a clicked circle's, arc's, polygon's or ellipse's center, or a
+    /// clicked sketch point.
     pub fn set_axis(&mut self, s: &Session, p: Pick) -> bool {
+        if self.items.is_empty() {
+            let at = match p {
+                Pick::SketchEntity { sketch, entity } => s.doc.sketch(sketch).and_then(|sk| {
+                    let e = sk.entities.get(entity as usize)?;
+                    let c = match e {
+                        shapecraft_doc::SketchEntity::Circle { center, .. }
+                        | shapecraft_doc::SketchEntity::Ellipse { center, .. }
+                        | shapecraft_doc::SketchEntity::Polygon { center, .. } => *center,
+                        shapecraft_doc::SketchEntity::Arc { .. } => *shapecraft_doc::constraints::points(e).get(2)?,
+                        _ => return None,
+                    };
+                    Some((sk.plane.to_world(c), sk.plane.normal()))
+                }),
+                Pick::SketchPoint { sketch, entity, index } => s.doc.sketch(sketch).and_then(|sk| {
+                    let q = *shapecraft_doc::constraints::points(sk.entities.get(entity as usize)?).get(index as usize)?;
+                    Some((sk.plane.to_world(q), sk.plane.normal()))
+                }),
+                _ => None,
+            };
+            let Some((o, d)) = at else { return false };
+            self.about = Some(p);
+            self.axis = Some((o, d.normalize_or(DVec3::Z)));
+            self.angle = 0.0;
+            return true;
+        }
         let sub = match p {
             Pick::Edge { edge, .. } => shapecraft_kernel::SubShape::Edge(edge),
             Pick::Face { face, .. } => shapecraft_kernel::SubShape::Face(face),
@@ -962,6 +993,11 @@ impl RotateAxisTool {
     }
 
     pub fn request(&self, angle: f64) -> Option<(&'static str, serde_json::Value)> {
+        if self.items.is_empty() {
+            // Sketch curves: about the axis square to their sketch.
+            let (o, d) = self.axis?;
+            return Some(("rotate", json!({ "origin": [o.x, o.y, o.z], "axis": [d.x, d.y, d.z], "angle": angle, "copy": self.copy })));
+        }
         let about = AxisPick::Topo(self.about?).json();
         let items: Vec<u64> = self.items.iter().map(|i| i.0).collect();
         let mut v = json!({ "items": items, "about": about, "angle": angle, "copy": self.copy });
@@ -1140,10 +1176,13 @@ impl Tool {
             Tool::Shell(_) => {
                 ("Shell (H)", "Pick the faces to take away and hollow the body out; pull the arrow or type the wall thickness.")
             }
-            Tool::Revolve(t) if t.sketch().is_none() && t.axis.is_none() => {
+            Tool::Revolve(t) if t.axis.is_none() => {
                 ("Revolve (V)", "Pick a profile or a face, and an axis to spin it around into a solid.")
             }
             Tool::Revolve(_) => ("Revolve (V)", "Type an angle, or click a line or edge to spin around it. Return applies"),
+            Tool::RotateAxis(t) if t.about.is_none() && t.items.is_empty() => {
+                ("Rotate Around Axis", "Click a circle, an arc or a sketch point to turn the curves around it")
+            }
             Tool::RotateAxis(t) if t.about.is_none() => {
                 ("Rotate Around Axis", "Click a straight or round edge, or a round face, to turn around")
             }

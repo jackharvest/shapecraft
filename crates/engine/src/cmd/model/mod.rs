@@ -200,10 +200,10 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             label: "Scale",
             menu: "Transform/Scale",
             shortcut: None,
-            help: "Resize the selected bodies around a point",
-            params: r#"{"factor": f | "factors": [x,y,z], "center": [x,y,z]? (default: the middle of the selection), "items": [ids]?}"#,
+            help: "Resize the selected bodies (or sketch curves) around a point",
+            params: r#"{"factor": f | "factors": [x,y,z], "center": [x,y,z]? (default: the middle of the selection), "items": [ids]?, "copy": false}  (with no bodies picked: the selected sketch curves, in their plane)"#,
             modifies: true,
-            enabled: has_bodies,
+            enabled: has_bodies_or_curves,
             run: scale,
         },
         CommandSpec {

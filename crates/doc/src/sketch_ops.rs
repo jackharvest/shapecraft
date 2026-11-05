@@ -360,25 +360,30 @@ pub fn fit_polyline(points: &[DVec2]) -> Option<SketchEntity> {
 pub fn transform(e: &SketchEntity, m: DAffine2) -> Vec<SketchEntity> {
     let p = |q: DVec2| m.transform_point2(q);
     let angle_of = |a: f64| m.transform_vector2(DVec2::from_angle(a)).to_angle();
+    // How much a scale grows sizes (1 for moves, turns and mirrors): radii, text heights. A non-uniform scale
+    // grows them by the average.
+    let k = m.matrix2.determinant().abs().sqrt();
     match *e {
         SketchEntity::Line { a, b } => vec![SketchEntity::Line { a: p(a), b: p(b) }],
-        SketchEntity::Circle { center, radius } => vec![SketchEntity::Circle { center: p(center), radius }],
+        SketchEntity::Circle { center, radius } => vec![SketchEntity::Circle { center: p(center), radius: radius * k }],
         SketchEntity::Arc { a, mid, b } => vec![SketchEntity::Arc { a: p(a), mid: p(mid), b: p(b) }],
         SketchEntity::Spline { ref points } => vec![SketchEntity::Spline { points: points.iter().map(|q| p(*q)).collect() }],
         SketchEntity::ControlSpline { ref poles } => vec![SketchEntity::ControlSpline { poles: poles.iter().map(|q| p(*q)).collect() }],
         SketchEntity::Polygon { center, radius, sides, angle } => {
-            vec![SketchEntity::Polygon { center: p(center), radius, sides, angle: angle_of(angle) }]
+            vec![SketchEntity::Polygon { center: p(center), radius: radius * k, sides, angle: angle_of(angle) }]
         }
         SketchEntity::Ellipse { center, rx, ry, angle } => {
-            vec![SketchEntity::Ellipse { center: p(center), rx, ry, angle: angle_of(angle) }]
+            vec![SketchEntity::Ellipse { center: p(center), rx: rx * k, ry: ry * k, angle: angle_of(angle) }]
         }
         // Letters move and turn but never read mirrored.
         SketchEntity::Text { origin, ref text, size, angle, ref font } => {
-            vec![SketchEntity::Text { origin: p(origin), text: text.clone(), size, angle: angle_of(angle), font: font.clone() }]
+            vec![SketchEntity::Text { origin: p(origin), text: text.clone(), size: size * k, angle: angle_of(angle), font: font.clone() }]
         }
         SketchEntity::Rectangle { min, max } => {
-            let x = m.transform_vector2(DVec2::X);
-            if x.x.abs() > 1.0 - 1e-9 || x.y.abs() > 1.0 - 1e-9 {
+            // Still square to the sketch's axes (moved, scaled, turned by a quarter): still a rectangle.
+            let (x, y) = (m.transform_vector2(DVec2::X), m.transform_vector2(DVec2::Y));
+            let tiny = |v: f64, of: DVec2| v.abs() <= 1e-9 * of.length().max(1e-300);
+            if (tiny(x.y, x) && tiny(y.x, y)) || (tiny(x.x, x) && tiny(y.y, y)) {
                 vec![SketchEntity::rectangle(p(min), p(max))]
             } else {
                 e.outline().windows(2).map(|w| SketchEntity::Line { a: p(w[0]), b: p(w[1]) }).collect()
@@ -394,6 +399,19 @@ mod tests {
 
     fn v(x: f64, y: f64) -> DVec2 {
         DVec2::new(x, y)
+    }
+
+    #[test]
+    fn scaling_grows_radii_and_keeps_rectangles() {
+        let half = DAffine2::from_scale(v(0.5, 0.5));
+        assert_eq!(
+            transform(&SketchEntity::Circle { center: v(4.0, 0.0), radius: 2.0 }, half),
+            vec![SketchEntity::Circle { center: v(2.0, 0.0), radius: 1.0 }]
+        );
+        let r = transform(&SketchEntity::rectangle(v(0.0, 0.0), v(4.0, 2.0)), half);
+        assert_eq!(r, vec![SketchEntity::rectangle(v(0.0, 0.0), v(2.0, 1.0))], "a shrunk rectangle stays one rectangle");
+        let turned = transform(&SketchEntity::Circle { center: v(0.0, 0.0), radius: 3.0 }, DAffine2::from_angle(1.0));
+        assert!(matches!(turned[0], SketchEntity::Circle { radius, .. } if (radius - 3.0).abs() < 1e-12), "a turn keeps the radius");
     }
 
     #[test]

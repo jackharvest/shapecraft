@@ -168,6 +168,24 @@ fn moving_a_region_moves_its_curves() {
 }
 
 #[test]
+fn scale_works_on_picked_sketch_curves() {
+    use glam::DVec2;
+    use shapecraft_doc::SketchEntity;
+    let mut s = session();
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("circle", &json!({"center": [10, 0], "radius": 2})).unwrap();
+    s.execute("line", &json!({"a": [0, 0], "b": [4, 0]})).unwrap();
+    let sk = s.active_sketch.unwrap().0;
+    s.execute("select", &json!({"picks": [{"kind": "sketch_entity", "sketch": sk, "entity": 0}]})).unwrap();
+    // About its own middle by default: the circle stays put and grows.
+    s.execute("scale", &json!({"factor": 2})).unwrap();
+    assert_eq!(s.active_sketch().unwrap().entities[0], SketchEntity::Circle { center: DVec2::new(10.0, 0.0), radius: 4.0 });
+    s.execute("select", &json!({"picks": [{"kind": "sketch_entity", "sketch": sk, "entity": 1}]})).unwrap();
+    s.execute("scale", &json!({"factor": 0.5, "center": [0, 0, 0]})).unwrap();
+    assert_eq!(s.active_sketch().unwrap().entities[1], SketchEntity::Line { a: DVec2::ZERO, b: DVec2::new(2.0, 0.0) });
+}
+
+#[test]
 #[allow(clippy::panic)]
 fn sketch_constraints_hold_through_edits() {
     use shapecraft_doc::SketchEntity;

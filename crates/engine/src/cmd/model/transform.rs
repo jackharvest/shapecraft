@@ -253,6 +253,30 @@ pub(super) fn scale(s: &mut Session, p: &Params) -> Result<Value> {
     if factors.min_element() <= 0.0 || factors.max_element() > 1e4 || factors.min_element() < 1e-4 {
         return Err(EngineError::BadParams("scale factors must be between 0.0001 and 10000".into()));
     }
+    if let Some(sel) = selected_entities(s, p) {
+        // Sketch curves scale in their own plane, about the center (default: the middle of the curves).
+        let pl = sketch_plane_of(s, sel.0)?;
+        let along = |axis: DVec3| {
+            let w = axis.abs();
+            (factors.x * w.x + factors.y * w.y + factors.z * w.z) / (w.x + w.y + w.z).max(1e-12)
+        };
+        let center = if p.has("center") {
+            pl.to_local(p.vec3("center")?)
+        } else {
+            let sk = s.doc.sketch(sel.0).ok_or_else(|| EngineError::BadParams(format!("no sketch {}", sel.0.0)))?;
+            let pts: Vec<DVec2> = sel.1.iter().filter_map(|i| sk.entities.get(*i as usize)).flat_map(|e| e.outline()).collect();
+            let min = pts.iter().fold(DVec2::splat(f64::INFINITY), |m, q| m.min(*q));
+            let max = pts.iter().fold(DVec2::splat(f64::NEG_INFINITY), |m, q| m.max(*q));
+            if !min.is_finite() || !max.is_finite() {
+                return Err(EngineError::BadParams("nothing to scale".into()));
+            }
+            (min + max) / 2.0
+        };
+        let m = DAffine2::from_translation(center)
+            * DAffine2::from_scale(DVec2::new(along(pl.x), along(pl.y)))
+            * DAffine2::from_translation(-center);
+        return sketch_xform(s, sel, &[m], p.bool_or("copy", false), false);
+    }
     let ids = target_bodies(s, p, "select bodies to scale")?;
     let center = if p.has("center") { p.vec3("center")? } else { bodies_center(s, &ids)? };
     let copy = p.bool_or("copy", false);

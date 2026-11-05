@@ -740,12 +740,18 @@ impl OffsetFaceTool {
 }
 
 impl ScaleTool {
+    /// Picked bodies, or (with none) picked sketch curves: the gizmo sits in the middle of what it scales.
     pub fn from_selection(s: &Session, uniform: bool) -> Option<Self> {
-        let (items, min, max) = selected_items_bounds(s)?;
-        let half = ((max - min) / 2.0).max(DVec3::splat(1e-3)).to_array();
+        let (items, pivot, half) = match selected_items_bounds(s) {
+            Some((items, min, max)) => (items, (min + max) / 2.0, ((max - min) / 2.0).max(DVec3::splat(1e-3)).to_array()),
+            None => {
+                let (_, center, size) = selected_curves_center(s)?;
+                (Vec::new(), center, [(size / 2.0).max(1e-3); 3])
+            }
+        };
         Some(Self {
             items,
-            pivot: (min + max) / 2.0,
+            pivot,
             half,
             uniform,
             handle: Handle::Arrow(2),
@@ -783,9 +789,10 @@ impl ScaleTool {
     }
 
     pub fn request(&self, f: f64) -> (&'static str, serde_json::Value) {
-        let ids: Vec<u64> = self.items.iter().map(|i| i.0).collect();
         let c = self.pivot;
-        ("scale", json!({ "items": ids, "factors": self.factors(f), "center": [c.x, c.y, c.z], "copy": self.copy }))
+        let mut v = json!({ "factors": self.factors(f), "center": [c.x, c.y, c.z], "copy": self.copy });
+        with_items(&mut v, &self.items);
+        ("scale", v)
     }
 
     pub fn changed(&self, f: f64) -> bool {
@@ -875,10 +882,7 @@ impl RevolveTool {
     pub fn axis_line(&self, s: &Session) -> Option<(DVec3, DVec3)> {
         let sketch = self.sketch().and_then(|id| s.doc.sketch(id));
         let (o, d) = match self.axis {
-            None => {
-                let sk = sketch?;
-                (sk.plane.origin, sk.plane.y)
-            }
+            None => return None,
             Some(AxisPick::Line(i)) => match sketch?.entities.get(i as usize)? {
                 shapecraft_doc::SketchEntity::Line { a, b } => {
                     let sk = sketch?;
@@ -904,15 +908,11 @@ impl RevolveTool {
         (d.length() > 1e-12).then(|| (o, d.normalize()))
     }
 
-    /// The command parameters, or `None` while a face still waits for its axis.
+    /// The command parameters, or `None` while the profile still waits for its axis: nothing spins (and nothing
+    /// previews) until a line, edge, round face or axis is clicked, for a region as for a face.
     pub fn params(&self, angle: f64) -> Option<serde_json::Value> {
         let mut v = profile_json(&self.profile)?;
-        let axis = match (&self.axis, self.profile) {
-            (Some(a), _) => a.json(),
-            (None, Pick::Region { .. }) => json!("v"),
-            (None, _) => return None,
-        };
-        v["axis"] = axis;
+        v["axis"] = self.axis.as_ref()?.json();
         v["angle"] = json!(angle);
         if self.result != "auto" {
             v["result"] = json!(self.result);
