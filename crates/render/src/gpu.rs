@@ -1072,7 +1072,9 @@ impl Renderer {
                 pass.draw(0..3, 0..1);
             }
             let mesh_pipeline = match scene.display {
-                DisplayMode::Shaded | DisplayMode::Zebra { .. } | DisplayMode::Curvature { .. } => Some(&self.mesh_pipeline),
+                DisplayMode::Shaded | DisplayMode::Zebra { .. } | DisplayMode::Curvature { .. } | DisplayMode::Visualized => {
+                    Some(&self.mesh_pipeline)
+                }
                 DisplayMode::XRay => Some(&self.xray_pipeline),
                 DisplayMode::Wireframe => None,
             };

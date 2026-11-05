@@ -21,7 +21,7 @@ pub use mesh::Mesh;
 pub enum KernelError {
     #[error("invalid input: {0}")]
     InvalidInput(String),
-    #[error("{op} failed: {message}")]
+    #[error("{}", operation_text(op, message))]
     Operation { op: &'static str, message: String },
     #[error("shape was made by a different kernel")]
     ForeignShape,
@@ -30,6 +30,12 @@ pub enum KernelError {
 }
 
 pub type Result<T> = std::result::Result<T, KernelError>;
+
+/// "offset failed: …", unless the message already says what failed ("offset failed for this distance"), so a
+/// toast never reads "offset failed: offset failed for this distance".
+fn operation_text(op: &str, message: &str) -> String {
+    if message.to_ascii_lowercase().contains("failed") { message.to_string() } else { format!("{op} failed: {message}") }
+}
 
 /// Kernel-private shape data. Implemented by each kernel crate.
 pub trait ShapeData: Send + Sync + 'static {
@@ -504,4 +510,17 @@ pub struct HealOptions {
 impl HealOptions {
     /// Everything on: Import Preferences ▸ Quality.
     pub const ALL: Self = Self { repair: true, edges: true, sew: true, simplify: true };
+}
+
+#[cfg(test)]
+mod error_text_tests {
+    use super::KernelError;
+
+    #[test]
+    fn a_failure_says_what_failed_once() {
+        let doubled = KernelError::Operation { op: "offset", message: "offset failed for this distance".into() };
+        assert_eq!(doubled.to_string(), "offset failed for this distance");
+        let plain = KernelError::Operation { op: "fillet", message: "radius too large".into() };
+        assert_eq!(plain.to_string(), "fillet failed: radius too large");
+    }
 }

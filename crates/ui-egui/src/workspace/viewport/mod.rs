@@ -145,7 +145,7 @@ impl Workspace {
             grid,
             display: self.display,
             section: self.section.map(|s| (s.origin(), s.normal)),
-            presentation: self.visualizing,
+            presentation: self.visualized_look(),
             backdrop: Rgba::hex(super::visual::backdrop(&self.session.doc.visual)),
             shadow: super::visual::shadow(&self.session.doc.visual),
             ghosts: &ghosts,

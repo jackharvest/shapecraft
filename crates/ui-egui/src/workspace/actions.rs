@@ -204,10 +204,7 @@ impl Workspace {
             UiAction::ZoomToSelection => self.zoom_to_selection(),
             UiAction::RevealInItems => self.show_items = true,
             UiAction::RenameProject => self.renaming = Some((None, self.session.doc.name.clone(), true)),
-            UiAction::Visualized => {
-                self.display = shapecraft_render::DisplayMode::Shaded;
-                self.visualizing = true;
-            }
+            UiAction::Visualized => self.toggle_visualized(),
             UiAction::MeasureMode(i) => {
                 self.variants.insert("Measure mode".into(), (i as usize).min(2));
                 self.measuring = true;

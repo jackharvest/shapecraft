@@ -280,10 +280,7 @@ impl Workspace {
                     }
                 }
             }
-            Key::V if m.alt && !cmd => {
-                self.display = shapecraft_render::DisplayMode::Shaded;
-                self.visualizing = true;
-            }
+            Key::V if m.alt && !cmd => self.toggle_visualized(),
             _ if cmd || m.alt || m.ctrl => {}
             // Space starts a sketch on the face (or construction plane) under the pointer, else on the ground plane,
             // even while a tool the pick started on its own (Offset Face, Move) waits to be pulled (s24-011/012).

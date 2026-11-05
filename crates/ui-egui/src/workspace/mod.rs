@@ -678,6 +678,21 @@ impl Workspace {
         self.session.kernel.clone()
     }
 
+    /// Drawn the Visualize way: in the Visualize workspace, or with the Visualized display mode while modeling.
+    pub(crate) fn visualized_look(&self) -> bool {
+        self.visualizing || self.display == shapecraft_render::DisplayMode::Visualized
+    }
+
+    /// View ▸ Visualized (⌥V): a display mode: the left column, History and every tool stay
+    /// as they are, only the look changes (and "Visualized" shows briefly). Again goes back to Shaded.
+    pub(crate) fn toggle_visualized(&mut self) {
+        use shapecraft_render::DisplayMode as D;
+        self.display = if self.display == D::Visualized { D::Shaded } else { D::Visualized };
+        if self.display == D::Visualized {
+            self.toast("Visualized");
+        }
+    }
+
     pub fn toast(&mut self, text: impl Into<String>) {
         self.toasts.push(Toast { text: text.into(), until: self.now + 3.0 });
     }

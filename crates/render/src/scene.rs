@@ -56,6 +56,9 @@ pub enum DisplayMode {
     Curvature {
         scale: u16,
     },
+    /// Shaders ▸ Visualized (View ▸ Visualized ⌥V): the Visualize look (no edges, grid or axes, the backdrop
+    /// and floor shadow) while modeling goes on as usual.
+    Visualized,
 }
 
 impl DisplayMode {
@@ -66,12 +69,13 @@ impl DisplayMode {
             DisplayMode::XRay => "X-Ray",
             DisplayMode::Zebra { .. } => "Zebra",
             DisplayMode::Curvature { .. } => "Curvature Map",
+            DisplayMode::Visualized => "Visualized",
         }
     }
 
     /// Solid bodies, drawn like Shaded (the surface analyses only change the colour).
     pub fn solid(self) -> bool {
-        matches!(self, DisplayMode::Shaded | DisplayMode::Zebra { .. } | DisplayMode::Curvature { .. })
+        matches!(self, DisplayMode::Shaded | DisplayMode::Zebra { .. } | DisplayMode::Curvature { .. } | DisplayMode::Visualized)
     }
 
     /// For the shader: mode (0 none, 1 zebra, 2 curvature), vertical, scale.

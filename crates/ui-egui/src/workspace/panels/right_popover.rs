@@ -20,7 +20,7 @@ pub(super) fn right_popover(ws: &mut Workspace, ui: &mut Ui, pop: RightPop, at: 
                 Row::Choice { label: "Wireframe", checked: d == D::Wireframe && !ws.visualizing, enabled: true },
                 Row::Choice { label: "X-Ray", checked: d == D::XRay && !ws.visualizing, enabled: true },
                 Row::Choice { label: "Shaded", checked: d == D::Shaded && !ws.visualizing, enabled: true },
-                Row::Choice { label: "Visualized", checked: ws.visualizing, enabled: true },
+                Row::Choice { label: "Visualized", checked: ws.visualizing || d == D::Visualized, enabled: true },
                 Row::Separator,
                 Row::Header("Surface Analysis"),
                 Row::Choice { label: "Zebra", checked: matches!(d, D::Zebra { .. }) && !ws.visualizing, enabled: true },
@@ -68,7 +68,11 @@ pub(super) fn right_popover(ws: &mut Workspace, ui: &mut Ui, pop: RightPop, at: 
                 (Some((1, _)), _) => (ws.display, ws.visualizing) = (D::Wireframe, false),
                 (Some((2, _)), _) => (ws.display, ws.visualizing) = (D::XRay, false),
                 (Some((3, _)), _) => (ws.display, ws.visualizing) = (D::Shaded, false),
-                (Some((4, _)), _) => (ws.display, ws.visualizing) = (D::Shaded, true),
+                (Some((4, _)), _) if !ws.visualizing => {
+                    if d != D::Visualized {
+                        ws.toggle_visualized();
+                    }
+                }
                 (Some((7, _)), _) => (ws.display, ws.visualizing) = (D::Zebra { vertical: false, scale: 100 }, false),
                 (Some((8, _)), _) => (ws.display, ws.visualizing) = (D::Curvature { scale: 100 }, false),
                 (Some((11, k)), true) if matches!(d, D::Zebra { .. }) => {
