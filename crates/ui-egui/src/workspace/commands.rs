@@ -56,6 +56,9 @@ impl Workspace {
         match self.session.execute(id, &params) {
             Ok(out) => {
                 self.remember(id);
+                if matches!(id, "select" | "select_all") {
+                    self.repredict();
+                }
                 Some(out.value)
             }
             Err(e) => {
@@ -236,7 +239,7 @@ impl Workspace {
             return std::borrow::Cow::Owned(d);
         }
         // View ▸ Show Sketches off: in the Visualized look only the sketch being edited stays.
-        let base = if self.view_opts.sketches || !self.visualizing {
+        let base = if self.view_opts.sketches || !self.visualized_look() {
             base
         } else {
             let mut d = base.into_owned();

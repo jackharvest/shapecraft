@@ -373,14 +373,14 @@ impl Workspace {
                     self.remember("scale");
                     self.tool = Tool::Scale(t);
                 }
-                None => self.await_selection(ToolKind::ScaleNonUniform, "Select bodies to scale"),
+                None => self.await_selection(ToolKind::ScaleNonUniform, self.scale_hint()),
             },
             ToolKind::Scale => match tools::ScaleTool::from_selection(&self.session, true) {
                 Some(t) => {
                     self.remember("scale");
                     self.tool = Tool::Scale(t);
                 }
-                None => self.await_selection(ToolKind::Scale, "Select bodies to scale"),
+                None => self.await_selection(ToolKind::Scale, self.scale_hint()),
             },
             ToolKind::Pattern => {
                 match tools::PatternTool::from_selection(&self.session).map(|t| tools::PatternTool { total: self.pattern_total, ..t }) {
@@ -403,7 +403,10 @@ impl Workspace {
                     self.remember("rotate");
                     self.tool = Tool::RotateAxis(t);
                 }
-                None => self.await_selection(ToolKind::RotateAxis, "Select bodies to rotate"),
+                None => self.await_selection(
+                    ToolKind::RotateAxis,
+                    if self.session.active_sketch.is_some() { "Select sketch curves to turn" } else { "Select bodies to rotate" },
+                ),
             },
             ToolKind::OffsetPlane => match tools::OffsetPlaneTool::from_selection(&self.session) {
                 Some(t) => {
@@ -654,6 +657,23 @@ impl Workspace {
         };
         self.start_tool(kind);
         self.predicted = true;
+    }
+
+    /// What Scale waits for: bodies, or in a sketch its curves.
+    fn scale_hint(&self) -> &'static str {
+        if self.session.active_sketch.is_some() { "Select sketch curves to scale up or down" } else { "Select bodies to scale" }
+    }
+
+    /// The selection changed (the Items list, Select All, Select Through, a click): a tool it only predicted gives
+    /// way to what the new selection predicts, so a body picked in Items brings up the Move gizmo instead of
+    /// leaving the old face's Offset Face arrow up. A tool the user started keeps going.
+    pub(crate) fn repredict(&mut self) {
+        if self.predicted {
+            self.end_model_tool();
+        }
+        if matches!(self.tool, Tool::Idle) {
+            self.predict_tool();
+        }
     }
 
     /// 26.200 keeps the History sidebar open while sketching (26.142 closed it).

@@ -832,8 +832,10 @@ impl Workspace {
                 }
             }
             Tool::RotateAxis(mut t) => {
+                // Turning sketch curves: a sketch point under the pointer can be the axis too.
+                let point = if t.items.is_empty() { self.sketch_point_at(c) } else { None };
                 if t.about.is_none()
-                    && let Some((p, _)) = self.pick_at(c)
+                    && let Some(p) = point.or_else(|| self.pick_at(c).map(|(p, _)| p))
                     && t.set_axis(&self.session, p)
                 {
                     self.tool = Tool::RotateAxis(t);
@@ -901,14 +903,23 @@ impl Workspace {
                     Some(p) => {
                         // With "Require holding shift" off in Preferences, every click adds to the selection; a waiting
                         // tool gathers what's clicked.
-                        let add = shift || !self.settings.extend_needs_shift || awaiting.is_some();
-                        let _ = self.run("select", json!({ "picks": [p], "add": add }));
+                        let extend = shift || !self.settings.extend_needs_shift;
+                        let add = extend || awaiting.is_some();
+                        // Extending onto something already picked takes it back out.
+                        let _ = self.run("select", json!({ "picks": [p], "add": add, "toggle": extend }));
                     }
                     None => self.session.selection.clear(),
                 }
                 // Selecting something else while a tool runs moves the tool to it, if it applies (a new step).
                 self.live_step = None;
+                // A tool the selection only predicted is predicted again from the new selection, as a first click
+                // would: a face and an edge together predict nothing, so no stale Offset Face arrow stays up.
+                let repredict = self.predicted && awaiting.is_none();
+                if repredict {
+                    self.predicted = false;
+                }
                 self.tool = match &self.tool {
+                    _ if repredict => Tool::Idle,
                     Tool::Extrude(_) => crate::workspace::tools::ExtrudeTool::from_selection(&self.session, self.last_hit)
                         .map(Tool::Extrude)
                         .unwrap_or(Tool::Idle),

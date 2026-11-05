@@ -206,7 +206,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             menu: "",
             shortcut: None,
             help: "Select items, faces, edges or sketch regions",
-            params: r#"{"picks": [{"kind":"face","body":3,"face":5} | {"kind":"edge",…} | {"kind":"body",…} | {"kind":"region","sketch":2,"region":0} | {"kind":"sketch_entity",…}], "add": false}"#,
+            params: r#"{"picks": [{"kind":"face","body":3,"face":5} | {"kind":"edge",…} | {"kind":"body",…} | {"kind":"region","sketch":2,"region":0} | {"kind":"sketch_entity",…}], "add": false, "toggle": false (with add: a pick already selected is taken out)}"#,
             modifies: false,
             enabled: always,
             run: select,
@@ -572,12 +572,18 @@ pub(super) fn commands() -> Vec<CommandSpec> {
 
 fn select(s: &mut Session, p: &Params) -> Result<Value> {
     let picks: Vec<Pick> = p.parse("picks")?;
-    if !p.bool_or("add", false) {
+    let add = p.bool_or("add", false);
+    let toggle = add && p.bool_or("toggle", false);
+    if !add {
         s.selection.clear();
     }
     for pick in picks {
-        if !s.selection.contains(&pick) {
-            s.selection.push(pick);
+        match s.selection.iter().position(|x| *x == pick) {
+            Some(i) if toggle => {
+                s.selection.remove(i);
+            }
+            Some(_) => {}
+            None => s.selection.push(pick),
         }
     }
     s.prune_selection();
