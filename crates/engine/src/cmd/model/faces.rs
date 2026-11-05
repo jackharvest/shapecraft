@@ -333,50 +333,57 @@ pub(super) fn replace_face(s: &mut Session, p: &Params) -> Result<Value> {
     if Params::new(&to).has("body") && Params::new(&to).id("body")? == body && faces.contains(&(Params::new(&to).f64("face")? as u32)) {
         return Err(EngineError::NotAvailable(CANT.into()));
     }
-    let t = n_t.normalize_or_zero();
     let b = s.doc.body(body).ok_or_else(|| EngineError::BadParams(format!("no body {}", body.0)))?;
-    let mut planes = Vec::new();
-    for &f in &faces {
-        let fp = s.kernel.face_plane(&b.shape, f)?.ok_or_else(|| EngineError::NotAvailable(CANT.into()))?;
-        let n = fp.normal.normalize_or_zero();
-        if n.dot(t).abs() < 0.05 {
-            return Err(EngineError::NotAvailable(CANT.into()));
-        }
-        planes.push((f, fp.origin, n));
-    }
-    // All parallel and the same distance away: one offset keeps fillets and stretches neighbours.
-    let dist = |o: DVec3, n: DVec3| (o_t - o).dot(n);
-    let parallel = planes.iter().all(|&(_, _, n)| n.dot(t).abs() > 1.0 - 1e-9);
-    let d0 = dist(planes[0].1, planes[0].2);
-    let shape = if parallel && planes.iter().all(|&(_, o, n)| (dist(o, n) - d0).abs() < 1e-9) {
-        if d0.abs() < 1e-9 { b.shape.clone() } else { s.kernel.offset_faces(&b.shape, &faces, d0)? }
-    } else {
-        let bb = s.kernel.bounds(&b.shape)?;
-        let reach = (bb.max - bb.min).length() + (o_t - bb.min).length() + (o_t - bb.max).length() + 1.0;
-        let profiles = faces.iter().map(|&f| s.kernel.face(&b.shape, f)).collect::<std::result::Result<Vec<_>, _>>()?;
-        let mut shape = b.shape.clone();
-        for (profile, &(_, _, n)) in profiles.iter().zip(&planes) {
-            // The target's normal turned toward the face's outside: "below" the plane is the body's side.
-            let up = if n.dot(t) > 0.0 { t } else { -t };
-            let below = |c: DVec3| (c - o_t).dot(up) < 0.0;
-            // A prism the plane misses stays whole.
-            let halves = |prism: Shape| s.kernel.split_by_plane(&prism, o_t, up).unwrap_or_else(|_| vec![prism]);
-            for piece in halves(s.kernel.prism(profile, n * reach)?) {
-                if below(s.kernel.mass_props(&piece)?.centroid) {
-                    shape = s.kernel.boolean(BoolOp::Union, &shape, &piece)?;
-                }
-            }
-            for piece in halves(s.kernel.prism(profile, -n * reach)?) {
-                if !below(s.kernel.mass_props(&piece)?.centroid) {
-                    shape = s.kernel.boolean(BoolOp::Subtract, &shape, &piece)?;
-                }
-            }
-        }
-        shape
-    };
+    let shape = fit_faces_to_plane(s, &b.shape.clone(), &faces, o_t, n_t)?.ok_or_else(|| EngineError::NotAvailable(CANT.into()))?;
     set_body_shape(s, body, shape)?;
     s.selection = vec![Pick::Body { body }];
     Ok(json!({ "body": body.0 }))
+}
+
+/// The body with its flat `faces` brought onto the plane through `o_t` with normal `n_t`, neighbours stretching or
+/// trimming to meet it (Replace Face, and faces turned about an axis in their own plane). `None` when a face isn't
+/// flat or stands square to the plane.
+fn fit_faces_to_plane(s: &Session, shape: &Shape, faces: &[u32], o_t: DVec3, n_t: DVec3) -> Result<Option<Shape>> {
+    let t = n_t.normalize_or_zero();
+    let mut planes = Vec::new();
+    for &f in faces {
+        let Some(fp) = s.kernel.face_plane(shape, f)? else { return Ok(None) };
+        let n = fp.normal.normalize_or_zero();
+        if n.dot(t).abs() < 0.05 {
+            return Ok(None);
+        }
+        planes.push((f, fp.origin, n));
+    }
+    let Some(first) = planes.first().copied() else { return Ok(None) };
+    // All parallel and the same distance away: one offset keeps fillets and stretches neighbours.
+    let dist = |o: DVec3, n: DVec3| (o_t - o).dot(n);
+    let parallel = planes.iter().all(|&(_, _, n)| n.dot(t).abs() > 1.0 - 1e-9);
+    let d0 = dist(first.1, first.2);
+    if parallel && planes.iter().all(|&(_, o, n)| (dist(o, n) - d0).abs() < 1e-9) {
+        return Ok(Some(if d0.abs() < 1e-9 { shape.clone() } else { s.kernel.offset_faces(shape, faces, d0)? }));
+    }
+    let bb = s.kernel.bounds(shape)?;
+    let reach = (bb.max - bb.min).length() + (o_t - bb.min).length() + (o_t - bb.max).length() + 1.0;
+    let profiles = faces.iter().map(|&f| s.kernel.face(shape, f)).collect::<std::result::Result<Vec<_>, _>>()?;
+    let mut out = shape.clone();
+    for (profile, &(_, _, n)) in profiles.iter().zip(&planes) {
+        // The target's normal turned toward the face's outside: "below" the plane is the body's side.
+        let up = if n.dot(t) > 0.0 { t } else { -t };
+        let below = |c: DVec3| (c - o_t).dot(up) < 0.0;
+        // A prism the plane misses stays whole.
+        let halves = |prism: Shape| s.kernel.split_by_plane(&prism, o_t, up).unwrap_or_else(|_| vec![prism]);
+        for piece in halves(s.kernel.prism(profile, n * reach)?) {
+            if below(s.kernel.mass_props(&piece)?.centroid) {
+                out = s.kernel.boolean(BoolOp::Union, &out, &piece)?;
+            }
+        }
+        for piece in halves(s.kernel.prism(profile, -n * reach)?) {
+            if !below(s.kernel.mass_props(&piece)?.centroid) {
+                out = s.kernel.boolean(BoolOp::Subtract, &out, &piece)?;
+            }
+        }
+    }
+    Ok(Some(out))
 }
 
 /// Project as Edge: imprints the items' outlines on a face, projected along its normal (26.200, s11-134..138).
@@ -425,6 +432,87 @@ pub(super) fn project_edge(s: &mut Session, p: &Params) -> Result<Value> {
     Ok(json!({ "body": body.0 }))
 }
 
+/// Moves a straight edge of a body: each flat face beside it turns about its far side to meet the moved edge (a face
+/// the move stays within just stretches). Refused for round edges or faces that aren't flat.
+pub(super) fn move_edge(s: &mut Session, p: &Params) -> Result<Value> {
+    const CANT: &str = "this edge can't be moved";
+    let (body, edge) = if p.has("edge") {
+        (p.id("body")?, p.f64("edge")? as u32)
+    } else {
+        match s.selection.as_slice() {
+            [Pick::Edge { body, edge }] => (*body, *edge),
+            _ => return Err(EngineError::NotAvailable("select one edge to move".into())),
+        }
+    };
+    let by = p.vec3("by")?;
+    if !by.is_finite() {
+        return Err(EngineError::BadParams("by must be finite".into()));
+    }
+    let b = s.doc.body(body).ok_or_else(|| EngineError::BadParams(format!("no body {}", body.0)))?;
+    if by.length() < 1e-12 {
+        return Ok(json!({ "body": body.0 }));
+    }
+    let m = b.mesh.clone();
+    let k =
+        m.edge_ids.iter().position(|e| *e == edge).ok_or_else(|| EngineError::BadParams(format!("body {} has no edge {edge}", body.0)))?;
+    let pts: Vec<DVec3> =
+        m.edges.get(k).map(|l| l.iter().map(|q| DVec3::new(q[0] as f64, q[1] as f64, q[2] as f64)).collect()).unwrap_or_default();
+    let (Some(&a), Some(&e)) = (pts.first(), pts.last()) else { return Err(EngineError::NotAvailable(CANT.into())) };
+    let dir = (e - a).normalize_or_zero();
+    // Straight: every point on the line through its ends.
+    if dir.length() < 0.5 || pts.iter().any(|q| (*q - a).cross(dir).length() > 1e-6 * (1.0 + (e - a).length())) {
+        return Err(EngineError::NotAvailable(CANT.into()));
+    }
+    let faces: Vec<u32> = m.edge_faces.get(k).map(|f| f.iter().copied().filter(|f| *f != u32::MAX).collect()).unwrap_or_default();
+    let mut shape = b.shape.clone();
+    let count = s.kernel.face_count(&shape)?;
+    let moved = a + by;
+    for f in faces {
+        let fp = s.kernel.face_plane(&shape, f)?.ok_or_else(|| EngineError::NotAvailable(CANT.into()))?;
+        let n = fp.normal.normalize_or_zero();
+        if by.dot(n).abs() < 1e-9 {
+            continue;
+        }
+        // The face's far side: its mesh point farthest from the edge's line stays where it is.
+        let far = m
+            .indices
+            .as_chunks::<3>()
+            .0
+            .iter()
+            .enumerate()
+            .filter(|(t, _)| m.triangle_faces.get(*t) == Some(&f))
+            .flat_map(|(_, tri)| {
+                tri.iter().filter_map(|i| m.positions.get(*i as usize)).map(|q| DVec3::new(q[0] as f64, q[1] as f64, q[2] as f64))
+            })
+            .max_by(|p, q| (*p - a).cross(dir).length().total_cmp(&(*q - a).cross(dir).length()))
+            .ok_or_else(|| EngineError::NotAvailable(CANT.into()))?;
+        let mut normal = dir.cross(far - moved).normalize_or_zero();
+        if normal.length() < 0.5 {
+            return Err(EngineError::NotAvailable(CANT.into()));
+        }
+        if normal.dot(n) < 0.0 {
+            normal = -normal;
+        }
+        shape = fit_faces_to_plane(s, &shape, &[f], moved, normal)?.ok_or_else(|| EngineError::NotAvailable(CANT.into()))?;
+    }
+    let same = s.kernel.face_count(&shape).is_ok_and(|n| n == count);
+    set_body_shape(s, body, shape)?;
+    // The moved edge keeps its pick: the new edge whose ends sit where the old ones went (ids can change).
+    let (a2, e2) = (a + by, e + by);
+    let found = s.doc.body(body).and_then(|b| {
+        let near = |q: &[f32; 3], p: DVec3| DVec3::new(q[0] as f64, q[1] as f64, q[2] as f64).distance(p) < 1e-4 * (1.0 + (e - a).length());
+        b.mesh.edges.iter().zip(&b.mesh.edge_ids).find_map(|(l, id)| {
+            let (f, z) = (l.first()?, l.last()?);
+            ((near(f, a2) && near(z, e2)) || (near(f, e2) && near(z, a2))).then_some(*id)
+        })
+    });
+    s.selection = match found {
+        Some(edge) if same => vec![Pick::Edge { body, edge }],
+        _ => vec![Pick::Body { body }],
+    };
+    Ok(json!({ "body": body.0 }))
+}
+
 /// Moves or turns some of a body's faces, the way Move/Rotate does with faces picked: the rest of the body
 /// follows. Flat faces slid along their own normal are offset; anything else is cut out of the body as a feature
 /// (the body with those faces removed, against the body as it is) and put back moved.
@@ -454,6 +542,33 @@ pub(super) fn move_faces(s: &mut Session, p: &Params) -> Result<Value> {
     }
     if by.length() < 1e-12 && turn.is_none() {
         return Ok(json!({ "body": body.0 }));
+    }
+    // Flat faces on one plane turned about an axis lying in that plane (a face about one of its own edges): the
+    // faces tilt onto the turned plane, neighbours following.
+    if let Some((axis, angle)) = turn
+        && by.length() < 1e-12
+    {
+        let mut plane = None;
+        let mut coplanar = true;
+        for &f in &faces {
+            match (s.kernel.face_plane(&shape, f)?, plane) {
+                (Some(fp), None) => plane = Some((fp.origin, fp.normal.normalize_or_zero())),
+                (Some(fp), Some((o, n))) if fp.normal.normalize_or_zero().dot(n) > 1.0 - 1e-9 && (fp.origin - o).dot(n).abs() < 1e-6 => {}
+                _ => coplanar = false,
+            }
+        }
+        let d = axis.dir.normalize_or_zero();
+        if let Some((o, n)) = plane.filter(|_| coplanar)
+            && d.dot(n).abs() < 1e-6
+            && (axis.origin - o).dot(n).abs() < 1e-6
+        {
+            // Rodrigues: n turned by `angle` about d.
+            let (sin, cos) = angle.sin_cos();
+            let turned = n * cos + d.cross(n) * sin + d * d.dot(n) * (1.0 - cos);
+            if let Ok(Some(moved)) = fit_faces_to_plane(s, &shape, &faces, axis.origin, turned) {
+                return moved_faces(s, body, &faces, count, moved);
+            }
+        }
     }
     // Flat faces sharing one normal, slid along it: an offset keeps every neighbour attached.
     if turn.is_none() {

@@ -494,3 +494,42 @@ fn moving_faces_raises_a_pocket_floor_and_slides_a_whole_pocket() {
     assert!(s.execute("move_faces", &json!({"body": body.0, "faces": [99], "by": [1, 0, 0]})).is_err());
     assert!(s.execute("move_faces", &json!({"body": body.0, "faces": [0], "by": [f64::NAN, 0, 0]})).is_err());
 }
+
+#[test]
+fn a_face_turned_about_its_own_edge_tilts() {
+    let mut s = session();
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("rectangle", &json!({"corner": [0, 0], "opposite": [20, 20]})).unwrap();
+    s.execute("extrude", &json!({"sketch": 1, "region": 0, "distance": 20})).unwrap();
+    let body = s.doc.bodies[0].id;
+    let n = s.kernel.face_count(&s.doc.bodies[0].shape).unwrap();
+    // The +x side face, turned 10° outward about its top edge (x = 20, z = 20, along y): the bottom swings out.
+    let side = (0..n).find(|f| s.kernel.face_plane(&s.doc.bodies[0].shape, *f).unwrap().is_some_and(|p| p.normal.x > 0.999)).unwrap();
+    s.execute("move_faces", &json!({"body": body.0, "faces": [side], "origin": [20, 0, 20], "axis": [0, -1, 0], "angle": 10})).unwrap();
+    let grown = 0.5 * 20.0 * (20.0 * 10f64.to_radians().tan()) * 20.0;
+    assert!((volume(&mut s) - (8000.0 + grown)).abs() < 1.0, "a wedge added under the turned face: {}", volume(&mut s));
+    assert_eq!(s.kernel.face_count(&s.doc.bodies[0].shape).unwrap(), n, "still six faces");
+}
+
+#[test]
+fn moving_an_edge_tilts_the_faces_beside_it() {
+    let mut s = session();
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("rectangle", &json!({"corner": [0, 0], "opposite": [20, 20]})).unwrap();
+    s.execute("extrude", &json!({"sketch": 1, "region": 0, "distance": 20})).unwrap();
+    let body = s.doc.bodies[0].id;
+    // The top edge along y at x = 20, z = 20, lifted 5 mm: the +x side stretches, the top tilts about x = 0.
+    let m = s.doc.bodies[0].mesh.clone();
+    let k = m.edges.iter().position(|l| l.iter().all(|q| (q[0] - 20.0).abs() < 1e-4 && (q[2] - 20.0).abs() < 1e-4)).unwrap();
+    let edge = m.edge_ids[k];
+    s.execute("move_edge", &json!({"body": body.0, "edge": edge, "by": [0, 0, 5]})).unwrap();
+    let wedge = 0.5 * 20.0 * 5.0 * 20.0;
+    assert!((volume(&mut s) - (8000.0 + wedge)).abs() < 1.0, "a wedge on top: {}", volume(&mut s));
+    let bb = s.kernel.bounds(&s.doc.bodies[0].shape).unwrap();
+    assert!((bb.max.z - 25.0).abs() < 1e-6 && (bb.max.x - 20.0).abs() < 1e-6);
+    // The moved edge stays picked, wherever its id went.
+    let Some(shapecraft_doc::Pick::Edge { edge: picked, .. }) = s.selection.first().copied() else { panic!("an edge stays picked") };
+    let m = s.doc.bodies[0].mesh.clone();
+    let k = m.edge_ids.iter().position(|e| *e == picked).unwrap();
+    assert!(m.edges[k].iter().all(|q| (q[0] - 20.0).abs() < 1e-4 && (q[2] - 25.0).abs() < 1e-4), "the lifted edge");
+}

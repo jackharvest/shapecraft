@@ -13,7 +13,7 @@ use crate::{EngineError, Params, Result, Session};
 use boolean::{boolean_spec, split_body};
 use extrude::extrude;
 pub use extrude::extrude_auto_body;
-use faces::{chamfer, edge_target, fillet, move_faces, offset_face, project_edge, replace_face, shell};
+use faces::{chamfer, edge_target, fillet, move_edge, move_faces, offset_face, project_edge, replace_face, shell};
 pub use sweep::revolve_auto;
 use sweep::{loft, revolve, sweep};
 use transform::{align, mirror, pattern, pattern_circular, rotate, scale, translate};
@@ -216,6 +216,17 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             modifies: true,
             enabled: has_bodies,
             run: offset_face,
+        },
+        CommandSpec {
+            id: "move_edge",
+            label: "Move Edge",
+            menu: "",
+            shortcut: None,
+            help: "Move a straight edge between flat faces (Move/Rotate with an edge picked); the faces beside it tilt to follow",
+            params: r#"{"by": [dx,dy,dz], "body": id?, "edge": n?}  (default: the selected edge)"#,
+            modifies: true,
+            enabled: has_bodies,
+            run: move_edge,
         },
         CommandSpec {
             id: "move_faces",
