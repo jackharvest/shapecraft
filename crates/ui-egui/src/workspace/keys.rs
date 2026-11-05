@@ -175,10 +175,7 @@ impl Workspace {
                 });
             }
             // A result already applied and nothing typed: Return is Done (the button's ↵; 26.202, s40-004).
-            Key::Enter if !typing && self.numeric.is_none() && self.is_live() && !matches!(self.tool, Tool::Idle) => {
-                self.live_step = None;
-                self.tool = Tool::Idle;
-            }
+            Key::Enter if !typing && self.numeric.is_none() && self.is_live() && !matches!(self.tool, Tool::Idle) => self.finish_live(),
             Key::Enter => {
                 if matches!(self.tool, Tool::Revolve(_) | Tool::RotateAxis(_) | Tool::CircularPattern(_))
                     || matches!(&self.tool, Tool::EdgePlane(t) if t.through)

@@ -533,3 +533,36 @@ fn moving_an_edge_tilts_the_faces_beside_it() {
     let k = m.edge_ids.iter().position(|e| *e == picked).unwrap();
     assert!(m.edges[k].iter().all(|q| (q[0] - 20.0).abs() < 1e-4 && (q[2] - 25.0).abs() < 1e-4), "the lifted edge");
 }
+
+#[test]
+fn a_pushed_or_moved_face_stays_picked_where_it_went() {
+    let mut s = session();
+    let body = pocketed_block(&mut s);
+    let picked_z = |s: &mut Session| -> Vec<f64> {
+        let faces = faces_of(s);
+        s.selection
+            .iter()
+            .filter_map(|p| match *p {
+                shapecraft_doc::Pick::Face { face, .. } => faces.iter().find(|f| f.0 == u64::from(face)).and_then(|f| f.1),
+                _ => None,
+            })
+            .collect()
+    };
+    let floor =
+        |s: &mut Session, z: f64| faces_of(s).into_iter().find(|f| f.1.is_some_and(|c| (c - z).abs() < 1e-3) && f.2 > 0.999).unwrap().0;
+    // Offset Face on the pocket floor (z 10) up 2 mm: the floor, now at z 12, is what's picked, not the body.
+    let f = floor(&mut s, 10.0);
+    s.selection = vec![shapecraft_doc::Pick::Face { body, face: f as u32 }];
+    s.execute("offset_face", &json!({"distance": 2})).unwrap();
+    assert_eq!(picked_z(&mut s), vec![12.0], "{:?}", s.selection);
+    // Move on that face, up 3 more: still the floor, at z 15.
+    s.execute("move_faces", &json!({"by": [0, 0, 3]})).unwrap();
+    assert_eq!(picked_z(&mut s), vec![15.0], "{:?}", s.selection);
+    // Pushed down again by a typed amount through the body's own id: z 13.
+    let f = floor(&mut s, 15.0);
+    s.execute("offset_face", &json!({"body": body.0, "faces": [f], "distance": -2})).unwrap();
+    assert_eq!(picked_z(&mut s), vec![13.0], "{:?}", s.selection);
+    // Edge features leave nothing picked (the edges are gone), never the whole body.
+    s.execute("fillet", &json!({"body": body.0, "edges": [0], "radius": 1})).unwrap();
+    assert!(s.selection.is_empty(), "{:?}", s.selection);
+}

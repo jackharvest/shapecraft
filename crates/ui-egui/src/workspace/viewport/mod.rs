@@ -207,18 +207,9 @@ impl Workspace {
         };
         if (live || self.picked_modify_tool()) && self.sketch_transform().is_none() && !self.offsetting_region() {
             match self.bottom_actions(ui, live || boolean) {
-                Some("Cancel") => {
-                    if live {
-                        self.session.drop_last_step();
-                    }
-                    self.live_step = None;
-                    self.tool = Tool::Idle;
-                }
+                Some("Cancel") => self.ui_action(crate::workspace::toolbar::UiAction::ToolCancel),
                 Some(_) if boolean && !live => self.commit_tool(),
-                Some(_) => {
-                    self.live_step = None;
-                    self.tool = Tool::Idle;
-                }
+                Some(_) => self.finish_live(),
                 None => {}
             }
         }

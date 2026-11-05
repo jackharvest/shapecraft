@@ -2,6 +2,20 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.5.14-alpha
+
+**What you push, pull or move stays highlighted where it went, and Done and Cancel leave a clean slate.**
+
+### Fixed
+- **A face pushed or pulled with Offset Face, or moved with Move/Rotate, stays picked at its new place.** Before, the
+  whole body lit up after you let go (a pocket floor pulled up, for one). The arrow or gizmo and the highlight now
+  sit on the face together, drag after drag; Replace Face does the same.
+- **Fillets, chamfers, Shell, Fill, Project as Edge and Wrap no longer pick the whole body afterwards.** A live fillet
+  or chamfer keeps the edges it rounds drawn as picked until Done.
+- **Done and Cancel leave nothing picked**, and Cancel takes a pulled result back without leaving picks that no
+  longer fit the part.
+- **A live Offset Face or Move** shows the short left column with the running tool lit, as Extrude and Fillet do.
+
 ## 0.5.13-alpha
 
 **The arrows come up for whatever you pick, however you pick it: edges and faces move and turn on their own, hidden

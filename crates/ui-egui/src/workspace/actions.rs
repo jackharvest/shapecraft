@@ -66,23 +66,23 @@ impl Workspace {
             UiAction::ToolDone => {
                 // A live step is already applied: Done just ends the tool.
                 if self.is_live() && self.numeric.is_none() {
-                    self.live_step = None;
-                    self.tool = Tool::Idle;
+                    self.finish_live();
                 } else {
                     self.commit_tool();
                     if self.is_live() {
-                        self.live_step = None;
-                        self.tool = Tool::Idle;
+                        self.finish_live();
                     }
                 }
             }
             UiAction::ToolCancel => {
                 // Abandons the tool, taking back a step it already made (Align, observed 389; a pulled Extrude
-                // or Offset Face too: Cancel never keeps the result); what was selected stays selected.
+                // or Offset Face too: Cancel never keeps the result). With the picks from before the step; outside
+                // sketches nothing stays picked after a live result is taken back.
                 if self.is_live() && !matches!(self.tool, Tool::Idle) {
-                    let selection = self.session.selection.clone();
-                    self.session.drop_last_step();
-                    self.session.selection = selection;
+                    self.session.cancel_last_step();
+                    if self.session.active_sketch.is_none() {
+                        self.session.selection.clear();
+                    }
                 }
                 self.numeric = None;
                 self.preview = None;

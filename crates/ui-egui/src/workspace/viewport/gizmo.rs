@@ -118,6 +118,11 @@ impl Workspace {
                 {
                     t.items = copies;
                 }
+                // Moved faces or a moved edge carry on under the numbers they have now (the step re-picked them).
+                let sel = self.session.selection.clone();
+                if let Tool::Move(t) = &mut self.tool {
+                    settle_picks(t, &sel);
+                }
             }
             self.numeric = None;
         }
@@ -172,9 +177,11 @@ impl Workspace {
             && let (Some(p), Some(c)) = (ui.input(|i| i.pointer.press_origin()), self.to_screen(shown))
             && (p - c).length() < 9.0
         {
+            let sel = self.session.selection.clone();
             if let Tool::Move(t) = &mut self.tool {
                 if live {
                     t.settle();
+                    settle_picks(t, &sel);
                 } else {
                     t.value = 0.0;
                     t.planar = DVec3::ZERO;
@@ -354,5 +361,28 @@ impl Workspace {
         if resp.drag_stopped() {
             self.commit_tool();
         }
+    }
+}
+
+/// After a live Move of faces or an edge settles, the tool takes the faces or edge the step left picked: the
+/// kernel may have renumbered them.
+fn settle_picks(t: &mut crate::workspace::tools::MoveTool, sel: &[Pick]) {
+    if let Some((body, faces)) = &mut t.faces {
+        let now: Vec<u32> = sel
+            .iter()
+            .filter_map(|p| match *p {
+                Pick::Face { body: b, face } if b == *body => Some(face),
+                _ => None,
+            })
+            .collect();
+        if !now.is_empty() {
+            *faces = now;
+        }
+    }
+    if let Some((body, edge)) = &mut t.edge
+        && let [Pick::Edge { body: b, edge: e }] = sel
+        && b == body
+    {
+        *edge = *e;
     }
 }

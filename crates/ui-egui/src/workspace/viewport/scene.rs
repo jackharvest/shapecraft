@@ -388,6 +388,26 @@ impl Workspace {
                 out.push(Overlay::Line { a: sk.plane.to_world(w[0]), b: sk.plane.to_world(w[1]), color: Rgba::hex(0xd0861a), width: 2.0 });
             }
         }
+        // A live fillet or chamfer keeps its edges drawn picked where they were: they're gone
+        // from the rounded body, which isn't picked as a whole.
+        if let Tool::Fillet(t) = &self.tool
+            && self.is_live()
+            && let Some(b) = self.session.before_last_step().and_then(|d| d.body(t.body))
+        {
+            let c = if theme::is_light() { SceneColors::light() } else { SceneColors::default() }.selected;
+            for (line, edge) in b.mesh.edges.iter().zip(&b.mesh.edge_ids) {
+                if t.edges.contains(edge) {
+                    for w in line.windows(2) {
+                        out.push(Overlay::Line {
+                            a: DVec3::from(w[0].map(f64::from)),
+                            b: DVec3::from(w[1].map(f64::from)),
+                            color: c,
+                            width: 3.0,
+                        });
+                    }
+                }
+            }
+        }
         // A cut (Subtract, picked or auto) shows the volume it takes away tinted red over the part, live or not
         // (26.202, s36-disc-pull). Otherwise the ghost only stands in until the live geometry is ready (or if the
         // kernel refuses).

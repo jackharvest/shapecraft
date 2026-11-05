@@ -68,7 +68,7 @@ pub(super) fn fillet(s: &mut Session, p: &Params) -> Result<Value> {
         // Shapr3D's setback distance isn't on its card; twice the radius reads like its pictures.
         let shape = s.kernel.fillet_edges_ex(&b.shape, &list, radius, chordal, if setback { 2.0 * radius } else { 0.0 })?;
         set_body_shape(s, body, shape)?;
-        s.selection = vec![Pick::Body { body }];
+        s.selection.clear();
         return Ok(json!({ "body": body.0 }));
     }
     let shape = match (p.opt_str("continuity").unwrap_or("g1"), radius2) {
@@ -83,7 +83,7 @@ pub(super) fn fillet(s: &mut Session, p: &Params) -> Result<Value> {
         (other, _) => return Err(EngineError::BadParams(format!("continuity is g1 or g2, not {other:?}"))),
     };
     set_body_shape(s, body, shape)?;
-    s.selection = vec![Pick::Body { body }];
+    s.selection.clear();
     Ok(json!({ "body": body.0 }))
 }
 
@@ -218,7 +218,7 @@ pub(super) fn chamfer(s: &mut Session, p: &Params) -> Result<Value> {
         s.kernel.chamfer_edges(&b.shape, &edges, distance)?
     };
     set_body_shape(s, body, shape)?;
-    s.selection = vec![Pick::Body { body }];
+    s.selection.clear();
     Ok(json!({ "body": body.0 }))
 }
 
@@ -234,7 +234,7 @@ pub(super) fn shell(s: &mut Session, p: &Params) -> Result<Value> {
     }
     let shape = s.kernel.shell(&b.shape, &faces, thickness)?;
     set_body_shape(s, body, shape)?;
-    s.selection = vec![Pick::Body { body }];
+    s.selection.clear();
     Ok(json!({ "body": body.0 }))
 }
 
@@ -288,10 +288,108 @@ pub(super) fn offset_face(s: &mut Session, p: &Params) -> Result<Value> {
     if distance.abs() < 1e-12 {
         return Ok(json!({ "body": body.0 }));
     }
+    let marks: Vec<Mark> = face_marks(b, &faces).into_iter().map(|(p, n)| (p + n * distance, n)).collect();
     let shape = s.kernel.offset_faces(&b.shape, &faces, distance)?;
     set_body_shape(s, body, shape)?;
-    s.selection = vec![Pick::Body { body }];
+    repick_faces(s, body, &marks);
     Ok(json!({ "body": body.0 }))
+}
+
+/// A point inside a face and its outward normal there.
+type Mark = (DVec3, DVec3);
+
+/// For each face, the middle of its biggest triangle (well inside the face) and the outward normal there.
+fn face_marks(b: &shapecraft_doc::Body, faces: &[u32]) -> Vec<Mark> {
+    let m = &b.mesh;
+    let at = |i: u32| m.positions.get(i as usize).map(|q| DVec3::new(q[0] as f64, q[1] as f64, q[2] as f64));
+    faces
+        .iter()
+        .filter_map(|&face| {
+            let (_, mid, n) = m
+                .indices
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .zip(&m.triangle_faces)
+                .filter(|(_, f)| **f == face)
+                .filter_map(|(t, _)| {
+                    let (a, b, c) = (at(t[0])?, at(t[1])?, at(t[2])?);
+                    let cross = (b - a).cross(c - a);
+                    Some((cross.length(), (a + b + c) / 3.0, cross.normalize_or_zero()))
+                })
+                .max_by(|x, y| x.0.total_cmp(&y.0))?;
+            Some((mid, n))
+        })
+        .collect()
+}
+
+/// Picks the faces of `body` lying at `marks` (each moved to where its face went), so a face that was pushed,
+/// pulled or turned stays picked where it is now, whatever number the kernel gave it. Nothing stays picked when a
+/// face can't be found (it was swallowed, or merged away).
+pub(super) fn repick_faces(s: &mut Session, body: ItemId, marks: &[Mark]) {
+    let found = s.doc.body(body).and_then(|b| {
+        let m = &b.mesh;
+        let (lo, hi) = m.bounds()?;
+        let size = DVec3::from(hi.map(f64::from)).distance(DVec3::from(lo.map(f64::from)));
+        let tol = (2e-3 * size).max(0.02);
+        let at = |i: u32| m.positions.get(i as usize).map(|q| DVec3::new(q[0] as f64, q[1] as f64, q[2] as f64));
+        let mut faces: Vec<u32> = Vec::new();
+        for &(p, n) in marks {
+            let best = m
+                .indices
+                .as_chunks::<3>()
+                .0
+                .iter()
+                .zip(&m.triangle_faces)
+                .filter_map(|(t, &f)| {
+                    let (a, b, c) = (at(t[0])?, at(t[1])?, at(t[2])?);
+                    ((b - a).cross(c - a).normalize_or_zero().dot(n) > 0.7).then(|| (closest_on_triangle(p, a, b, c).distance(p), f))
+                })
+                .min_by(|x, y| x.0.total_cmp(&y.0))
+                .filter(|(d, _)| *d < tol)?;
+            if !faces.contains(&best.1) {
+                faces.push(best.1);
+            }
+        }
+        Some(faces)
+    });
+    s.selection = found.unwrap_or_default().into_iter().map(|face| Pick::Face { body, face }).collect();
+}
+
+/// The point of triangle abc nearest to p (Ericson, Real-Time Collision Detection 5.1.5).
+fn closest_on_triangle(p: DVec3, a: DVec3, b: DVec3, c: DVec3) -> DVec3 {
+    let (ab, ac, ap) = (b - a, c - a, p - a);
+    let (d1, d2) = (ab.dot(ap), ac.dot(ap));
+    if d1 <= 0.0 && d2 <= 0.0 {
+        return a;
+    }
+    let bp = p - b;
+    let (d3, d4) = (ab.dot(bp), ac.dot(bp));
+    if d3 >= 0.0 && d4 <= d3 {
+        return b;
+    }
+    let vc = d1 * d4 - d3 * d2;
+    if vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0 {
+        return a + ab * (d1 / (d1 - d3));
+    }
+    let cp = p - c;
+    let (d5, d6) = (ab.dot(cp), ac.dot(cp));
+    if d6 >= 0.0 && d5 <= d6 {
+        return c;
+    }
+    let vb = d5 * d2 - d1 * d6;
+    if vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0 {
+        return a + ac * (d2 / (d2 - d6));
+    }
+    let va = d3 * d6 - d5 * d4;
+    if va <= 0.0 && (d4 - d3) >= 0.0 && (d5 - d6) >= 0.0 {
+        return b + (c - b) * ((d4 - d3) / ((d4 - d3) + (d5 - d6)));
+    }
+    let denom = va + vb + vc;
+    if denom.abs() < 1e-300 {
+        return a;
+    }
+    a + ab * (vb / denom) + ac * (vc / denom)
 }
 
 /// A cylinder-like face's radius (from the circles and arcs around it) and whether it bulges outwards (a boss,
@@ -334,9 +432,12 @@ pub(super) fn replace_face(s: &mut Session, p: &Params) -> Result<Value> {
         return Err(EngineError::NotAvailable(CANT.into()));
     }
     let b = s.doc.body(body).ok_or_else(|| EngineError::BadParams(format!("no body {}", body.0)))?;
+    let t = n_t.normalize_or_zero();
+    let marks: Vec<Mark> =
+        face_marks(b, &faces).into_iter().map(|(p, n)| (p - t * (p - o_t).dot(t), if n.dot(t) >= 0.0 { t } else { -t })).collect();
     let shape = fit_faces_to_plane(s, &b.shape.clone(), &faces, o_t, n_t)?.ok_or_else(|| EngineError::NotAvailable(CANT.into()))?;
     set_body_shape(s, body, shape)?;
-    s.selection = vec![Pick::Body { body }];
+    repick_faces(s, body, &marks);
     Ok(json!({ "body": body.0 }))
 }
 
@@ -428,7 +529,7 @@ pub(super) fn project_edge(s: &mut Session, p: &Params) -> Result<Value> {
     let b = s.doc.body(body).ok_or_else(|| EngineError::BadParams(format!("no body {}", body.0)))?;
     let shape = s.kernel.imprint(&b.shape, face, &tools)?;
     set_body_shape(s, body, shape)?;
-    s.selection = vec![Pick::Body { body }];
+    s.selection.clear();
     Ok(json!({ "body": body.0 }))
 }
 
@@ -508,7 +609,7 @@ pub(super) fn move_edge(s: &mut Session, p: &Params) -> Result<Value> {
     });
     s.selection = match found {
         Some(edge) if same => vec![Pick::Edge { body, edge }],
-        _ => vec![Pick::Body { body }],
+        _ => Vec::new(),
     };
     Ok(json!({ "body": body.0 }))
 }
@@ -543,6 +644,19 @@ pub(super) fn move_faces(s: &mut Session, p: &Params) -> Result<Value> {
     if by.length() < 1e-12 && turn.is_none() {
         return Ok(json!({ "body": body.0 }));
     }
+    // Where each face goes: turned, then slid.
+    let spin = |v: DVec3, (axis, angle): (shapecraft_kernel::Axis, f64)| {
+        let d = axis.dir.normalize_or_zero();
+        let (sin, cos) = angle.sin_cos();
+        v * cos + d.cross(v) * sin + d * d.dot(v) * (1.0 - cos)
+    };
+    let marks: Vec<Mark> = face_marks(b, &faces)
+        .into_iter()
+        .map(|(p, n)| match turn {
+            Some(t) => (t.0.origin + spin(p - t.0.origin, t) + by, spin(n, t)),
+            None => (p + by, n),
+        })
+        .collect();
     // Flat faces on one plane turned about an axis lying in that plane (a face about one of its own edges): the
     // faces tilt onto the turned plane, neighbours following.
     if let Some((axis, angle)) = turn
@@ -566,7 +680,7 @@ pub(super) fn move_faces(s: &mut Session, p: &Params) -> Result<Value> {
             let (sin, cos) = angle.sin_cos();
             let turned = n * cos + d.cross(n) * sin + d * d.dot(n) * (1.0 - cos);
             if let Ok(Some(moved)) = fit_faces_to_plane(s, &shape, &faces, axis.origin, turned) {
-                return moved_faces(s, body, &faces, count, moved);
+                return moved_faces(s, body, &marks, moved);
             }
         }
     }
@@ -584,7 +698,7 @@ pub(super) fn move_faces(s: &mut Session, p: &Params) -> Result<Value> {
             && by.normalize().dot(n).abs() > 1.0 - 1e-9
             && let Ok(moved) = s.kernel.offset_faces(&shape, &faces, by.dot(n))
         {
-            return moved_faces(s, body, &faces, count, moved);
+            return moved_faces(s, body, &marks, moved);
         }
     }
     let place = |s: &Session, piece: &Shape| -> Result<Shape> {
@@ -618,14 +732,13 @@ pub(super) fn move_faces(s: &mut Session, p: &Params) -> Result<Value> {
     if volume(s, &out) <= tiny {
         return Err(EngineError::NotAvailable("moving these faces leaves nothing of the body".into()));
     }
-    moved_faces(s, body, &faces, count, out)
+    moved_faces(s, body, &marks, out)
 }
 
-/// Puts the moved body in and keeps the moved faces picked while the body still has the same faces (so the
-/// gizmo's next drag works on them), else picks the body.
-fn moved_faces(s: &mut Session, body: ItemId, faces: &[u32], count: u32, shape: Shape) -> Result<Value> {
-    let same = s.kernel.face_count(&shape).is_ok_and(|n| n == count);
+/// Puts the moved body in and keeps the moved faces picked where they went (so the gizmo's next drag works on
+/// them, and the highlight follows the faces).
+fn moved_faces(s: &mut Session, body: ItemId, marks: &[Mark], shape: Shape) -> Result<Value> {
     set_body_shape(s, body, shape)?;
-    s.selection = if same { faces.iter().map(|&face| Pick::Face { body, face }).collect() } else { vec![Pick::Body { body }] };
+    repick_faces(s, body, marks);
     Ok(json!({ "body": body.0 }))
 }

@@ -433,6 +433,10 @@ impl Workspace {
         } else if idle_column && matches!(&self.tool, Tool::Fillet(t) if !t.chamfer) {
             // Fillet pulled (26.202, s40-010): the same, with Fillet lit.
             toolbar::def_for(ToolKind::Fillet).into_iter().collect()
+        } else if idle_column && matches!(self.tool, Tool::OffsetFace(_) | Tool::Move(_)) {
+            // A live Offset Face or Move: the same, with the tool lit.
+            let kind = if matches!(self.tool, Tool::Move(_)) { ToolKind::Move } else { ToolKind::OffsetFace };
+            toolbar::def_for(kind).into_iter().collect()
         } else if let Tool::Onto(t) = &self.tool {
             // Applied, nothing is picked: the idle set, then the running tool in its own group (s11-130, s11-135).
             toolbar::FACE.iter().filter(|d| d.label == t.title()).copied().collect()

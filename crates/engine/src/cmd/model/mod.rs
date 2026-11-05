@@ -92,7 +92,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 let b = s.doc.body(body).ok_or_else(|| EngineError::BadParams(format!("no body {}", body.0)))?;
                 let shape = s.kernel.fill(&b.shape, &edges)?;
                 set_body_shape(s, body, shape)?;
-                s.selection = vec![Pick::Body { body }];
+                s.selection.clear();
                 Ok(json!({ "body": body.0 }))
             },
         },

@@ -99,6 +99,8 @@ impl Workspace {
             || matches!(self.tool, Tool::Extrude(_)) && self.is_live()
             // A pulled fillet waits for Done under the idle set (26.202, s40-010, s40-012).
             || matches!(&self.tool, Tool::Fillet(t) if !t.chamfer) && self.is_live()
+            // So does a pulled Offset Face or a live Move, of faces or bodies.
+            || matches!(self.tool, Tool::OffsetFace(_) | Tool::Move(_)) && self.is_live()
     }
 
     /// A running tool whose ≡ opens a Parameter Card (step_card.rs) rather than an options menu.

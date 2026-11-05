@@ -242,6 +242,22 @@ impl Session {
         true
     }
 
+    /// Takes the last step back (Cancel on a live result) along with what was picked before it, so the picks fit the
+    /// model as it was again (a face the step moved may have had another number). Not kept for redo.
+    pub fn cancel_last_step(&mut self) -> bool {
+        let Some(snap) = self.undo.pop() else { return false };
+        let selection = snap.selection.clone();
+        self.restore(snap, selection);
+        self.prune_selection();
+        self.revision += 1;
+        true
+    }
+
+    /// The document before the last step: what a live tool started from (to draw the edges a live fillet rounds).
+    pub fn before_last_step(&self) -> Option<&Document> {
+        self.undo.last().map(|s| &s.doc)
+    }
+
     /// [`Session::preview`] as if the last step hadn't happened: the live preview of an [`Session::amend`].
     pub fn preview_amend(&mut self, id: &str, params: &Value) -> Result<Document> {
         let Some(snap) = self.undo.last() else { return self.preview(id, params) };

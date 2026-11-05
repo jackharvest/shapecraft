@@ -500,6 +500,20 @@ impl Workspace {
         self.tool = tools::Tool::Idle;
     }
 
+    /// Done on a live result: the tool ends and, outside sketches, nothing stays picked (Offset Face, Fillet, Move on
+    /// a face or a body, Extrude alike).
+    pub(crate) fn finish_live(&mut self) {
+        let live = self.is_live();
+        self.live_step = None;
+        self.numeric = None;
+        self.preview = None;
+        self.predicted = false;
+        self.tool = tools::Tool::Idle;
+        if live && self.session.active_sketch.is_none() {
+            self.session.selection.clear();
+        }
+    }
+
     /// A body made of a single face (a sphere, a closed free-form shape).
     pub(crate) fn one_face_body(&self, body: shapecraft_doc::ItemId) -> bool {
         self.session.doc.body(body).is_some_and(|b| self.session.kernel.face_count(&b.shape).is_ok_and(|n| n == 1))
