@@ -320,12 +320,14 @@ pub(crate) fn window(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings,
     let tabs = [
         ("General", Icon::Tools, true),
         ("ShapeCraft", Icon::Gear, true),
+        ("Tablet", Icon::Tablet, true),
         ("Plugins", Icon::Insert, true),
         ("Sync", Icon::Recents, true),
         ("Account", Icon::Projects, false),
     ];
+    let middle = (tabs.len() as f32 - 1.0) / 2.0;
     for (k, (label, icon, enabled)) in tabs.into_iter().enumerate() {
-        let c = pos2(r.center().x + (k as f32 - 2.0) * 58.0, r.top() + 44.0);
+        let c = pos2(r.center().x + (k as f32 - middle) * 58.0, r.top() + 44.0);
         let cell = Rect::from_center_size(c + vec2(0.0, 4.0), vec2(56.0, 36.0));
         let on = enabled && *tab == k;
         if enabled && ui.interact(cell, ui.scope_id().with(("pref-tab", k)), Sense::click()).clicked() {
@@ -348,8 +350,9 @@ pub(crate) fn window(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings,
     let (mut customize, mut presets) = (false, false);
     match *tab {
         1 => shapecraft_tab(ui, r, s),
-        2 => plugins_tab(ui, r),
-        3 => sync_tab(ui, r),
+        2 => tablet_tab(ui, r, s),
+        3 => plugins_tab(ui, r),
+        4 => sync_tab(ui, r),
         _ => (customize, presets) = general_tab(ui, r, s, shortcuts),
     }
     let footer = Rect::from_min_max(pos2(r.left(), r.bottom() - 52.0), r.max);
@@ -451,6 +454,132 @@ fn shapecraft_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
     row_label(&p, col, y, "When Closing:");
     popup(ui, pos2(col, y), 140.0, "pref-upd-close", &mut s.update_on_close, &crate::updates::ON_CLOSE);
     p.text(pos2(col + 150.0, y), Align2::LEFT_CENTER, "with an update downloaded", theme::body(10.5), Tokens::text_dim());
+}
+
+/// Serving ShapeCraft to a browser on the network (see `crate::tablet`): the switch, where to point the tablet (with a
+/// QR code for its camera), and who's connected.
+fn tablet_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
+    let p = ui.painter().clone();
+    let col = r.left() + 170.0;
+    let sep = |y: f32| p.line_segment([pos2(r.left() + 20.0, y), pos2(r.right() - 20.0, y)], Stroke::new(1.0, Tokens::chip_border()));
+    let mut y = r.top() + 92.0;
+    p.text(
+        pos2(r.center().x, y),
+        Align2::CENTER_CENTER,
+        "Use ShapeCraft on an iPad, iPhone or another computer, in its browser.",
+        theme::body(11.0),
+        Tokens::text_dim(),
+    );
+    y += 22.0;
+    sep(y);
+    y += 24.0;
+    if crate::tablet::on_tablet() {
+        p.text(
+            pos2(r.center().x, y + 10.0),
+            Align2::CENTER_CENTER,
+            "You're using ShapeCraft from a browser.",
+            theme::body(12.5),
+            Tokens::text_strong(),
+        );
+        p.text(
+            pos2(r.center().x, y + 30.0),
+            Align2::CENTER_CENTER,
+            "Turn tablet access on or off on the computer that runs it.",
+            theme::body(11.0),
+            Tokens::text_dim(),
+        );
+        return;
+    }
+    row_label(&p, col, y, "Tablet Access:");
+    check(ui, pos2(col, y), "pref-tablet-on", &mut s.tablet_serve, "Serve ShapeCraft to browsers");
+    y += 26.0;
+    row_label(&p, col, y, "Reachable From:");
+    let mut reach = if s.tablet_network { "This Network" } else { "This Computer Only" }.to_string();
+    popup(ui, pos2(col, y), 170.0, "pref-tablet-net", &mut reach, &["This Network", "This Computer Only"]);
+    s.tablet_network = reach == "This Network";
+    y += 28.0;
+    row_label(&p, col, y, "Port:");
+    let ports = ["8780", "8781", "8782", "8790", "8080"];
+    let mut port = s.tablet_port.to_string();
+    let mut names: Vec<&str> = ports.to_vec();
+    if !ports.contains(&port.as_str()) {
+        names.insert(0, port.as_str());
+    }
+    let names: Vec<String> = names.iter().map(|n| (*n).to_string()).collect();
+    let refs: Vec<&str> = names.iter().map(String::as_str).collect();
+    popup(ui, pos2(col, y), 90.0, "pref-tablet-port", &mut port, &refs);
+    if let Ok(n) = port.parse() {
+        s.tablet_port = n;
+    }
+    y += 22.0;
+    sep(y);
+    y += 22.0;
+    let status = crate::tablet::status();
+    let Some(st) = status.filter(|_| s.tablet_serve) else {
+        let lines = [
+            "Turn it on, then open the address it shows in Safari on your iPad,",
+            "or scan the code with its camera. Add it to the Home Screen to use",
+            "it full screen, like an app. Your projects stay on this computer.",
+        ];
+        for l in lines {
+            p.text(pos2(col - 120.0, y), Align2::LEFT_CENTER, l, theme::body(11.0), Tokens::text_dim());
+            y += 16.0;
+        }
+        return;
+    };
+    if let Some(e) = &st.error {
+        p.text(pos2(col - 120.0, y), Align2::LEFT_CENTER, e, theme::body(11.0), Tokens::text_strong());
+        y += 20.0;
+    }
+    let Some(url) = st.urls.first().cloned() else {
+        p.text(pos2(col - 120.0, y), Align2::LEFT_CENTER, "Starting…", theme::body(11.0), Tokens::text_dim());
+        return;
+    };
+    // The code a tablet's camera opens, the first address under it, the others below.
+    let qr_side = 176.0;
+    let qr = Rect::from_min_size(pos2(r.center().x - qr_side / 2.0, y), vec2(qr_side, qr_side));
+    qr_code(&p, qr, &url);
+    y = qr.bottom() + 18.0;
+    for (i, u) in st.urls.iter().enumerate() {
+        let font = if i == 0 { theme::strong(12.0) } else { theme::body(11.5) };
+        let resp = ui.interact(
+            Rect::from_center_size(pos2(r.center().x, y), vec2(r.width() - 40.0, 16.0)),
+            ui.scope_id().with(("tablet-url", i)),
+            Sense::click(),
+        );
+        if resp.clicked() {
+            ui.ctx().copy_text(u.clone());
+        }
+        p.text(pos2(r.center().x, y), Align2::CENTER_CENTER, u, font, if i == 0 { Tokens::text_strong() } else { Tokens::text_dim() });
+        y += 18.0;
+    }
+    p.text(pos2(r.center().x, y), Align2::CENTER_CENTER, "Click an address to copy it.", theme::body(10.0), Tokens::text_faint());
+    y += 24.0;
+    let who = st.client.as_deref().map_or_else(|| "No browser connected".to_string(), |c| format!("Connected: {c}"));
+    p.text(pos2(r.center().x, y), Align2::CENTER_CENTER, who, theme::body(11.5), Tokens::text_strong());
+    y += 26.0;
+    if small_button(ui, pos2(r.center().x - 60.0, y), "pref-tablet-key", "New Pairing Key") {
+        // Devices paired with the old key have to scan again; the host restarts with the new one.
+        s.tablet_key = crate::tablet::new_token();
+    }
+}
+
+/// A QR code for `text`, black on white with its quiet zone, filling `r`.
+fn qr_code(p: &egui::Painter, r: Rect, text: &str) {
+    let Ok(code) = qrcode::QrCode::with_error_correction_level(text.as_bytes(), qrcode::EcLevel::M) else { return };
+    let n = code.width();
+    let colors = code.to_colors();
+    p.rect_filled(r, radius(8), Color32::WHITE);
+    let quiet = 3.0;
+    let cell = r.width() / (n as f32 + 2.0 * quiet);
+    let o = r.min + vec2(quiet * cell, quiet * cell);
+    for (i, c) in colors.iter().enumerate() {
+        if *c == qrcode::Color::Dark {
+            let (x, y) = ((i % n) as f32, (i / n) as f32);
+            // A hair over a cell, so neighbours join without seams.
+            p.rect_filled(Rect::from_min_size(o + vec2(x * cell, y * cell), vec2(cell + 0.35, cell + 0.35)), 0.0, Color32::BLACK);
+        }
+    }
 }
 
 /// Waiting for the plugin system.

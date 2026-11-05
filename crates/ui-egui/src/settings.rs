@@ -81,6 +81,12 @@ pub struct Settings {
     pub import_mode: String,
     pub import_custom: [bool; 4],
     pub import_skip_prefs: bool,
+    /// Preferences ▸ Tablet: serve ShapeCraft to a browser (iPad, iPhone, another computer), on this port, to the
+    /// whole network or this computer only, with this pairing key (made the first time it's turned on).
+    pub tablet_serve: bool,
+    pub tablet_port: u16,
+    pub tablet_network: bool,
+    pub tablet_key: String,
 }
 
 impl Default for Settings {
@@ -132,6 +138,10 @@ impl Default for Settings {
             import_mode: "Quality".into(),
             import_custom: [true; 4],
             import_skip_prefs: false,
+            tablet_serve: false,
+            tablet_port: crate::tablet::DEFAULT_PORT,
+            tablet_network: true,
+            tablet_key: String::new(),
         }
     }
 }

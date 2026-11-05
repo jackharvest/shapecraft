@@ -829,6 +829,55 @@ pub use native::MenuBar;
 #[cfg(not(target_os = "macos"))]
 pub type MenuBar = WindowMenu;
 
+/// The menus in use: the system's menu bar (the macOS desktop app), or drawn in the window (elsewhere, and on a
+/// tablet, which has no menu bar of its own).
+pub enum Menus {
+    #[cfg(target_os = "macos")]
+    Native(MenuBar),
+    Window(WindowMenu),
+}
+
+impl Menus {
+    /// The platform's menus for the desktop app. Call on the main thread once the app exists.
+    pub fn install(wake: impl Fn() + Send + Sync + 'static) -> Option<Menus> {
+        #[cfg(target_os = "macos")]
+        return MenuBar::install(wake).map(Menus::Native);
+        #[cfg(not(target_os = "macos"))]
+        return MenuBar::install(wake).map(Menus::Window);
+    }
+
+    pub fn update(&mut self, state: MenuState) {
+        match self {
+            #[cfg(target_os = "macos")]
+            Menus::Native(b) => b.update(state),
+            Menus::Window(w) => w.update(state),
+        }
+    }
+
+    pub fn poll(&mut self) -> Vec<(MenuAction, Option<egui::Key>)> {
+        match self {
+            #[cfg(target_os = "macos")]
+            Menus::Native(b) => b.poll(),
+            Menus::Window(w) => w.poll(),
+        }
+    }
+
+    pub fn show(&mut self, ui: &mut egui::Ui, at: egui::Pos2) {
+        match self {
+            #[cfg(target_os = "macos")]
+            Menus::Native(b) => b.show(ui, at),
+            Menus::Window(w) => w.show(ui, at),
+        }
+    }
+
+    /// Menus drawn in the window catch their own shortcuts (nothing else would); the system's menu bar does that itself.
+    pub fn take_shortcuts(&mut self, ctx: &egui::Context) {
+        if let Menus::Window(w) = self {
+            w.take_shortcuts(ctx);
+        }
+    }
+}
+
 /// The menus drawn inside the window where there is no native menu bar (Linux, Windows): the same tree and actions,
 /// and the menus' Ctrl shortcuts (nothing else would catch them there).
 #[derive(Default)]
@@ -950,7 +999,10 @@ fn window_tree(in_project: bool) -> Vec<(&'static str, Vec<Entry>)> {
     if let Some((_, file)) = menus.iter_mut().find(|(t, _)| *t == "File") {
         file.push(Entry::Separator);
         file.push(item("Preferences…", Some("CmdOrCtrl+Comma"), MenuAction::Ui(UiAction::Preferences), When::Always));
-        file.push(item("Quit", Some("CmdOrCtrl+Q"), MenuAction::App(AppAction::Quit), When::Always));
+        // A tablet's copy runs until the computer stops serving it.
+        if !crate::tablet::on_tablet() {
+            file.push(item("Quit", Some("CmdOrCtrl+Q"), MenuAction::App(AppAction::Quit), When::Always));
+        }
     }
     menus
 }

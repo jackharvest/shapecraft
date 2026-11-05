@@ -61,9 +61,7 @@ impl Workspace {
             // Left-drag on nothing draws an Area Selection box where one applies, else it orbits.
             let primary_free = button == Some(Button::Left)
                 && !self.dragging_handle()
-                && !self.tool.is_sketch_tool()
-                && !self.area_open()
-                && self.area.is_none();
+                && (self.touch_drag || !self.tool.is_sketch_tool() && !self.area_open() && self.area.is_none());
             let action =
                 button.and_then(|b| self.settings.preset().action(b, shift, ctrl, alt)).or(primary_free.then_some(NavAction::Orbit));
             match action {
@@ -86,6 +84,31 @@ impl Workspace {
                 None => {}
             }
         }
+    }
+
+    /// A tool is running, so typed numbers go to it (the tablet offers its number keyboard).
+    pub fn takes_numbers(&self) -> bool {
+        !matches!(self.tool, Tool::Idle)
+    }
+
+    /// Two fingers moved the view (tablet): the model follows them.
+    pub fn touch_pan(&mut self, delta: egui::Vec2) {
+        if delta == egui::Vec2::ZERO || !delta.is_finite() {
+            return;
+        }
+        self.anim = None;
+        let (sx, sy) = self.settings.pan_signs();
+        self.camera.pan(delta.x as f64 * sx, delta.y as f64 * sy, self.size().y);
+    }
+
+    /// Two fingers pinched (tablet): `factor` > 1 spreads them, closer in, around the point between them.
+    pub fn touch_zoom(&mut self, factor: f32, at: egui::Pos2) {
+        if !factor.is_finite() || (factor - 1.0).abs() < 1e-4 {
+            return;
+        }
+        self.anim = None;
+        let size = self.size();
+        self.camera.zoom_at(1.0 / factor.clamp(0.5, 2.0) as f64, self.local(at), size);
     }
 
     pub(in crate::workspace) fn dragging_handle(&self) -> bool {

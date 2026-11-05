@@ -334,6 +334,11 @@ pub struct Workspace {
     pub settings: crate::settings::Settings,
     /// Where the in-window menus start (Linux, Windows): just after the project name in the title bar.
     pub menus_at: Pos2,
+    /// A finger, not the pencil or a mouse, has the pointer (tablet): a drag on nothing in the view turns it even with
+    /// a sketch tool on, and never draws a selection box.
+    pub touch_drag: bool,
+    /// The pointer was over the 3D view itself last frame, with no panel or control on top.
+    pub viewport_hot: bool,
     /// Help popover, Preferences window, and the Navigation Presets modal (with the preset being looked at).
     pub help_open: bool,
     pub prefs_open: bool,
@@ -648,6 +653,8 @@ impl Workspace {
             help_open: false,
             prefs_open: false,
             menus_at: Pos2::ZERO,
+            touch_drag: false,
+            viewport_hot: false,
             prefs_tab: 0,
             nav_presets: None,
             variables_dialog: None,

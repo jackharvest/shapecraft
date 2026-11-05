@@ -71,6 +71,7 @@ impl Workspace {
         let resp = ui.interact(rect, ui.scope_id().with("viewport"), Sense::click_and_drag());
         let pointer = ui.input(|i| i.pointer.hover_pos());
         self.cursor = pointer.filter(|p| rect.contains(*p) && resp.hovered() || resp.dragged());
+        self.viewport_hot = resp.hovered() || resp.dragged();
         self.update_hover();
         self.handle_clicks(ui, &resp);
         self.handle_drags(ui, &resp);

@@ -446,6 +446,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "block-buffer"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d2f6c7dbe95a6ed67ad9f18e57daf93a2f034c524b99fd2b76d18fdfeb6660aa"
+dependencies = [
+ "hybrid-array",
+]
+
+[[package]]
 name = "block2"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -574,6 +583,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "chacha20"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65c35e4b699c7e15ccbe7ee35c005e4fc0a278d22238a2857e6ce2dadeda1b06"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.1",
+ "rand_core",
+]
+
+[[package]]
 name = "chrono"
 version = "0.4.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -631,6 +651,12 @@ checksum = "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973"
 dependencies = [
  "crossbeam-utils",
 ]
+
+[[package]]
+name = "const-oid"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c"
 
 [[package]]
 name = "core-foundation"
@@ -692,6 +718,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cpufeatures"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ca28b0ae3115b884660db4118d803791fd6756b6e88f39c0f3f7859060d7566"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "crc32fast"
 version = "1.5.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -732,10 +767,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "crypto-common"
+version = "0.2.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce6e4c961d6cd6c9a86db418387425e8bdeaf05b3c8bc1411e6dca4c252f1453"
+dependencies = [
+ "hybrid-array",
+]
+
+[[package]]
 name = "cursor-icon"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
+
+[[package]]
+name = "data-encoding"
+version = "2.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4583a4551df46e2792f82ceeac45e850d2e2d5debba0b91f102385cda5b11f06"
 
 [[package]]
 name = "digest"
@@ -743,8 +793,19 @@ version = "0.10.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292"
 dependencies = [
- "block-buffer",
- "crypto-common",
+ "block-buffer 0.10.4",
+ "crypto-common 0.1.7",
+]
+
+[[package]]
+name = "digest"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2"
+dependencies = [
+ "block-buffer 0.12.1",
+ "const-oid",
+ "crypto-common 0.2.2",
 ]
 
 [[package]]
@@ -1337,6 +1398,7 @@ dependencies = [
  "cfg-if",
  "libc",
  "r-efi 6.0.0",
+ "rand_core",
 ]
 
 [[package]]
@@ -1567,6 +1629,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
 
 [[package]]
+name = "hybrid-array"
+version = "0.4.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "27f864f10dfb56725ce5ce5472bc52252c8f93a4ab86327122cebf62c5f59a17"
+dependencies = [
+ "typenum",
+]
+
+[[package]]
 name = "iana-time-zone"
 version = "0.1.65"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1699,6 +1770,12 @@ dependencies = [
  "getrandom 0.4.3",
  "libc",
 ]
+
+[[package]]
+name = "jpeg-encoder"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a0370574b86f7eca156b9f298392b5e69a23f8c86f3f865add60bbc2e79467a6"
 
 [[package]]
 name = "js-sys"
@@ -2695,6 +2772,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
 
 [[package]]
+name = "qrcode"
+version = "0.14.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d68782463e408eb1e668cf6152704bd856c78c5b6417adaee3203d8f4c1fc9ec"
+
+[[package]]
 name = "quick-error"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2729,6 +2812,23 @@ name = "r-efi"
 version = "6.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8dcc9c7d52a811697d2151c701e0d08956f92b0e24136cf4cf27b57a6a0d9bf"
+
+[[package]]
+name = "rand"
+version = "0.10.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65c9fb96cbc91e3478eaae79a69fcd3f1ae4ad052e471fe6732fff548984b4af"
+dependencies = [
+ "chacha20",
+ "getrandom 0.4.3",
+ "rand_core",
+]
+
+[[package]]
+name = "rand_core"
+version = "0.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63b8176103e19a2643978565ca18b50549f6101881c443590420e4dc998a3c69"
 
 [[package]]
 name = "range-alloc"
@@ -3164,19 +3264,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha1"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aacc4cc499359472b4abe1bf11d0b12e688af9a805fa5e3016f9a386dc2d0214"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.1",
+ "digest 0.11.3",
+]
+
+[[package]]
 name = "sha2"
 version = "0.10.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283"
 dependencies = [
  "cfg-if",
- "cpufeatures",
- "digest",
+ "cpufeatures 0.2.17",
+ "digest 0.10.7",
 ]
 
 [[package]]
 name = "shapecraft"
-version = "0.5.16"
+version = "0.5.17"
 dependencies = [
  "anyhow",
  "eframe",
@@ -3188,7 +3299,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-cli"
-version = "0.5.16"
+version = "0.5.17"
 dependencies = [
  "anyhow",
  "png",
@@ -3203,7 +3314,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-doc"
-version = "0.5.16"
+version = "0.5.17"
 dependencies = [
  "chrono",
  "fontdb",
@@ -3218,14 +3329,14 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-dwg"
-version = "0.5.16"
+version = "0.5.17"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "shapecraft-engine"
-version = "0.5.16"
+version = "0.5.17"
 dependencies = [
  "glam",
  "image",
@@ -3242,7 +3353,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-kernel"
-version = "0.5.16"
+version = "0.5.17"
 dependencies = [
  "glam",
  "thiserror 2.0.21",
@@ -3250,7 +3361,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-kernel-occt"
-version = "0.5.16"
+version = "0.5.17"
 dependencies = [
  "cc",
  "shapecraft-kernel",
@@ -3258,7 +3369,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-mcp"
-version = "0.5.16"
+version = "0.5.17"
 dependencies = [
  "png",
  "serde_json",
@@ -3271,7 +3382,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-render"
-version = "0.5.16"
+version = "0.5.17"
 dependencies = [
  "bytemuck",
  "glam",
@@ -3284,7 +3395,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-shapr"
-version = "0.5.16"
+version = "0.5.17"
 dependencies = [
  "glam",
  "miniz_oxide 0.8.9",
@@ -3299,7 +3410,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-snap"
-version = "0.5.16"
+version = "0.5.17"
 dependencies = [
  "anyhow",
  "eframe",
@@ -3314,18 +3425,20 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-ui"
-version = "0.5.16"
+version = "0.5.17"
 dependencies = [
  "dirs",
  "eframe",
  "egui",
  "egui-wgpu",
  "glam",
+ "jpeg-encoder",
  "muda",
  "objc2 0.6.5",
  "objc2-app-kit 0.3.2",
  "objc2-foundation 0.3.2",
  "png",
+ "qrcode",
  "rfd",
  "serde",
  "serde_json",
@@ -3335,13 +3448,14 @@ dependencies = [
  "shapecraft-kernel-occt",
  "shapecraft-render",
  "shapecraft-update",
+ "tungstenite",
  "wgpu",
  "zbus",
 ]
 
 [[package]]
 name = "shapecraft-update"
-version = "0.5.16"
+version = "0.5.17"
 dependencies = [
  "dirs",
  "serde_json",
@@ -3351,7 +3465,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-xt"
-version = "0.5.16"
+version = "0.5.17"
 dependencies = [
  "shapecraft-kernel",
  "shapecraft-kernel-occt",
@@ -3684,6 +3798,22 @@ dependencies = [
  "memchr",
  "nom",
  "petgraph",
+]
+
+[[package]]
+name = "tungstenite"
+version = "0.30.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e48ac77174b19c110a50ab2128b24215ac9cb40e0e12e093fb602d175c569d22"
+dependencies = [
+ "bytes",
+ "data-encoding",
+ "http",
+ "httparse",
+ "log",
+ "rand",
+ "sha1",
+ "thiserror 2.0.21",
 ]
 
 [[package]]

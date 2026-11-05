@@ -53,6 +53,7 @@ impl Workspace {
     pub(super) fn area_drags(&mut self, ui: &Ui, resp: &egui::Response) {
         if self.area.is_none()
             && self.area_open()
+            && !self.touch_drag
             && resp.drag_started_by(egui::PointerButton::Primary)
             && !self.dragging_handle()
             && let Some(p) = ui.input(|i| i.pointer.press_origin())

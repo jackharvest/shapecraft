@@ -55,7 +55,8 @@ pub(in crate::workspace) fn titlebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     // Leave room for the window buttons on macOS (the title bar is ours, drawn under them); in full screen there
     // are none and everything moves 77 px left (measured). Elsewhere the system draws its buttons in its own bar, and
     // the menus and Preferences join ours: home, name, menus, as Shapr3D's help describes its Windows bar.
-    let system_menu_bar = cfg!(target_os = "macos");
+    // A tablet has no menu bar of its own: there the menus join ours, as elsewhere.
+    let system_menu_bar = cfg!(target_os = "macos") && !crate::tablet::on_tablet();
     let fullscreen = ui.input(|i| i.viewport().fullscreen).unwrap_or(false);
     let shift = if fullscreen || !system_menu_bar { 77.0 } else { 0.0 };
     if home_button(ui, pos2(r.left() + 107.5 - shift, r.top() + 25.5), ink, bar) {
@@ -92,7 +93,7 @@ pub(in crate::workspace) fn titlebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     }
     ws.menus_at = pos2(name_end + 12.0, r.top() + 25.0);
     // A 17 px ring in the home button's grey (measured).
-    let right = r.right() - window_chrome::BUTTONS_W;
+    let right = r.right() - window_chrome::buttons_w();
     let help = pos2(right - 27.0, r.top() + 25.0);
     if bar_button(ui, help, "help", Icon::Help, ink).clicked() {
         ws.ui_action(UiAction::Help);

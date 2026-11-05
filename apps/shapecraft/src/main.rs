@@ -2,7 +2,9 @@
 //!
 //! Flags: `--control PORT` (JSON-lines control channel on 127.0.0.1), `--open DIR`, `--new`,
 //! `--projects DIR` (where projects live; default ~/Documents/ShapeCraft, or $SHAPECRAFT_PROJECTS),
-//! `--graphics auto|vulkan|metal|dx12|cpu|opengl` (this run only, over Preferences ▸ ShapeCraft ▸ Graphics).
+//! `--graphics auto|vulkan|metal|dx12|cpu|opengl` (this run only, over Preferences ▸ ShapeCraft ▸ Graphics),
+//! `--serve [ADDR:]PORT` (no window: serve ShapeCraft to browsers on the network, for a server, VM or container; the
+//! pairing key is $SHAPECRAFT_KEY, else the one in Preferences ▸ Tablet, else a new one, printed with the address).
 
 // No console window beside the app on Windows; debug builds keep it for their logs.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
@@ -25,8 +27,13 @@ fn main() -> anyhow::Result<()> {
         new_project: args.iter().any(|a| a == "--new"),
         native_menu: true,
         settings_file: Settings::default_path(),
+        hosted: false,
     };
     let saved = opts.settings_file.as_deref().map(Settings::load).unwrap_or_default();
+    if let Some(i) = args.iter().position(|a| a == "--serve") {
+        let spec = args.get(i + 1).filter(|a| !a.starts_with("--")).cloned().unwrap_or_default();
+        return serve(&spec, opts, &saved);
+    }
     let choice = value("--graphics").and_then(|g| graphics::parse(&g).map(str::to_string)).unwrap_or(saved.graphics);
     let viewport = egui::ViewportBuilder::default()
         .with_title("ShapeCraft")
@@ -73,6 +80,31 @@ fn main() -> anyhow::Result<()> {
     let reason = first_failure.map_or_else(|| "no graphics path to try".to_string(), |e| e.to_string());
     graphics::report_failure(&reason);
     Err(anyhow::anyhow!(reason))
+}
+
+/// Runs only the tablet host, with no window, until the process is stopped.
+fn serve(spec: &str, opts: Options, saved: &Settings) -> anyhow::Result<()> {
+    use shapecraft_ui::tablet;
+    let port = if saved.tablet_port == 0 { tablet::DEFAULT_PORT } else { saved.tablet_port };
+    let addr: std::net::SocketAddr = if spec.is_empty() {
+        ([0, 0, 0, 0], port).into()
+    } else if let Ok(p) = spec.parse::<u16>() {
+        ([0, 0, 0, 0], p).into()
+    } else {
+        spec.parse().map_err(|_| anyhow::anyhow!("--serve takes a port (8780) or an address and port (0.0.0.0:8780)"))?
+    };
+    let key = std::env::var("SHAPECRAFT_KEY")
+        .ok()
+        .filter(|k| !k.trim().is_empty())
+        .or_else(|| (!saved.tablet_key.is_empty()).then(|| saved.tablet_key.clone()))
+        .unwrap_or_else(tablet::new_token);
+    let host = tablet::Host::start(addr, key, Arc::new(OcctKernel::new()), opts)?;
+    println!("ShapeCraft is serving on port {}. Open this in a browser on the same network:", host.port);
+    for url in tablet::status().map(|s| s.urls).unwrap_or_default() {
+        println!("  {url}");
+    }
+    host.wait();
+    Ok(())
 }
 
 /// The app icon (assets/icon). macOS gets the variant drawn on Apple's icon grid, so it sits right in the Dock.

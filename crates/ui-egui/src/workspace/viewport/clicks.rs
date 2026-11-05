@@ -325,6 +325,7 @@ impl Workspace {
         // A drawing tool still waiting for its plane: the press picks the plane and the first point, as a click does.
         if resp.drag_started_by(egui::PointerButton::Primary)
             && two_point
+            && !self.touch_drag
             && let Some(origin) = ui.input(|i| i.pointer.press_origin())
         {
             let now = self.cursor;

@@ -21,6 +21,10 @@ wgpu = "30"
 png = "0.18"
 rfd = "0.17"
 dirs = "6"
+# Tablet access (Preferences ▸ Tablet, `--serve`): the browser page talks over a WebSocket; frames go out as JPEG/PNG.
+tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+jpeg-encoder = "0.7"
+qrcode = { version = "0.14", default-features = false }
 
 [dev-dependencies]
 shapecraft-kernel-occt.workspace = true

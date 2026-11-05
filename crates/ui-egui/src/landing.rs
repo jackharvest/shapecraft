@@ -350,7 +350,12 @@ impl Landing {
         p.rect_filled(folder_button, radius(5), fb_fill);
         p.text(folder_button.center(), Align2::CENTER_CENTER, "Show Projects Folder", theme::strong(12.0), Tokens::text_strong());
         if fb.clicked() {
-            reveal(&self.root);
+            if crate::tablet::on_tablet() {
+                // The folder is on the computer serving this page, not on the tablet.
+                self.toast = Some((format!("Your projects are kept on the computer, in {}", shorten_home(&self.root)), f64::MAX));
+            } else {
+                reveal(&self.root);
+            }
         }
 
         let search_rect = Rect::from_min_max(pos2(side.left() + 10.0, side.top() + 138.0), pos2(side.left() + 240.0, side.top() + 164.0));
@@ -483,8 +488,8 @@ impl Landing {
             );
         }
         // Clear of the window's own buttons, where it has them.
-        let bar_right = content.right() - window_chrome::BUTTONS_W;
-        if window_chrome::OWN_FRAME {
+        let bar_right = content.right() - window_chrome::buttons_w();
+        if window_chrome::own_frame() {
             let title_end = pos2(content.left() + 320.0, content.top());
             window_chrome::drag_area(ui, Rect::from_min_max(title_end, pos2(bar_right - 130.0, content.top() + 51.0)), "home-drag");
         }
@@ -996,8 +1001,23 @@ const ART: &[(&str, &[u8])] = &[
     ("new-shapr", include_bytes!("../../../assets/home/new-shapr.png")),
 ];
 
+thread_local! {
+    /// A link to hand to the tablet's page at the end of the frame.
+    static TABLET_LINK: std::cell::RefCell<Option<String>> = const { std::cell::RefCell::new(None) };
+}
+
+/// The link the tablet's copy asked to open this frame, for egui to send to the page.
+pub(crate) fn take_tablet_link() -> Option<String> {
+    TABLET_LINK.with(|l| l.take())
+}
+
 /// Opens a web page in the default browser.
 fn open_link(url: &str) {
+    // On a tablet the page opens it (the app's own platform output carries it there).
+    if crate::tablet::on_tablet() {
+        TABLET_LINK.with(|l| l.replace(Some(url.to_string())));
+        return;
+    }
     let opener = if cfg!(target_os = "macos") {
         "open"
     } else if cfg!(target_os = "windows") {

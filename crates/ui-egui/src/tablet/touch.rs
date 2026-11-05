@@ -1,0 +1,554 @@
+//! Pen, touch and mouse from the page, turned into what the app understands.
+//!
+//! - Pencil and mouse are the pointer, as on the desktop: press, drag, release, and hover (Apple Pencil hovers over
+//!   the screen on recent iPads, which lights up what a tap would pick).
+//! - One finger: a tap is a click, a long press a right-click (the context menu), and a drag is a mouse drag. In the
+//!   3D view a drag on nothing turns the view even with a sketch tool on (the pencil draws); handles still drag.
+//!   Elsewhere a drag that grabs nothing scrolls what's under it.
+//! - Two fingers in the 3D view pan and pinch-zoom it; elsewhere they scroll. A quick two-finger tap undoes, three
+//!   fingers redo, as in iPad drawing apps.
+//! - Palm rejection: fingers are ignored while the pencil touches the glass and briefly after.
+
+use std::collections::VecDeque;
+use std::time::{Duration, Instant};
+
+use egui::{Event, Key, Modifiers, PointerButton, Pos2, Vec2};
+
+/// How far a finger goes before it's a drag, not a tap (points).
+const SLOP: f32 = 9.0;
+const LONG_PRESS: Duration = Duration::from_millis(520);
+/// Fingers that come down this soon after the pencil lifts are taken for the palm.
+const PALM_AFTER_PEN: Duration = Duration::from_millis(350);
+/// A multi-finger tap: this short, this still.
+const TAP_TIME: Duration = Duration::from_millis(320);
+const TAP_MOVE: f32 = 16.0;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Kind {
+    Down,
+    Move,
+    Up,
+    Cancel,
+    /// The pencil or mouse moved without touching (hover).
+    Hover,
+    /// The pencil or mouse left the page.
+    Leave,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(super) enum Device {
+    Mouse,
+    Pen,
+    Touch,
+}
+
+/// A view change for the workspace to make, in points.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(super) enum Nav {
+    Pan(Vec2),
+    /// Grow by this factor (> 1 is closer) around this point.
+    Zoom(f32, Pos2),
+}
+
+struct Finger {
+    id: i64,
+    start: Pos2,
+    at: Pos2,
+}
+
+enum Mode {
+    Idle,
+    /// One finger down: not yet a tap, a drag or a long press.
+    Pending {
+        since: Instant,
+    },
+    /// One finger pressed as the mouse. `scroll` is decided two frames in: whether anything took the drag.
+    Drag {
+        scroll: Option<bool>,
+        pressed_at_frame: u64,
+        last: Pos2,
+    },
+    Multi {
+        since: Instant,
+        centroid: Pos2,
+        spread: f32,
+        moved: f32,
+        most: usize,
+        over_view: Option<bool>,
+    },
+    /// A gesture is over; wait for every finger to lift before the next.
+    Spent,
+}
+
+pub(super) struct Router {
+    now: Vec<Event>,
+    /// Events for the frames after this one, a batch each (a press and its release a frame apart).
+    later: VecDeque<Vec<Event>>,
+    nav: Vec<Nav>,
+    fingers: Vec<Finger>,
+    ignored: Vec<i64>,
+    mode: Mode,
+    pen_down: bool,
+    pen_up: Option<Instant>,
+    /// The keyboard's modifiers, from the last key or pointer event.
+    pub mods: Modifiers,
+    frame: u64,
+    /// A finger drives the pointer: the workspace turns the view on drags instead of drawing or box-selecting.
+    pub finger: bool,
+    finger_until: u64,
+}
+
+impl Default for Router {
+    fn default() -> Self {
+        Self {
+            now: Vec::new(),
+            later: VecDeque::new(),
+            nav: Vec::new(),
+            fingers: Vec::new(),
+            ignored: Vec::new(),
+            mode: Mode::Idle,
+            pen_down: false,
+            pen_up: None,
+            mods: Modifiers::NONE,
+            frame: 0,
+            finger: false,
+            finger_until: 0,
+        }
+    }
+}
+
+fn centroid(f: &[Finger]) -> Pos2 {
+    let n = f.len().max(1) as f32;
+    let sum = f.iter().fold(Vec2::ZERO, |s, f| s + f.at.to_vec2());
+    (sum / n).to_pos2()
+}
+
+fn spread(f: &[Finger], c: Pos2) -> f32 {
+    let n = f.len().max(1) as f32;
+    (f.iter().map(|f| f.at.distance(c)).sum::<f32>() / n).max(1.0)
+}
+
+impl Router {
+    /// Something is still to happen without new input (a release a frame later, a long press to time out).
+    pub fn busy(&self) -> bool {
+        !self.now.is_empty() || !self.later.is_empty() || !self.nav.is_empty() || matches!(self.mode, Mode::Pending { .. })
+    }
+
+    /// The page went away: forget fingers and buttons.
+    pub fn reset(&mut self) {
+        let mods = self.mods;
+        *self = Self { mods, ..Self::default() };
+        self.now.push(Event::PointerGone);
+    }
+
+    fn button(&self, pos: Pos2, button: PointerButton, pressed: bool) -> Event {
+        Event::PointerButton { pos, button, pressed, modifiers: self.mods }
+    }
+
+    fn after(&mut self, frames_ahead: usize, ev: Event) {
+        while self.later.len() < frames_ahead {
+            self.later.push_back(Vec::new());
+        }
+        if let Some(batch) = self.later.get_mut(frames_ahead - 1) {
+            batch.push(ev);
+        }
+    }
+
+    pub fn key(&mut self, ev: Event) {
+        self.now.push(ev);
+    }
+
+    pub fn pointer(&mut self, kind: Kind, device: Device, id: i64, pos: Pos2, button: u8, now: Instant) {
+        match device {
+            Device::Touch => self.touch(kind, id, pos, now),
+            Device::Pen | Device::Mouse => self.mouse(kind, device, pos, button, now),
+        }
+    }
+
+    fn mouse(&mut self, kind: Kind, device: Device, pos: Pos2, button: u8, now: Instant) {
+        let button = match button {
+            1 => PointerButton::Middle,
+            2 => PointerButton::Secondary,
+            3 => PointerButton::Extra1,
+            4 => PointerButton::Extra2,
+            _ => PointerButton::Primary,
+        };
+        match kind {
+            Kind::Down => {
+                if device == Device::Pen {
+                    self.cancel_fingers();
+                    self.pen_down = true;
+                }
+                self.finger = false;
+                self.now.push(Event::PointerMoved(pos));
+                self.now.push(self.button(pos, button, true));
+            }
+            Kind::Move | Kind::Hover => self.now.push(Event::PointerMoved(pos)),
+            Kind::Up | Kind::Cancel => {
+                self.now.push(Event::PointerMoved(pos));
+                self.now.push(self.button(pos, button, false));
+                if device == Device::Pen {
+                    self.pen_down = false;
+                    self.pen_up = Some(now);
+                }
+                if kind == Kind::Cancel {
+                    self.after(1, Event::PointerGone);
+                }
+            }
+            Kind::Leave => self.now.push(Event::PointerGone),
+        }
+    }
+
+    /// The pencil came down mid-gesture: what the fingers were doing stops.
+    fn cancel_fingers(&mut self) {
+        if let Mode::Drag { scroll, last, .. } = self.mode
+            && scroll != Some(true)
+        {
+            self.now.push(self.button(last, PointerButton::Primary, false));
+        }
+        self.ignored.extend(self.fingers.drain(..).map(|f| f.id));
+        self.mode = Mode::Idle;
+    }
+
+    fn palm(&self, now: Instant) -> bool {
+        self.pen_down || self.pen_up.is_some_and(|t| now.duration_since(t) < PALM_AFTER_PEN)
+    }
+
+    fn touch(&mut self, kind: Kind, id: i64, pos: Pos2, now: Instant) {
+        if self.ignored.contains(&id) {
+            if matches!(kind, Kind::Up | Kind::Cancel) {
+                self.ignored.retain(|i| *i != id);
+            }
+            return;
+        }
+        match kind {
+            Kind::Down => {
+                if self.palm(now) {
+                    self.ignored.push(id);
+                    return;
+                }
+                self.fingers.retain(|f| f.id != id);
+                self.fingers.push(Finger { id, start: pos, at: pos });
+                match self.mode {
+                    Mode::Idle => self.mode = Mode::Pending { since: now },
+                    Mode::Pending { .. } => self.start_multi(now),
+                    Mode::Drag { scroll, last, .. } => {
+                        if scroll != Some(true) {
+                            self.now.push(self.button(last, PointerButton::Primary, false));
+                        }
+                        self.start_multi(now);
+                    }
+                    Mode::Multi { ref mut most, ref mut centroid, ref mut spread, .. } => {
+                        *most = (*most).max(self.fingers.len());
+                        // A new finger moves the middle; start measuring from here so the view doesn't jump.
+                        *centroid = self::centroid(&self.fingers);
+                        *spread = self::spread(&self.fingers, *centroid);
+                    }
+                    Mode::Spent => {}
+                }
+            }
+            Kind::Move => {
+                let Some(f) = self.fingers.iter_mut().find(|f| f.id == id) else { return };
+                let before = f.at;
+                f.at = pos;
+                let start = f.start;
+                self.moved_finger(before, pos, start);
+            }
+            Kind::Up | Kind::Cancel => {
+                let Some(i) = self.fingers.iter().position(|f| f.id == id) else { return };
+                let f = self.fingers.remove(i);
+                self.lifted(f, kind == Kind::Cancel, now);
+            }
+            Kind::Hover | Kind::Leave => {}
+        }
+    }
+
+    fn moved_finger(&mut self, before: Pos2, pos: Pos2, start: Pos2) {
+        match &mut self.mode {
+            Mode::Pending { .. } if pos.distance(start) > SLOP => {
+                // Press where the finger came down, then follow it: handles and widgets see an ordinary drag.
+                self.finger = true;
+                self.now.push(Event::PointerMoved(start));
+                self.now.push(self.button(start, PointerButton::Primary, true));
+                self.after(1, Event::PointerMoved(pos));
+                self.mode = Mode::Drag { scroll: None, pressed_at_frame: self.frame, last: pos };
+            }
+            Mode::Drag { scroll, last, .. } => {
+                *last = pos;
+                if *scroll == Some(true) {
+                    let delta = pos - before;
+                    self.now.push(Event::MouseWheel {
+                        unit: egui::MouseWheelUnit::Point,
+                        delta,
+                        phase: egui::TouchPhase::Move,
+                        source: egui::MouseWheelSource::Unknown,
+                        modifiers: self.mods,
+                    });
+                } else {
+                    self.now.push(Event::PointerMoved(pos));
+                }
+            }
+            Mode::Multi { centroid, spread, moved, over_view, .. } => {
+                let c = self::centroid(&self.fingers);
+                let s = self::spread(&self.fingers, c);
+                let dc = c - *centroid;
+                *moved += dc.length() + (s - *spread).abs();
+                match over_view {
+                    Some(true) => {
+                        self.nav.push(Nav::Pan(dc));
+                        self.nav.push(Nav::Zoom(s / *spread, c));
+                    }
+                    Some(false) => {
+                        self.now.push(Event::PointerMoved(c));
+                        self.now.push(Event::MouseWheel {
+                            unit: egui::MouseWheelUnit::Point,
+                            delta: dc,
+                            phase: egui::TouchPhase::Move,
+                            source: egui::MouseWheelSource::Unknown,
+                            modifiers: self.mods,
+                        });
+                    }
+                    None => {}
+                }
+                *centroid = c;
+                *spread = s;
+            }
+            _ => {}
+        }
+    }
+
+    fn lifted(&mut self, f: Finger, cancelled: bool, now: Instant) {
+        match self.mode {
+            Mode::Pending { .. } => {
+                if !cancelled {
+                    // A tap: press now, release next frame, then no hover (a finger isn't over anything once lifted).
+                    self.finger = true;
+                    self.now.push(Event::PointerMoved(f.at));
+                    self.now.push(self.button(f.at, PointerButton::Primary, true));
+                    self.after(1, self.button(f.at, PointerButton::Primary, false));
+                    self.after(2, Event::PointerGone);
+                    self.finger_until = self.frame + 2;
+                }
+                self.mode = Mode::Idle;
+            }
+            Mode::Drag { scroll, .. } => {
+                if scroll != Some(true) {
+                    self.now.push(Event::PointerMoved(f.at));
+                    self.now.push(self.button(f.at, PointerButton::Primary, false));
+                }
+                self.after(1, Event::PointerGone);
+                self.finger_until = self.frame + 1;
+                self.mode = Mode::Idle;
+            }
+            Mode::Multi { since, moved, most, over_view, .. } => {
+                if !self.fingers.is_empty() {
+                    // Lifting one of several: the rest carry on (a tap's fingers never lift at quite the same time),
+                    // measured from where they are so the view doesn't jump.
+                    let c = centroid(&self.fingers);
+                    self.mode = Mode::Multi { since, centroid: c, spread: spread(&self.fingers, c), moved, most, over_view };
+                    return;
+                }
+                if !cancelled && now.duration_since(since) < TAP_TIME && moved < TAP_MOVE {
+                    self.undo_tap(most);
+                }
+                if over_view == Some(false) {
+                    self.after(1, Event::PointerGone);
+                }
+                self.mode = Mode::Idle;
+            }
+            Mode::Spent => {
+                if self.fingers.is_empty() {
+                    self.now.push(Event::PointerGone);
+                    self.mode = Mode::Idle;
+                }
+            }
+            Mode::Idle => {}
+        }
+    }
+
+    fn start_multi(&mut self, now: Instant) {
+        let c = centroid(&self.fingers);
+        let since = match self.mode {
+            Mode::Pending { since } => since,
+            _ => now,
+        };
+        self.mode =
+            Mode::Multi { since, centroid: c, spread: spread(&self.fingers, c), moved: 0.0, most: self.fingers.len(), over_view: None };
+        // Look at what's under the fingers' middle; `after_frame` reads the answer.
+        self.now.push(Event::PointerMoved(c));
+    }
+
+    /// Two fingers undo, three redo (⌘Z, ⇧⌘Z).
+    fn undo_tap(&mut self, fingers: usize) {
+        let mut m = command_mods();
+        m.shift = fingers >= 3;
+        for pressed in [true, false] {
+            self.now.push(Event::Key { key: Key::Z, physical_key: Some(Key::Z), pressed, repeat: false, modifiers: m });
+        }
+    }
+
+    /// Time passing with no input: a held finger becomes a long press.
+    pub fn tick(&mut self, now: Instant) {
+        if let Mode::Pending { since } = self.mode
+            && now.duration_since(since) >= LONG_PRESS
+            && let Some(f) = self.fingers.first()
+        {
+            let at = f.at;
+            self.finger = true;
+            self.now.push(Event::PointerMoved(at));
+            self.now.push(self.button(at, PointerButton::Secondary, true));
+            self.after(1, self.button(at, PointerButton::Secondary, false));
+            self.mode = Mode::Spent;
+        }
+    }
+
+    /// This frame's events and view changes; the next batch moves up.
+    pub fn take(&mut self) -> (Vec<Event>, Vec<Nav>) {
+        let events = std::mem::take(&mut self.now);
+        if let Some(next) = self.later.pop_front() {
+            self.now = next;
+        }
+        (events, std::mem::take(&mut self.nav))
+    }
+
+    /// After a frame: what's under a new two-finger gesture, and whether a one-finger drag took hold of anything.
+    /// `over_view`: the pointer is over the 3D view itself (no panel on top). `dragging`: a widget has the drag.
+    pub fn after_frame(&mut self, over_view: bool, dragging: bool) {
+        self.frame += 1;
+        if self.finger && self.finger_until != 0 && self.frame > self.finger_until && matches!(self.mode, Mode::Idle) {
+            self.finger = false;
+            self.finger_until = 0;
+        }
+        match &mut self.mode {
+            Mode::Multi { over_view: o @ None, .. } => {
+                *o = Some(over_view);
+                if over_view {
+                    self.now.push(Event::PointerGone);
+                }
+            }
+            Mode::Drag { scroll: s @ None, pressed_at_frame, last } if self.frame >= *pressed_at_frame + 2 => {
+                let scroll = !dragging && !over_view;
+                *s = Some(scroll);
+                if scroll {
+                    // Let go far from where it pressed: not a click, and the rest of the drag scrolls.
+                    let at = *last;
+                    self.now.push(self.button(at, PointerButton::Primary, false));
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// ⌘ on a Mac host, Ctrl elsewhere, as egui reads it.
+pub(super) fn command_mods() -> Modifiers {
+    if cfg!(target_os = "macos") {
+        Modifiers { mac_cmd: true, command: true, ..Modifiers::NONE }
+    } else {
+        Modifiers { ctrl: true, command: true, ..Modifiers::NONE }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::pos2;
+
+    fn presses(ev: &[Event]) -> Vec<(PointerButton, bool)> {
+        ev.iter()
+            .filter_map(|e| match e {
+                Event::PointerButton { button, pressed, .. } => Some((*button, *pressed)),
+                _ => None,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn a_tap_presses_then_releases_a_frame_later() {
+        let mut r = Router::default();
+        let t = Instant::now();
+        r.pointer(Kind::Down, Device::Touch, 1, pos2(100.0, 100.0), 0, t);
+        assert!(r.take().0.is_empty(), "nothing until it's known to be a tap");
+        r.pointer(Kind::Up, Device::Touch, 1, pos2(101.0, 100.0), 0, t + Duration::from_millis(80));
+        assert_eq!(presses(&r.take().0), vec![(PointerButton::Primary, true)]);
+        assert_eq!(presses(&r.take().0), vec![(PointerButton::Primary, false)]);
+        assert!(r.take().0.contains(&Event::PointerGone));
+    }
+
+    #[test]
+    fn a_held_finger_is_a_right_click() {
+        let mut r = Router::default();
+        let t = Instant::now();
+        r.pointer(Kind::Down, Device::Touch, 1, pos2(10.0, 10.0), 0, t);
+        r.tick(t + Duration::from_millis(600));
+        assert_eq!(presses(&r.take().0), vec![(PointerButton::Secondary, true)]);
+        assert_eq!(presses(&r.take().0), vec![(PointerButton::Secondary, false)]);
+        r.pointer(Kind::Up, Device::Touch, 1, pos2(10.0, 10.0), 0, t + Duration::from_millis(700));
+        assert!(presses(&r.take().0).is_empty(), "lifting after the menu opened doesn't click");
+    }
+
+    #[test]
+    fn a_drag_presses_at_the_start_and_becomes_a_scroll_when_nothing_takes_it() {
+        let mut r = Router::default();
+        let t = Instant::now();
+        r.pointer(Kind::Down, Device::Touch, 1, pos2(10.0, 10.0), 0, t);
+        r.pointer(Kind::Move, Device::Touch, 1, pos2(10.0, 30.0), 0, t);
+        let (ev, _) = r.take();
+        assert!(matches!(ev.as_slice(), [Event::PointerMoved(p), Event::PointerButton { pressed: true, .. }] if *p == pos2(10.0, 10.0)));
+        assert!(r.finger);
+        r.after_frame(false, false);
+        r.after_frame(false, false);
+        assert_eq!(presses(&r.take().0), vec![(PointerButton::Primary, false)]);
+        r.pointer(Kind::Move, Device::Touch, 1, pos2(10.0, 50.0), 0, t);
+        assert!(r.take().0.iter().any(|e| matches!(e, Event::MouseWheel { delta, .. } if delta.y == 20.0)));
+    }
+
+    #[test]
+    fn two_fingers_over_the_view_pan_and_zoom() {
+        let mut r = Router::default();
+        let t = Instant::now();
+        r.pointer(Kind::Down, Device::Touch, 1, pos2(100.0, 100.0), 0, t);
+        r.pointer(Kind::Down, Device::Touch, 2, pos2(200.0, 100.0), 0, t);
+        r.take();
+        r.after_frame(true, false);
+        r.pointer(Kind::Move, Device::Touch, 1, pos2(90.0, 110.0), 0, t);
+        r.pointer(Kind::Move, Device::Touch, 2, pos2(210.0, 110.0), 0, t);
+        let (_, nav) = r.take();
+        assert!(nav.iter().any(|n| matches!(n, Nav::Zoom(f, _) if *f > 1.0)), "{nav:?}");
+        assert!(nav.iter().any(|n| matches!(n, Nav::Pan(d) if d.y > 0.0)), "{nav:?}");
+    }
+
+    #[test]
+    fn quick_two_and_three_finger_taps_undo_and_redo() {
+        for (n, shift) in [(2, false), (3, true)] {
+            let mut r = Router::default();
+            let t = Instant::now();
+            for i in 0..n {
+                r.pointer(Kind::Down, Device::Touch, i, pos2(100.0 + 50.0 * i as f32, 100.0), 0, t);
+            }
+            r.take();
+            for i in 0..n {
+                r.pointer(Kind::Up, Device::Touch, i, pos2(100.0 + 50.0 * i as f32, 100.0), 0, t + Duration::from_millis(120));
+            }
+            let (ev, _) = r.take();
+            let z = ev.iter().find_map(|e| match e {
+                Event::Key { key: Key::Z, pressed: true, modifiers, .. } => Some(*modifiers),
+                _ => None,
+            });
+            assert_eq!(z.map(|m| (m.command, m.shift)), Some((true, shift)), "{n} fingers");
+        }
+    }
+
+    #[test]
+    fn the_palm_is_ignored_while_the_pencil_draws() {
+        let mut r = Router::default();
+        let t = Instant::now();
+        r.pointer(Kind::Down, Device::Pen, 9, pos2(50.0, 50.0), 0, t);
+        r.take();
+        r.pointer(Kind::Down, Device::Touch, 1, pos2(300.0, 300.0), 0, t);
+        r.pointer(Kind::Up, Device::Touch, 1, pos2(300.0, 300.0), 0, t);
+        assert!(presses(&r.take().0).is_empty());
+        r.pointer(Kind::Up, Device::Pen, 9, pos2(60.0, 60.0), 0, t);
+        assert_eq!(presses(&r.take().0), vec![(PointerButton::Primary, false)]);
+    }
+}

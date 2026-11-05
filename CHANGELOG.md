@@ -2,12 +2,25 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.5.16-alpha
+## 0.5.17-alpha
 
-**Sketch text works on Linux systems with fonts outside the usual folders, and a Nix development shell. Thanks to
-[@eamondo2](https://github.com/eamondo2) for both.**
+**ShapeCraft on your iPad: tablet access serves the app to Safari with Apple Pencil and touch, and your projects
+stay on your computer. Also: sketch text works on Linux systems with fonts outside the usual folders, and a Nix
+development shell. Thanks to [@eamondo2](https://github.com/eamondo2) for both of those.**
 
 ### New
+- **Tablet access (iPad first, any browser).** Preferences ▸ Tablet ▸ Serve ShapeCraft to browsers, then scan the
+  QR code with the iPad's camera. The tablet gets the full app at its own Retina sharpness. Add it to the Home Screen
+  and it opens full screen, like an app. See [docs/tablet.md](docs/tablet.md).
+  - **Apple Pencil** is the pointer: tap, drag and draw, with hover highlighting on iPads that support it, and the
+    palm ignored while you draw.
+  - **Fingers** turn the view (one finger, even mid-sketch), pan and pinch-zoom (two). A two-finger tap undoes, a
+    three-finger tap redoes, and a long press opens the context menu.
+  - **Keyboards**: every shortcut on a Magic Keyboard, and a keyboard button for the on-screen one when ShapeCraft
+    wants text or a number.
+  - **Files**: Import and Insert pick from Files or Photos, and exports, screenshots and slicer 3MFs come back as
+    downloads.
+- **`shapecraft --serve`** runs only the tablet host, with no window, for a server, VM or container.
 - **Nix development shell.** `nix develop` (or `direnv allow` with nix-direnv) sets up the Rust toolchain,
   OpenCASCADE and the window libraries on Linux. Thanks [@eamondo2](https://github.com/eamondo2) (#1).
 

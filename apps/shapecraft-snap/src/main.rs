@@ -118,6 +118,7 @@ fn run(lines: &[Value], out: Option<&Path>, outcome: &mut Outcome) -> Result<()>
         new_project: false,
         native_menu: false,
         settings_file: None,
+        hosted: false,
     };
     let mut h = Harness::builder()
         .with_size(size.to_vec2())

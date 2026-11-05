@@ -15,6 +15,7 @@ pub mod menubar;
 pub(crate) mod onboarding;
 pub mod settings;
 pub mod system_theme;
+pub mod tablet;
 pub mod theme;
 pub mod tutorials;
 pub mod updates;

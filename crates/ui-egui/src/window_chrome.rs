@@ -15,6 +15,16 @@ const CORNER: f32 = 14.0;
 /// How much of the title row's right end the window buttons take.
 pub const BUTTONS_W: f32 = if OWN_FRAME { 3.0 * BUTTON_STEP } else { 0.0 };
 
+/// This window draws its own frame (Linux; never the tablet's copy, which has no window).
+pub fn own_frame() -> bool {
+    OWN_FRAME && !crate::tablet::on_tablet()
+}
+
+/// [`BUTTONS_W`] where there are window buttons to make room for.
+pub fn buttons_w() -> f32 {
+    if own_frame() { BUTTONS_W } else { 0.0 }
+}
+
 #[derive(Clone, Copy)]
 enum Button {
     Minimize,
@@ -94,7 +104,7 @@ pub fn drag_area(ui: &mut Ui, rect: Rect, id: &str) {
 
 /// Draws the frame over whichever screen is showing. Goes last so that it wins the window's edges.
 pub fn show(ui: &mut Ui) {
-    if !OWN_FRAME {
+    if !own_frame() {
         return;
     }
     let ctx = ui.ctx().clone();

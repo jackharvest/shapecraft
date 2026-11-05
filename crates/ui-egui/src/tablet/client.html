@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ShapeCraft">
+<meta name="theme-color" content="#1c1c1e">
+<meta name="format-detection" content="telephone=no">
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="icon" href="/icon.png">
+<title>ShapeCraft</title>
+<style>
+  :root { --bg: #1c1c1e; --sheet: rgba(44,44,46,.94); --ink: #f2f2f7; --dim: #a1a1a6; --accent: #0a84ff; }
+  html, body { margin: 0; height: 100%; overflow: hidden; background: var(--bg); overscroll-behavior: none;
+    touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;
+    font: 15px -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif; color: var(--ink); }
+  /* The app fills the safe area; the status bar and rounded corners keep the page colour. */
+  #stage { position: fixed; left: env(safe-area-inset-left); top: env(safe-area-inset-top);
+    right: env(safe-area-inset-right); bottom: env(safe-area-inset-bottom); }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
+  #hover { position: fixed; width: 10px; height: 10px; margin: -6px 0 0 -6px; border-radius: 50%;
+    border: 1px solid rgba(255,255,255,.85); box-shadow: 0 0 0 1px rgba(0,0,0,.45); pointer-events: none; display: none; }
+  #kb { position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; resize: none;
+    font-size: 16px; /* 16px: Safari doesn't zoom into a field this size */ }
+  .pill { position: fixed; z-index: 5; display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px;
+    background: var(--sheet); color: var(--ink); box-shadow: 0 6px 24px rgba(0,0,0,.35); -webkit-backdrop-filter: blur(20px);
+    backdrop-filter: blur(20px); border: .5px solid rgba(255,255,255,.12); font-weight: 500; transition: opacity .25s, transform .25s; }
+  .pill.hidden { opacity: 0; pointer-events: none; transform: translateY(8px); }
+  #keyboard { right: calc(env(safe-area-inset-right) + 16px); bottom: calc(env(safe-area-inset-bottom) + 16px); padding: 10px 12px; }
+  #status { left: 50%; top: calc(env(safe-area-inset-top) + 14px); transform: translateX(-50%); color: var(--dim); }
+  #status.hidden { transform: translate(-50%, -8px); }
+  #full { left: 50%; bottom: calc(env(safe-area-inset-bottom) + 18px); transform: translateX(-50%); }
+  #full.hidden { transform: translate(-50%, 8px); }
+  #full button, .sheet button, .sheet a { font: inherit; }
+  .x { background: none; border: 0; color: var(--dim); padding: 0 0 0 4px; font-size: 17px; }
+  #sheets { position: fixed; z-index: 6; right: calc(env(safe-area-inset-right) + 16px); top: calc(env(safe-area-inset-top) + 60px);
+    display: flex; flex-direction: column; gap: 10px; align-items: flex-end; }
+  .sheet { min-width: 260px; max-width: 360px; padding: 14px 16px; border-radius: 14px; background: var(--sheet);
+    -webkit-backdrop-filter: blur(20px); backdrop-filter: blur(20px); box-shadow: 0 10px 36px rgba(0,0,0,.4);
+    border: .5px solid rgba(255,255,255,.12); }
+  .sheet .t { font-weight: 600; margin-bottom: 4px; word-break: break-word; }
+  .sheet .d { color: var(--dim); font-size: 13px; margin-bottom: 12px; word-break: break-word; }
+  .sheet .row { display: flex; gap: 8px; justify-content: flex-end; }
+  .sheet .b { appearance: none; border: 0; border-radius: 9px; padding: 8px 14px; background: rgba(255,255,255,.1); color: var(--ink);
+    text-decoration: none; font-weight: 500; }
+  .sheet .b.go { background: var(--accent); color: #fff; }
+  .sheet progress { width: 100%; accent-color: var(--accent); }
+  @media (prefers-color-scheme: light) { :root { --sheet: rgba(242,242,247,.94); --ink: #1c1c1e; --dim: #6e6e73; } }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="screen" tabindex="-1"></canvas></div>
+<div id="hover"></div>
+<textarea id="kb" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" aria-hidden="true"></textarea>
+<div id="status" class="pill hidden">Connecting…</div>
+<div id="full" class="pill hidden"><button id="fullgo" class="x" style="color:inherit;padding:0">⤢&nbsp; Full Screen</button><button id="fullx" class="x" aria-label="Dismiss">✕</button></div>
+<button id="keyboard" class="pill hidden" aria-label="Keyboard">
+  <svg width="22" height="16" viewBox="0 0 22 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x=".7" y=".7" width="20.6" height="14.6" rx="2.5"/><path d="M4 5h1M8 5h1M12 5h1M16 5h1M4 8h1M8 8h1M12 8h1M16 8h1M6 11.5h10" stroke-linecap="round"/></svg>
+</button>
+<div id="sheets"></div>
+<input id="file" type="file" style="display:none">
+<script>
+"use strict";
+(() => {
+  const stage = document.getElementById("stage");
+  const canvas = document.getElementById("screen");
+  const g = canvas.getContext("2d", { alpha: false, desynchronized: true });
+  const hover = document.getElementById("hover");
+  const kb = document.getElementById("kb");
+  const status = document.getElementById("status");
+  const keyboardBtn = document.getElementById("keyboard");
+  const sheets = document.getElementById("sheets");
+  const fileInput = document.getElementById("file");
+  const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } },
+                  set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+
+  // The key can leave the address bar once the cookie has it; the home-screen app keeps it in its start address.
+  const params = new URLSearchParams(location.search);
+  const key = params.get("k") || "";
+  if (key && history.replaceState) history.replaceState(null, "", "/");
+
+  let ws = null, size = null, retry = 400, chain = Promise.resolve(), state = {}, lastHardKey = 0;
+
+  function measure() {
+    const r = stage.getBoundingClientRect();
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    return { w: Math.max(200, Math.round(r.width)), h: Math.max(200, Math.round(r.height)), dpr, left: r.left, top: r.top };
+  }
+  function applySize() {
+    const m = measure();
+    const changed = !size || m.w !== size.w || m.h !== size.h || m.dpr !== size.dpr;
+    size = m;
+    if (changed) {
+      canvas.width = Math.round(m.w * m.dpr);
+      canvas.height = Math.round(m.h * m.dpr);
+      send({ t: "size", w: m.w, h: m.h, dpr: m.dpr });
+    }
+  }
+  let sizeTimer = 0;
+  const resized = () => { clearTimeout(sizeTimer); sizeTimer = setTimeout(applySize, 60); };
+  new ResizeObserver(resized).observe(stage);
+  addEventListener("orientationchange", resized);
+  if (window.visualViewport) visualViewport.addEventListener("resize", resized);
+
+  function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+
+  function showStatus(text) {
+    status.textContent = text;
+    status.classList.toggle("hidden", !text);
+  }
+
+  function connect() {
+    const proto = location.protocol === "https:" ? "wss:" : "ws:";
+    ws = new WebSocket(`${proto}//${location.host}/ws${key ? "?k=" + encodeURIComponent(key) : ""}`);
+    ws.binaryType = "arraybuffer";
+    const statusTimer = setTimeout(() => showStatus("Connecting…"), 700);
+    ws.onopen = () => {
+      clearTimeout(statusTimer);
+      showStatus("");
+      retry = 400;
+      size = null;
+      const m = measure();
+      size = m;
+      canvas.width = Math.round(m.w * m.dpr);
+      canvas.height = Math.round(m.h * m.dpr);
+      send({ t: "hello", w: m.w, h: m.h, dpr: m.dpr, touch: navigator.maxTouchPoints || 0 });
+    };
+    ws.onmessage = (e) => (typeof e.data === "string" ? onText(JSON.parse(e.data)) : onFrame(e.data));
+    ws.onclose = () => {
+      clearTimeout(statusTimer);
+      ws = null;
+      showStatus("Reconnecting…");
+      setTimeout(connect, retry);
+      retry = Math.min(retry * 1.7, 4000);
+    };
+  }
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") { if (!ws) connect(); keepAwake(); }
+  });
+
+  // Frames: `[1][seq u32][count u16]` then `[x y w h u16][png u8][len u32][bytes]` per piece (little-endian).
+  const decode = typeof createImageBitmap === "function"
+    ? (blob) => createImageBitmap(blob)
+    : (blob) => new Promise((ok, fail) => { const i = new Image(); i.onload = () => ok(i); i.onerror = fail; i.src = URL.createObjectURL(blob); });
+  function onFrame(buf) {
+    const dv = new DataView(buf);
+    if (dv.getUint8(0) !== 1) return;
+    const seq = dv.getUint32(1, true), n = dv.getUint16(5, true);
+    let o = 7;
+    const parts = [];
+    for (let i = 0; i < n; i++) {
+      const x = dv.getUint16(o, true), y = dv.getUint16(o + 2, true);
+      const png = dv.getUint8(o + 8), len = dv.getUint32(o + 9, true);
+      o += 13;
+      const blob = new Blob([new Uint8Array(buf, o, len)], { type: png ? "image/png" : "image/jpeg" });
+      o += len;
+      parts.push({ x, y, img: decode(blob).catch(() => null) });
+    }
+    // In order, all of a frame's pieces at once: no half-drawn frames.
+    chain = chain.then(async () => {
+      const imgs = await Promise.all(parts.map((p) => p.img));
+      imgs.forEach((img, i) => {
+        if (!img) return;
+        g.drawImage(img, parts[i].x, parts[i].y);
+        if (img.close) img.close(); else if (img.src) URL.revokeObjectURL(img.src);
+      });
+      send({ t: "ack", seq });
+    });
+  }
+
+  function onText(m) {
+    switch (m.t) {
+      case "state":
+        state = m;
+        canvas.style.cursor = m.cursor || "default";
+        updateKeyboard();
+        break;
+      case "copy":
+        if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(m.s).catch(() => {});
+        break;
+      case "open": sheet("Open link", m.url, [{ text: "Open", href: m.url, go: true }]); break;
+      case "pick": pickSheet(m); break;
+      case "download": sheet(m.name, "Ready to save to Files or Downloads.", [{ text: "Download", href: m.url, download: m.name, go: true }]); break;
+    }
+  }
+
+  // ---- Pointer: pencil, fingers, mouse/trackpad. Coalesced samples keep the pencil's full rate. ----
+  const DEV = { mouse: 0, pen: 1, touch: 2 };
+  let batch = [], batchMods = null, flushQueued = false;
+  const mods = (e) => [!!e.shiftKey, !!e.ctrlKey, !!e.altKey, !!e.metaKey];
+  function pt(kind, e, button) {
+    const r = canvas.getBoundingClientRect();
+    return [kind, e.pointerId, DEV[e.pointerType] ?? 0, +(e.clientX - r.left).toFixed(2), +(e.clientY - r.top).toFixed(2), button ?? 0];
+  }
+  function flushPointer() {
+    flushQueued = false;
+    if (!batch.length) return;
+    send({ t: "p", e: batch, m: batchMods });
+    batch = [];
+  }
+  function queue(item, e, now) {
+    batch.push(item);
+    batchMods = mods(e);
+    if (now) flushPointer();
+    else if (!flushQueued) { flushQueued = true; requestAnimationFrame(flushPointer); }
+  }
+  function showHover(e, on) {
+    if (!on) { hover.style.display = "none"; return; }
+    hover.style.display = "block";
+    hover.style.left = e.clientX + "px";
+    hover.style.top = e.clientY + "px";
+  }
+  canvas.addEventListener("pointerdown", (e) => {
+    e.preventDefault();
+    try { canvas.setPointerCapture(e.pointerId); } catch {}
+    if (e.pointerType === "pen") showHover(e, false);
+    queue(pt(0, e, e.button), e, true);
+    keepAwake();
+  }, { passive: false });
+  canvas.addEventListener("pointermove", (e) => {
+    const touching = e.pointerType === "touch" || e.buttons !== 0;
+    const kind = touching ? 1 : 4;
+    if (e.pointerType === "pen") showHover(e, !touching);
+    const list = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+    for (const c of (list.length ? list : [e])) queue(pt(kind, c), e, false);
+  }, { passive: true });
+  const end = (kind) => (e) => {
+    if (e.pointerType === "pen") showHover(e, false);
+    queue(pt(kind, e, e.button), e, true);
+  };
+  canvas.addEventListener("pointerup", end(2));
+  canvas.addEventListener("pointercancel", end(3));
+  canvas.addEventListener("pointerleave", (e) => {
+    if (e.pointerType === "touch" || e.buttons) return;
+    showHover(e, false);
+    queue(pt(5, e), e, true);
+  });
+  canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+  // Safari's own pinch and double-tap zoom stay out of it; a trackpad's pinch on iPad arrives as gesture events.
+  for (const t of ["touchstart", "touchmove", "touchend"]) document.addEventListener(t, (e) => { if (e.target === canvas || e.touches?.length > 1) e.preventDefault(); }, { passive: false });
+  let gestureScale = 1, fingersDown = 0;
+  canvas.addEventListener("pointerdown", (e) => { if (e.pointerType === "touch") fingersDown++; });
+  const fingerUp = (e) => { if (e.pointerType === "touch") fingersDown = Math.max(0, fingersDown - 1); };
+  canvas.addEventListener("pointerup", fingerUp);
+  canvas.addEventListener("pointercancel", fingerUp);
+  document.addEventListener("gesturestart", (e) => { e.preventDefault(); gestureScale = 1; }, { passive: false });
+  document.addEventListener("gesturechange", (e) => {
+    e.preventDefault();
+    if (fingersDown > 0) return; // fingers on the glass: the pointers already carry the pinch
+    const r = canvas.getBoundingClientRect();
+    send({ t: "zoom", f: e.scale / gestureScale, x: e.clientX - r.left, y: e.clientY - r.top });
+    gestureScale = e.scale;
+  }, { passive: false });
+  document.addEventListener("gestureend", (e) => e.preventDefault(), { passive: false });
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const r = canvas.getBoundingClientRect();
+    send({ t: "wheel", x: e.clientX - r.left, y: e.clientY - r.top, dx: e.deltaX, dy: e.deltaY, mode: e.deltaMode, pinch: e.ctrlKey, m: mods(e) });
+  }, { passive: false });
+
+  // ---- Keys: a hardware keyboard anywhere; the on-screen one through the hidden field. ----
+  const reserved = (e) => (e.metaKey || e.ctrlKey) && ["v"].includes(e.key.toLowerCase());
+  function onKey(e, down) {
+    if (e.isComposing) return;
+    const fromField = e.target === kb;
+    if (!fromField) lastHardKey = Date.now();
+    send({ t: "key", key: e.key, code: e.code, down, rep: e.repeat, m: mods(e) });
+    // Typed characters: from the field's input events when it has focus (autocorrect, dictation), else from here.
+    if (down && !fromField && e.key.length === 1 && !e.ctrlKey && !e.metaKey) send({ t: "text", s: e.key });
+    if (!reserved(e) && !(fromField && e.key.length === 1)) e.preventDefault();
+  }
+  addEventListener("keydown", (e) => onKey(e, true));
+  addEventListener("keyup", (e) => onKey(e, false));
+  kb.addEventListener("input", (e) => {
+    const s = e.data ?? kb.value;
+    if (s && e.inputType !== "deleteContentBackward") send({ t: "text", s });
+    kb.value = "";
+  });
+  document.addEventListener("paste", (e) => {
+    const s = e.clipboardData && e.clipboardData.getData("text/plain");
+    if (s) { send({ t: "paste", s }); e.preventDefault(); }
+  });
+  // iOS raises its keyboard only from a tap, so the app asking for text shows a button that does.
+  function updateKeyboard() {
+    const wanted = state.kbd || state.num;
+    const touchDevice = (navigator.maxTouchPoints || 0) > 0;
+    const hardware = Date.now() - lastHardKey < 5 * 60 * 1000;
+    keyboardBtn.classList.toggle("hidden", !(wanted && touchDevice && !hardware) || document.activeElement === kb);
+    kb.inputMode = state.kbd ? "text" : "decimal";
+    if (!wanted && document.activeElement === kb) kb.blur();
+  }
+  keyboardBtn.addEventListener("click", () => { kb.focus(); updateKeyboard(); });
+  kb.addEventListener("blur", updateKeyboard);
+
+  // ---- Sheets: links, files to pick, files to save. ----
+  function sheet(title, detail, buttons, extra) {
+    const el = document.createElement("div");
+    el.className = "sheet";
+    const t = document.createElement("div"); t.className = "t"; t.textContent = title; el.append(t);
+    if (detail) { const d = document.createElement("div"); d.className = "d"; d.textContent = detail; el.append(d); }
+    if (extra) el.append(extra);
+    const row = document.createElement("div"); row.className = "row";
+    const close = () => el.remove();
+    for (const b of [...buttons, { text: "Close" }]) {
+      const x = document.createElement(b.href ? "a" : "button");
+      x.className = "b" + (b.go ? " go" : "");
+      x.textContent = b.text;
+      if (b.href) { x.href = b.href; x.target = b.download ? "_self" : "_blank"; if (b.download) x.download = b.download; x.rel = "noopener"; }
+      x.addEventListener("click", () => { if (b.run) b.run(el); else setTimeout(close, 300); });
+      row.append(x);
+    }
+    el.append(row);
+    sheets.append(el);
+    return el;
+  }
+  function pickSheet(m) {
+    sheet(m.label || "Choose a file", "From Files, Photos or iCloud Drive.", [{
+      text: "Choose…", go: true, run: (el) => {
+        fileInput.accept = m.accept || "";
+        fileInput.onchange = () => {
+          const f = fileInput.files && fileInput.files[0];
+          fileInput.value = "";
+          if (!f) return;
+          const bar = document.createElement("progress"); bar.max = 1; bar.value = 0;
+          el.querySelector(".d").textContent = f.name;
+          el.querySelector(".row").replaceWith(bar);
+          const xhr = new XMLHttpRequest();
+          xhr.open("POST", `/upload?id=${m.id}&name=${encodeURIComponent(f.name)}`);
+          xhr.upload.onprogress = (p) => { if (p.lengthComputable) bar.value = p.loaded / p.total; };
+          xhr.onload = () => el.remove();
+          xhr.onerror = () => { el.querySelector(".d").textContent = "The upload didn't go through."; setTimeout(() => el.remove(), 2500); };
+          xhr.send(f);
+        };
+        fileInput.click();
+      },
+    }]);
+  }
+
+  // ---- Full screen: the home-screen app is the real thing; Safari on iPad can also go full screen in place. ----
+  const standalone = navigator.standalone || matchMedia("(display-mode: standalone), (display-mode: fullscreen)").matches;
+  const full = document.getElementById("full");
+  const root = document.documentElement;
+  const canFull = !!(root.requestFullscreen || root.webkitRequestFullscreen);
+  if (!standalone && store.get("fullDismissed") !== "1") {
+    const go = document.getElementById("fullgo");
+    if (!canFull) go.textContent = "Share ▸ Add to Home Screen for full screen";
+    setTimeout(() => full.classList.remove("hidden"), 1200);
+    go.addEventListener("click", () => {
+      if (root.requestFullscreen) root.requestFullscreen({ navigationUI: "hide" }).catch(() => {});
+      else if (root.webkitRequestFullscreen) root.webkitRequestFullscreen();
+      full.classList.add("hidden");
+    });
+    document.getElementById("fullx").addEventListener("click", () => { full.classList.add("hidden"); store.set("fullDismissed", "1"); });
+    setTimeout(() => full.classList.add("hidden"), 14000);
+  }
+
+  // Keep the screen on while modelling (Safari 16.4+).
+  let lock = null;
+  async function keepAwake() {
+    try { if (!lock && navigator.wakeLock && document.visibilityState === "visible") { lock = await navigator.wakeLock.request("screen"); lock.addEventListener("release", () => (lock = null)); } } catch {}
+  }
+
+  connect();
+})();
+</script>
+</body>
+</html>

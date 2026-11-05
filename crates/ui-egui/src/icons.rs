@@ -6,6 +6,8 @@ use crate::theme::{self, Tokens};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum Icon {
+    /// Preferences ▸ Tablet: a tablet with a pencil beside it.
+    Tablet,
     Modeling,
     Visualization,
     Drawings,
@@ -1167,6 +1169,12 @@ fn paint_dark(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
                 slash(3.0, cut);
                 slash(1.0, pen.stroke.color);
             }
+        }
+        Tablet => {
+            pen.closed(&[(3.5, 4.5), (16.5, 4.5), (16.5, 20.0), (3.5, 20.0)]);
+            pen.dot(10.0, 17.5, 0.9);
+            pen.line(&[(20.5, 4.0), (20.5, 17.0), (19.5, 19.5)]);
+            pen.line(&[(20.5, 17.0), (21.5, 19.5), (19.5, 19.5)]);
         }
         Home => {
             pen.closed(&[(4.0, 11.0), (12.0, 4.0), (20.0, 11.0), (20.0, 20.0), (4.0, 20.0)]);

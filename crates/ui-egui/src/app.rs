@@ -11,7 +11,7 @@ use shapecraft_render::{SceneColors, SceneInput, StandardView};
 
 use crate::control::{Request, Server};
 use crate::landing::{Landing, LandingAction};
-use crate::menubar::{AppAction, MenuAction, MenuBar, MenuState};
+use crate::menubar::{AppAction, MenuAction, MenuState, Menus, WindowMenu};
 use crate::theme;
 use crate::workspace::export::{ExportDialog, Format};
 use crate::workspace::{Tool, Workspace};
@@ -28,6 +28,8 @@ pub struct Options {
     pub native_menu: bool,
     /// Where preferences are read and saved (none: defaults, never saved).
     pub settings_file: Option<PathBuf>,
+    /// The tablet's copy of the app (see `tablet`): menus in the window, files through the page, no update checks.
+    pub hosted: bool,
 }
 
 impl Options {
@@ -62,6 +64,75 @@ static GPU_LOST: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::
 /// Tells the app started by `restart_without_gpu` why it was.
 const RESTARTED_ENV: &str = "SHAPECRAFT_GPU_RESTARTED";
 
+/// What the tablet's copy of the app asks of the page (see `tablet`).
+pub(crate) enum TabletRequest {
+    /// Show a file picker; the file comes back through [`ShapeCraftApp::tablet_file_arrived`] with this id.
+    Pick { id: u64, label: String, accept: Vec<String> },
+    /// Files written into this folder go to the page to download.
+    Saved(PathBuf),
+}
+
+/// What a picked file is for, once the page sends it.
+#[derive(Clone, Copy, Debug)]
+enum Wanted {
+    Import,
+    Image,
+    Decal,
+    Material,
+    Environment,
+}
+
+/// On a tablet, files come and go through the page instead of the system's dialogs.
+struct TabletFiles {
+    requests: Vec<TabletRequest>,
+    picks: Vec<(u64, Wanted)>,
+    next: u64,
+    /// Where files saved for the page are written.
+    dir: PathBuf,
+}
+
+/// A file to open: the system's dialog, or on a tablet the page's picker (the file arrives later, see `Wanted`).
+fn open_path(tablet: &mut Option<TabletFiles>, wanted: Wanted, label: &str, filters: &[(&str, &[&str])]) -> Option<PathBuf> {
+    if let Some(t) = tablet {
+        t.next += 1;
+        let mut accept: Vec<String> = Vec::new();
+        for e in filters.iter().flat_map(|(_, exts)| exts.iter()) {
+            if !accept.iter().any(|a| a == e) {
+                accept.push((*e).to_string());
+            }
+        }
+        t.requests.push(TabletRequest::Pick { id: t.next, label: label.to_string(), accept });
+        t.picks.push((t.next, wanted));
+        return None;
+    }
+    filters.iter().fold(rfd::FileDialog::new(), |d, (name, exts)| d.add_filter(*name, exts)).pick_file()
+}
+
+/// A new folder whose files go to the tablet's page once this frame has written them.
+fn tablet_folder(t: &mut TabletFiles) -> Option<PathBuf> {
+    t.next += 1;
+    let dir = t.dir.join(format!("save-{}", t.next));
+    std::fs::create_dir_all(&dir).ok()?;
+    t.requests.push(TabletRequest::Saved(dir.clone()));
+    Some(dir)
+}
+
+/// Where to save a file: the system's dialog, or on a tablet a scratch file the page then downloads.
+fn save_path(tablet: &mut Option<TabletFiles>, name: &str, filter: (&str, &[&str])) -> Option<PathBuf> {
+    match tablet {
+        Some(t) => Some(tablet_folder(t)?.join(crate::tablet::safe_file_name(name))),
+        None => rfd::FileDialog::new().set_file_name(name).add_filter(filter.0, filter.1).save_file(),
+    }
+}
+
+/// A folder to export several files into (the page downloads each, on a tablet).
+fn save_folder(tablet: &mut Option<TabletFiles>) -> Option<PathBuf> {
+    match tablet {
+        Some(t) => tablet_folder(t),
+        None => rfd::FileDialog::new().set_title("Choose a folder to export to").pick_folder(),
+    }
+}
+
 /// A control request's answer, for whichever side gets to it first.
 type WaitingReply = Arc<std::sync::Mutex<Option<std::sync::mpsc::Sender<Result<Value, String>>>>>;
 
@@ -95,7 +166,7 @@ pub struct ShapeCraftApp {
     view_size: (egui::Vec2, f32),
     /// The window has been checked against the screen.
     fitted: bool,
-    menubar: Option<MenuBar>,
+    menubar: Option<Menus>,
     settings: crate::settings::Settings,
     settings_file: Option<PathBuf>,
     /// The first-run device question, asked again (control `ui.onboarding`).
@@ -110,10 +181,24 @@ pub struct ShapeCraftApp {
     /// The desktop app checks for updates and shows them (snapshots and tests don't).
     updating: bool,
     updates: crate::updates::UpdateUi,
+    /// The tablet's copy of the app (no window, no system dialogs).
+    hosted: bool,
+    tablet_files: Option<TabletFiles>,
+    /// The desktop app's options, for starting the tablet's copy (Preferences ▸ Tablet); None in the copy itself.
+    tablet_opts: Option<Options>,
+    /// The tablet host as last set up: port, open to the network, and the host (None if it couldn't start).
+    tablet: Option<(u16, bool, String, Option<crate::tablet::Host>)>,
 }
 
 impl ShapeCraftApp {
     pub fn new(kernel: Arc<dyn Kernel>, opts: Options, ctx: &egui::Context) -> Self {
+        let tablet_opts = (opts.native_menu && !opts.hosted).then(|| opts.clone());
+        let tablet_files = opts.hosted.then(|| TabletFiles {
+            requests: Vec::new(),
+            picks: Vec::new(),
+            next: 0,
+            dir: std::env::temp_dir().join(format!("shapecraft-tablet-files-{}", std::process::id())),
+        });
         // The desktop app opens its window before touching the projects folder (macOS may ask first); snapshots and
         // tests settle it right here.
         let folder = if opts.native_menu {
@@ -137,9 +222,11 @@ impl ShapeCraftApp {
                 }
             }
         });
-        let menubar = if opts.native_menu {
+        let menubar = if opts.hosted {
+            Some(Menus::Window(WindowMenu::default()))
+        } else if opts.native_menu {
             let ctx = ctx.clone();
-            MenuBar::install(move || ctx.request_repaint())
+            Menus::install(move || ctx.request_repaint())
         } else {
             None
         };
@@ -184,6 +271,10 @@ impl ShapeCraftApp {
             last_frame: None,
             view_size: (egui::Vec2::ZERO, 1.0),
             fitted: false,
+            hosted: opts.hosted,
+            tablet_files,
+            tablet_opts,
+            tablet: None,
         };
         if let Some(dir) = opts.open {
             app.open(dir);
@@ -191,6 +282,66 @@ impl ShapeCraftApp {
             app.new_project();
         }
         app
+    }
+
+    /// What the tablet's copy asks of its page since the last call (pickers, downloads).
+    pub(crate) fn take_tablet_requests(&mut self) -> Vec<TabletRequest> {
+        self.tablet_files.as_mut().map(|t| std::mem::take(&mut t.requests)).unwrap_or_default()
+    }
+
+    /// A file the tablet's page sent for picker `id`: carries on with what asked for it.
+    pub(crate) fn tablet_file_arrived(&mut self, id: u64, path: PathBuf) {
+        let Some(t) = self.tablet_files.as_mut() else { return };
+        let Some(i) = t.picks.iter().position(|(p, _)| *p == id) else { return };
+        let (_, wanted) = t.picks.remove(i);
+        match wanted {
+            Wanted::Import => self.import_picked(path),
+            Wanted::Image => self.image_picked(path),
+            Wanted::Decal => {
+                if let Some(ws) = self.ws.as_deref_mut() {
+                    let _ = ws.run("import_decal", json!({ "path": path }));
+                }
+            }
+            Wanted::Material => {
+                if let Some(ws) = self.ws.as_deref_mut() {
+                    let _ = ws.run("import_material", json!({ "path": path }));
+                }
+            }
+            Wanted::Environment => {
+                if let Some(ws) = self.ws.as_deref_mut() {
+                    let _ = ws.run("import_environment", json!({ "path": path }));
+                }
+            }
+        }
+    }
+
+    /// Starts, restarts or stops the tablet host as Preferences ▸ Tablet says (the desktop app only).
+    fn sync_tablet(&mut self) {
+        let Some(base) = self.tablet_opts.clone() else { return };
+        let s = self.settings_now();
+        if s.tablet_serve && s.tablet_key.is_empty() {
+            s.tablet_key = crate::tablet::new_token();
+        }
+        let want = s.tablet_serve.then(|| (s.tablet_port, s.tablet_network, s.tablet_key.clone()));
+        if want == self.tablet.as_ref().map(|(p, n, k, _)| (*p, *n, k.clone())) {
+            return;
+        }
+        // Stopping first frees the port for a restart on the same one.
+        self.tablet = None;
+        let Some((port, network, key)) = want else { return };
+        // The copy reads the same preferences file, key and all.
+        let s = self.settings_now().clone();
+        self.settings = s;
+        self.save_settings();
+        let ip = if network { std::net::Ipv4Addr::UNSPECIFIED } else { std::net::Ipv4Addr::LOCALHOST };
+        let host = match crate::tablet::Host::start((ip, port).into(), key.clone(), self.kernel.clone(), base) {
+            Ok(h) => Some(h),
+            Err(e) => {
+                self.toast(format!("Couldn't serve to tablets on port {port}: {e}"));
+                None
+            }
+        };
+        self.tablet = Some((port, network, key, host));
     }
 
     pub fn workspace(&mut self) -> Option<&mut Workspace> {
@@ -359,18 +510,20 @@ impl ShapeCraftApp {
     }
 
     fn import_dialog(&mut self) {
-        let Some(path) = rfd::FileDialog::new()
-            .add_filter("All Supported Files", &["shapr", "step", "stp", "x_t", "x_b", "iges", "igs", "stl", "obj", "dxf", "svg"])
-            .add_filter(".shapr project", &["shapr"])
-            .add_filter("STEP", &["step", "stp"])
-            .add_filter("Parasolid", &["x_t", "x_b"])
-            .add_filter("IGES", &["iges", "igs"])
-            .add_filter("Meshes (STL, OBJ)", &["stl", "obj"])
-            .add_filter("2D (DXF, SVG)", &["dxf", "svg"])
-            .pick_file()
-        else {
-            return;
-        };
+        let filters: [(&str, &[&str]); 7] = [
+            ("All Supported Files", &["shapr", "step", "stp", "x_t", "x_b", "iges", "igs", "stl", "obj", "dxf", "svg"]),
+            (".shapr project", &["shapr"]),
+            ("STEP", &["step", "stp"]),
+            ("Parasolid", &["x_t", "x_b"]),
+            ("IGES", &["iges", "igs"]),
+            ("Meshes (STL, OBJ)", &["stl", "obj"]),
+            ("2D (DXF, SVG)", &["dxf", "svg"]),
+        ];
+        let Some(path) = open_path(&mut self.tablet_files, Wanted::Import, "Import", &filters) else { return };
+        self.import_picked(path);
+    }
+
+    fn import_picked(&mut self, path: PathBuf) {
         if self.ws.is_none() {
             self.new_project();
         }
@@ -434,7 +587,14 @@ impl ShapeCraftApp {
     fn image_dialog(&mut self) {
         let Some(ws) = self.ws.as_deref_mut() else { return };
         ws.wants_image = false;
-        let Some(path) = rfd::FileDialog::new().add_filter("Image", &["png", "jpg", "jpeg"]).pick_file() else { return };
+        let Some(path) = open_path(&mut self.tablet_files, Wanted::Image, "Insert Image", &[("Image", &["png", "jpg", "jpeg"])]) else {
+            return;
+        };
+        self.image_picked(path);
+    }
+
+    fn image_picked(&mut self, path: PathBuf) {
+        let Some(ws) = self.ws.as_deref_mut() else { return };
         // In Drawings the picture goes on the open sheet.
         if let Some(id) = ws.drawings.as_ref().map(|d| d.id) {
             let _ = ws.run("insert_sheet_image", json!({ "drawing": id.0, "path": path }));
@@ -447,7 +607,9 @@ impl ShapeCraftApp {
     fn decal_dialog(&mut self) {
         let Some(ws) = self.ws.as_deref_mut() else { return };
         ws.wants_decal = false;
-        let Some(path) = rfd::FileDialog::new().add_filter("Image", &["png", "jpg", "jpeg"]).pick_file() else { return };
+        let Some(path) = open_path(&mut self.tablet_files, Wanted::Decal, "Add a Decal", &[("Image", &["png", "jpg", "jpeg"])]) else {
+            return;
+        };
         let _ = ws.run("import_decal", json!({ "path": path }));
     }
 
@@ -455,7 +617,10 @@ impl ShapeCraftApp {
     fn material_dialog(&mut self) {
         let Some(ws) = self.ws.as_deref_mut() else { return };
         ws.wants_material = false;
-        let Some(path) = rfd::FileDialog::new().add_filter("Image", &["png", "jpg", "jpeg"]).pick_file() else { return };
+        let Some(path) = open_path(&mut self.tablet_files, Wanted::Material, "Custom Material", &[("Image", &["png", "jpg", "jpeg"])])
+        else {
+            return;
+        };
         let _ = ws.run("import_material", json!({ "path": path }));
     }
 
@@ -463,7 +628,8 @@ impl ShapeCraftApp {
     fn environment_dialog(&mut self) {
         let Some(ws) = self.ws.as_deref_mut() else { return };
         ws.wants_environment = false;
-        let Some(path) = rfd::FileDialog::new().add_filter("Panorama", &["hdr", "exr", "png", "jpg", "jpeg"]).pick_file() else { return };
+        let filters: [(&str, &[&str]); 1] = [("Panorama", &["hdr", "exr", "png", "jpg", "jpeg"])];
+        let Some(path) = open_path(&mut self.tablet_files, Wanted::Environment, "Import Environment", &filters) else { return };
         let _ = ws.run("import_environment", json!({ "path": path }));
     }
 
@@ -474,7 +640,7 @@ impl ShapeCraftApp {
             return;
         }
         let name = format!("{} {}.png", ws.session.doc.name, if ws.visualizing { "Capture" } else { "Screenshot" });
-        let Some(path) = rfd::FileDialog::new().set_file_name(name).add_filter("PNG", &["png"]).save_file() else { return };
+        let Some(path) = save_path(&mut self.tablet_files, &name, ("PNG", &["png"])) else { return };
         match ws.capture_png(&path) {
             Ok(()) => ws.toast(format!("Saved {}", path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default())),
             Err(e) => ws.toast(format!("Couldn't save the image: {e}")),
@@ -489,11 +655,8 @@ impl ShapeCraftApp {
         let stem = drawing
             .and_then(|id| ws.session.doc.drawing(shapecraft_doc::ItemId(id)))
             .map_or_else(|| ws.session.doc.name.clone(), |d| d.name.clone());
-        let Some(path) =
-            rfd::FileDialog::new().set_file_name(format!("{stem}.{first}")).add_filter(first.to_uppercase(), &[first]).save_file()
-        else {
-            return;
-        };
+        let upper = first.to_uppercase();
+        let Some(path) = save_path(&mut self.tablet_files, &format!("{stem}.{first}"), (&upper, &[first])) else { return };
         let mut written = Vec::new();
         for f in &formats {
             let out = path.with_extension(f);
@@ -547,15 +710,19 @@ impl ShapeCraftApp {
         // Slicer: a 3MF in a scratch folder, opened in the chosen slicer; no save dialog of its own.
         if d.chosen.contains(&Format::Slicer) {
             d.chosen.retain(|f| *f != Format::Slicer);
-            let dir = std::env::temp_dir().join("ShapeCraft Slicer");
+            let tablet_dir = self.tablet_files.as_mut().and_then(tablet_folder);
+            let on_tablet = tablet_dir.is_some();
+            let dir = tablet_dir.unwrap_or_else(|| std::env::temp_dir().join("ShapeCraft Slicer"));
             let path = dir.join(format!("{name}.3mf"));
             let mut params = d.params(Format::Slicer);
             params["path"] = json!(path);
             let made = std::fs::create_dir_all(&dir).is_ok() && ws.run("export_3mf", params).is_some();
             let shown = d.slicer.clone();
             ws.settings.slicer = shown.clone();
-            let opened = made && crate::workspace::slicers::open(&shown, &path);
-            ws.toast(if opened {
+            let opened = made && !on_tablet && crate::workspace::slicers::open(&shown, &path);
+            ws.toast(if made && on_tablet {
+                format!("{name}.3mf is ready to download for {shown}")
+            } else if opened {
                 format!("Opened {name} in {shown}")
             } else if made {
                 format!("Couldn't open {shown}: is it installed?")
@@ -571,17 +738,14 @@ impl ShapeCraftApp {
             (dir, name.clone())
         } else if single {
             let (ext, _) = d.chosen[0].ext_and_command();
-            let Some(path) =
-                rfd::FileDialog::new().set_file_name(format!("{name}.{ext}")).add_filter(ext.to_uppercase(), &[ext]).save_file()
-            else {
-                return;
-            };
+            let upper = ext.to_uppercase();
+            let Some(path) = save_path(&mut self.tablet_files, &format!("{name}.{ext}"), (&upper, &[ext])) else { return };
             match path.parent() {
                 Some(dir) => (dir.to_path_buf(), path.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or(name.clone())),
                 None => return,
             }
         } else {
-            let Some(dir) = rfd::FileDialog::new().set_title("Choose a folder to export to").pick_folder() else { return };
+            let Some(dir) = save_folder(&mut self.tablet_files) else { return };
             (dir, name.clone())
         };
         let (dir, stem) = folder;
@@ -1025,7 +1189,7 @@ impl ShapeCraftApp {
                 Ok(Value::Null)
             }
             "ui.toggle" if self.ws.is_none() && params.get("panel").and_then(Value::as_str) == Some("preferences") => {
-                self.home_prefs = Some(params.get("tab").and_then(Value::as_u64).unwrap_or(0).min(3) as usize);
+                self.home_prefs = Some(params.get("tab").and_then(Value::as_u64).unwrap_or(0).min(4) as usize);
                 Ok(Value::Null)
             }
             "ui.edit" => {
@@ -1048,7 +1212,7 @@ impl ShapeCraftApp {
                     "visualization" => ws.ui_action(crate::workspace::toolbar::UiAction::Visualization),
                     "help" => ws.ui_action(crate::workspace::toolbar::UiAction::Help),
                     "preferences" => {
-                        ws.prefs_tab = params.get("tab").and_then(Value::as_u64).unwrap_or(0).min(3) as usize;
+                        ws.prefs_tab = params.get("tab").and_then(Value::as_u64).unwrap_or(0).min(4) as usize;
                         ws.ui_action(crate::workspace::toolbar::UiAction::Preferences);
                     }
                     "nav_presets" => ws.ui_action(crate::workspace::toolbar::UiAction::NavPresets),
@@ -1146,6 +1310,7 @@ impl ShapeCraftApp {
     /// One frame. `render_state` is the window's wgpu state when there is one.
     pub fn frame(&mut self, ui: &mut egui::Ui, render_state: Option<&egui_wgpu::RenderState>) {
         if let Some(state) = render_state
+            && !self.hosted
             && self.gpu_gone(state)
         {
             self.restart_without_gpu();
@@ -1188,7 +1353,6 @@ impl ShapeCraftApp {
             ws.toast("Drawing on the processor, so things may feel slow. See Preferences ▸ ShapeCraft.");
         }
         // Without a native menu bar nothing else would catch the menus' shortcuts, and they go before the workspace's keys.
-        #[cfg(not(target_os = "macos"))]
         if let Some(bar) = self.menubar.as_mut() {
             bar.take_shortcuts(&ctx);
         }
@@ -1416,6 +1580,7 @@ impl ShapeCraftApp {
                             crate::landing::Section::GetStarted
                         };
                     }
+                    AppAction::OpenPage(url) if self.hosted => self.egui.open_url(egui::OpenUrl::new_tab(url)),
                     AppAction::OpenPage(url) => open_page(url),
                 },
                 MenuAction::Home(cmd) => {
@@ -1726,6 +1891,7 @@ impl eframe::App for ShapeCraftApp {
     /// What must go on with the window hidden too, where `ui` doesn't run: a minimized window, or one the compositor has
     /// stopped giving frames to, still answers the control channel and still saves.
     fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+        self.sync_tablet();
         self.handle_control(ctx);
         self.autosave(ctx);
         self.update_logic(ctx);
@@ -1759,6 +1925,9 @@ impl eframe::App for ShapeCraftApp {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         let rs = frame.wgpu_render_state().cloned();
         self.frame(ui, rs.as_ref());
+        if let Some(url) = crate::landing::take_tablet_link() {
+            ui.ctx().open_url(egui::OpenUrl::new_tab(url));
+        }
     }
 
     fn on_exit(&mut self) {

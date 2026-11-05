@@ -1,0 +1,69 @@
+# Tablet access (iPad, iPhone, any browser)
+
+ShapeCraft can serve itself to a browser on your network, so you can model on an iPad with an Apple Pencil while
+your projects stay on your computer. Safari on iPad comes first; Chrome and other Chromium browsers work too. Nothing
+is installed on the tablet, and nothing leaves your network.
+
+## Turning it on
+
+1. On the computer: **Preferences ▸ Tablet ▸ Serve ShapeCraft to browsers**.
+2. On the iPad: scan the QR code with the Camera, or type the address shown under it into Safari.
+3. For full screen, like an app: **Share ▸ Add to Home Screen**, then open ShapeCraft from the Home Screen.
+   In Safari itself, the **Full Screen** button at the bottom does the same on iPad.
+
+**Reachable From** chooses between the whole network and this computer only. The address carries a pairing key
+(`?k=…`). A browser that has opened it once remembers the key. **New Pairing Key** turns away every device paired
+before.
+
+The tablet gets its own copy of ShapeCraft, running on the computer, with the same projects folder and preferences.
+Close the tab or let the iPad sleep and the copy keeps going: open it again and you're where you left off.
+
+## Pencil, fingers, keyboard
+
+| Input | What it does |
+| --- | --- |
+| Apple Pencil | The pointer: tap, drag, draw. On iPads with Pencil hover, holding the tip above the glass highlights what a tap would pick, as a mouse does. |
+| One finger, tap | Click (pick a face, press a button). |
+| One finger, drag | In the 3D view: turn the view, even with a sketch tool on (the pencil draws). Handles and arrows still drag. Over lists: scroll. |
+| One finger, hold | Right-click (context menu). |
+| Two fingers | In the 3D view: pan and pinch to zoom. Over lists: scroll. |
+| Two-finger tap / three-finger tap | Undo / Redo. |
+| Palm on the glass while drawing | Ignored. |
+| Magic Keyboard / any keyboard | Every shortcut, ⌘ included. Typing a number while a tool runs works as on the computer. |
+| On-screen keyboard | When ShapeCraft wants text or a number, a keyboard button appears at the bottom right. iOS opens its keyboard only from a tap, so the button is there for that tap. |
+| Trackpad | Two-finger scroll turns the view, pinch zooms, as on a Mac trackpad. |
+
+## Files
+
+- **Import**, **Insert ▸ Image**, decals, materials and environments open a sheet: **Choose…** picks from Files,
+  Photos or iCloud Drive, and the file is sent to the computer.
+- **Export**, **Screenshot** and drawing exports come back as a **Download** button, to save in Files.
+- **Export ▸ Slicer** gives you the 3MF to download and open in your slicer's app.
+
+## Without a window (server, VM, container)
+
+```sh
+shapecraft --serve 8780                 # every network interface, port 8780
+shapecraft --serve 127.0.0.1:8780       # this machine only (behind your own reverse proxy)
+SHAPECRAFT_KEY=yourkey shapecraft --serve --projects /srv/shapecraft
+```
+
+It prints the address with the key. No display is needed. Without a GPU, ShapeCraft draws on the processor (Mesa's
+llvmpipe or lavapipe), which works but is slower.
+
+## How it works
+
+The tablet's copy runs offscreen on the computer with its own GPU device, drawn at the tablet's own pixel density.
+Only the parts of the screen that change are sent, as JPEG while things move and then again as lossless PNG once the
+picture is still, so text and edges end up exact. Input goes back over a WebSocket. The page is one small HTML file
+built into the app, with no web framework and no app download.
+
+## Good to know
+
+- The connection is plain HTTP on your network, protected by the pairing key. Don't open the port to the internet.
+  If you need to reach it from outside, use a VPN, or a reverse proxy with HTTPS.
+- One browser at a time: a new connection takes over from the last one.
+- The computer and the tablet can both open projects. Don't edit the *same* project on both at once: each saves its
+  own copy over the other.
+- The layout is the desktop's. An iPad shows it at full size. Smaller screens (an iPad in portrait, a phone) see it
+  scaled down to fit.
