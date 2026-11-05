@@ -708,8 +708,10 @@ pub struct GizmoFrame {
 impl GizmoFrame {
     pub const WORLD: GizmoFrame = GizmoFrame { axes: AXES, planar: false, turns: true };
 
+    /// Sketch curves get the whole gizmo on the sketch's axes: the normal arrow and the turns about the in-plane axes
+    /// carry them off the plane.
     pub fn sketch(plane: &shapecraft_doc::SketchPlane) -> Self {
-        Self { axes: [plane.x, plane.y, plane.normal()], planar: true, turns: true }
+        Self { axes: [plane.x, plane.y, plane.normal()], planar: false, turns: true }
     }
 
     pub fn has(&self, h: Handle) -> bool {

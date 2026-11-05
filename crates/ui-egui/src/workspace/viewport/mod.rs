@@ -228,6 +228,8 @@ impl Workspace {
         if let Some(changed) = self.sketch_transform() {
             match self.bottom_actions(ui, changed) {
                 Some("Cancel") => self.escape(),
+                // A move is already applied (live): Done ends it, as Return does.
+                Some(_) if matches!(self.tool, Tool::Move(_)) && self.is_live() => self.finish_live(),
                 Some(_) => self.commit_tool(),
                 None => {}
             }

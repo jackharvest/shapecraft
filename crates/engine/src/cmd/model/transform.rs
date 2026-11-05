@@ -58,6 +58,15 @@ fn selected_entities(s: &Session, p: &Params) -> Option<(ItemId, Vec<u32>)> {
                 sketch = Some(sk);
                 ents.push(entity);
             }
+            // A whole sketch (picked in Items) stands for all its curves.
+            Pick::Sketch { sketch: sk } if sketch.is_none_or(|x| x == sk) => {
+                sketch = Some(sk);
+                for e in 0..s.doc.sketch(sk).map_or(0, |k| k.entities.len() as u32) {
+                    if !ents.contains(&e) {
+                        ents.push(e);
+                    }
+                }
+            }
             // A selected region stands for the curves around it.
             Pick::Region { sketch: sk, region } if sketch.is_none_or(|x| x == sk) => {
                 sketch = Some(sk);
@@ -136,6 +145,82 @@ fn sketch_xform(s: &mut Session, (sketch, ents): (ItemId, Vec<u32>), maps: &[DAf
     Ok(json!({ "sketch": sketch.0, "entities": picked }))
 }
 
+/// Curves carried off their sketch's plane (the gizmo's normal arrow, or a turn about an axis across the sketch).
+/// With every curve picked the sketch's plane goes with them; otherwise they move into a new sketch on the moved
+/// plane, which opens in place of the old one when that was open.
+fn lift_curves(s: &mut Session, (sketch, ents): (ItemId, Vec<u32>), f: impl Fn(SketchPlane) -> SketchPlane) -> Result<Value> {
+    let old = s.doc.sketch(sketch).cloned().ok_or_else(|| EngineError::BadParams(format!("no sketch {}", sketch.0)))?;
+    let moved = f(old.plane);
+    if !(moved.origin.is_finite() && moved.x.is_finite() && moved.y.is_finite()) {
+        return Err(EngineError::BadParams("that move isn't finite".into()));
+    }
+    let n = old.entities.len();
+    if ents.iter().any(|i| *i as usize >= n) {
+        return Err(EngineError::BadParams("no such sketch curve".into()));
+    }
+    if (0..n as u32).all(|i| ents.contains(&i)) {
+        if let Some(sk) = s.doc.sketch_mut(sketch) {
+            sk.plane = moved;
+            sk.on_body = None;
+        }
+        s.selection = ents.iter().map(|&entity| Pick::SketchEntity { sketch, entity }).collect();
+        return Ok(json!({ "sketch": sketch.0, "entities": ents }));
+    }
+    // New numbers on each side of the split.
+    let (mut lifted, mut kept) = (vec![None; n], vec![None; n]);
+    let (mut a, mut b) = (0u32, 0u32);
+    for i in 0..n {
+        if ents.contains(&(i as u32)) {
+            lifted[i] = Some(a);
+            a += 1;
+        } else {
+            kept[i] = Some(b);
+            b += 1;
+        }
+    }
+    let side = |map: &[Option<u32>]| {
+        let entities: Vec<SketchEntity> = (0..n).filter(|&i| map[i].is_some()).map(|i| old.entities[i].clone()).collect();
+        let at = |e: u32| map.get(e as usize).copied().flatten();
+        let constraints: Vec<Constraint> = old.constraints.iter().filter_map(|c| c.remapped(&at)).collect();
+        let construction = old.construction.iter().filter_map(|&e| at(e)).collect();
+        (entities, constraints, construction)
+    };
+    let id = s.doc.alloc_id();
+    let name = s.doc.next_sketch_name();
+    let mut new = shapecraft_doc::Sketch::new(id, name.clone(), moved, None);
+    let (entities, constraints, construction) = side(&lifted);
+    new.entities = entities;
+    // The origin stays behind on the old plane.
+    new.constraints =
+        constraints.into_iter().filter(|c| !c.elements().iter().any(|e| matches!(e, shapecraft_doc::Element::Origin { .. }))).collect();
+    new.construction = construction;
+    let (entities, constraints, construction) = side(&kept);
+    let at = |e: &u32| kept.get(*e as usize).copied().flatten();
+    let patterns: Vec<shapecraft_doc::SketchPattern> = old
+        .patterns
+        .iter()
+        .filter_map(|pt| {
+            Some(shapecraft_doc::SketchPattern {
+                source: pt.source.iter().map(at).collect::<Option<_>>()?,
+                maps: pt.maps.clone(),
+                copies: pt.copies.iter().map(|c| c.iter().map(at).collect::<Option<_>>()).collect::<Option<_>>()?,
+            })
+        })
+        .collect();
+    if let Some(sk) = s.doc.sketch_mut(sketch) {
+        sk.entities = entities;
+        sk.constraints = constraints;
+        sk.construction = construction;
+        sk.patterns = patterns;
+    }
+    s.doc.sketches.push(new);
+    if s.active_sketch == Some(sketch) {
+        s.active_sketch = Some(id);
+    }
+    s.selection = (0..a).map(|entity| Pick::SketchEntity { sketch: id, entity }).collect();
+    Ok(json!({ "sketch": id.0, "name": name, "entities": (0..a).collect::<Vec<_>>() }))
+}
+
 fn sketch_plane_of(s: &Session, sketch: ItemId) -> Result<SketchPlane> {
     Ok(s.doc.sketch(sketch).ok_or_else(|| EngineError::BadParams(format!("no sketch {}", sketch.0)))?.plane)
 }
@@ -183,6 +268,10 @@ pub(super) fn translate(s: &mut Session, p: &Params) -> Result<Value> {
     let by = p.vec3("by")?;
     if let Some(sel) = selected_entities(s, p) {
         let pl = sketch_plane_of(s, sel.0)?;
+        // Off the sketch's plane: the curves take a plane of their own along with them.
+        if by.dot(pl.normal()).abs() > 1e-9 {
+            return lift_curves(s, sel, |pl| SketchPlane { origin: pl.origin + by, ..pl });
+        }
         let d = DVec2::new(by.dot(pl.x), by.dot(pl.y));
         return sketch_xform(s, sel, &[DAffine2::from_translation(d)], false, false);
     }
@@ -469,7 +558,15 @@ pub(super) fn rotate(s: &mut Session, p: &Params) -> Result<Value> {
         Axis::new(p.vec3("origin")?, p.vec3("axis")?)
     };
     if let Some(sel) = selected_entities(s, p) {
-        let m = sketch_rotation(&sketch_plane_of(s, sel.0)?, axis, p.f64("angle")?)?;
+        let pl = sketch_plane_of(s, sel.0)?;
+        let angle = p.f64("angle")?;
+        let dir = axis.dir.try_normalize().ok_or_else(|| EngineError::BadParams("axis must not be zero".into()))?;
+        // Turned about an axis across the sketch, the curves leave its plane.
+        if dir.cross(pl.normal()).length() > 1e-6 && angle.abs() > 1e-12 {
+            let q = glam::DQuat::from_axis_angle(dir, angle.to_radians());
+            return lift_curves(s, sel, |pl| SketchPlane { origin: axis.origin + q * (pl.origin - axis.origin), x: q * pl.x, y: q * pl.y });
+        }
+        let m = sketch_rotation(&pl, axis, angle)?;
         return sketch_xform(s, sel, &[m], false, false);
     }
     let angle = p.f64("angle")?.to_radians();

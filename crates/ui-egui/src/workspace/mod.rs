@@ -504,12 +504,14 @@ impl Workspace {
     /// a face or a body, Extrude alike).
     pub(crate) fn finish_live(&mut self) {
         let live = self.is_live();
+        // Sketch curves moved with the gizmo let go too.
+        let sketch_move = matches!(&self.tool, tools::Tool::Move(t) if t.items.is_empty() && t.faces.is_none() && t.edge.is_none());
         self.live_step = None;
         self.numeric = None;
         self.preview = None;
         self.predicted = false;
         self.tool = tools::Tool::Idle;
-        if live && self.session.active_sketch.is_none() {
+        if live && (self.session.active_sketch.is_none() || sketch_move) {
             self.session.selection.clear();
         }
     }
@@ -780,6 +782,7 @@ impl Workspace {
                     | Tool::Translate { .. }
                     | Tool::Align { .. }
                     | Tool::Onto(_)
+                    | Tool::Move(_)
             )
     }
 

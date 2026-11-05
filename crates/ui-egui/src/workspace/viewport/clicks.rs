@@ -623,7 +623,10 @@ impl Workspace {
                     Some(json!({ "plane": plane }))
                 } else {
                     match self.pick_at(c) {
-                        Some((Pick::Face { body, face }, _)) => Some(json!({ "body": body.0, "face": face })),
+                        // A curved face is no plane: the click does nothing, and the tool keeps waiting.
+                        Some((Pick::Face { body, face }, _)) => {
+                            Some(self.sketch_on_face_params(body, face).0).filter(|p| p.get("body").is_some())
+                        }
                         Some((Pick::Plane { plane }, _)) => Some(json!({ "construction": plane.0 })),
                         _ => {
                             let (o, d) = self.camera.ray(self.local(c), self.size());
@@ -911,6 +914,21 @@ impl Workspace {
                     return;
                 }
                 let hit = self.pick_at(c);
+                // Outside a sketch, a plain click on a shown sketch's curve opens that sketch with the curve picked, so
+                // its tools (Move/Rotate and the rest) act on it.
+                if let Some((p @ Pick::SketchEntity { sketch, .. }, _)) = hit
+                    && !shift
+                    && self.session.active_sketch.is_none()
+                    && (matches!(self.tool, Tool::Idle) || self.predicted)
+                {
+                    self.tool = Tool::Idle;
+                    self.predicted = false;
+                    self.preview = None;
+                    if self.open_sketch_in_place(sketch) {
+                        let _ = self.run("select", json!({ "picks": [p] }));
+                        return;
+                    }
+                }
                 self.last_hit = hit.map(|(_, at)| at);
                 // A body that is one face all round (a sphere) is picked whole by a plain click (26.202, s40-022).
                 let whole = awaiting.is_none() && (matches!(self.tool, Tool::Idle) || self.predicted);

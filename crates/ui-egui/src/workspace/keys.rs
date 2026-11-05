@@ -304,26 +304,8 @@ impl Workspace {
                     }
                     return;
                 }
-                // A curved face has no plane of its own: the origin plane facing the view most (s24-uw-curved-space).
-                let facing = || {
-                    let back = self.camera.back();
-                    let (x, y, z) = (back.x.abs(), back.y.abs(), back.z.abs());
-                    if z >= x && z >= y {
-                        (json!({ "plane": "xy" }), Some((glam::DVec3::ZERO, glam::DVec3::Z)))
-                    } else if y >= x {
-                        (json!({ "plane": "xz" }), Some((glam::DVec3::ZERO, glam::DVec3::Y)))
-                    } else {
-                        (json!({ "plane": "yz" }), Some((glam::DVec3::ZERO, glam::DVec3::X)))
-                    }
-                };
                 let (params, on) = match self.hover {
-                    Some(Pick::Face { body, face }) => {
-                        let fp = self.session.doc.body(body).and_then(|b| self.session.kernel.face_plane(&b.shape, face).ok().flatten());
-                        match fp {
-                            Some(fp) => (json!({ "body": body.0, "face": face }), Some((fp.origin, fp.normal))),
-                            None => facing(),
-                        }
-                    }
+                    Some(Pick::Face { body, face }) => self.sketch_on_face_params(body, face),
                     Some(Pick::Plane { plane }) => {
                         let pl = self.session.doc.plane(plane).map(|p| (p.plane.origin, p.plane.normal()));
                         (json!({ "construction": plane.0 }), pl)

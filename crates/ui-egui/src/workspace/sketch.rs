@@ -101,6 +101,9 @@ impl Workspace {
             || matches!(&self.tool, Tool::Fillet(t) if !t.chamfer) && self.is_live()
             // So does a pulled Offset Face or a live Move, of faces or bodies.
             || matches!(self.tool, Tool::OffsetFace(_) | Tool::Move(_)) && self.is_live()
+            // Move/Rotate started with M on something it doesn't come up for by itself (a sketch region): the idle
+            // set with Move/Rotate lit, Cancel at the bottom.
+            || matches!(self.tool, Tool::Move(_)) && !self.predicted && self.session.active_sketch.is_none()
     }
 
     /// A running tool whose ≡ opens a Parameter Card (step_card.rs) rather than an options menu.
@@ -205,12 +208,37 @@ impl Workspace {
         true
     }
 
+    /// Where a sketch "on" a face goes: on the face when it's flat. A curved face has no plane of its own, so the
+    /// origin plane facing the view most (Space or Sketch on Face over a cylinder's wall: Front).
+    /// Returns the sketch command's params and the plane's (origin, normal).
+    pub(crate) fn sketch_on_face_params(&self, body: ItemId, face: u32) -> (Value, Option<(glam::DVec3, glam::DVec3)>) {
+        let fp = self.session.doc.body(body).and_then(|b| self.session.kernel.face_plane(&b.shape, face).ok().flatten());
+        if let Some(fp) = fp {
+            return (json!({ "body": body.0, "face": face }), Some((fp.origin, fp.normal)));
+        }
+        let back = self.camera.back();
+        let (x, y, z) = (back.x.abs(), back.y.abs(), back.z.abs());
+        if z >= x && z >= y {
+            (json!({ "plane": "xy" }), Some((glam::DVec3::ZERO, glam::DVec3::Z)))
+        } else if y >= x {
+            (json!({ "plane": "xz" }), Some((glam::DVec3::ZERO, glam::DVec3::Y)))
+        } else {
+            (json!({ "plane": "yz" }), Some((glam::DVec3::ZERO, glam::DVec3::X)))
+        }
+    }
+
+    /// Sketch on Face (the right-click menu, or Sketch with a face picked): turns to the face and starts sketching on
+    /// it, or for a curved face on the origin plane facing the view.
+    pub(crate) fn sketch_on_face(&mut self, body: ItemId, face: u32) -> bool {
+        let (params, _) = self.sketch_on_face_params(body, face);
+        self.start_sketch_on(params)
+    }
+
     pub fn start_sketch_on(&mut self, params: Value) -> bool {
         let face = params.get("body").and_then(Value::as_u64).zip(params.get("face").and_then(Value::as_u64));
         if self.run("sketch", params).is_none() {
             return false;
         }
-        self.show_history = false;
         if let Some(sk) = self.session.active_sketch() {
             let plane = sk.plane;
             self.focus_plane(plane);

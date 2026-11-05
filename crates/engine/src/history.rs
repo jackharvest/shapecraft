@@ -200,7 +200,18 @@ impl Session {
         let entry = LogEntry { command: id.to_string(), params: params.clone(), selection, active_sketch, refs };
         let quiet = QUIET.contains(&id);
         let feat = feature(id);
-        let sketch = if feat.is_none() && !quiet { self.active_sketch.or(active_sketch) } else { None };
+        let open = self.active_sketch.or(active_sketch);
+        // Move, Rotate, Scale, Mirror and the Patterns on curves inside a sketch are edits of that sketch: no step of
+        // their own.
+        let sketch_edit = matches!(id, "translate" | "rotate" | "scale" | "mirror" | "pattern" | "pattern_circular")
+            && open.is_some()
+            && params.get("items").is_none()
+            && !entry.selection.is_empty()
+            && entry
+                .selection
+                .iter()
+                .all(|p| matches!(p, Pick::SketchEntity { .. } | Pick::Region { .. } | Pick::Sketch { .. } | Pick::SketchPoint { .. }));
+        let sketch = if (feat.is_none() || sketch_edit) && !quiet { open } else { None };
         if let Some(sk) = sketch {
             // Only the latest step grows: replaying in a different order could hand out different ids.
             let next = self.doc.next_id();

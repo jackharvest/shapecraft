@@ -353,7 +353,7 @@ pub(super) fn context_menu(ws: &mut Workspace, ui: &mut Ui, at: Pos2, under: Opt
         }
         "Sketch on Face" => match face {
             Some((b, f)) => {
-                ws.start_sketch_on(json!({ "body": b.0, "face": f }));
+                ws.sketch_on_face(b, f);
             }
             None => ws.start_tool(crate::workspace::toolbar::ToolKind::Sketch),
         },

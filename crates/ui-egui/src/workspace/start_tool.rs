@@ -111,14 +111,14 @@ impl Workspace {
         }
         let only_faces = !self.session.selection.is_empty() && self.session.selection.iter().all(|p| matches!(p, Pick::Face { .. }));
         match kind {
-            // M over faces, edges or regions waits for items to move, keeping the pick (s24 matrix).
-            // Faces of one body, or one straight edge, move on their own (the gizmo comes up at them).
+            // M over faces or edges waits for items to move, keeping the pick (s24 matrix). Faces of one body, or one
+            // straight edge, move on their own (the gizmo comes up at them); so do sketch regions.
             ToolKind::Move
                 if self.session.active_sketch.is_none()
                     && tools::picked_faces(&self.session).is_none()
                     && tools::MoveTool::from_selection(&self.session).is_none_or(|t| t.edge.is_none())
                     && !self.session.selection.is_empty()
-                    && self.session.selection.iter().all(|p| matches!(p, Pick::Face { .. } | Pick::Edge { .. } | Pick::Region { .. })) =>
+                    && self.session.selection.iter().all(|p| matches!(p, Pick::Face { .. } | Pick::Edge { .. })) =>
             {
                 self.predicted = false;
                 self.live_step = None;
@@ -156,7 +156,7 @@ impl Workspace {
         self.live_step = None;
         match kind {
             ToolKind::Sketch => {
-                // A selected flat face goes straight to sketching on it.
+                // A selected face goes straight to sketching on it (a curved one: on the origin plane facing the view).
                 let face = self.session.selection.iter().find_map(|p| match *p {
                     Pick::Face { body, face } => Some((body, face)),
                     _ => None,
@@ -166,7 +166,7 @@ impl Workspace {
                     _ => None,
                 });
                 if let Some((body, face)) = face {
-                    self.start_sketch_on(json!({ "body": body.0, "face": face }));
+                    self.sketch_on_face(body, face);
                 } else if let Some(plane) = plane {
                     self.start_sketch_on(json!({ "construction": plane.0 }));
                 } else {

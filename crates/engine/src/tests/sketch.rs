@@ -106,7 +106,59 @@ fn move_mirror_and_pattern_sketch_curves() {
     sel(&mut s, 0);
     s.execute("pattern_circular", &json!({"origin": [0, 0, 0], "axis": [0, 1, 0], "count": 4})).unwrap();
     assert_eq!(s.active_sketch().unwrap().entities.len(), 7);
-    assert!(s.execute("rotate", &json!({"origin": [0, 0, 0], "axis": [1, 0, 0], "angle": 90})).is_err(), "not around the normal");
+    // Turned about an axis across the sketch, the picked curve leaves for a sketch of its own on the turned plane.
+    s.execute("rotate", &json!({"origin": [0, 0, 0], "axis": [1, 0, 0], "angle": 90})).unwrap();
+    assert_eq!(s.doc.sketch(sk).unwrap().entities.len(), 6);
+    let turned = s.active_sketch().unwrap();
+    assert_ne!(turned.id, sk);
+    assert_eq!(turned.entities.len(), 1);
+    assert!(turned.plane.normal().cross(glam::DVec3::Z).length() < 1e-9, "the xz plane turned about x faces z");
+}
+
+#[test]
+fn curves_moved_off_their_plane_take_a_plane_along() {
+    use glam::DVec3;
+    let mut s = session();
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    let sk = s.active_sketch.unwrap();
+    s.execute("rectangle", &json!({"corner": [20, -10], "opposite": [40, 10]})).unwrap();
+    s.execute("circle", &json!({"center": [0, 0], "radius": 5})).unwrap();
+    let n = s.active_sketch().unwrap().entities.len() as u32;
+    let circle = n - 1;
+    let pick = |e: u32| json!({"kind": "sketch_entity", "sketch": sk.0, "entity": e});
+    // In-plane moves of curves stay in the sketch's own step (no Movement step of their own).
+    s.execute("select", &json!({"picks": [pick(circle)]})).unwrap();
+    s.execute("translate", &json!({"by": [1, 0, 0]})).unwrap();
+    assert_eq!(s.doc.history.len(), 1, "{:?}", s.doc.history.iter().map(|h| &h.label).collect::<Vec<_>>());
+    // Only the circle lifted: it goes to a new sketch 8 mm up, which is now the open one; the rectangle stays.
+    s.execute("select", &json!({"picks": [pick(circle)]})).unwrap();
+    let out = s.execute("translate", &json!({"by": [0, 0, 8]})).unwrap();
+    let new = s.active_sketch().unwrap();
+    assert_ne!(new.id, sk);
+    assert_eq!(out.value["name"], "Sketch 02");
+    assert_eq!(new.entities.len(), 1);
+    assert!((new.plane.origin - DVec3::new(0.0, 0.0, 8.0)).length() < 1e-9);
+    assert_eq!(s.doc.sketch(sk).unwrap().entities.len(), n as usize - 1);
+    assert!(s.selection.iter().all(|p| matches!(p, Pick::SketchEntity { sketch, .. } if *sketch == new.id)));
+    let labels: Vec<String> = s.doc.history.iter().map(|h| h.label.clone()).collect();
+    assert_eq!(labels, ["Sketch 01", "Sketch 02"]);
+    // Undo puts the circle back; redo (a replay) makes the same new sketch again.
+    s.execute("undo", &json!({})).unwrap();
+    assert_eq!(s.doc.sketches.len(), 1);
+    assert_eq!(s.doc.sketch(sk).unwrap().entities.len(), n as usize);
+    s.execute("redo", &json!({})).unwrap();
+    assert_eq!(s.doc.sketches.len(), 2);
+    // A whole sketch picked (Items) lifts as one: its plane moves, no new sketch.
+    let _ = s.execute("exit_sketching", &json!({}));
+    s.execute("select", &json!({"picks": [{"kind": "sketch", "sketch": sk.0}]})).unwrap();
+    s.execute("translate", &json!({"by": [0, 0, 3]})).unwrap();
+    assert_eq!(s.doc.sketches.len(), 2);
+    assert!((s.doc.sketch(sk).unwrap().plane.origin.z - 3.0).abs() < 1e-9);
+    // And a region picked outside its sketch moves its curves in the plane.
+    let before = s.doc.sketch(sk).unwrap().entities.clone();
+    s.execute("select", &json!({"picks": [{"kind": "region", "sketch": sk.0, "region": 0}]})).unwrap();
+    s.execute("translate", &json!({"by": [0, 5, 0]})).unwrap();
+    assert_ne!(s.doc.sketch(sk).unwrap().entities, before);
 }
 
 #[test]

@@ -2,9 +2,25 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.5.14-alpha
+## 0.5.15-alpha
 
-**What you push, pull or move stays highlighted where it went, and Done and Cancel leave a clean slate.**
+**Sketch on curved faces, Move/Rotate on sketches, and what you push, pull or move stays highlighted where it went.**
+
+### New
+- **Sketch on a curved face.** Space or Sketch on Face over a cylinder's wall (or any curved face) starts a sketch on
+  the origin plane facing you and turns to it, instead of saying it can't. Clicking a curved face while a sketch tool
+  waits for a plane does nothing, and the tool keeps waiting.
+- **Move/Rotate on sketches.** Pick a sketch profile and press M: the gizmo comes up on it. Clicking a sketch's curve
+  opens that sketch with the curve picked, and a sketch's row in Items opens it with all its curves picked, so
+  Move/Rotate and the other sketch tools act on them straight away.
+- **Lift sketch curves off their plane.** The gizmo on sketch curves now has all three arrows and turns. Moving or
+  turning every curve of a sketch carries its plane along; moving only some puts them in a new sketch on the moved
+  plane.
+
+### Changed
+- **Moving, turning, scaling, mirroring or patterning curves inside a sketch** is part of that sketch in History,
+  not a step of its own, and Done or Return after a move leaves nothing picked.
+- **The History sidebar stays open** when a sketch starts with Space or Sketch on Face.
 
 ### Fixed
 - **A face pushed or pulled with Offset Face, or moved with Move/Rotate, stays picked at its new place.** Before, the

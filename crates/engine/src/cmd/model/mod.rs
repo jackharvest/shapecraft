@@ -34,7 +34,9 @@ fn has_bodies(s: &Session) -> bool {
 
 /// Transforms also work on selected sketch curves.
 fn has_bodies_or_curves(s: &Session) -> bool {
-    has_bodies(s) || !s.doc.planes.is_empty() || s.selection.iter().any(|p| matches!(p, Pick::SketchEntity { .. } | Pick::Region { .. }))
+    has_bodies(s)
+        || !s.doc.planes.is_empty()
+        || s.selection.iter().any(|p| matches!(p, Pick::SketchEntity { .. } | Pick::Region { .. } | Pick::Sketch { .. }))
 }
 
 pub(super) fn commands() -> Vec<CommandSpec> {

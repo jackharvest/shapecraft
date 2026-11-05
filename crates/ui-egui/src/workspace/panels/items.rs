@@ -274,8 +274,24 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
                 None => pick_of(&ws.session.doc, id).into_iter().collect(),
             };
             let shift = ui.input(|i| i.modifiers.shift);
-            let _ = ws.run("select", json!({ "picks": picks, "add": shift }));
-            ws.predict_tool();
+            // A sketch's row opens it in place with all its curves picked, ready for Move/Rotate and the rest.
+            let sketch = ws.session.doc.sketch(id).filter(|_| !shift && !ws.visualizing && ws.drawings.is_none()).map(|k| k.entities.len());
+            let opened = sketch.is_some_and(|n| {
+                ws.end_model_tool();
+                if ws.session.active_sketch != Some(id) && ws.session.active_sketch.is_some() {
+                    let _ = ws.run("exit_sketching", json!({}));
+                }
+                let open = ws.session.active_sketch == Some(id) || ws.open_sketch_in_place(id);
+                if open {
+                    let all: Vec<Pick> = (0..n as u32).map(|entity| Pick::SketchEntity { sketch: id, entity }).collect();
+                    let _ = ws.run("select", json!({ "picks": all }));
+                }
+                open
+            });
+            if !opened {
+                let _ = ws.run("select", json!({ "picks": picks, "add": shift }));
+                ws.predict_tool();
+            }
             ws.items_focus = true;
         }
         if resp.double_clicked() {
