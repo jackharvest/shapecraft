@@ -3,6 +3,9 @@
 Thanks for helping. ShapeCraft aims to feel exactly like the app it follows, so the bar for UI changes is "it
 looks and behaves the same side by side"; the bar for code is "a newcomer finds it where they'd look for it".
 
+Every pull request is read and checked before it is merged, and accepted work is credited by your GitHub username
+in the [CHANGELOG](CHANGELOG.md).
+
 Start with [`docs/architecture.md`](docs/architecture.md): the crates, the command registry, and where each kind
 of change goes. Project rules are in [`AGENTS.md`](AGENTS.md) (clean room, never crash, layering).
 

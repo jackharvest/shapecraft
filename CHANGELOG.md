@@ -2,6 +2,20 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.5.16-alpha
+
+**Sketch text works on Linux systems with fonts outside the usual folders, and a Nix development shell. Thanks to
+[@eamondo2](https://github.com/eamondo2) for both.**
+
+### New
+- **Nix development shell.** `nix develop` (or `direnv allow` with nix-direnv) sets up the Rust toolchain,
+  OpenCASCADE and the window libraries on Linux. Thanks [@eamondo2](https://github.com/eamondo2) (#1).
+
+### Fixed
+- **Sketch text on NixOS, Guix and similar systems.** When none of the usual font files exist, the Text tool uses
+  the system's sans-serif font instead of drawing nothing, and shows that font's real name. Thanks
+  [@eamondo2](https://github.com/eamondo2) (#2).
+
 ## 0.5.15-alpha
 
 **Sketch on curved faces, Move/Rotate on sketches, and what you push, pull or move stays highlighted where it went.**
