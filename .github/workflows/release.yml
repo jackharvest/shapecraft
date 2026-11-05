@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: [macos-14, macos-15-intel]   # Apple silicon, Intel
+        runner: [macos-15, macos-15-intel]   # Apple silicon, Intel
     runs-on: ${{ matrix.runner }}
     env:
       MACOSX_DEPLOYMENT_TARGET: '13.0'
