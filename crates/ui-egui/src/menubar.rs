@@ -872,8 +872,10 @@ impl Menus {
 
     /// Menus drawn in the window catch their own shortcuts (nothing else would); the system's menu bar does that itself.
     pub fn take_shortcuts(&mut self, ctx: &egui::Context) {
-        if let Menus::Window(w) = self {
-            w.take_shortcuts(ctx);
+        match self {
+            #[cfg(target_os = "macos")]
+            Menus::Native(_) => {}
+            Menus::Window(w) => w.take_shortcuts(ctx),
         }
     }
 }
