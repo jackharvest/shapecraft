@@ -89,6 +89,19 @@ pub struct Settings {
     pub tablet_port: u16,
     pub tablet_network: bool,
     pub tablet_key: String,
+    /// Preferences ▸ Sync: the Work Folder projects save to (empty: Documents/ShapeCraft), and the backups, first
+    /// first: a cloud app's key (`cloud::Cloud::key`, so it follows that app's folder wherever it's moved) or
+    /// "folder:<path>" (a NAS, a drive, any folder). See `backup`.
+    pub work_folder: String,
+    pub backups: Vec<String>,
+    /// Each computer backs up into a folder of its own (off: computers sharing a Work Folder through a cloud app
+    /// share one backup too); how many older copies of each project a backup keeps; back up after every save
+    /// (otherwise on Save ⌘S, closing a project and quitting, which leaves a gap to go back to).
+    pub backup_per_computer: bool,
+    pub backup_versions: u32,
+    pub backup_after_change: bool,
+    /// The first-run setup (look, Work Folder, backups) was answered.
+    pub setup_done: bool,
 }
 
 impl Default for Settings {
@@ -138,6 +151,12 @@ impl Default for Settings {
             update_download: true,
             update_on_close: "Ask".into(),
             update_skip: String::new(),
+            work_folder: String::new(),
+            backups: Vec::new(),
+            backup_per_computer: true,
+            backup_versions: 10,
+            backup_after_change: false,
+            setup_done: false,
             import_mode: "Quality".into(),
             import_custom: [true; 4],
             import_skip_prefs: false,

@@ -442,7 +442,7 @@ pub(super) fn switcher(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
 }
 
 /// A centered dark dialog with a title; returns its rect.
-pub(super) fn dialog(ui: &mut Ui, full: Rect, size: egui::Vec2, title: &str) -> Rect {
+pub(crate) fn dialog(ui: &mut Ui, full: Rect, size: egui::Vec2, title: &str) -> Rect {
     let p = ui.painter();
     p.rect_filled(full, 0.0, Color32::from_black_alpha(90));
     let r = Rect::from_center_size(full.center(), size);
@@ -453,7 +453,7 @@ pub(super) fn dialog(ui: &mut Ui, full: Rect, size: egui::Vec2, title: &str) -> 
     r
 }
 
-pub(super) fn button(ui: &mut Ui, r: Rect, label: &str, primary: bool, id: &str) -> bool {
+pub(crate) fn button(ui: &mut Ui, r: Rect, label: &str, primary: bool, id: &str) -> bool {
     let resp = ui.interact(r, ui.scope_id().with(id), Sense::click());
     let fill = match (primary, resp.hovered()) {
         (true, false) => theme::c(0x2f55d4),

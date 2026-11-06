@@ -13,7 +13,7 @@ mod camera;
 mod commands;
 mod constraints;
 mod decals;
-mod drawings;
+pub(crate) mod drawings;
 pub mod export;
 mod history;
 pub mod import_prefs;

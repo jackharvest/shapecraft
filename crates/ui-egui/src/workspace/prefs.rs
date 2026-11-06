@@ -286,8 +286,8 @@ fn small_button(ui: &mut Ui, at: Pos2, id: &str, text: &str) -> bool {
     resp.clicked()
 }
 
-/// Preferences (⌘,). General is as observed; ShapeCraft, Plugins and Sync are ours (Account stays greyed: there are no
-/// accounts). Changes apply at once and are saved by the app.
+/// Preferences (⌘,). General is as observed; ShapeCraft, Tablet, Plugins and Sync are ours (no Account tab: there are
+/// no accounts). Changes apply at once and are saved by the app.
 fn preferences(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     let mut s = ws.settings.clone();
     let out = window(ui, full, &mut ws.prefs_tab, &mut s, true);
@@ -322,8 +322,7 @@ pub(crate) fn window(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings,
         ("ShapeCraft", Icon::Gear, true),
         ("Tablet", Icon::Tablet, true),
         ("Plugins", Icon::Insert, true),
-        ("Sync", Icon::Recents, true),
-        ("Account", Icon::Projects, false),
+        ("Sync", Icon::Cloud, true),
     ];
     let middle = (tabs.len() as f32 - 1.0) / 2.0;
     for (k, (label, icon, enabled)) in tabs.into_iter().enumerate() {
@@ -352,7 +351,7 @@ pub(crate) fn window(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings,
         1 => shapecraft_tab(ui, r, s),
         2 => tablet_tab(ui, r, s),
         3 => plugins_tab(ui, r),
-        4 => sync_tab(ui, r),
+        4 => sync_tab(ui, r, s),
         _ => (customize, presets) = general_tab(ui, r, s, shortcuts),
     }
     let footer = Rect::from_min_max(pos2(r.left(), r.bottom() - 52.0), r.max);
@@ -602,27 +601,352 @@ fn plugins_tab(ui: &mut Ui, r: Rect) {
     );
 }
 
-/// There is no ShapeCraft cloud; this lists the storage services planned instead. None of them connect yet.
-fn sync_tab(ui: &mut Ui, r: Rect) {
+/// Preferences ▸ Sync: the cloud storage apps on this computer (see `crate::cloud`). ShapeCraft saves into their
+/// folders and they do the syncing; this shows which are set up, which locations the projects screen lists, any
+/// folders added by hand, and where new projects go.
+fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
+    use crate::backup::{self, Target};
+    use crate::cloud::{self, State};
     let p = ui.painter().clone();
-    let mut y = r.top() + 100.0;
-    p.text(pos2(r.center().x, y), Align2::CENTER_CENTER, "Your projects stay on this computer.", theme::body(12.5), Tokens::text_strong());
-    y += 20.0;
-    p.text(
-        pos2(r.center().x, y),
-        Align2::CENTER_CENTER,
-        "Connecting your own cloud storage is planned.",
-        theme::body(11.0),
-        Tokens::text_dim(),
-    );
-    y += 22.0;
-    for name in ["Google Drive", "OneDrive", "Dropbox", "iCloud Drive"] {
-        p.line_segment([pos2(r.left() + 90.0, y), pos2(r.right() - 90.0, y)], Stroke::new(1.0, Tokens::chip_border()));
-        y += 22.0;
-        p.text(pos2(r.left() + 100.0, y), Align2::LEFT_CENTER, name, theme::body(12.5), Tokens::text_faint());
-        p.text(pos2(r.right() - 100.0, y), Align2::RIGHT_CENTER, "Planned", theme::body(10.5), Tokens::text_faint());
-        y += 22.0;
+    let sep = |y: f32| p.line_segment([pos2(r.left() + 20.0, y), pos2(r.right() - 20.0, y)], Stroke::new(1.0, Tokens::chip_border()));
+    let heading =
+        |y: f32, text: &str| p.text(pos2(r.left() + 28.0, y), Align2::LEFT_CENTER, text, theme::strong(11.0), Tokens::text_faint());
+    // One line of small grey text, cut short with … when it doesn't fit.
+    let detail = |ui: &mut Ui, at: Pos2, text: String, width: f32, color: Color32| {
+        let mut job = egui::text::LayoutJob::simple_singleline(text, theme::body(10.5), color);
+        job.wrap = egui::text::TextWrapping { max_width: width, max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
+        let g = ui.fonts_mut(|f| f.layout_job(job));
+        ui.painter().galley(at, g, color);
+    };
+    let detector = cloud::detector();
+    let found = detector.found();
+    if found.is_none() && !detector.busy() {
+        let ctx = ui.ctx().clone();
+        detector.refresh(move || ctx.request_repaint());
     }
+    let mut y = r.top() + 92.0;
+    for line in [
+        "Projects save to your Work Folder as you go. Backups keep a copy",
+        "in your cloud storage, a NAS or another drive, kept up to date.",
+    ] {
+        p.text(pos2(r.center().x, y), Align2::CENTER_CENTER, line, theme::body(11.0), Tokens::text_dim());
+        y += 16.0;
+    }
+    y += 6.0;
+    sep(y);
+    y += 24.0;
+    if crate::tablet::on_tablet() {
+        p.text(
+            pos2(r.center().x, y + 10.0),
+            Align2::CENTER_CENTER,
+            "Set up the Work Folder and backups on the computer that runs ShapeCraft.",
+            theme::body(12.0),
+            Tokens::text_strong(),
+        );
+        return;
+    }
+    let left = r.left() + 40.0;
+    let right = r.right() - 30.0;
+    let found = found.unwrap_or_default();
+
+    // The Work Folder: where autosave writes. Usually on this computer; a network folder works, more slowly.
+    heading(y, "WORK FOLDER");
+    y += 24.0;
+    let work = backup::work().unwrap_or_else(|| {
+        if s.work_folder.is_empty() { crate::app::Options::default_root() } else { std::path::PathBuf::from(&s.work_folder) }
+    });
+    icons::paint(&p, Rect::from_center_size(pos2(left - 12.0, y), vec2(15.0, 15.0)), Icon::Folder, Tokens::icon_blue());
+    let name = work.file_name().map_or_else(|| work.display().to_string(), |n| n.to_string_lossy().into_owned());
+    p.text(pos2(left + 4.0, y), Align2::LEFT_CENTER, name, theme::strong(12.5), Tokens::text_strong());
+    detail(ui, pos2(left + 4.0, y + 9.0), crate::landing::shorten_home(&work), right - left - 150.0, Tokens::text_dim());
+    let pending_id = ui.scope_id().with("sync-work-pending");
+    let mut pending: Option<std::path::PathBuf> = ui.data(|d| d.get_temp(pending_id)).flatten();
+    if small_button(ui, pos2(right - 136.0, y + 2.0), "sync-work-change", "Change…")
+        && let Some(dir) = rfd::FileDialog::new().set_title("Choose your Work Folder").set_directory(&work).pick_folder()
+        && dir != work
+    {
+        pending = Some(dir);
+    }
+    if small_button(ui, pos2(right - 62.0, y + 2.0), "sync-work-show", "Show") {
+        crate::landing::reveal(&work);
+    }
+    y += 34.0;
+    // Where it is says something worth knowing: synced by a cloud app already, or across the network.
+    let in_cloud = found.ready().find(|c| work.starts_with(&c.root)).map(|c| c.provider);
+    let documents = found.documents_synced_by.filter(|_| dirs::document_dir().is_some_and(|d| work.starts_with(d)));
+    let note = if let Some(by) = in_cloud {
+        Some(format!(
+            "In {}: every computer that uses this folder has the same projects and Recents. You're warned before opening a project \
+             that's open on another computer.",
+            by.name()
+        ))
+    } else if let Some(by) = documents {
+        Some(format!("{} syncs this folder too. Projects open fastest when it keeps them downloaded on this computer.", by.name()))
+    } else if on_network(&work) {
+        Some("A network folder: saving waits on the network, and projects can't open while it's away.".to_string())
+    } else {
+        None
+    };
+    if let Some(n) = note {
+        let g = p.layout(n, theme::body(10.5), Tokens::text_dim(), right - left);
+        let h = g.size().y;
+        p.galley(pos2(left + 4.0, y - 8.0), g, Tokens::text_dim());
+        y += h + 6.0;
+    }
+    if let Some(to) = pending.clone() {
+        let ask = format!("Bring your projects to {}?", crate::landing::shorten_home(&to));
+        detail(ui, pos2(left + 4.0, y - 6.0), ask, right - left - 250.0, Tokens::accent());
+        if small_button(ui, pos2(right - 250.0, y + 2.0), "sync-work-move", "Move Them") {
+            backup::request_switch(to.clone(), true);
+            pending = None;
+        } else if small_button(ui, pos2(right - 160.0, y + 2.0), "sync-work-leave", "Leave Them") {
+            backup::request_switch(to.clone(), false);
+            pending = None;
+        } else if small_button(ui, pos2(right - 66.0, y + 2.0), "sync-work-cancel", "Cancel") {
+            pending = None;
+        }
+        y += 30.0;
+    } else {
+        let note = backup::note();
+        if !note.is_empty() {
+            detail(ui, pos2(left + 4.0, y - 8.0), note, right - left, Tokens::accent());
+            y += 18.0;
+        }
+    }
+    ui.data_mut(|d| d.insert_temp(pending_id, pending));
+    y += 4.0;
+    sep(y);
+    y += 24.0;
+
+    // The backups, first first: the first is brought up to date first, and is where Restore looks first.
+    heading(y, "BACKUPS");
+    y += 24.0;
+    let jobs = backup::backups();
+    let mut action: Option<(usize, i32)> = None;
+    if s.backups.is_empty() {
+        detail(ui, pos2(left + 4.0, y - 6.0), "None yet. Add one below.".into(), right - left, Tokens::text_dim());
+        y += 26.0;
+    }
+    for (k, b) in s.backups.iter().enumerate() {
+        let t = Target::parse(b);
+        let root = t.root(&found);
+        p.text(pos2(left - 26.0, y), Align2::CENTER_CENTER, format!("{}", k + 1), theme::strong(11.0), Tokens::text_faint());
+        let icon = if t.is_cloud() { Icon::Cloud } else { Icon::Folder };
+        icons::paint(&p, Rect::from_center_size(pos2(left - 6.0, y), vec2(15.0, 15.0)), icon, Tokens::icon_blue());
+        p.text(pos2(left + 8.0, y), Align2::LEFT_CENTER, t.label(&found), theme::strong(12.5), Tokens::text_strong());
+        let st = jobs.status(b);
+        let (line, col) = match (&root, &st) {
+            (None, _) if detector.busy() => ("Looking for it…".to_string(), Tokens::text_dim()),
+            (None, _) => ("Its app isn't signed in on this computer.".to_string(), Tokens::danger()),
+            (_, backup::Status { busy: Some((d, n)), .. }) if *n > 0 => (format!("Backing up… {d} of {n}"), Tokens::accent()),
+            (_, backup::Status { busy: Some(_), .. }) => ("Backing up…".to_string(), Tokens::accent()),
+            (_, backup::Status { problem: Some(e), .. }) => (e.clone(), Tokens::danger()),
+            (Some(_), backup::Status { done: Some(t), .. }) => (format!("Up to date · backed up {}", backup::ago(*t)), Tokens::text_dim()),
+            (Some(root), _) => (crate::landing::shorten_home(&backup::dest(root, s.backup_per_computer)), Tokens::text_dim()),
+        };
+        detail(ui, pos2(left + 8.0, y + 9.0), line, right - left - 200.0, col);
+        if k > 0 && small_button(ui, pos2(right - 188.0, y + 2.0), &format!("sync-up-{k}"), "Up") {
+            action = Some((k, -1));
+        }
+        if k + 1 < s.backups.len() && small_button(ui, pos2(right - 142.0, y + 2.0), &format!("sync-down-{k}"), "Down") {
+            action = Some((k, 1));
+        }
+        if small_button(ui, pos2(right - 68.0, y + 2.0), &format!("sync-remove-{k}"), "Remove") {
+            action = Some((k, 0));
+        }
+        y += 44.0;
+    }
+    match action {
+        Some((k, 0)) => {
+            s.backups.remove(k);
+        }
+        Some((k, d)) => s.backups.swap(k, (k as i32 + d) as usize),
+        None => {}
+    }
+    if jobs.busy() {
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+    }
+    // Add: each signed-in cloud not in the list yet, or any folder (a NAS share, another drive).
+    let adding_id = ui.scope_id().with("sync-adding");
+    let mut adding: bool = ui.data(|d| d.get_temp(adding_id)).unwrap_or(false);
+    if small_button(ui, pos2(left - 20.0, y - 4.0), "sync-add", if adding { "Done Adding" } else { "Add Backup…" }) {
+        adding = !adding;
+    }
+    if !s.backups.is_empty() && small_button(ui, pos2(right - 104.0, y - 4.0), "sync-now", "Back Up Now") {
+        jobs.now();
+    }
+    y += 26.0;
+    if adding {
+        let mut x = left - 20.0;
+        let free: Vec<(String, String)> = found.ready().filter(|c| !s.backups.contains(&c.key())).map(|c| (c.key(), c.label())).collect();
+        for (key, label) in free {
+            let text = format!("+ {label}");
+            let w = p.layout_no_wrap(text.clone(), theme::body(12.0), Tokens::text_strong()).size().x + 26.0;
+            if x + w > right {
+                x = left - 20.0;
+                y += 26.0;
+            }
+            if small_button(ui, pos2(x, y), &format!("sync-add-{key}"), &text) {
+                s.backups.push(key);
+            }
+            x += w;
+        }
+        if x + 150.0 > right {
+            x = left - 20.0;
+            y += 26.0;
+        }
+        if small_button(ui, pos2(x, y), "sync-add-folder", "+ Folder or NAS…")
+            && let Some(dir) = rfd::FileDialog::new().set_title("Choose a folder to back up to").pick_folder()
+        {
+            let setting = Target::Folder(dir.clone()).setting();
+            if dir.starts_with(&work) || work.starts_with(&dir) {
+                backup::set_note("A backup can't be inside the Work Folder (or hold it).".into());
+            } else if !s.backups.contains(&setting) {
+                s.backups.push(setting);
+            }
+        }
+        y += 28.0;
+    }
+    ui.data_mut(|d| d.insert_temp(adding_id, adding));
+    // When, how far back, and whose: how the backups are made.
+    let col = r.left() + 210.0;
+    row_label(&p, col, y, "Back Up:");
+    let whens = ["When I Save, Close or Quit", "After Every Change"];
+    let mut when = whens[s.backup_after_change as usize].to_string();
+    popup(ui, pos2(col, y), 220.0, "pref-sync-when", &mut when, &whens);
+    s.backup_after_change = when == whens[1];
+    y += 28.0;
+    row_label(&p, col, y, "Keep Older Versions:");
+    let keeps = ["Off", "5", "10", "25", "50"];
+    let mut keep = if s.backup_versions == 0 { "Off".to_string() } else { s.backup_versions.to_string() };
+    if !keeps.contains(&keep.as_str()) {
+        keep = "10".into();
+    }
+    popup(ui, pos2(col, y), 80.0, "pref-sync-keep", &mut keep, &keeps);
+    s.backup_versions = keep.parse().unwrap_or(0);
+    y += 28.0;
+    check(ui, pos2(col, y), "pref-sync-per-pc", &mut s.backup_per_computer, "A Folder for Each Computer");
+    y += 16.0;
+    let why = if s.backup_per_computer {
+        format!("This computer backs up into ShapeCraft Backups/{}.", backup::computer_name())
+    } else {
+        "Computers sharing a Work Folder share one backup too.".to_string()
+    };
+    detail(ui, pos2(col + 22.0, y - 4.0), why, right - col - 22.0, Tokens::text_dim());
+    y += 18.0;
+    sep(y);
+    y += 24.0;
+
+    // What's on this computer: each cloud storage app and whether it can take a backup.
+    heading(y, "CLOUD STORAGE ON THIS COMPUTER");
+    y += 22.0;
+    if found.clouds.is_empty() {
+        p.text(pos2(left + 4.0, y), Align2::LEFT_CENTER, "Looking…", theme::body(12.0), Tokens::text_dim());
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
+        return;
+    }
+    let mut refresh = false;
+    for (k, c) in found.clouds.iter().enumerate() {
+        let ready = c.state == State::Ready;
+        icons::paint(
+            &p,
+            Rect::from_center_size(pos2(left - 12.0, y), vec2(15.0, 15.0)),
+            Icon::Cloud,
+            if ready { Tokens::icon_blue() } else { Tokens::text_faint() },
+        );
+        p.text(
+            pos2(left + 4.0, y),
+            Align2::LEFT_CENTER,
+            c.label(),
+            theme::strong(12.0),
+            if ready { Tokens::text_strong() } else { Tokens::text() },
+        );
+        let text = match c.state {
+            State::Ready => crate::landing::shorten_home(&c.root),
+            State::NotSignedIn if c.provider == cloud::Provider::ICloud && cfg!(target_os = "macos") => {
+                "Turn on iCloud Drive in System Settings ▸ Apple Account ▸ iCloud.".to_string()
+            }
+            State::NotSignedIn => format!("Installed. Open {} and sign in.", c.provider.name()),
+            State::NotInstalled => "Not on this computer.".to_string(),
+            State::Unsupported => "No official app for Linux. Its folder from rclone or Insync can be added as a folder.".to_string(),
+        };
+        detail(ui, pos2(left + 4.0, y + 8.0), text, right - left - 250.0, Tokens::text_dim());
+        let id = format!("sync-cloud-{k}");
+        match c.state {
+            State::Ready if work.starts_with(&c.root) => tag(&p, right, y, "Work Folder"),
+            State::Ready => {
+                if s.backups.contains(&c.key()) {
+                    tag(&p, right, y, "Backing Up");
+                } else if small_button(ui, pos2(right - 92.0, y + 2.0), &id, "Back Up Here") {
+                    s.backups.push(c.key());
+                }
+                // Same projects on every computer: the Work Folder in this app's folder.
+                if small_button(ui, pos2(right - 186.0, y + 2.0), &format!("{id}-work"), "Work Here") {
+                    s.backups.retain(|b| *b != c.key());
+                    let to = c.root.join("ShapeCraft");
+                    ui.data_mut(|d| d.insert_temp(pending_id, Some(to)));
+                }
+            }
+            State::NotInstalled => {
+                let label = format!("Get {}", c.provider.name());
+                let w = p.layout_no_wrap(label.clone(), theme::body(12.0), Tokens::text_strong()).size().x + 18.0;
+                if small_button(ui, pos2(right - w, y + 2.0), &id, &label) {
+                    crate::landing::open_link(c.provider.download_url());
+                }
+            }
+            State::NotSignedIn => {
+                if small_button(ui, pos2(right - 84.0, y + 2.0), &id, "Check Again") {
+                    refresh = true;
+                }
+            }
+            // A tag, not a button: there's nothing to get for this system.
+            State::Unsupported => tag(&p, right, y, "Not Supported"),
+        }
+        y += 34.0;
+    }
+    if small_button(ui, pos2(right - 84.0, y - 2.0), "sync-refresh", "Check Again") {
+        refresh = true;
+    }
+    if refresh && !detector.busy() {
+        let ctx = ui.ctx().clone();
+        detector.refresh(move || ctx.request_repaint());
+    }
+}
+
+/// A small outlined label at the right of a row ("Not Supported", "Backing Up").
+fn tag(p: &egui::Painter, right: f32, y: f32, text: &str) {
+    let g = p.layout_no_wrap(text.into(), theme::body(11.0), Tokens::text_dim());
+    let r = Rect::from_min_size(pos2(right - g.size().x - 16.0, y - 7.0), vec2(g.size().x + 16.0, 20.0));
+    p.rect_stroke(r, 10.0, Stroke::new(1.0, Tokens::text_dim().gamma_multiply(0.5)), egui::StrokeKind::Inside);
+    p.galley(pos2(r.left() + 8.0, r.center().y - g.size().y / 2.0), g, Tokens::text_dim());
+}
+
+/// Whether a folder is on another computer (a mounted share, a \\server\share path, an SMB/NFS mount).
+fn on_network(dir: &std::path::Path) -> bool {
+    let s = dir.to_string_lossy();
+    if s.starts_with(r"\\") || s.starts_with("//") {
+        return true;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        // Mounted shares sit in /Volumes; local drives there say so in their mount table entry.
+        if let Ok(out) = std::process::Command::new("/sbin/mount").output() {
+            let text = String::from_utf8_lossy(&out.stdout);
+            return text.lines().any(|l| {
+                let Some((_, rest)) = l.split_once(" on ") else { return false };
+                let Some((point, kind)) = rest.split_once(" (") else { return false };
+                point != "/" && dir.starts_with(point) && ["smbfs", "nfs", "afpfs", "webdav"].iter().any(|k| kind.starts_with(k))
+            });
+        }
+    }
+    #[cfg(target_os = "linux")]
+    if let Ok(text) = std::fs::read_to_string("/proc/mounts") {
+        return text.lines().any(|l| {
+            let f: Vec<&str> = l.split_whitespace().collect();
+            f.len() > 2 && f[1] != "/" && dir.starts_with(f[1]) && ["cifs", "smb3", "nfs", "nfs4", "sshfs", "fuse.sshfs"].contains(&f[2])
+        });
+    }
+    false
 }
 
 /// The General tab, as observed. Returns whether Keyboard Shortcuts or Navigation Presets was pressed.

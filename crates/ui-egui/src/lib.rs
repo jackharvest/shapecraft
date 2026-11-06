@@ -4,6 +4,8 @@
 #![forbid(unsafe_code)]
 
 mod app;
+pub mod backup;
+pub mod cloud;
 pub mod control;
 pub mod crash_log;
 pub mod folder_access;
@@ -14,6 +16,7 @@ mod landing;
 pub mod menubar;
 pub(crate) mod onboarding;
 pub mod settings;
+pub mod setup;
 pub mod system_theme;
 pub mod tablet;
 pub mod theme;

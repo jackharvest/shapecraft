@@ -190,6 +190,14 @@ pub struct ShapeCraftApp {
     tablet_opts: Option<Options>,
     /// The tablet host as last set up: port, open to the network, and the host (None if it couldn't start).
     tablet: Option<(u16, bool, String, Option<crate::tablet::Host>)>,
+    /// What the backup thread was last told: the Work Folder and each backup with its folder now.
+    backup_sent: Option<(PathBuf, crate::backup::Targets, crate::backup::Plan)>,
+    /// The open project's "open on this computer" mark (for other computers sharing the folder), and when it was renewed.
+    marked: Option<(PathBuf, std::time::Instant)>,
+    /// Asking before opening a project another computer has open: it, that computer, and how long ago it was seen.
+    ask_open: Option<(PathBuf, String, std::time::Duration)>,
+    /// The first-run setup (look, Work Folder, backups), while it's showing.
+    setup: Option<crate::setup::Setup>,
 }
 
 impl ShapeCraftApp {
@@ -201,15 +209,19 @@ impl ShapeCraftApp {
             next: 0,
             dir: std::env::temp_dir().join(format!("shapecraft-tablet-files-{}", std::process::id())),
         });
+        let settings = opts.settings_file.as_deref().map(crate::settings::Settings::load).unwrap_or_default();
+        // Preferences ▸ Sync ▸ Work Folder, unless this run was given its own ($SHAPECRAFT_PROJECTS, tests).
+        let named = opts.projects_root != Options::default_root() || Options::legacy_root().is_none();
+        let root = if named || settings.work_folder.is_empty() { opts.projects_root.clone() } else { PathBuf::from(&settings.work_folder) };
         // The desktop app opens its window before touching the projects folder (macOS may ask first); snapshots and
         // tests settle it right here.
         let folder = if opts.native_menu {
             let ctx = ctx.clone();
-            let legacy = if opts.projects_root == Options::default_root() { Options::legacy_root() } else { None };
-            crate::folder_access::FolderAccess::start(opts.projects_root.clone(), legacy, move || ctx.request_repaint())
+            let legacy = if root == Options::default_root() { Options::legacy_root() } else { None };
+            crate::folder_access::FolderAccess::start(root.clone(), legacy, move || ctx.request_repaint())
         } else {
-            let _ = std::fs::create_dir_all(&opts.projects_root);
-            crate::folder_access::FolderAccess::ready(opts.projects_root.clone())
+            let _ = std::fs::create_dir_all(&root);
+            crate::folder_access::FolderAccess::ready(root.clone())
         };
         let control = opts.control_port.and_then(|port| {
             let ctx = ctx.clone();
@@ -232,7 +244,12 @@ impl ShapeCraftApp {
         } else {
             None
         };
-        let settings = opts.settings_file.as_deref().map(crate::settings::Settings::load).unwrap_or_default();
+        // Backing up to a cloud app: find its folder now (off this thread). Otherwise nothing looks until Preferences ▸
+        // Sync opens, since the first look may make macOS ask about access to them.
+        if opts.settings_file.is_some() && settings.backups.iter().any(|b| crate::backup::Target::parse(b).is_cloud()) {
+            let ctx = ctx.clone();
+            crate::cloud::detector().refresh(move || ctx.request_repaint());
+        }
         let updating = opts.native_menu;
         if updating {
             let ctx = ctx.clone();
@@ -259,7 +276,11 @@ impl ShapeCraftApp {
             updating,
             updates: Default::default(),
             kernel,
-            landing: Landing::new(opts.projects_root),
+            landing: Landing::new(root),
+            backup_sent: None,
+            marked: None,
+            ask_open: None,
+            setup: None,
             folder,
             new_parent: None,
             ws: None,
@@ -408,7 +429,7 @@ impl ShapeCraftApp {
 
     /// Projects save themselves, like the reference app; ours go to a folder on disk.
     fn save(&mut self) {
-        let root = self.new_parent.clone().unwrap_or_else(|| self.landing.root.clone());
+        let root = self.new_parent.clone().unwrap_or_else(|| self.landing.default_dir());
         let folder_ready = self.folder.is_ready();
         let Some(ws) = self.ws.as_deref_mut() else { return };
         // A new project waits for the projects folder (macOS may still be asking); it stays unsaved till then.
@@ -429,6 +450,184 @@ impl ShapeCraftApp {
         write_thumbnail(ws, &dir);
         self.saved_generation = ws.session.revision;
         self.landing.rescan();
+        crate::backup::backups().changed();
+    }
+
+    /// Opens a project, asking first when another computer sharing the folder has it open (both saving it makes two
+    /// versions the sync app keeps side by side).
+    fn open_checked(&mut self, dir: PathBuf) {
+        let me = crate::backup::computer_name();
+        match project::open_elsewhere(&dir, &me, std::time::Duration::from_secs(180)) {
+            Some((who, ago)) => self.ask_open = Some((dir, who, ago)),
+            None => self.open(dir),
+        }
+    }
+
+    /// The open-elsewhere question, over the projects screen.
+    fn ask_open_dialog(&mut self, ui: &mut egui::Ui) {
+        use crate::workspace::drawings::{button, dialog};
+        let Some((dir, who, ago)) = self.ask_open.clone() else { return };
+        let full = ui.ctx().content_rect();
+        let mut answer = None;
+        egui::Area::new(ui.scope_id().with("ask-open")).order(egui::Order::Foreground).fixed_pos(full.min).show(ui.ctx(), |ui| {
+            let _ = ui.allocate_rect(full, egui::Sense::click());
+            let r = dialog(ui, full, egui::vec2(430.0, 150.0), &format!("“{}” is open on {who}", project_name(&dir)));
+            let mins = ago.as_secs() / 60;
+            let when = if mins == 0 { "less than a minute ago".to_string() } else { format!("{mins} min ago") };
+            let p = ui.painter();
+            for (k, line) in
+                [format!("{who} was working on it {when}."), "If both computers change it, you'll end up with two versions.".to_string()]
+                    .iter()
+                    .enumerate()
+            {
+                p.text(
+                    egui::pos2(r.left() + 16.0, r.top() + 52.0 + 18.0 * k as f32),
+                    egui::Align2::LEFT_CENTER,
+                    line,
+                    crate::theme::body(12.0),
+                    crate::theme::Tokens::text(),
+                );
+            }
+            let b = |x: f32| egui::Rect::from_min_size(egui::pos2(r.right() - x, r.bottom() - 42.0), egui::vec2(110.0, 28.0));
+            if button(ui, b(244.0), "Cancel", false, "ask-open-cancel") {
+                answer = Some(false);
+            }
+            if button(ui, b(124.0), "Open Anyway", true, "ask-open-go") {
+                answer = Some(true);
+            }
+        });
+        if let Some(go) = answer {
+            self.ask_open = None;
+            if go {
+                self.open(dir);
+            }
+        }
+    }
+
+    /// Keeps the open project's mark fresh, and takes it away when the project closes.
+    fn keep_mark(&mut self) {
+        let me = crate::backup::computer_name();
+        let open = self.ws.as_ref().and_then(|w| w.session.path.clone());
+        match (&self.marked, open) {
+            (Some((dir, at)), Some(now)) if *dir == now => {
+                if at.elapsed() > std::time::Duration::from_secs(60) {
+                    project::mark_open(&now, &me);
+                    self.marked = Some((now, std::time::Instant::now()));
+                }
+            }
+            (old, now) => {
+                if let Some((dir, _)) = old {
+                    project::mark_closed(dir, &me);
+                }
+                if let Some(dir) = &now {
+                    project::mark_open(dir, &me);
+                }
+                self.marked = now.map(|d| (d, std::time::Instant::now()));
+            }
+        }
+    }
+
+    /// Tells the backup thread what to back up where, when that changed, and shows the backups on the projects screen.
+    fn keep_backups(&mut self, ctx: &egui::Context) {
+        use crate::backup::{BACKUPS_DIR, Target, backups};
+        if let Some(sw) = crate::backup::take_switch() {
+            self.switch_work_folder(sw.to, sw.bring);
+        }
+        crate::backup::set_work(&self.landing.root);
+        if self.settings_file.is_some() {
+            self.keep_mark();
+        }
+        let detector = crate::cloud::detector();
+        let found = detector.found();
+        if found.is_none() && self.settings.backups.iter().any(|b| Target::parse(b).is_cloud()) {
+            if !detector.busy() {
+                let ctx = ctx.clone();
+                detector.refresh(move || ctx.request_repaint());
+            }
+            return;
+        }
+        let found = found.unwrap_or_default();
+        let targets: crate::backup::Targets = self.settings.backups.iter().map(|b| (b.clone(), Target::parse(b).root(&found))).collect();
+        let plan = crate::backup::Plan {
+            per_computer: self.settings.backup_per_computer,
+            versions: self.settings.backup_versions,
+            after_change: self.settings.backup_after_change,
+        };
+        let setup = (self.landing.root.clone(), targets, plan);
+        if self.backup_sent.as_ref() != Some(&setup) {
+            if !setup.1.is_empty() || self.backup_sent.is_some() {
+                let state = self.settings_file.as_ref().map(|f| f.with_file_name("backups.json"));
+                let ctx = ctx.clone();
+                backups().setup(setup.0.clone(), setup.1.clone(), state, setup.2.clone(), move || ctx.request_repaint());
+            }
+            self.backup_sent = Some(setup);
+        }
+        let places = self
+            .settings
+            .backups
+            .iter()
+            .filter_map(|b| {
+                let t = Target::parse(b);
+                let root = t.root(&found)?;
+                Some(crate::landing::Place { label: t.label(&found), dir: root.join(BACKUPS_DIR), cloud: t.is_cloud() })
+            })
+            .collect();
+        self.landing.set_places(places);
+    }
+
+    /// Makes `to` the Work Folder (Preferences ▸ Sync), bringing the projects from the old one when asked. The open
+    /// project is saved first and keeps working from where it moved to.
+    fn switch_work_folder(&mut self, to: PathBuf, bring: bool) {
+        let from = self.landing.root.clone();
+        if to == from {
+            return;
+        }
+        if to.starts_with(&from) || from.starts_with(&to) {
+            crate::backup::set_note("Pick a folder that isn't inside the Work Folder (or holding it).".into());
+            return;
+        }
+        if let Err(e) = std::fs::create_dir_all(&to) {
+            crate::backup::set_note(format!("Couldn't use {}: {e}", to.display()));
+            return;
+        }
+        let mut note = format!("Projects now save to {}.", crate::landing::shorten_home(&to));
+        if bring {
+            if self.ws.as_ref().is_some_and(|w| w.session.dirty) {
+                self.save();
+            }
+            let open = self.ws.as_ref().and_then(|w| w.session.path.clone());
+            let items: Vec<PathBuf> = std::fs::read_dir(&from)
+                .map(|rd| {
+                    rd.flatten()
+                        .filter(|e| !e.file_name().to_string_lossy().starts_with('.') && e.path().is_dir())
+                        .map(|e| e.path())
+                        .collect()
+                })
+                .unwrap_or_default();
+            let (mut moved, mut failed) = (0, Vec::new());
+            for item in items {
+                match project::move_to(&item, &to) {
+                    Ok(new) => {
+                        moved += 1;
+                        if let Some(ws) = self.ws.as_deref_mut()
+                            && let Some(o) = open.as_ref().and_then(|o| o.strip_prefix(&item).ok())
+                        {
+                            ws.session.path = Some(new.join(o));
+                        }
+                    }
+                    Err(e) => failed.push(format!("{}: {e}", project_name(&item))),
+                }
+            }
+            note = format!("Moved {moved} item{} to {}.", if moved == 1 { "" } else { "s" }, crate::landing::shorten_home(&to));
+            if !failed.is_empty() {
+                note += &format!(" {} stayed behind ({}).", failed.len(), failed.join("; "));
+            }
+        }
+        self.settings.work_folder = if to == Options::default_root() { String::new() } else { to.display().to_string() };
+        self.sync_settings();
+        self.landing.set_root(to.clone());
+        self.folder = crate::folder_access::FolderAccess::ready(to);
+        crate::backup::set_note(note);
     }
 
     /// Saves a moment after the last change, or as soon as the window loses the keyboard: leaving for a slicer or a file
@@ -473,7 +672,7 @@ impl ShapeCraftApp {
     /// Saves the work and starts over on whatever graphics are left. A device can't come back in this process.
     fn restart_without_gpu(&mut self) {
         // Not `save`: its thumbnail needs the device that's gone.
-        let root = self.new_parent.clone().unwrap_or_else(|| self.landing.root.clone());
+        let root = self.new_parent.clone().unwrap_or_else(|| self.landing.default_dir());
         let mut open = None;
         if let Some(ws) = self.ws.as_deref_mut()
             && !(ws.session.doc.is_empty() && ws.session.path.is_none())
@@ -508,6 +707,7 @@ impl ShapeCraftApp {
         if self.ws.as_ref().is_some_and(|w| w.session.dirty) {
             self.save();
         }
+        crate::backup::backups().now();
         self.ws = None;
         self.landing.rescan();
     }
@@ -580,9 +780,9 @@ impl ShapeCraftApp {
             }
             return;
         }
-        let root = self.landing.root.clone();
+        let all = self.landing.all_projects();
         let Some(ws) = self.ws.as_deref_mut() else { return };
-        let projects = shapecraft_doc::project::list_all(&root).into_iter().map(|p| (p.name, p.dir, p.thumbnail, p.modified)).collect();
+        let projects = all.into_iter().map(|p| (p.name, p.dir, p.thumbnail, p.modified)).collect();
         ws.import_sheet = Some(crate::workspace::import_project::ImportSheet::new(projects));
     }
 
@@ -842,7 +1042,9 @@ impl ShapeCraftApp {
             self.close_project();
         }
         if s {
+            // Saving happens by itself; ⌘S (muscle memory from other apps) also backs up now.
             self.save();
+            crate::backup::backups().now();
         }
         if e {
             self.export_dialog(None);
@@ -1102,7 +1304,12 @@ impl ShapeCraftApp {
                 Ok(Value::Null)
             }
             "ui.onboarding" => {
-                self.ask_device = true;
+                // {"setup": true}: the setup that follows the first-run questions (look, Work Folder, backups).
+                if params.get("setup").and_then(Value::as_bool) == Some(true) {
+                    self.setup = Some(crate::setup::Setup::new(&self.settings));
+                } else {
+                    self.ask_device = true;
+                }
                 Ok(Value::Null)
             }
             "ui.theme" => {
@@ -1134,6 +1341,13 @@ impl ShapeCraftApp {
                     self.settings.save(path).map_err(|e| e.to_string())?;
                 }
                 Ok(Value::Null)
+            }
+            "ui.work_folder" => {
+                // Preferences ▸ Sync ▸ Work Folder ▸ Change…: {"path": "/x", "bring": true} moves the projects too.
+                let path = params.get("path").and_then(Value::as_str).ok_or("'path' is required")?;
+                let bring = params.get("bring").and_then(Value::as_bool).unwrap_or(false);
+                self.switch_work_folder(PathBuf::from(path), bring);
+                Ok(json!({ "root": self.landing.root, "note": crate::backup::note() }))
             }
             "ui.import_project" => {
                 // Opens Import Project's sheet over the local projects.
@@ -1328,6 +1542,7 @@ impl ShapeCraftApp {
         }
         let ctx = ui.ctx().clone();
         self.view_size = (ctx.content_rect().size(), ctx.pixels_per_point());
+        self.keep_backups(&ctx);
         let settings = self.ws.as_deref().map_or(&self.settings, |ws| &ws.settings);
         let light = match settings.theme.as_str() {
             "Light" => true,
@@ -1396,7 +1611,7 @@ impl ShapeCraftApp {
                     self.landing.tutorials_done = self.settings.tutorials_done.clone();
                 }
                 match self.landing.ui(ui) {
-                    Some(LandingAction::Open(dir)) => self.open(dir),
+                    Some(LandingAction::Open(dir)) => self.open_checked(dir),
                     Some(LandingAction::New(dir)) => self.new_project_in(dir),
                     Some(LandingAction::Import) => self.import_dialog(),
                     Some(LandingAction::Tutorial(id)) => self.start_tutorial(id, 0),
@@ -1413,6 +1628,7 @@ impl ShapeCraftApp {
                     None => {}
                 }
                 self.home_preferences(ui);
+                self.ask_open_dialog(ui);
             }
         }
         // On top of the bar the screen just drew; the workspace and the home screen both fill the window.
@@ -1478,6 +1694,43 @@ impl ShapeCraftApp {
                 self.sync_settings();
             }
         }
+        // …then how it looks, where projects live and where they're backed up (asked once, installs from before too).
+        if self.setup.is_none()
+            && self.welcome_nav.is_none()
+            && !self.ask_device
+            && self.settings_file.is_some()
+            && !self.settings.device.is_empty()
+            && self.settings.nav_asked
+            && !self.settings.setup_done
+        {
+            self.setup = Some(crate::setup::Setup::new(&self.settings));
+        }
+        if let Some(mut st) = self.setup.take() {
+            let detector = crate::cloud::detector();
+            if detector.found().is_none() && !detector.busy() {
+                let ctx = ctx.clone();
+                detector.refresh(move || ctx.request_repaint());
+            }
+            let before = st.theme.clone();
+            let found = detector.found();
+            if crate::setup::show(ui, &mut st, found.as_ref()) {
+                self.settings.theme = st.theme.clone();
+                self.settings.backups = st.backups.clone();
+                self.settings.backup_after_change = st.after_change;
+                self.settings.setup_done = true;
+                if let Some(to) = st.work.clone() {
+                    crate::backup::request_switch(to, true);
+                }
+                self.sync_settings();
+            } else {
+                // The look changes as it's picked.
+                if st.theme != before {
+                    self.settings.theme = st.theme.clone();
+                    self.sync_settings();
+                }
+                self.setup = Some(st);
+            }
+        }
     }
 
     /// The first-run questions (device, then navigation style) are showing or about to.
@@ -1487,6 +1740,7 @@ impl ShapeCraftApp {
         }
         let has_file = self.settings_file.is_some();
         self.ask_device
+            || self.setup.is_some()
             || self.welcome_nav.is_some()
             || (has_file && self.settings.device.is_empty())
             || (has_file && !self.settings.nav_asked)
@@ -1575,7 +1829,10 @@ impl ShapeCraftApp {
                 MenuAction::App(a) => match a {
                     AppAction::NewProject => self.new_project(),
                     AppAction::CloseProject | AppAction::GoHome => self.close_project(),
-                    AppAction::Save => self.save(),
+                    AppAction::Save => {
+                        self.save();
+                        crate::backup::backups().now();
+                    }
                     AppAction::Import => self.import_dialog(),
                     AppAction::ImportProject => self.import_project_sheet(),
                     AppAction::Export => self.export_dialog(None),
@@ -1949,6 +2206,12 @@ impl eframe::App for ShapeCraftApp {
     fn on_exit(&mut self) {
         if self.ws.as_ref().is_some_and(|w| w.session.dirty) {
             self.save();
+        }
+        // The last backup of the session: what was saved since the last one (a backup out of reach doesn't hold
+        // the app open; the next start catches up).
+        crate::backup::backups().flush(std::time::Duration::from_secs(15));
+        if let Some((dir, _)) = self.marked.take() {
+            project::mark_closed(&dir, &crate::backup::computer_name());
         }
     }
 }

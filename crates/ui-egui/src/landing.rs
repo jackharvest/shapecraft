@@ -55,6 +55,15 @@ enum Sort {
     Name,
 }
 
+/// A backup, browsable from the sidebar (Preferences ▸ Sync): read-only here, projects come back with Restore.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Place {
+    pub label: String,
+    /// Its ShapeCraft Backups folder (every computer's copies).
+    pub dir: PathBuf,
+    pub cloud: bool,
+}
+
 /// A tile's right-click menu target.
 #[derive(Clone, PartialEq)]
 enum Tile {
@@ -95,6 +104,8 @@ pub struct Landing {
     whats_new_open: Option<usize>,
     /// Whether the projects folder can be read yet (the app checks it off the UI thread; see `folder_access`).
     access: crate::folder_access::Access,
+    /// The backups, in the sidebar under the projects.
+    places: Vec<Place>,
 }
 
 /// Where the in-window menus start on this screen (Linux, Windows): the top of the sidebar, free without window buttons.
@@ -127,6 +138,7 @@ impl Landing {
             whats_new_scroll: 0.0,
             whats_new_open: None,
             access: crate::folder_access::Access::Ready(PathBuf::new()),
+            places: Vec::new(),
         }
     }
 
@@ -151,11 +163,66 @@ impl Landing {
         self.scanned = None;
     }
 
+    /// The backups (from Preferences ▸ Sync), every frame.
+    pub fn set_places(&mut self, places: Vec<Place>) {
+        if places != self.places {
+            self.places = places;
+            self.rescan();
+        }
+    }
+
+    /// The Work Folder, then each backup's folder.
+    fn roots(&self) -> Vec<PathBuf> {
+        std::iter::once(self.root.clone()).chain(self.places.iter().map(|p| p.dir.clone())).collect()
+    }
+
+    /// The backup `path` is in, if it's in one (the innermost folder wins, should one hold another).
+    fn backup_of(&self, path: &Path) -> Option<&Place> {
+        let inner = self.roots().into_iter().filter(|r| path.starts_with(r)).max_by_key(|r| r.components().count())?;
+        self.places.iter().find(|p| p.dir == inner)
+    }
+
+    /// Switches to another Work Folder (Preferences ▸ Sync).
+    pub fn set_root(&mut self, root: PathBuf) {
+        if root != self.root {
+            self.root = root.clone();
+            self.back.clear();
+            self.forward.clear();
+            self.folder = root;
+            self.selected = None;
+            self.rescan();
+        }
+    }
+
+    /// Where new projects go when they aren't made in a folder: the Work Folder.
+    pub fn default_dir(&self) -> PathBuf {
+        self.root.clone()
+    }
+
+    /// Every project in the Work Folder, newest first (Import Project).
+    pub fn all_projects(&self) -> Vec<ProjectSummary> {
+        project::list_all(&self.root)
+    }
+
+    /// Copies a project or folder from a backup into the Work Folder (beside what's there, never over it).
+    fn restore(&mut self, item: &Path, now: f64) -> Option<PathBuf> {
+        let r = project::copy_to(item, &self.root);
+        let to = self.report(now, r)?;
+        let name = to.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        self.toast = Some((format!("Restored to your Work Folder as {name}"), now + 4.0));
+        Some(to)
+    }
+
+    /// Opens a project; one in a backup is restored first (a backup's copies aren't edited in place).
+    fn open_tile(&mut self, dir: PathBuf, now: f64) -> Option<LandingAction> {
+        if self.backup_of(&dir).is_some() { self.restore(&dir, now).map(LandingAction::Open) } else { Some(LandingAction::Open(dir)) }
+    }
+
     fn refresh(&mut self, now: f64) {
         if self.scanned.is_some_and(|t| now - t < 2.0) || !matches!(self.access, crate::folder_access::Access::Ready(_)) {
             return;
         }
-        if !self.folder.starts_with(&self.root) || !self.folder.is_dir() {
+        if !self.roots().iter().any(|r| self.folder.starts_with(r)) || !self.folder.is_dir() {
             self.folder = self.root.clone();
         }
         let browsing = self.section == Section::All && self.search.is_empty();
@@ -173,16 +240,21 @@ impl Landing {
         self.scanned = Some(now);
     }
 
-    /// Where a new project or folder goes: the folder being browsed, else the root.
+    /// Where a new project or folder goes: the folder being browsed, else the root (never into a backup).
     pub fn target_dir(&self) -> PathBuf {
-        if self.section == Section::All { self.folder.clone() } else { self.root.clone() }
+        if self.section == Section::All && self.backup_of(&self.folder).is_none() { self.folder.clone() } else { self.root.clone() }
     }
 
     /// A home-screen menu bar item.
     pub fn command(&mut self, cmd: HomeCmd, now: f64) {
+        let in_backup = self.section == Section::All && self.backup_of(&self.folder).is_some();
+        if in_backup && matches!(cmd, HomeCmd::NewFolderWithSelection | HomeCmd::Duplicate | HomeCmd::Rename) {
+            self.toast = Some(("Backups aren't changed here: Restore it to your Work Folder first".into(), now + 4.0));
+            return;
+        }
         match cmd {
             HomeCmd::NewFolder => {
-                if self.section != Section::All {
+                if self.section != Section::All || in_backup {
                     let root = self.root.clone();
                     self.go_to(root);
                 }
@@ -239,7 +311,7 @@ impl Landing {
             }
             HomeCmd::EnclosingFolder => {
                 if self.section == Section::All
-                    && self.folder != self.root
+                    && !self.roots().contains(&self.folder)
                     && let Some(up) = self.folder.parent().map(Path::to_path_buf)
                 {
                     self.go_to(up);
@@ -419,14 +491,38 @@ impl Landing {
             resp.clicked()
         };
         let searching = !self.search.is_empty();
+        let here = self.backup_of(&self.folder).map(|p| p.dir.clone());
+        let local = "All Projects";
         let rows = [
             (186.0, Icon::GetStarted, "Get Started", Section::GetStarted, "get-started"),
             (215.0, Icon::Tutorials, "Tutorials", Section::Tutorials, "tutorials"),
             (266.0, Icon::Recents, "Recents", Section::Recents, "recents"),
-            (294.0, Icon::Projects, "All Projects", Section::All, "all"),
+            (294.0, Icon::Projects, local, Section::All, "all"),
         ];
+        // The backups, first first, each opening its ShapeCraft Backups folder (every computer's copies).
+        let mut open_place = None;
+        if !self.places.is_empty() {
+            p.text(pos2(side.left() + 16.0, side.top() + 337.0), Align2::LEFT_CENTER, "Backups", theme::strong(10.5), Tokens::text_faint());
+        }
+        for (k, place) in self.places.iter().enumerate() {
+            let on = self.section == Section::All && !searching && here.as_ref() == Some(&place.dir);
+            let icon = if place.cloud { Icon::Cloud } else { Icon::Folder };
+            if row(ui, side.top() + 360.0 + 28.0 * k as f32, icon, &place.label, on, &format!("place-{k}")) {
+                open_place = Some(place.dir.clone());
+            }
+        }
+        if let Some(dir) = open_place {
+            self.sidebar_focus = true;
+            self.search.clear();
+            if dir.is_dir() {
+                self.go_to(dir);
+            } else {
+                self.toast = Some(("Nothing's backed up there yet (or it can't be reached now)".into(), now + 4.0));
+            }
+        }
         for (y, icon, label, section, id) in rows {
-            if row(ui, side.top() + y, icon, label, self.section == section && !searching, id) {
+            let on = self.section == section && !searching && (section != Section::All || here.is_none());
+            if row(ui, side.top() + y, icon, label, on, id) {
                 self.sidebar_focus = true;
                 self.search.clear();
                 if section == Section::All {
@@ -455,7 +551,8 @@ impl Landing {
             (true, Section::GetStarted) => "Get Started".to_string(),
             (true, Section::Tutorials) => "Tutorials".to_string(),
             (true, Section::Recents) => "Recents".to_string(),
-            (true, Section::All) if self.folder == self.root => "All Projects".to_string(),
+            (true, Section::All) if self.folder == self.root => local.to_string(),
+            (true, Section::All) if let Some(p) = self.places.iter().find(|p| p.dir == self.folder) => format!("{} Backup", p.label),
             (true, Section::All) => folder_name,
         };
         let chevron = |ui: &mut Ui, x: f32, icon: Icon, enabled: bool, id: &str| -> bool {
@@ -507,7 +604,7 @@ impl Landing {
             self.menu = None;
         }
         if tb(ui, 1, Icon::NewFolder, "folder") {
-            if self.section != Section::All {
+            if self.section != Section::All || self.backup_of(&self.folder).is_some() {
                 let root = self.root.clone();
                 self.go_to(root);
             }
@@ -641,7 +738,13 @@ impl Landing {
                     if let Some(thumb) = proj.thumbnail.as_ref().and_then(|t| self.thumbnail(ui.ctx(), t)) {
                         p.image(thumb, tile.shrink(6.0), Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
                     }
-                    (dir.clone(), proj.name.clone(), format!("{} · Local", short_date(proj.modified)))
+                    let place = match (self.backup_of(dir), proj.versions) {
+                        (Some(p), _) => format!("{} Backup", p.label),
+                        // Saved on two computers at once: the sync app kept both (right-click splits them apart).
+                        (None, n) if n > 0 => format!("{} Versions", n + 1),
+                        (None, _) => "Local".to_string(),
+                    };
+                    (dir.clone(), proj.name.clone(), format!("{} · {place}", short_date(proj.modified)))
                 }
             };
             let editing = self.renaming.as_ref().is_some_and(|(d, ..)| *d == dir);
@@ -696,7 +799,7 @@ impl Landing {
             } else if resp.double_clicked() && !editing {
                 match t {
                     Tile::Folder(d) => self.go_to(d.clone()),
-                    Tile::Project(d) => action = Some(LandingAction::Open(d.clone())),
+                    Tile::Project(d) => action = self.open_tile(d.clone(), now),
                 }
             } else if resp.clicked() && !editing {
                 self.selected = Some(tile_dir);
@@ -714,7 +817,7 @@ impl Landing {
                 if self.folders.contains(&d) {
                     self.go_to(d);
                 } else {
-                    action = Some(LandingAction::Open(d));
+                    action = self.open_tile(d, now);
                 }
             }
         }
@@ -1013,8 +1116,17 @@ pub(crate) fn take_tablet_link() -> Option<String> {
     TABLET_LINK.with(|l| l.take())
 }
 
+/// The file manager's menu item.
+const SHOW_IN: &str = if cfg!(target_os = "macos") {
+    "Show in Finder"
+} else if cfg!(windows) {
+    "Show in Explorer"
+} else {
+    "Show in Files"
+};
+
 /// Opens a web page in the default browser.
-fn open_link(url: &str) {
+pub(crate) fn open_link(url: &str) {
     // On a tablet the page opens it (the app's own platform output carries it there).
     if crate::tablet::on_tablet() {
         TABLET_LINK.with(|l| l.replace(Some(url.to_string())));
@@ -1031,7 +1143,7 @@ fn open_link(url: &str) {
 }
 
 /// Opens a folder in the system's file manager.
-fn reveal(dir: &Path) {
+pub(crate) fn reveal(dir: &Path) {
     let _ = std::fs::create_dir_all(dir);
     let opener = if cfg!(target_os = "macos") {
         "open"
@@ -1043,7 +1155,7 @@ fn reveal(dir: &Path) {
     let _ = std::process::Command::new(opener).arg(dir).spawn();
 }
 
-fn shorten_home(p: &Path) -> String {
+pub(crate) fn shorten_home(p: &Path) -> String {
     match dirs::home_dir() {
         Some(h) if p.starts_with(&h) => format!("~/{}", p.strip_prefix(&h).map(|r| r.display().to_string()).unwrap_or_default()),
         _ => p.display().to_string(),
@@ -1102,17 +1214,37 @@ impl Landing {
             }
         }
         if let Some((tile, at, opened)) = self.menu.clone() {
-            let entries: &[&str] = match tile {
-                Tile::Project(_) => &["Open", "Rename", "Duplicate", "Delete"],
-                Tile::Folder(_) => &["Open", "Rename", "Delete"],
+            let (Tile::Project(dir) | Tile::Folder(dir)) = &tile;
+            let backed_up = self.backup_of(dir).is_some();
+            let split = !backed_up && self.projects.iter().any(|p| &p.dir == dir && p.versions > 0);
+            let entries: &[&str] = match (&tile, backed_up) {
+                (Tile::Project(_), false) if split => &["Open", "Rename", "Duplicate", "Split Off Other Version", "Delete"],
+                (Tile::Project(_), false) => &["Open", "Rename", "Duplicate", "Delete"],
+                (Tile::Folder(_), false) => &["Open", "Rename", "Delete"],
+                // A backup's copies: brought back, never changed in place.
+                (Tile::Project(_), true) => &["Restore", "Restore and Open", SHOW_IN],
+                (Tile::Folder(_), true) => &["Open", "Restore", SHOW_IN],
             };
             let (chosen, rect) = popup_menu(ui, "tile-menu", at, entries, "Delete");
-            let (Tile::Project(dir) | Tile::Folder(dir)) = &tile;
             match chosen.map(|i| entries[i]) {
                 Some("Open") => match &tile {
-                    Tile::Project(d) => action = Some(LandingAction::Open(d.clone())),
+                    Tile::Project(d) => action = self.open_tile(d.clone(), now),
                     Tile::Folder(d) => self.go_to(d.clone()),
                 },
+                Some("Restore") => {
+                    self.restore(dir, now);
+                }
+                Some("Restore and Open") => action = self.open_tile(dir.clone(), now),
+                Some("Split Off Other Version") => {
+                    for other in project::other_versions(dir) {
+                        let r = project::split_version(dir, &other);
+                        if let Some(to) = self.report(now, r) {
+                            let name = to.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                            self.toast = Some((format!("The other computer's version is now “{name}”"), now + 4.0));
+                        }
+                    }
+                }
+                Some(SHOW_IN) => reveal(dir.parent().unwrap_or(dir)),
                 Some("Rename") => {
                     let name = match &tile {
                         Tile::Project(d) => self.projects.iter().find(|p| &p.dir == d).map(|p| p.name.clone()),

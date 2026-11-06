@@ -46,7 +46,7 @@ fn a_save_cut_short_leaves_the_last_project_openable() {
 
     // What a save dying partway leaves: new bodies under the other name, project.json not yet swapped.
     std::fs::write(dir.join("bodies-next.step"), b"half a file").unwrap();
-    std::fs::write(dir.join("project.json.tmp"), b"{").unwrap();
+    std::fs::write(dir.join(".~project.json.tmp"), b"{").unwrap();
     assert_eq!(shapecraft_doc::project::load(&kernel, &dir).unwrap().bodies.len(), 1);
 
     // The next saves take turns and clean up after themselves.
@@ -396,10 +396,13 @@ fn a_missing_bodies_file_says_so_and_the_history_can_rebuild_it() {
     s.execute("rectangle", &json!({"corner": [0, 0], "opposite": [4, 5]})).unwrap();
     s.execute("extrude", &json!({"sketch": 1, "region": 0, "distance": 3})).unwrap();
     shapecraft_doc::project::save(&s.doc, s.kernel.as_ref(), &dir).unwrap();
-    // A copy (or a sync) that brought project.json without its bodies file.
+    // A copy that brought project.json without its bodies file, long ago (a sync that just did is waited for).
     for e in std::fs::read_dir(&dir).unwrap().flatten().filter(|e| e.path().extension().is_some_and(|x| x == "step")) {
         std::fs::remove_file(e.path()).unwrap();
     }
+    assert!(matches!(shapecraft_doc::project::load(s.kernel.as_ref(), &dir), Err(shapecraft_doc::project::ProjectError::StillSyncing)));
+    let old = std::time::SystemTime::now() - std::time::Duration::from_secs(3600);
+    std::fs::File::options().write(true).open(dir.join("project.json")).unwrap().set_modified(old).unwrap();
     match shapecraft_doc::project::load(s.kernel.as_ref(), &dir) {
         Err(shapecraft_doc::project::ProjectError::Bodies(m)) => assert!(m.contains("missing"), "{m}"),
         other => panic!("{:?}", other.map(|d| d.bodies.len())),

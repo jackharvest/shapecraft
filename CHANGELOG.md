@@ -2,6 +2,51 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.6.0-alpha
+
+**Your projects, kept safe and on every computer: a Work Folder that autosave writes to, backups to Google Drive,
+OneDrive, Dropbox, iCloud Drive, a NAS or any folder (with older versions to go back to), and a first-run setup that
+asks how ShapeCraft should look and where your projects live.**
+
+### New
+- **Preferences ▸ Sync.** Three parts: your Work Folder, your backups, and the cloud storage apps found on this
+  computer (Google Drive, OneDrive, Dropbox and iCloud Drive), each with its state: ready with its folder,
+  installed but not signed in, a **Get** link when it isn't installed, or **Not Supported** where the app has no
+  version for your system (Google Drive and iCloud Drive on Linux; add an rclone or Insync folder there instead).
+  ShapeCraft finds each app's folder from the app's own settings, so a folder you moved somewhere else, or put on
+  another drive, is found too.
+- **Work Folder.** Where projects save as you work: Documents/ShapeCraft on this computer by default, or any folder
+  you choose (a network folder works too, more slowly). **Change…** asks whether to bring your projects along.
+- **The same projects on every computer.** **Work Here** puts your Work Folder in a cloud app's folder, so every
+  computer signed in to it sees the same projects and Recents. Made safe for that:
+  - Opening a project another computer has open asks first (**Open Anyway** or **Cancel**).
+  - A project whose new shapes haven't finished syncing waits ("still syncing") instead of opening with old ones.
+  - When two computers saved a project at once, its card says **2 Versions**, and **Split Off Other Version**
+    (right-click) makes the other computer's version a project of its own.
+- **Backups.** An ordered list you control (**Up** and **Down**): any cloud app found, or any folder or NAS share.
+  The first is brought up to date first. Each keeps `ShapeCraft Backups/<computer name>/` with the same folders and
+  project names as your Work Folder, so it reads well in Finder or Explorer without ShapeCraft. Turn off **A Folder
+  for Each Computer** when computers share a Work Folder. A cloud backup follows its app's folder if you move it.
+  - **When:** on **⌘S / Ctrl+S**, closing a project and quitting (the default, which leaves a gap to go back to), or
+    a moment after every change. **Back Up Now** any time.
+  - **Older versions:** each backup keeps the last 10 copies of every project it replaced (5 to 50, or off), dated,
+    under **Older Versions**.
+  - **Never deletes:** deleting or renaming a project on this computer leaves its backup copy alone.
+  - Each backup shows how it's doing: up to date and when, backing up (3 of 12), or why it can't (a drive that
+    isn't connected is tried again every 10 minutes).
+- **Restore from a backup.** Backups are listed in the projects sidebar. Browse any computer's copies and their older
+  versions, then **Restore** or **Restore and Open**. A restored project comes back beside your projects, never over
+  one.
+- **First-run setup.** After the device and navigation questions: Light, Dark or Match System; where your projects
+  live (this computer or a cloud app found); and which backups to keep. New installs see it once, and so does
+  everyone updating to this version.
+
+### Changed
+- **⌘S / Ctrl+S** saves as before (projects save themselves) and now also backs up.
+- **Preferences** has no Account tab: there are no accounts.
+- **Saves** write their temporary files under hidden names that sync apps leave alone, so a half-written file is
+  never uploaded.
+
 ## 0.5.19-alpha
 
 **Sketch on curved faces, Move/Rotate on sketches, and what you push, pull or move stays highlighted where it went.

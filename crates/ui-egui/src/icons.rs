@@ -165,6 +165,8 @@ pub enum Icon {
     Sort,
     Recents,
     Projects,
+    /// A cloud storage location on the projects screen.
+    Cloud,
     GetStarted,
     Tutorials,
     ChevronLeft,
@@ -1524,6 +1526,13 @@ fn paint_dark(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
         Projects => {
             blue.closed(&[(5.0, 3.5), (14.0, 3.5), (19.0, 8.5), (19.0, 20.5), (5.0, 20.5)]);
             blue.line(&[(14.0, 3.5), (14.0, 8.5), (19.0, 8.5)]);
+        }
+        // Three bumps on a flat base; each arc starts where the last one meets it.
+        Cloud => {
+            blue.arc(8.0, 14.5, 3.5, 90.0, 270.0);
+            blue.arc(12.5, 11.0, 4.5, 180.0, 360.5);
+            blue.arc(16.5, 14.5, 3.5, 278.0, 450.0);
+            blue.line(&[(8.0, 18.0), (16.5, 18.0)]);
         }
         GetStarted => {
             blue.line(&[

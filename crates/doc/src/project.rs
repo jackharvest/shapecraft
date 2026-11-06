@@ -36,6 +36,10 @@ pub enum ProjectError {
     /// The bodies file is missing or doesn't hold the bodies project.json lists (the rest can still open).
     #[error("{0}")]
     Bodies(String),
+    /// project.json says its bodies file is one that isn't here yet: a sync app (Dropbox, OneDrive…) has brought the
+    /// new project.json but not the shapes saved with it. Opening now would show old shapes, so it waits.
+    #[error("it's still syncing from another computer (its shapes haven't arrived yet). Try again in a moment.")]
+    StillSyncing,
 }
 
 fn default_bodies_file() -> String {
@@ -63,6 +67,9 @@ struct ProjectFile {
     /// Which of the two names holds the bodies.
     #[serde(default = "default_bodies_file")]
     bodies_file: String,
+    /// That file's size and FNV-1a hash as saved, so a stale copy of it (the same name two saves ago) is told apart.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    bodies_check: Option<(u64, u64)>,
     bodies: Vec<BodyRecord>,
     sketches: Vec<SketchRecord>,
     #[serde(default)]
@@ -167,6 +174,7 @@ fn file_of(doc: &Document) -> ProjectFile {
         body_counter,
         sketch_counter,
         bodies_file: default_bodies_file(),
+        bodies_check: None,
         bodies: doc
             .bodies
             .iter()
@@ -241,13 +249,28 @@ pub fn replace(from: &Path, to: &Path) -> std::io::Result<()> {
 
 /// Writes a whole file so that a reader, or a crash, sees the old contents or the new, never part of them.
 fn write_atomic(path: &Path, bytes: &[u8]) -> Result<(), ProjectError> {
-    let mut tmp = path.as_os_str().to_owned();
-    tmp.push(".tmp");
-    let tmp = PathBuf::from(tmp);
+    let tmp = tmp_name(path);
     fs::write(&tmp, bytes)?;
     sync(&tmp)?;
     replace(&tmp, path)?;
     Ok(())
+}
+
+/// The temporary a file is written under: hidden, and a name the sync apps leave alone (Dropbox skips `.~` names), so
+/// a half-written file is never uploaded.
+fn tmp_name(path: &Path) -> PathBuf {
+    let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    path.with_file_name(format!(".~{name}.tmp"))
+}
+
+/// Size and FNV-1a hash of a file's bytes.
+pub fn file_check(path: &Path) -> std::io::Result<(u64, u64)> {
+    let bytes = fs::read(path)?;
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in &bytes {
+        h = (h ^ u64::from(*b)).wrapping_mul(0x100000001b3);
+    }
+    Ok((bytes.len() as u64, h))
 }
 
 /// A failed or interrupted save must leave the last good project. The bodies go to the name the project isn't using,
@@ -258,10 +281,11 @@ fn save_file(doc: &Document, mut file: ProjectFile, kernel: &dyn Kernel, dir: &P
     file.bodies_file = if using_first { BODIES_FILE_NEXT } else { BODIES_FILE }.to_string();
     if !doc.bodies.is_empty() {
         let step_path = dir.join(&file.bodies_file);
-        let step_tmp = dir.join(format!("{}.tmp", file.bodies_file));
+        let step_tmp = tmp_name(&step_path);
         let shapes: Vec<_> = doc.bodies.iter().map(|b| b.shape.clone()).collect();
         kernel.write_step(&shapes, &step_tmp)?;
         sync(&step_tmp)?;
+        file.bodies_check = Some(file_check(&step_tmp)?);
         replace(&step_tmp, &step_path)?;
     }
     // Pictures beside the project, named by item id; files of removed pictures go.
@@ -303,6 +327,8 @@ fn save_file(doc: &Document, mut file: ProjectFile, kernel: &dyn Kernel, dir: &P
         }
     }
     write_atomic(&dir.join(PROJECT_FILE), &serde_json::to_vec_pretty(&file)?)?;
+    // A save cut short by an older version left its temporary under the plain name.
+    let _ = fs::remove_file(dir.join("project.json.tmp"));
     // Saved. The old bodies go, and with no bodies neither name is in use.
     for name in [BODIES_FILE, BODIES_FILE_NEXT] {
         if name != file.bodies_file || doc.bodies.is_empty() {
@@ -321,6 +347,21 @@ pub fn load(kernel: &dyn Kernel, dir: &Path) -> Result<Document, ProjectError> {
     // Only ever one of our two names: this comes from a file and picks a path to read.
     if ![BODIES_FILE, BODIES_FILE_NEXT].contains(&file.bodies_file.as_str()) {
         return Err(ProjectError::Invalid(format!("unknown bodies file {:?}", file.bodies_file)));
+    }
+    if let Some(want) = file.bodies_check
+        && !file.bodies.is_empty()
+    {
+        let path = dir.join(&file.bodies_file);
+        // There but not the one saved with it: an older file of the same name, the new one still on its way.
+        // Missing: on its way if project.json just arrived; long missing, it's a copy that lost it (rebuilt then).
+        let recent = fs::metadata(dir.join(PROJECT_FILE))
+            .and_then(|m| m.modified())
+            .is_ok_and(|t| t.elapsed().is_ok_and(|e| e < std::time::Duration::from_secs(600)));
+        match file_check(&path) {
+            Ok(got) if got != want => return Err(ProjectError::StillSyncing),
+            Err(_) if recent => return Err(ProjectError::StillSyncing),
+            _ => {}
+        }
     }
     let shapes = if file.bodies.is_empty() { Vec::new() } else { read_bodies(kernel, &dir.join(&file.bodies_file), file.bodies.len())? };
     build(file, shapes, kernel, Some(dir))
@@ -587,6 +628,8 @@ pub struct ProjectSummary {
     pub name: String,
     pub modified: std::time::SystemTime,
     pub thumbnail: Option<PathBuf>,
+    /// Other versions a sync app kept beside it after two computers saved it at once (`other_versions`).
+    pub versions: usize,
 }
 
 #[derive(Deserialize)]
@@ -601,6 +644,10 @@ pub fn list(root: &Path) -> Vec<ProjectSummary> {
         .flatten()
         .filter_map(|e| {
             let dir = e.path();
+            // Hidden: a copy still being put together, Recently Deleted.
+            if hidden(&dir) {
+                return None;
+            }
             let json = dir.join(PROJECT_FILE);
             let meta = fs::metadata(&json).ok()?;
             let name = fs::read(&json)
@@ -612,6 +659,7 @@ pub fn list(root: &Path) -> Vec<ProjectSummary> {
             Some(ProjectSummary {
                 modified: meta.modified().unwrap_or(std::time::UNIX_EPOCH),
                 thumbnail: thumb.exists().then_some(thumb),
+                versions: other_versions(&dir).len(),
                 name,
                 dir,
             })
@@ -619,6 +667,111 @@ pub fn list(root: &Path) -> Vec<ProjectSummary> {
         .collect();
     out.sort_by_key(|p| std::cmp::Reverse(p.modified));
     out
+}
+
+/// The other project.json files a sync app left in a project folder when two computers saved it at once:
+/// Dropbox "project (Mike's conflicted copy 2026-11-06).json", OneDrive "project-DESKTOP-4F2.json", Google Drive
+/// "project (1).json", iCloud "project 2.json".
+pub fn other_versions(dir: &Path) -> Vec<PathBuf> {
+    let Ok(rd) = fs::read_dir(dir) else { return Vec::new() };
+    let mut v: Vec<PathBuf> = rd
+        .flatten()
+        .filter(|e| {
+            let n = e.file_name().to_string_lossy().into_owned();
+            n != PROJECT_FILE && n.starts_with("project") && n.ends_with(".json") && n.len() > PROJECT_FILE.len()
+        })
+        .map(|e| e.path())
+        .collect();
+    v.sort();
+    v
+}
+
+/// Makes one of those other versions a project of its own beside this one ("<name> - Other Version"), with the
+/// bodies file that was saved with it when one of the files here is it (otherwise its bodies are rebuilt from its
+/// History when it opens). The version file leaves the original folder.
+pub fn split_version(dir: &Path, other: &Path) -> Result<PathBuf, ProjectError> {
+    let bytes = fs::read(other)?;
+    let mut file: serde_json::Value = serde_json::from_slice(&bytes)?;
+    let name = format!("{} - Other Version", file.get("name").and_then(|n| n.as_str()).unwrap_or("Project"));
+    let bodies_file = file.get("bodies_file").and_then(|n| n.as_str()).unwrap_or(BODIES_FILE).to_string();
+    if ![BODIES_FILE, BODIES_FILE_NEXT].contains(&bodies_file.as_str()) {
+        return Err(ProjectError::Invalid(format!("unknown bodies file {bodies_file:?}")));
+    }
+    let want = file.get("bodies_check").and_then(|c| Some((c.get(0)?.as_u64()?, c.get(1)?.as_u64()?)));
+    let parent = dir.parent().ok_or_else(|| ProjectError::Invalid("no parent folder".into()))?;
+    let to = unique_dir(parent, &name);
+    let staging = parent.join(format!(".~copying {}", to.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()));
+    let _ = fs::remove_dir_all(&staging);
+    fs::create_dir_all(&staging)?;
+    let mut bodies_from = None;
+    for e in fs::read_dir(dir)?.flatten() {
+        let n = e.file_name().to_string_lossy().into_owned();
+        let path = e.path();
+        if n.starts_with('.') || n.ends_with(".tmp") || (n.starts_with("project") && n.ends_with(".json")) {
+            continue;
+        }
+        if n.ends_with(".step") {
+            // Whichever .step here (the sync app may have renamed it too) was saved with this version.
+            if want.is_some() && file_check(&path).ok() == want {
+                bodies_from = Some(path);
+            }
+            continue;
+        }
+        if path.is_dir() {
+            copy_tree(&path, &staging.join(&n))?;
+        } else {
+            fs::copy(&path, staging.join(&n))?;
+        }
+    }
+    if let Some(b) = bodies_from {
+        fs::copy(b, staging.join(&bodies_file))?;
+    }
+    file["name"] = serde_json::Value::String(name);
+    fs::write(staging.join(PROJECT_FILE), serde_json::to_vec_pretty(&file)?)?;
+    replace(&staging, &to)?;
+    fs::remove_file(other)?;
+    Ok(to)
+}
+
+/// Copies a folder's files and folders (pictures, under a project).
+fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(to)?;
+    for e in fs::read_dir(from)?.flatten() {
+        let dst = to.join(e.file_name());
+        if e.path().is_dir() { copy_tree(&e.path(), &dst)? } else { fs::copy(e.path(), dst).map(|_| ())? }
+    }
+    Ok(())
+}
+
+/// Says a project is open on this computer: a small hidden file the sync app carries to the others, renewed every
+/// minute while it's open (`mark_open`) and removed when it closes.
+fn open_mark(dir: &Path, computer: &str) -> PathBuf {
+    dir.join(format!(".open-{computer}.json"))
+}
+
+pub fn mark_open(dir: &Path, computer: &str) {
+    let at = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+    let _ = write_atomic(&open_mark(dir, computer), serde_json::json!({ "computer": computer, "at": at }).to_string().as_bytes());
+}
+
+pub fn mark_closed(dir: &Path, computer: &str) {
+    let _ = fs::remove_file(open_mark(dir, computer));
+}
+
+/// Another computer that has this project open (seen within `within`): its name and how long ago.
+pub fn open_elsewhere(dir: &Path, computer: &str, within: std::time::Duration) -> Option<(String, std::time::Duration)> {
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).ok()?.as_secs();
+    let mine = open_mark(dir, computer);
+    fs::read_dir(dir).ok()?.flatten().find_map(|e| {
+        let n = e.file_name().to_string_lossy().into_owned();
+        if !(n.starts_with(".open-") && n.ends_with(".json")) || e.path() == mine {
+            return None;
+        }
+        let v: serde_json::Value = serde_json::from_slice(&fs::read(e.path()).ok()?).ok()?;
+        let ago = std::time::Duration::from_secs(now.saturating_sub(v.get("at")?.as_u64()?));
+        let who = v.get("computer")?.as_str()?.to_string();
+        (ago <= within).then_some((who, ago))
+    })
 }
 
 /// A folder name for a new project that doesn't collide with existing ones.
@@ -754,6 +907,82 @@ pub fn duplicate(dir: &Path) -> Result<PathBuf, ProjectError> {
     Ok(to)
 }
 
+/// Copies a project or a folder of them into `parent` (another location: a cloud folder, say), under the same name
+/// or a free one beside it. It's put together under a hidden name first and renamed into place once complete, so a
+/// sync app never uploads half a project. Unfinished saves (`*.tmp`) aren't copied.
+pub fn copy_to(item: &Path, parent: &Path) -> Result<PathBuf, ProjectError> {
+    fn copy_tree(from: &Path, to: &Path) -> std::io::Result<()> {
+        fs::create_dir_all(to)?;
+        for e in fs::read_dir(from)?.flatten() {
+            let (src, dst) = (e.path(), to.join(e.file_name()));
+            if src.is_dir() {
+                copy_tree(&src, &dst)?;
+            } else if src.extension().is_none_or(|x| x != "tmp") {
+                fs::copy(&src, &dst)?;
+            }
+        }
+        Ok(())
+    }
+    if parent.starts_with(item) {
+        return Err(ProjectError::Invalid("can't copy a folder into itself".into()));
+    }
+    let name = item.file_name().ok_or_else(|| ProjectError::Invalid("no name".into()))?.to_string_lossy().into_owned();
+    fs::create_dir_all(parent)?;
+    let to = unique_dir(parent, &name);
+    let staging = parent.join(format!(".~copying {}", to.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()));
+    let _ = fs::remove_dir_all(&staging);
+    let done = copy_tree(item, &staging).and_then(|()| replace(&staging, &to));
+    if let Err(e) = done {
+        let _ = fs::remove_dir_all(&staging);
+        return Err(e.into());
+    }
+    Ok(to)
+}
+
+/// Every file under `dir` (but unfinished saves) with its size, relative paths sorted: two folders with the same list
+/// hold the same project as far as a copy can tell.
+fn manifest(dir: &Path) -> std::io::Result<Vec<(PathBuf, u64)>> {
+    fn walk(base: &Path, dir: &Path, out: &mut Vec<(PathBuf, u64)>) -> std::io::Result<()> {
+        for e in fs::read_dir(dir)?.flatten() {
+            let p = e.path();
+            if p.is_dir() {
+                walk(base, &p, out)?;
+            } else if p.extension().is_none_or(|x| x != "tmp") {
+                out.push((p.strip_prefix(base).unwrap_or(&p).to_path_buf(), e.metadata()?.len()));
+            }
+        }
+        Ok(())
+    }
+    let mut out = Vec::new();
+    walk(dir, dir, &mut out)?;
+    out.sort();
+    Ok(out)
+}
+
+/// Moves a project or folder into `parent`, which may be on another disk or in a cloud folder. A plain rename when it
+/// can be; otherwise a copy, checked file by file, and only then is the original removed.
+pub fn move_to(item: &Path, parent: &Path) -> Result<PathBuf, ProjectError> {
+    if item.parent() == Some(parent) {
+        return Ok(item.to_path_buf());
+    }
+    if parent.starts_with(item) {
+        return Err(ProjectError::Invalid("can't move a folder into itself".into()));
+    }
+    let name = item.file_name().ok_or_else(|| ProjectError::Invalid("no name".into()))?.to_string_lossy().into_owned();
+    fs::create_dir_all(parent)?;
+    let to = unique_dir(parent, &name);
+    if replace(item, &to).is_ok() {
+        return Ok(to);
+    }
+    let to = copy_to(item, parent)?;
+    if manifest(item)? != manifest(&to)? {
+        let _ = fs::remove_dir_all(&to);
+        return Err(ProjectError::Invalid("the copy didn't match, so the project was left where it was".into()));
+    }
+    patiently(|| fs::remove_dir_all(item))?;
+    Ok(to)
+}
+
 /// Moves a project or folder into the root's Recently Deleted folder.
 pub fn trash(dir: &Path, root: &Path) -> Result<PathBuf, ProjectError> {
     if dir == root || !dir.starts_with(root) {
@@ -813,6 +1042,34 @@ mod file_ops_tests {
         assert_eq!(list_all(&root).len(), 1, "Recently Deleted is hidden");
         assert!(trash(&root, &root).is_err());
         let _ = fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn copy_and_move_between_locations() {
+        let base = std::env::temp_dir().join(format!("sc-locations-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&base);
+        let (here, cloud) = (base.join("Local"), base.join("Cloud/ShapeCraft"));
+        let proj = here.join("Bracket");
+        fs::create_dir_all(proj.join(IMAGES_DIR)).unwrap();
+        fs::write(proj.join(PROJECT_FILE), br#"{"name": "Bracket"}"#).unwrap();
+        fs::write(proj.join(BODIES_FILE), b"ISO-10303-21;").unwrap();
+        fs::write(proj.join(IMAGES_DIR).join("1.png"), b"png").unwrap();
+        fs::write(proj.join("project.json.tmp"), b"half a save").unwrap();
+        let copy = copy_to(&proj, &cloud).unwrap();
+        assert_eq!(copy, cloud.join("Bracket"));
+        assert!(copy.join(IMAGES_DIR).join("1.png").exists());
+        assert!(!copy.join("project.json.tmp").exists(), "unfinished saves stay behind");
+        assert!(proj.exists(), "a copy leaves the original");
+        assert_eq!(fs::read_dir(&cloud).unwrap().count(), 1, "no staging folder left over");
+        // A second copy gets a free name beside the first.
+        assert_eq!(copy_to(&proj, &cloud).unwrap(), cloud.join("Bracket 2"));
+        let moved = move_to(&proj, &cloud).unwrap();
+        assert_eq!(moved, cloud.join("Bracket 3"));
+        assert!(!proj.exists());
+        assert_eq!(manifest(&moved).unwrap(), manifest(&copy).unwrap());
+        assert_eq!(list(&cloud).len(), 3);
+        assert!(copy_to(&cloud, &cloud.join("Bracket")).is_err(), "not into itself");
+        let _ = fs::remove_dir_all(&base);
     }
 
     #[test]
