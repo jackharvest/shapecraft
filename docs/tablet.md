@@ -22,7 +22,7 @@ Close the tab or let the iPad sleep and the copy keeps going: open it again and 
 
 | Input | What it does |
 | --- | --- |
-| Apple Pencil | The pointer: tap, drag, draw. On iPads with Pencil hover, holding the tip above the glass highlights what a tap would pick, as a mouse does. |
+| Apple Pencil | The pointer: tap, drag, draw. Edges, sketch curves and snap points reach about twice as far as for a mouse, and a small wobble during a tap still counts as a tap. On iPads with Pencil hover, holding the tip above the glass lights up what a tap would pick, and what's lit holds on until the tip moves well away, so the tap picks it. |
 | One finger, tap | Click (pick a face, press a button). |
 | One finger, drag | In the 3D view: turn the view, even with a sketch tool on (the pencil draws). Handles and arrows still drag. Over lists: scroll. |
 | One finger, hold | Right-click (context menu). |
@@ -62,8 +62,12 @@ built into the app, with no web framework and no app download.
 
 - The connection is plain HTTP on your network, protected by the pairing key. Don't open the port to the internet.
   If you need to reach it from outside, use a VPN, or a reverse proxy with HTTPS.
-- One browser at a time: a new connection takes over from the last one.
+- Each device gets its own copy of ShapeCraft (up to four at once), so an iPad and a phone don't get in each
+  other's way. Opening it in a second tab on the same device moves it there; the first tab says so and waits with a
+  **Use Here** button instead of taking it back.
 - The computer and the tablet can both open projects. Don't edit the *same* project on both at once: each saves its
   own copy over the other.
+- The first time, the tablet asks how you'll work (Apple Pencil, fingers, or keyboard and trackpad) and shows the
+  controls for it. Projects open with History hidden and the Items column at its narrowest, for room to model.
 - The layout is the desktop's. An iPad shows it at full size. Smaller screens (an iPad in portrait, a phone) see it
   scaled down to fit.

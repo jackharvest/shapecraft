@@ -600,8 +600,10 @@ impl Landing {
         }
         // As observed (L12): as many columns as fit at 195 px or more, the cards stretched to fill the row (200 px
         // at 1840 wide, 215 at 1000), 21 px apart, pictures 0.74 as tall as wide.
+        // A tablet gets bigger cards, easier to tap (three across an iPad in landscape).
+        let pitch = if crate::tablet::on_tablet() { 300.0 } else { 216.0 };
         let avail = content.width() - 65.0;
-        let cols = ((avail + 21.0) / 216.0).floor().max(1.0) as usize;
+        let cols = ((avail + 21.0) / pitch).floor().max(1.0) as usize;
         let card_w = ((avail - 21.0 * (cols as f32 - 1.0)) / cols as f32).max(120.0);
         let card_h = (card_w * 0.74).round();
         for (i, t) in tiles.iter().enumerate() {

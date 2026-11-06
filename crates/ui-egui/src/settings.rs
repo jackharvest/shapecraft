@@ -60,6 +60,8 @@ pub struct Settings {
     pub favorite_formats: Vec<String>,
     /// The first run's answer (onboarding): "mouse" or "trackpad"; empty until asked.
     pub device: String,
+    /// The same question on a tablet (its own answer): "pencil", "touch" or "keyboard"; empty until asked.
+    pub tablet_device: String,
     /// The first run's second question (navigation style) has been answered or skipped.
     pub nav_asked: bool,
     pub last_export_dir: Option<String>,
@@ -125,6 +127,7 @@ impl Default for Settings {
             language: "English".into(),
             favorite_formats: Vec::new(),
             device: String::new(),
+            tablet_device: String::new(),
             nav_asked: false,
             last_export_dir: None,
             slicer: String::new(),

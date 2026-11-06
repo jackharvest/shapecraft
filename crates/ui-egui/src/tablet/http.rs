@@ -169,9 +169,19 @@ fn upgrade(reader: BufReader<TcpStream>, mut out: TcpStream, req: &Request, shar
     }
     let ws = tungstenite::WebSocket::from_raw_socket(out, tungstenite::protocol::Role::Server, None);
     let agent = req.header("user-agent").map(short_agent).unwrap_or_default();
-    if let Ok(s) = shared.to_session.lock() {
-        let _ = s.send(ToSession::Client { ws: Box::new(ws), agent });
+    // Every copy has a page on it: this one is told why, and waits instead of connecting back.
+    if let Err(ToSession::Client { mut ws, .. }) = shared.to_session(&device(req), ToSession::Client { ws: Box::new(ws), agent }, true) {
+        let _ = ws.get_mut().set_nonblocking(false);
+        let _ = ws.send(tungstenite::Message::text(format!("{{\"t\":\"full\",\"n\":{}}}", super::MAX_SESSIONS)));
+        let _ = ws.close(None);
+        let _ = ws.flush();
     }
+}
+
+/// The page's device id (`d=`, kept in its storage), so each device gets its own copy of the app.
+fn device(req: &Request) -> String {
+    let d: String = req.param("d").unwrap_or_default().chars().filter(char::is_ascii_alphanumeric).take(40).collect();
+    if d.is_empty() { "default".into() } else { d }
 }
 
 /// "iPad (Safari)" from a long user agent.
@@ -224,9 +234,7 @@ fn upload(reader: &mut BufReader<TcpStream>, out: &mut TcpStream, req: &Request,
     match written {
         Ok(n) if n == len => {
             reply(out, "200 OK", "application/json", &[], b"{\"ok\":true}");
-            if let Ok(s) = shared.to_session.lock() {
-                let _ = s.send(ToSession::Uploaded { request: id, path });
-            }
+            let _ = shared.to_session(&device(req), ToSession::Uploaded { request: id, path }, false);
         }
         _ => {
             let _ = std::fs::remove_file(&path);

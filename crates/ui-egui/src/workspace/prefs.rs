@@ -555,7 +555,7 @@ fn tablet_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
     }
     p.text(pos2(r.center().x, y), Align2::CENTER_CENTER, "Click an address to copy it.", theme::body(10.0), Tokens::text_faint());
     y += 24.0;
-    let who = st.client.as_deref().map_or_else(|| "No browser connected".to_string(), |c| format!("Connected: {c}"));
+    let who = if st.clients.is_empty() { "No browser connected".to_string() } else { format!("Connected: {}", st.clients.join(", ")) };
     p.text(pos2(r.center().x, y), Align2::CENTER_CENTER, who, theme::body(11.5), Tokens::text_strong());
     y += 26.0;
     if small_button(ui, pos2(r.center().x - 60.0, y), "pref-tablet-key", "New Pairing Key") {

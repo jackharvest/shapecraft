@@ -2,7 +2,7 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.5.17-alpha
+## 0.5.18-alpha
 
 **ShapeCraft on your iPad: tablet access serves the app to Safari with Apple Pencil and touch, and your projects
 stay on your computer. Also: sketch text works on Linux systems with fonts outside the usual folders, and a Nix
@@ -20,6 +20,13 @@ development shell. Thanks to [@eamondo2](https://github.com/eamondo2) for both o
     wants text or a number.
   - **Files**: Import and Insert pick from Files or Photos, and exports, screenshots and slicer 3MFs come back as
     downloads.
+  - **Easy to hit with the Pencil**: edges and curves reach farther than with a mouse, what the hovering Pencil
+    lights up stays lit until you move well away (so the tap picks it), and a tap that wobbles stays a tap.
+  - **Several devices at once**, each with its own copy of the app. A second tab on the same device takes over
+    and the first one waits with a **Use Here** button, instead of the two reconnecting over each other.
+  - **Made for the tablet**: a first-run question (Apple Pencil, fingers, or keyboard and trackpad) with the
+    controls for each, bigger project cards, and projects that open with History hidden and the Items column
+    narrow.
 - **`shapecraft --serve`** runs only the tablet host, with no window, for a server, VM or container.
 - **Nix development shell.** `nix develop` (or `direnv allow` with nix-direnv) sets up the Rust toolchain,
   OpenCASCADE and the window libraries on Linux. Thanks [@eamondo2](https://github.com/eamondo2) (#1).

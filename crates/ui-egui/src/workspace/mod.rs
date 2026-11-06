@@ -337,6 +337,11 @@ pub struct Workspace {
     /// A finger, not the pencil or a mouse, has the pointer (tablet): a drag on nothing in the view turns it even with
     /// a sketch tool on, and never draws a selection box.
     pub touch_drag: bool,
+    /// How much wider edges, curves and snaps reach than for a mouse: more for a pencil or a finger (tablet). Above
+    /// 1, what is lit up also holds on until the pointer is well away, so a tap picks what the hover showed.
+    pub pick_slop: f32,
+    /// The Items column's width as dragged on a tablet (not saved: the computer keeps its own).
+    items_w_here: Option<f32>,
     /// The pointer was over the 3D view itself last frame, with no panel or control on top.
     pub viewport_hot: bool,
     /// Help popover, Preferences window, and the Navigation Presets modal (with the preset being looked at).
@@ -601,7 +606,8 @@ impl Workspace {
             hover: None,
             cursor: None,
             show_items: true,
-            show_history: true,
+            // A tablet opens projects with History hidden, for room to model (the button brings it back).
+            show_history: !crate::tablet::on_tablet(),
             tutorial: None,
             display: Default::default(),
             measuring: false,
@@ -654,6 +660,8 @@ impl Workspace {
             prefs_open: false,
             menus_at: Pos2::ZERO,
             touch_drag: false,
+            pick_slop: 1.0,
+            items_w_here: None,
             viewport_hot: false,
             prefs_tab: 0,
             nav_presets: None,
@@ -872,7 +880,9 @@ impl Workspace {
         let body_top = title.bottom();
         let gap = Tokens::GAP;
         // The Drawings workspace hides the Items sidebar (as observed).
-        let items_w = self.items_drag.unwrap_or(self.settings.items_width);
+        // A tablet keeps the Items column at its narrowest for room to model; a drag there stays on the tablet.
+        let saved = if crate::tablet::on_tablet() { self.items_w_here.unwrap_or(ITEMS_MIN_W) } else { self.settings.items_width };
+        let items_w = self.items_drag.unwrap_or(saved);
         let items_w = if items_w.is_finite() { items_w.clamp(ITEMS_MIN_W, ITEMS_MAX_W) } else { Tokens::SIDEBAR_W };
         let teaching = self.tutorial.is_some();
         if teaching {
@@ -921,7 +931,11 @@ impl Workspace {
             if resp.drag_stopped()
                 && let Some(w) = self.items_drag.take()
             {
-                self.settings.items_width = w.round();
+                if crate::tablet::on_tablet() {
+                    self.items_w_here = Some(w.round());
+                } else {
+                    self.settings.items_width = w.round();
+                }
             }
         }
         if let Some(r) = history_rect {

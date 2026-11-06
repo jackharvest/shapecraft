@@ -27,10 +27,15 @@ pub(crate) enum ToSession {
         request: u64,
         path: PathBuf,
     },
+    /// Too many devices: this copy saves and ends to make room.
+    End,
 }
 
 /// The smallest the desktop layout is drawn at (points); smaller screens see it scaled down to fit.
 const MIN_SIZE: [f32; 2] = [1000.0, 640.0];
+/// How far edges and curves reach for the pencil and a finger, against a mouse's (6 points for edges).
+const PEN_REACH: f32 = 2.0;
+const FINGER_REACH: f32 = 2.6;
 /// A frame the page hasn't shown yet holds up the next one past this many.
 const IN_FLIGHT: u32 = 2;
 /// How long the screen is still before JPEG parts are sent again as PNG.
@@ -124,7 +129,7 @@ fn pollster_block_on<F: std::future::Future>(f: F) -> F::Output {
     }
 }
 
-pub(super) fn run(shared: &Arc<Shared>, inbox: Receiver<ToSession>, kernel: Arc<dyn Kernel>, opts: Options) {
+pub(super) fn run(shared: &Arc<Shared>, device: &str, inbox: Receiver<ToSession>, kernel: Arc<dyn Kernel>, opts: Options) {
     let rs = match gpu() {
         Ok(rs) => rs,
         Err(e) => {
@@ -151,8 +156,9 @@ pub(super) fn run(shared: &Arc<Shared>, inbox: Receiver<ToSession>, kernel: Arc<
     let mut uploads_dir_seq = 0u64;
     // `SHAPECRAFT_TABLET_TRACE=1`: each frame's timings on stderr, for tuning.
     let trace = std::env::var_os("SHAPECRAFT_TABLET_TRACE").is_some();
+    let mut ending = false;
     loop {
-        if shared.stopping() {
+        if shared.stopping() || ending {
             app.on_exit();
             if let Some(c) = client.as_mut() {
                 let _ = c.ws.close(None);
@@ -165,15 +171,19 @@ pub(super) fn run(shared: &Arc<Shared>, inbox: Receiver<ToSession>, kernel: Arc<
         loop {
             match inbox.try_recv() {
                 Ok(ToSession::Client { ws, agent }) => {
+                    // The same device again (another tab, the home-screen app): the new page takes over, and the old
+                    // one is told so it waits instead of connecting back.
                     if let Some(mut old) = client.take() {
+                        let _ = old.send(Message::text(json!({ "t": "taken" }).to_string()));
                         let _ = old.ws.close(None);
                         flush(&mut old.ws);
                     }
                     client = Some(Client { ws, size: None, in_flight: 0, seq: 0, state: json!({}) });
                     stream.reset();
                     router.reset();
-                    set_status(|s| s.client = Some(agent));
+                    shared.connected(device, Some(agent));
                 }
+                Ok(ToSession::End) => ending = true,
                 Ok(ToSession::Uploaded { request, path }) => {
                     app.tablet_file_arrived(request, path);
                     input = true;
@@ -210,7 +220,7 @@ pub(super) fn run(shared: &Arc<Shared>, inbox: Receiver<ToSession>, kernel: Arc<
         if lost {
             client = None;
             router.reset();
-            set_status(|s| s.client = None);
+            shared.connected(device, None);
         }
         router.tick(now);
 
@@ -224,6 +234,12 @@ pub(super) fn run(shared: &Arc<Shared>, inbox: Receiver<ToSession>, kernel: Arc<
             let (events, nav) = router.take();
             if let Some(ws) = app.workspace() {
                 ws.touch_drag = router.finger;
+                // Edges, curves and snaps reach about a fingertip for the pencil (and more for a finger).
+                ws.pick_slop = match router.device {
+                    Device::Mouse => 1.0,
+                    Device::Pen => PEN_REACH,
+                    Device::Touch => FINGER_REACH,
+                };
                 for n in nav {
                     match n {
                         Nav::Pan(d) => ws.touch_pan(d),
@@ -318,7 +334,7 @@ pub(super) fn run(shared: &Arc<Shared>, inbox: Receiver<ToSession>, kernel: Arc<
         if lost {
             client = None;
             router.reset();
-            set_status(|s| s.client = None);
+            shared.connected(device, None);
         }
     }
 }

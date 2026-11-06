@@ -138,10 +138,13 @@ impl Workspace {
             _ => {}
         }
         let screen_dist = |p: DVec2| self.to_screen(plane.to_world(p)).map(|s| to_d(s).distance(to_d(cursor)));
+        // A pencil or a finger reaches a little farther for points and guide lines than a mouse.
+        let slop = self.pick_slop.max(1.0) as f64 - 1.0;
+        let (snap_px, align_px) = (SNAP_PX * (1.0 + slop * 0.6), ALIGN_PX * (1.0 + slop * 0.3));
         let mut best: Option<(f64, DVec2, usize)> = None;
         for (i, k) in keys.iter().enumerate() {
             if let Some(dpx) = screen_dist(*k)
-                && dpx < SNAP_PX
+                && dpx < snap_px
                 && best.is_none_or(|(b, ..)| dpx < b)
             {
                 best = Some((dpx, *k, i));
@@ -161,13 +164,13 @@ impl Workspace {
         let mut horizontal: Option<(f64, DVec2)> = None;
         for k in &keys {
             if let Some(dpx) = screen_dist(DVec2::new(k.x, local.y))
-                && dpx < ALIGN_PX
+                && dpx < align_px
                 && vertical.is_none_or(|(b, _)| dpx < b)
             {
                 vertical = Some((dpx, *k));
             }
             if let Some(dpx) = screen_dist(DVec2::new(local.x, k.y))
-                && dpx < ALIGN_PX
+                && dpx < align_px
                 && horizontal.is_none_or(|(b, _)| dpx < b)
             {
                 horizontal = Some((dpx, *k));

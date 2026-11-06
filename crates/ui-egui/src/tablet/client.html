@@ -23,8 +23,6 @@
   #stage { position: fixed; left: env(safe-area-inset-left); top: env(safe-area-inset-top);
     right: env(safe-area-inset-right); bottom: env(safe-area-inset-bottom); }
   canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
-  #hover { position: fixed; width: 10px; height: 10px; margin: -6px 0 0 -6px; border-radius: 50%;
-    border: 1px solid rgba(255,255,255,.85); box-shadow: 0 0 0 1px rgba(0,0,0,.45); pointer-events: none; display: none; }
   #kb { position: fixed; left: 0; top: 0; width: 1px; height: 1px; opacity: 0; border: 0; padding: 0; resize: none;
     font-size: 16px; /* 16px: Safari doesn't zoom into a field this size */ }
   .pill { position: fixed; z-index: 5; display: flex; align-items: center; gap: 8px; padding: 9px 14px; border-radius: 999px;
@@ -55,7 +53,6 @@
 </head>
 <body>
 <div id="stage"><canvas id="screen" tabindex="-1"></canvas></div>
-<div id="hover"></div>
 <textarea id="kb" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" aria-hidden="true"></textarea>
 <div id="status" class="pill hidden">Connecting…</div>
 <div id="full" class="pill hidden"><button id="fullgo" class="x" style="color:inherit;padding:0">⤢&nbsp; Full Screen</button><button id="fullx" class="x" aria-label="Dismiss">✕</button></div>
@@ -70,7 +67,6 @@
   const stage = document.getElementById("stage");
   const canvas = document.getElementById("screen");
   const g = canvas.getContext("2d", { alpha: false, desynchronized: true });
-  const hover = document.getElementById("hover");
   const kb = document.getElementById("kb");
   const status = document.getElementById("status");
   const keyboardBtn = document.getElementById("keyboard");
@@ -84,6 +80,14 @@
   const key = params.get("k") || "";
   if (key && history.replaceState) history.replaceState(null, "", "/");
 
+  // Each device gets its own copy of the app on the computer; this id (kept here) says which is ours.
+  let device = store.get("sc-device");
+  if (!device) {
+    device = Array.from(crypto.getRandomValues(new Uint8Array(12)), (b) => "abcdefghijkmnpqrstuvwxyz23456789"[b & 31]).join("");
+    store.set("sc-device", device);
+  }
+  // Waiting for a tap before connecting again: another tab of this device took over, or too many devices are on.
+  let parked = false;
   let ws = null, size = null, retry = 400, chain = Promise.resolve(), state = {}, lastHardKey = 0;
 
   function measure() {
@@ -109,14 +113,27 @@
 
   function send(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
 
-  function showStatus(text) {
+  function showStatus(text, action) {
     status.textContent = text;
+    if (action) {
+      const b = document.createElement("button");
+      b.className = "x"; b.style.cssText = "color:var(--accent);padding:0;font-weight:600";
+      b.textContent = action;
+      b.onclick = () => { showStatus(""); connect(); };
+      status.append(b);
+    }
     status.classList.toggle("hidden", !text);
+  }
+  // Told to wait: stay off until the person asks (no tug of war between two tabs).
+  function park(text, action) {
+    parked = true;
+    showStatus(text, action);
   }
 
   function connect() {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    ws = new WebSocket(`${proto}//${location.host}/ws${key ? "?k=" + encodeURIComponent(key) : ""}`);
+    parked = false;
+    ws = new WebSocket(`${proto}//${location.host}/ws?d=${device}${key ? "&k=" + encodeURIComponent(key) : ""}`);
     ws.binaryType = "arraybuffer";
     const statusTimer = setTimeout(() => showStatus("Connecting…"), 700);
     ws.onopen = () => {
@@ -134,13 +151,14 @@
     ws.onclose = () => {
       clearTimeout(statusTimer);
       ws = null;
+      if (parked) return;
       showStatus("Reconnecting…");
       setTimeout(connect, retry);
       retry = Math.min(retry * 1.7, 4000);
     };
   }
   document.addEventListener("visibilitychange", () => {
-    if (document.visibilityState === "visible") { if (!ws) connect(); keepAwake(); }
+    if (document.visibilityState === "visible") { if (!ws && !parked) connect(); keepAwake(); }
   });
 
   // Frames: `[1][seq u32][count u16]` then `[x y w h u16][png u8][len u32][bytes]` per piece (little-endian).
@@ -185,6 +203,8 @@
         break;
       case "open": sheet("Open link", m.url, [{ text: "Open", href: m.url, go: true }]); break;
       case "pick": pickSheet(m); break;
+      case "taken": park("ShapeCraft is open in another tab on this device.", "Use Here"); break;
+      case "full": park(`${m.n} devices are using ShapeCraft right now.`, "Try Again"); break;
       case "download": sheet(m.name, "Ready to save to Files or Downloads.", [{ text: "Download", href: m.url, download: m.name, go: true }]); break;
     }
   }
@@ -209,28 +229,19 @@
     if (now) flushPointer();
     else if (!flushQueued) { flushQueued = true; requestAnimationFrame(flushPointer); }
   }
-  function showHover(e, on) {
-    if (!on) { hover.style.display = "none"; return; }
-    hover.style.display = "block";
-    hover.style.left = e.clientX + "px";
-    hover.style.top = e.clientY + "px";
-  }
   canvas.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     try { canvas.setPointerCapture(e.pointerId); } catch {}
-    if (e.pointerType === "pen") showHover(e, false);
     queue(pt(0, e, e.button), e, true);
     keepAwake();
   }, { passive: false });
   canvas.addEventListener("pointermove", (e) => {
     const touching = e.pointerType === "touch" || e.buttons !== 0;
     const kind = touching ? 1 : 4;
-    if (e.pointerType === "pen") showHover(e, !touching);
     const list = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
     for (const c of (list.length ? list : [e])) queue(pt(kind, c), e, false);
   }, { passive: true });
   const end = (kind) => (e) => {
-    if (e.pointerType === "pen") showHover(e, false);
     queue(pt(kind, e, e.button), e, true);
   };
   canvas.addEventListener("pointerup", end(2));
@@ -330,7 +341,7 @@
           el.querySelector(".d").textContent = f.name;
           el.querySelector(".row").replaceWith(bar);
           const xhr = new XMLHttpRequest();
-          xhr.open("POST", `/upload?id=${m.id}&name=${encodeURIComponent(f.name)}`);
+          xhr.open("POST", `/upload?d=${device}&id=${m.id}&name=${encodeURIComponent(f.name)}`);
           xhr.upload.onprogress = (p) => { if (p.lengthComputable) bar.value = p.loaded / p.total; };
           xhr.onload = () => el.remove();
           xhr.onerror = () => { el.querySelector(".d").textContent = "The upload didn't go through."; setTimeout(() => el.remove(), 2500); };

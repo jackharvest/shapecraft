@@ -22,6 +22,9 @@ const PALM_AFTER_PEN: Duration = Duration::from_millis(350);
 /// A multi-finger tap: this short, this still.
 const TAP_TIME: Duration = Duration::from_millis(320);
 const TAP_MOVE: f32 = 16.0;
+/// A pencil tap wobbles on the glass: this little movement this soon is still a tap at the spot it touched.
+const PEN_SLOP: f32 = 7.0;
+const PEN_TAP: Duration = Duration::from_millis(300);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Kind {
@@ -90,6 +93,10 @@ pub(super) struct Router {
     mode: Mode,
     pen_down: bool,
     pen_up: Option<Instant>,
+    /// Where and when the pencil touched, until it moves off as a drag.
+    pen_press: Option<(Pos2, Instant)>,
+    /// What moved the pointer last: a pencil or a finger reaches farther for edges than a mouse.
+    pub device: Device,
     /// The keyboard's modifiers, from the last key or pointer event.
     pub mods: Modifiers,
     frame: u64,
@@ -109,6 +116,8 @@ impl Default for Router {
             mode: Mode::Idle,
             pen_down: false,
             pen_up: None,
+            pen_press: None,
+            device: Device::Mouse,
             mods: Modifiers::NONE,
             frame: 0,
             finger: false,
@@ -159,6 +168,9 @@ impl Router {
     }
 
     pub fn pointer(&mut self, kind: Kind, device: Device, id: i64, pos: Pos2, button: u8, now: Instant) {
+        if kind != Kind::Leave && !(device == Device::Touch && self.palm(now)) {
+            self.device = device;
+        }
         match device {
             Device::Touch => self.touch(kind, id, pos, now),
             Device::Pen | Device::Mouse => self.mouse(kind, device, pos, button, now),
@@ -178,13 +190,24 @@ impl Router {
                 if device == Device::Pen {
                     self.cancel_fingers();
                     self.pen_down = true;
+                    self.pen_press = Some((pos, now));
                 }
                 self.finger = false;
                 self.now.push(Event::PointerMoved(pos));
                 self.now.push(self.button(pos, button, true));
             }
-            Kind::Move | Kind::Hover => self.now.push(Event::PointerMoved(pos)),
+            Kind::Move | Kind::Hover => {
+                if let Some((at, since)) = self.pen_press {
+                    if kind == Kind::Move && pos.distance(at) < PEN_SLOP && now.duration_since(since) < PEN_TAP {
+                        return;
+                    }
+                    self.pen_press = None;
+                }
+                self.now.push(Event::PointerMoved(pos));
+            }
             Kind::Up | Kind::Cancel => {
+                // A tap that wobbled lifts where it touched, so it stays a click on what it touched.
+                let pos = self.pen_press.take().filter(|(at, _)| at.distance(pos) < PEN_SLOP).map_or(pos, |(at, _)| at);
                 self.now.push(Event::PointerMoved(pos));
                 self.now.push(self.button(pos, button, false));
                 if device == Device::Pen {
@@ -473,6 +496,25 @@ mod tests {
         assert_eq!(presses(&r.take().0), vec![(PointerButton::Primary, true)]);
         assert_eq!(presses(&r.take().0), vec![(PointerButton::Primary, false)]);
         assert!(r.take().0.contains(&Event::PointerGone));
+    }
+
+    #[test]
+    fn a_wobbly_pencil_tap_is_a_click_where_it_touched() {
+        let mut r = Router::default();
+        let t = Instant::now();
+        r.pointer(Kind::Down, Device::Pen, 1, pos2(100.0, 100.0), 0, t);
+        r.pointer(Kind::Move, Device::Pen, 1, pos2(104.0, 102.0), 0, t + Duration::from_millis(30));
+        r.pointer(Kind::Up, Device::Pen, 1, pos2(105.0, 103.0), 0, t + Duration::from_millis(60));
+        let (ev, _) = r.take();
+        let moves: Vec<Pos2> = ev.iter().filter_map(|e| if let Event::PointerMoved(p) = e { Some(*p) } else { None }).collect();
+        assert!(moves.iter().all(|p| *p == pos2(100.0, 100.0)), "it never left the spot: {moves:?}");
+        assert_eq!(presses(&ev), vec![(PointerButton::Primary, true), (PointerButton::Primary, false)]);
+        assert_eq!(r.device, Device::Pen);
+        // A real stroke goes through.
+        r.pointer(Kind::Down, Device::Pen, 1, pos2(100.0, 100.0), 0, t);
+        r.pointer(Kind::Move, Device::Pen, 1, pos2(130.0, 100.0), 0, t + Duration::from_millis(30));
+        r.pointer(Kind::Up, Device::Pen, 1, pos2(160.0, 100.0), 0, t + Duration::from_millis(60));
+        assert!(r.take().0.iter().any(|e| *e == Event::PointerMoved(pos2(160.0, 100.0))));
     }
 
     #[test]

@@ -45,8 +45,8 @@ pub struct Status {
     pub port: u16,
     /// Addresses to type or scan, with the pairing key: this computer's name first, then its network address.
     pub urls: Vec<String>,
-    /// The browser connected now (its user agent, shortened), if any.
-    pub client: Option<String>,
+    /// The browsers connected now (their user agents, shortened), one per device.
+    pub clients: Vec<String>,
     /// Why the host stopped or couldn't start.
     pub error: Option<String>,
 }
@@ -66,11 +66,27 @@ fn set_status(f: impl FnOnce(&mut Status)) {
     }
 }
 
-/// What the connections and the drawing thread share.
+/// How many devices get a copy of the app each at once. One more ends the copy idle the longest.
+const MAX_SESSIONS: usize = 4;
+
+/// One device's copy of the app: its thread and the way to reach it.
+struct Slot {
+    to: Sender<session::ToSession>,
+    thread: Option<JoinHandle<()>>,
+    /// Shown in Preferences while a page is connected.
+    agent: Option<String>,
+    /// When a page last connected or left (the idle one longest goes first when there are too many).
+    since: std::time::Instant,
+}
+
+/// What the connections and the drawing threads share.
 pub(crate) struct Shared {
     stop: AtomicBool,
     token: String,
-    to_session: Mutex<Sender<session::ToSession>>,
+    /// Each device (the page's own id, kept in its storage) gets its own copy of the app.
+    sessions: Mutex<Vec<(String, Slot)>>,
+    kernel: Arc<dyn Kernel>,
+    opts: Options,
     /// Files offered to the page for download, by the id in their address.
     downloads: Mutex<Vec<(String, std::path::PathBuf)>>,
     /// Where uploads and downloads are kept while the host runs.
@@ -80,6 +96,62 @@ pub(crate) struct Shared {
 impl Shared {
     fn stopping(&self) -> bool {
         self.stop.load(Ordering::Relaxed)
+    }
+
+    /// Sends to a device's copy of the app, starting it first if `start` (a page connecting). The message comes back
+    /// when there's none to send to (every copy has a page on it).
+    fn to_session(self: &Arc<Self>, device: &str, msg: session::ToSession, start: bool) -> Result<(), session::ToSession> {
+        let Ok(mut list) = self.sessions.lock() else { return Err(msg) };
+        // Copies that ended (a panic, no GPU) make room.
+        list.retain(|(_, s)| s.thread.as_ref().is_some_and(|t| !t.is_finished()));
+        let msg = match list.iter().find(|(d, _)| d == device) {
+            Some((_, slot)) => match slot.to.send(msg) {
+                Ok(()) => return Ok(()),
+                Err(e) => e.0,
+            },
+            None => msg,
+        };
+        if !start {
+            return Err(msg);
+        }
+        list.retain(|(d, _)| d != device);
+        if list.len() >= MAX_SESSIONS {
+            // The copy with no page for the longest goes; it saves as the app does when it quits.
+            let Some(k) = list.iter().enumerate().filter(|(_, (_, s))| s.agent.is_none()).min_by_key(|(_, (_, s))| s.since).map(|(k, _)| k)
+            else {
+                return Err(msg);
+            };
+            let (_, old) = list.remove(k);
+            let _ = old.to.send(session::ToSession::End);
+        }
+        let (to, inbox) = std::sync::mpsc::channel();
+        let _ = to.send(msg);
+        let sh = self.clone();
+        let id = device.to_string();
+        let thread = std::thread::Builder::new().name("tablet-app".into()).spawn(move || {
+            ON_TABLET.with(|t| t.set(true));
+            // A failure here ends this device's copy, not the app that serves it.
+            let (kernel, opts) = (sh.kernel.clone(), sh.opts.clone());
+            let run = std::panic::AssertUnwindSafe(|| session::run(&sh, &id, inbox, kernel, opts));
+            if std::panic::catch_unwind(run).is_err() {
+                set_status(|s| s.error = Some("A tablet's copy of ShapeCraft stopped. Reload the page to start it again.".into()));
+            }
+            sh.connected(&id, None);
+        });
+        let Ok(thread) = thread else { return Ok(()) };
+        list.push((device.to_string(), Slot { to, thread: Some(thread), agent: None, since: std::time::Instant::now() }));
+        Ok(())
+    }
+
+    /// A device's page came (its agent) or went (None): Preferences lists the connected ones.
+    fn connected(&self, device: &str, agent: Option<String>) {
+        let Ok(mut list) = self.sessions.lock() else { return };
+        if let Some((_, s)) = list.iter_mut().find(|(d, _)| d == device) {
+            s.agent = agent;
+            s.since = std::time::Instant::now();
+        }
+        let clients = list.iter().filter_map(|(_, s)| s.agent.clone()).collect();
+        set_status(|s| s.clients = clients);
     }
 }
 
@@ -99,28 +171,20 @@ impl Host {
         let port = listener.local_addr()?.port();
         let scratch = std::env::temp_dir().join(format!("shapecraft-tablet-{}", std::process::id()));
         let _ = std::fs::create_dir_all(&scratch);
-        let (send, inbox) = std::sync::mpsc::channel();
+        let opts = Options { control_port: None, native_menu: false, open: None, new_project: false, hosted: true, ..opts };
         let shared = Arc::new(Shared {
             stop: AtomicBool::new(false),
             token: token.clone(),
-            to_session: Mutex::new(send),
+            sessions: Mutex::new(Vec::new()),
+            kernel,
+            opts,
             downloads: Mutex::new(Vec::new()),
             scratch,
         });
         if let Ok(mut s) = STATUS.lock() {
-            *s = Some(Status { port, urls: urls(bind, port, &token), client: None, error: None });
+            *s = Some(Status { port, urls: urls(bind, port, &token), clients: Vec::new(), error: None });
         }
-        let opts = Options { control_port: None, native_menu: false, open: None, new_project: false, hosted: true, ..opts };
         let mut threads = Vec::new();
-        let sh = shared.clone();
-        threads.push(std::thread::Builder::new().name("tablet-app".into()).spawn(move || {
-            ON_TABLET.with(|t| t.set(true));
-            // A failure here ends the tablet's copy, not the app that serves it.
-            let run = std::panic::AssertUnwindSafe(|| session::run(&sh, inbox, kernel, opts));
-            if std::panic::catch_unwind(run).is_err() {
-                set_status(|s| s.error = Some("The tablet's copy of ShapeCraft stopped. Turn tablet access off and on again.".into()));
-            }
-        })?);
         let sh = shared.clone();
         threads.push(std::thread::Builder::new().name("tablet-listen".into()).spawn(move || accept(&listener, &sh))?);
         Ok(Host { shared, threads, port })
@@ -138,6 +202,12 @@ impl Drop for Host {
     fn drop(&mut self) {
         self.shared.stop.store(true, Ordering::Relaxed);
         for t in self.threads.drain(..) {
+            let _ = t.join();
+        }
+        // Each device's copy saves and ends (the listener is gone, so no new ones start).
+        let copies: Vec<JoinHandle<()>> =
+            self.shared.sessions.lock().map(|mut l| l.iter_mut().filter_map(|(_, s)| s.thread.take()).collect()).unwrap_or_default();
+        for t in copies {
             let _ = t.join();
         }
         let _ = std::fs::remove_dir_all(&self.shared.scratch);
@@ -285,6 +355,61 @@ mod tests {
         drop(ws);
         drop(host);
         assert!(status().is_none(), "stopped hosts leave no status behind");
+        let _ = std::fs::remove_dir_all(projects);
+    }
+
+    /// Two devices each get their own copy; the same device again takes over its own and the old page is told so
+    /// (it waits instead of reconnecting, so two tabs don't fight).
+    #[test]
+    fn each_device_gets_its_own_copy_and_a_second_tab_takes_over() {
+        let projects = std::env::temp_dir().join(format!("shapecraft-tablet-test2-{}", std::process::id()));
+        let opts = Options {
+            projects_root: projects.clone(),
+            control_port: None,
+            open: None,
+            new_project: false,
+            native_menu: false,
+            settings_file: None,
+            hosted: false,
+        };
+        let kernel = Arc::new(shapecraft_kernel_occt::OcctKernel::new());
+        let host = Host::start("127.0.0.1:0".parse().unwrap(), "testkey".into(), kernel, opts).unwrap();
+        let port = host.port;
+        let open = |d: &str| {
+            let stream = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+            stream.set_read_timeout(Some(std::time::Duration::from_secs(20))).unwrap();
+            let (mut ws, _) = tungstenite::client(format!("ws://127.0.0.1:{port}/ws?d={d}&k=testkey"), stream).unwrap();
+            ws.send(tungstenite::Message::text(r#"{"t":"hello","w":800,"h":600,"dpr":1}"#)).unwrap();
+            ws
+        };
+        let first_frame = |ws: &mut tungstenite::WebSocket<std::net::TcpStream>| loop {
+            match ws.read() {
+                Ok(tungstenite::Message::Binary(_)) => break true,
+                Ok(_) => continue,
+                Err(_) => break false,
+            }
+        };
+        let mut a = open("ipad");
+        if !first_frame(&mut a) {
+            return; // no graphics device here (the other test checks the reason is given)
+        }
+        let mut b = open("phone");
+        assert!(first_frame(&mut b), "a second device gets frames of its own");
+        assert_eq!(host.shared.sessions.lock().unwrap().len(), 2);
+        // (The status itself is one for the process, shared with the other test.)
+        assert_eq!(host.shared.sessions.lock().unwrap().iter().filter(|(_, s)| s.agent.is_some()).count(), 2, "both listed");
+        let _a2 = open("ipad");
+        let told = loop {
+            match a.read() {
+                Ok(tungstenite::Message::Text(t)) if t.contains("taken") => break true,
+                Ok(_) => continue,
+                Err(_) => break false,
+            }
+        };
+        assert!(told, "the old tab hears it was taken over");
+        assert_eq!(host.shared.sessions.lock().unwrap().len(), 2, "same device, same copy");
+        drop((a, b));
+        drop(host);
         let _ = std::fs::remove_dir_all(projects);
     }
 

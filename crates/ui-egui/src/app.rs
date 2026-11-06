@@ -171,6 +171,8 @@ pub struct ShapeCraftApp {
     settings_file: Option<PathBuf>,
     /// The first-run device question, asked again (control `ui.onboarding`).
     ask_device: bool,
+    /// The tablet's first-run question: the device picked, its controls showing until Start Modeling.
+    tablet_choice: Option<usize>,
     /// Preferences opened on the projects screen: its tab, and the Navigation Presets modal over it.
     home_prefs: Option<usize>,
     home_nav: Option<&'static str>,
@@ -249,6 +251,7 @@ impl ShapeCraftApp {
             settings,
             settings_file: opts.settings_file,
             ask_device: false,
+            tablet_choice: None,
             home_prefs: None,
             home_nav: None,
             welcome_nav: None,
@@ -1428,8 +1431,18 @@ impl ShapeCraftApp {
             let view = self.ws.as_deref().map_or(0.0, |ws| ws.view_ms);
             self.frame_work.push((began.elapsed().as_secs_f32() * 1000.0, view));
         }
+        // A tablet asks its own question once: pencil, fingers or keyboard, then shows that one's controls.
+        if crate::tablet::on_tablet() {
+            if (self.settings.tablet_device.is_empty() || self.ask_device)
+                && let Some(i) = crate::onboarding::tablet(ui, &mut self.tablet_choice)
+            {
+                self.settings.tablet_device = crate::onboarding::TABLET_DEVICES[i].1.to_string();
+                self.ask_device = false;
+                self.tablet_choice = None;
+                self.sync_settings();
+            }
         // First run: which device the model is worked with (picks the navigation preset).
-        if ((self.settings_file.is_some() && self.settings.device.is_empty()) || self.ask_device)
+        } else if ((self.settings_file.is_some() && self.settings.device.is_empty()) || self.ask_device)
             && let Some(i) = crate::onboarding::show(ui)
         {
             let (_, value, preset) = crate::onboarding::DEVICES[i];
@@ -1469,6 +1482,9 @@ impl ShapeCraftApp {
 
     /// The first-run questions (device, then navigation style) are showing or about to.
     fn first_run_open(&self) -> bool {
+        if crate::tablet::on_tablet() {
+            return self.ask_device || self.settings.tablet_device.is_empty();
+        }
         let has_file = self.settings_file.is_some();
         self.ask_device
             || self.welcome_nav.is_some()

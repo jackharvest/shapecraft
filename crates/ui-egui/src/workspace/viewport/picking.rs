@@ -183,6 +183,8 @@ impl Workspace {
             camera: &self.camera,
             size: self.size(),
             section: self.section.map(|s| (s.origin(), s.normal)),
+            slop: self.pick_slop as f64,
+            prefer: self.hover.filter(|_| self.pick_slop > 1.0),
         };
         let hit = pick(&ctx, self.local(cursor))?;
         // Selection filter: a body for anything on it, or the nearest face or edge under the point.
@@ -210,6 +212,8 @@ impl Workspace {
             camera: &self.camera,
             size: self.size(),
             section: self.section.map(|s| (s.origin(), s.normal)),
+            slop: self.pick_slop as f64,
+            prefer: self.hover.filter(|_| self.pick_slop > 1.0),
         };
         shapecraft_render::pick_through(&ctx, self.local(cursor)).into_iter().map(|(p, _)| p).collect()
     }

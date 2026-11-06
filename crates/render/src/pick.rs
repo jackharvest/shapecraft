@@ -10,10 +10,28 @@ pub struct PickContext<'a> {
     pub size: DVec2,
     /// Section View plane (origin, normal toward the removed side): hits there don't count.
     pub section: Option<(DVec3, DVec3)>,
+    /// How much wider than a mouse's the reach for edges and curves is: 1 for a mouse, more for a pencil or a finger.
+    pub slop: f64,
+    /// What is lit up now (the hover). With `slop` > 1 it holds on until the pointer is well away from it, so a
+    /// pencil tap picks what it showed rather than its neighbour, as on a tablet app.
+    pub prefer: Option<Pick>,
+}
+
+impl<'a> PickContext<'a> {
+    pub fn new(doc: &'a Document, camera: &'a Camera, size: DVec2) -> Self {
+        Self { doc, active_sketch: None, camera, size, section: None, slop: 1.0, prefer: None }
+    }
+
+    /// The reach for `pick` (base pixels): wider for the lit-up one, which also wins ties against what's a little nearer.
+    fn reach(&self, base: f64, pick: Pick) -> (f64, f64) {
+        if self.slop > 1.0 && self.prefer == Some(pick) { (base * self.slop * STICK, 0.45) } else { (base * self.slop, 1.0) }
+    }
 }
 
 const EDGE_PX: f64 = 6.0;
 const SKETCH_PX: f64 = 7.0;
+/// How much farther than its reach the lit-up edge or curve holds on (pencil/finger only).
+const STICK: f64 = 1.8;
 
 fn v3(p: [f32; 3]) -> DVec3 {
     DVec3::new(p[0] as f64, p[1] as f64, p[2] as f64)
@@ -53,13 +71,14 @@ fn segment_distance(p: DVec2, a: DVec2, b: DVec2) -> (f64, f64) {
 fn sketch_entity_under(ctx: &PickContext, sketch: &Sketch, cursor: DVec2) -> Option<u32> {
     let mut best: Option<(f64, u32)> = None;
     for (i, e) in sketch.entities.iter().enumerate() {
+        let (reach, weight) = ctx.reach(SKETCH_PX, Pick::SketchEntity { sketch: sketch.id, entity: i as u32 });
         for outline in e.outlines() {
             let pts: Vec<DVec2> =
                 outline.iter().filter_map(|p| ctx.camera.project(sketch.plane.to_world(*p), ctx.size).map(|(s, _)| s)).collect();
             for w in pts.windows(2) {
                 let (d, _) = segment_distance(cursor, w[0], w[1]);
-                if d < SKETCH_PX && best.is_none_or(|(bd, _)| d < bd) {
-                    best = Some((d, i as u32));
+                if d < reach && best.is_none_or(|(bd, _)| d * weight < bd) {
+                    best = Some((d * weight, i as u32));
                 }
             }
         }
@@ -150,7 +169,7 @@ pub fn pick(ctx: &PickContext, cursor: DVec2) -> Option<(Pick, DVec3)> {
         let (a, b) = ax.ends();
         if let (Some((sa, _)), Some((sb, _))) = (ctx.camera.project(a, ctx.size), ctx.camera.project(b, ctx.size)) {
             let (d, t) = segment_distance(cursor, sa, sb);
-            if d < SKETCH_PX {
+            if d < ctx.reach(SKETCH_PX, Pick::Axis { axis: ax.id }).0 {
                 return Some((Pick::Axis { axis: ax.id }, a.lerp(b, t.clamp(0.0, 1.0))));
             }
         }
@@ -168,16 +187,18 @@ pub fn pick(ctx: &PickContext, cursor: DVec2) -> Option<(Pick, DVec3)> {
 
     // Nearest visible edge within a few pixels.
     let mut edge_hit: Option<(f64, ItemId, u32, DVec3)> = None;
-    for body in ctx.doc.bodies.iter().filter(|b| b.visible && near_on_screen(ctx, b, cursor, EDGE_PX)) {
+    let widest = EDGE_PX * ctx.slop * if ctx.slop > 1.0 { STICK } else { 1.0 };
+    for body in ctx.doc.bodies.iter().filter(|b| b.visible && near_on_screen(ctx, b, cursor, widest)) {
         for (k, (line, &edge)) in body.mesh.edges.iter().zip(&body.mesh.edge_ids).enumerate() {
             let own = body.mesh.edge_faces.get(k).copied().unwrap_or([u32::MAX; 2]);
+            let (reach, weight) = ctx.reach(EDGE_PX, Pick::Edge { body: body.id, edge });
             for w in line.windows(2) {
                 let (a3, b3) = (v3(w[0]), v3(w[1]));
                 let (Some((a, _)), Some((b, _))) = (ctx.camera.project(a3, ctx.size), ctx.camera.project(b3, ctx.size)) else {
                     continue;
                 };
                 let (px, t) = segment_distance(cursor, a, b);
-                if px >= EDGE_PX || edge_hit.is_some_and(|(bp, ..)| px >= bp) {
+                if px >= reach || edge_hit.is_some_and(|(bp, ..)| px * weight >= bp) {
                     continue;
                 }
                 let world = a3.lerp(b3, t);
@@ -197,7 +218,7 @@ pub fn pick(ctx: &PickContext, cursor: DVec2) -> Option<(Pick, DVec3)> {
                     depth <= fd + ctx.camera.distance * 0.002 || fb == body.id && own.contains(&ff) && depth - fd <= near
                 });
                 if visible {
-                    edge_hit = Some((px, body.id, edge, world));
+                    edge_hit = Some((px * weight, body.id, edge, world));
                 }
             }
         }
@@ -279,7 +300,7 @@ pub fn pick_through(ctx: &PickContext, cursor: DVec2) -> Vec<(Pick, f64)> {
                 let (Some((a, _)), Some((b, _))) = (ctx.camera.project(a3, ctx.size), ctx.camera.project(b3, ctx.size)) else { continue };
                 let (px, t) = segment_distance(cursor, a, b);
                 let world = a3.lerp(b3, t);
-                if px < EDGE_PX && !cut(ctx, world) {
+                if px < EDGE_PX * ctx.slop && !cut(ctx, world) {
                     add(Pick::Edge { body: body.id, edge }, (world - o).dot(d), &mut hits);
                 }
             }
@@ -383,7 +404,7 @@ mod tests {
     fn a_rim_behind_its_own_round_wall_is_hidden() {
         let doc = cylinder();
         let camera = crate::Camera::standard(crate::StandardView::Default, DVec3::new(0.0, 0.0, 5.0), 60.0);
-        let ctx = PickContext { doc: &doc, active_sketch: None, camera: &camera, size: DVec2::new(1200.0, 900.0), section: None };
+        let ctx = PickContext::new(&doc, &camera, DVec2::new(1200.0, 900.0));
         // Where the far side of the bottom rim (the point away from the camera) lands on screen.
         let back = camera.eye().with_z(0.0).normalize() * -5.0;
         let (far, _) = camera.project(back, ctx.size).unwrap();
@@ -392,5 +413,26 @@ mod tests {
         let front = camera.eye().with_z(0.0).normalize() * 5.0;
         let (near, _) = camera.project(front, ctx.size).unwrap();
         assert_eq!(pick(&ctx, near).map(|(p, _)| p), Some(Pick::Edge { body: ItemId(1), edge: 0 }), "the near rim still picks");
+    }
+
+    /// A pencil reaches an edge from twice a mouse's distance, and the lit-up edge holds on farther still, so a tap
+    /// picks what the hover showed.
+    #[test]
+    fn a_pencil_reaches_farther_and_the_lit_edge_holds_on() {
+        let doc = cylinder();
+        let camera = crate::Camera::standard(crate::StandardView::Default, DVec3::new(0.0, 0.0, 5.0), 60.0);
+        let mut ctx = PickContext::new(&doc, &camera, DVec2::new(1200.0, 900.0));
+        let front = camera.eye().with_z(0.0).normalize() * 5.0;
+        let (rim, _) = camera.project(front, ctx.size).unwrap();
+        let edge = Some(Pick::Edge { body: ItemId(1), edge: 0 });
+        // Straight up from the rim, onto the wall.
+        let at = |ctx: &PickContext, px: f64| pick(ctx, rim - DVec2::new(0.0, px)).map(|(p, _)| p);
+        assert_ne!(at(&ctx, 9.0), edge, "a mouse 9 px off is on the wall");
+        ctx.slop = 2.0;
+        assert_eq!(at(&ctx, 9.0), edge, "a pencil 9 px off still gets the rim");
+        assert_ne!(at(&ctx, 16.0), edge, "16 px is past a pencil's reach");
+        ctx.prefer = edge;
+        assert_eq!(at(&ctx, 16.0), edge, "but the lit-up rim holds on that far");
+        assert_ne!(at(&ctx, 30.0), edge, "and lets go farther out");
     }
 }
