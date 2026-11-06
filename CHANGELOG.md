@@ -2,16 +2,18 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.5.18-alpha
+## 0.5.19-alpha
 
-**ShapeCraft on your iPad: tablet access serves the app to Safari with Apple Pencil and touch, and your projects
-stay on your computer. Also: sketch text works on Linux systems with fonts outside the usual folders, and a Nix
-development shell. Thanks to [@eamondo2](https://github.com/eamondo2) for both of those.**
+**Sketch on curved faces, Move/Rotate on sketches, and what you push, pull or move stays highlighted where it went.
+Also an early look at ShapeCraft on your iPad (in testing): tablet access serves the app to Safari with Apple Pencil
+and touch, and your projects stay on your computer. Plus sketch text on Linux systems with fonts outside the usual
+folders, and a Nix development shell, both thanks to [@eamondo2](https://github.com/eamondo2).**
 
 ### New
-- **Tablet access (iPad first, any browser).** Preferences ▸ Tablet ▸ Serve ShapeCraft to browsers, then scan the
-  QR code with the iPad's camera. The tablet gets the full app at its own Retina sharpness. Add it to the Home Screen
-  and it opens full screen, like an app. See [docs/tablet.md](docs/tablet.md).
+- **Tablet access (iPad first, any browser), in testing.** An early look, not finished: expect rough edges.
+  Preferences ▸ Tablet ▸ Serve ShapeCraft to browsers, then scan the QR code with the iPad's camera. The tablet gets
+  the full app at its own Retina sharpness. Add it to the Home Screen and it opens full screen, like an app.
+  See [docs/tablet.md](docs/tablet.md).
   - **Apple Pencil** is the pointer: tap, drag and draw, with hover highlighting on iPads that support it, and the
     palm ignored while you draw.
   - **Fingers** turn the view (one finger, even mid-sketch), pan and pinch-zoom (two). A two-finger tap undoes, a
@@ -30,17 +32,6 @@ development shell. Thanks to [@eamondo2](https://github.com/eamondo2) for both o
 - **`shapecraft --serve`** runs only the tablet host, with no window, for a server, VM or container.
 - **Nix development shell.** `nix develop` (or `direnv allow` with nix-direnv) sets up the Rust toolchain,
   OpenCASCADE and the window libraries on Linux. Thanks [@eamondo2](https://github.com/eamondo2) (#1).
-
-### Fixed
-- **Sketch text on NixOS, Guix and similar systems.** When none of the usual font files exist, the Text tool uses
-  the system's sans-serif font instead of drawing nothing, and shows that font's real name. Thanks
-  [@eamondo2](https://github.com/eamondo2) (#2).
-
-## 0.5.15-alpha
-
-**Sketch on curved faces, Move/Rotate on sketches, and what you push, pull or move stays highlighted where it went.**
-
-### New
 - **Sketch on a curved face.** Space or Sketch on Face over a cylinder's wall (or any curved face) starts a sketch on
   the origin plane facing you and turns to it, instead of saying it can't. Clicking a curved face while a sketch tool
   waits for a plane does nothing, and the tool keeps waiting.
@@ -57,6 +48,9 @@ development shell. Thanks to [@eamondo2](https://github.com/eamondo2) for both o
 - **The History sidebar stays open** when a sketch starts with Space or Sketch on Face.
 
 ### Fixed
+- **Sketch text on NixOS, Guix and similar systems.** When none of the usual font files exist, the Text tool uses
+  the system's sans-serif font instead of drawing nothing, and shows that font's real name. Thanks
+  [@eamondo2](https://github.com/eamondo2) (#2).
 - **A face pushed or pulled with Offset Face, or moved with Move/Rotate, stays picked at its new place.** Before, the
   whole body lit up after you let go (a pocket floor pulled up, for one). The arrow or gizmo and the highlight now
   sit on the face together, drag after drag; Replace Face does the same.

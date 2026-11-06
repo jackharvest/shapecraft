@@ -1,5 +1,9 @@
 # Tablet access (iPad, iPhone, any browser)
 
+> **In testing.** Tablet access is an early look, not a finished feature. It has been tried on a real iPad only
+> briefly, so expect rough edges in how the Pencil, touch and the on-screen keyboard behave. Please
+> [open an issue](https://github.com/jackharvest/shapecraft/issues/new/choose) for anything that feels wrong.
+
 ShapeCraft can serve itself to a browser on your network, so you can model on an iPad with an Apple Pencil while
 your projects stay on your computer. Safari on iPad comes first; Chrome and other Chromium browsers work too. Nothing
 is installed on the tablet, and nothing leaves your network.

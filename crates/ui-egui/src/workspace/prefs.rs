@@ -456,6 +456,9 @@ fn shapecraft_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
     p.text(pos2(col + 150.0, y), Align2::LEFT_CENTER, "with an update downloaded", theme::body(10.5), Tokens::text_dim());
 }
 
+/// Tablet access is early: said plainly so nobody takes it for finished.
+const IN_TESTING: &str = "In testing: an early look, not finished. Rough edges are expected.";
+
 /// Serving ShapeCraft to a browser on the network (see `crate::tablet`): the switch, where to point the tablet (with a
 /// QR code for its camera), and who's connected.
 fn tablet_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
@@ -470,6 +473,8 @@ fn tablet_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
         theme::body(11.0),
         Tokens::text_dim(),
     );
+    y += 18.0;
+    p.text(pos2(r.center().x, y), Align2::CENTER_CENTER, IN_TESTING, theme::body(11.0), Tokens::accent());
     y += 22.0;
     sep(y);
     y += 24.0;
@@ -488,6 +493,7 @@ fn tablet_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
             theme::body(11.0),
             Tokens::text_dim(),
         );
+        p.text(pos2(r.center().x, y + 50.0), Align2::CENTER_CENTER, IN_TESTING, theme::body(11.0), Tokens::accent());
         return;
     }
     row_label(&p, col, y, "Tablet Access:");
