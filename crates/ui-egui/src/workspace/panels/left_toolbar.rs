@@ -72,6 +72,28 @@ fn context_tools(ws: &Workspace) -> (Vec<ToolDef>, Option<String>) {
         if curved {
             v.retain(|d| !matches!(d.label, "Extrude" | "Loft" | "Revolve" | "Sweep"));
         }
+        // Two flat faces: an axis where they meet (unless parallel) and a plane between them, and no Loft
+        // (26.202, s52r-016/017).
+        let normals: Vec<_> = ws
+            .session
+            .selection
+            .iter()
+            .filter_map(|p| match *p {
+                Pick::Face { body, face } => {
+                    ws.session.doc.body(body).and_then(|b| ws.session.kernel.face_plane(&b.shape, face).ok().flatten())
+                }
+                _ => None,
+            })
+            .map(|p| p.normal.normalize_or_zero())
+            .collect();
+        let two_flat = ws.session.selection.len() == 2 && normals.len() == 2;
+        let parallel = two_flat && normals[0].cross(normals[1]).length() < 1e-6;
+        v.retain(|d| match d.label {
+            "Loft" => !two_flat,
+            "Plane - Midplane" => two_flat,
+            "Axis - 2 Planes" => two_flat && !parallel,
+            _ => true,
+        });
     }
     // A round edge has no line to put an axis along or a plane through (s24 matrix); a straight one doesn't close
     // round anything to split by.

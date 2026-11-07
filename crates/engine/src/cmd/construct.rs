@@ -23,7 +23,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             label: "Midplane",
             menu: "Construct/Plane/Midplane",
             shortcut: None,
-            help: "A construction plane halfway between two parallel faces or planes",
+            help: "A construction plane halfway between two faces or planes (parallel: midway; meeting: halving the angle)",
             params: r#"{"a": {"body": id, "face": n} | {"plane": id}, "b": …}  (default: the two selected faces or planes)"#,
             modifies: true,
             enabled: always,
@@ -402,8 +402,25 @@ fn midplane(s: &mut Session, p: &Params) -> Result<Value> {
     let (pa, sa) = source_plane(s, &a)?;
     let (pb, sb) = source_plane(s, &b)?;
     let (na, nb) = (pa.normal(), pb.normal());
-    if na.cross(nb).length() > 1e-6 {
-        return Err(EngineError::NotAvailable("the two faces aren't parallel".into()));
+    // Not parallel: the plane through the line where they meet, halving the angle on the inside of the part (the
+    // reference does this for two faces at a corner, s52r-018).
+    let line = na.cross(nb);
+    if line.length() > 1e-6 {
+        let dir = line.normalize();
+        // A point on both planes: the one nearest the middle of their origins.
+        let mid = (pa.origin + pb.origin) / 2.0;
+        let (da, db) = (na.dot(pa.origin), nb.dot(pb.origin));
+        let m = glam::DMat3::from_cols(na, nb, dir).transpose();
+        let Some(inv) = (m.determinant().abs() > 1e-12).then(|| m.inverse()) else {
+            return Err(EngineError::NotAvailable("the two faces don't meet".into()));
+        };
+        let on_line = inv * DVec3::new(da, db, dir.dot(mid));
+        let normal = (na - nb).normalize();
+        let x = dir;
+        let y = normal.cross(x);
+        let plane = shapecraft_doc::SketchPlane { origin: on_line, x, y };
+        let id = add_plane(s, plane, sa.max(sb))?;
+        return Ok(json!({ "plane": id.0 }));
     }
     // Halfway along the normal; keep the first plane's frame, centered between the two.
     let gap = (pb.origin - pa.origin).dot(na);

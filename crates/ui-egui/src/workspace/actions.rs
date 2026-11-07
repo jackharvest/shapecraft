@@ -23,7 +23,13 @@ impl Workspace {
         match action {
             Action::Soon => self.toast(format!("{label} is coming soon")),
             Action::Command(id) => {
+                // A command from the column ends a tool the pick only predicted, and what it leaves picked (a new
+                // plane, say) predicts afresh: the old face's Offset Face arrow mustn't stay up.
+                let before = self.session.selection.clone();
                 let _ = self.run(id, json!({}));
+                if self.predicted && self.session.selection != before {
+                    self.repredict();
+                }
             }
             Action::Ui(u) => self.ui_action(u),
             Action::Flyout(cat) => {

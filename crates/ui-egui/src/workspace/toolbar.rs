@@ -430,6 +430,9 @@ pub const FACES: &[ToolDef] = &[
     t(Icon::Loft, "Loft", "", Tool(ToolKind::Loft)),
     t(Icon::Fill, "Fill (Beta)", "", Command("fill")),
     t(Icon::ReplaceFace, "Replace Face", "", Tool(ToolKind::ReplaceFace)),
+    // Two flat faces only (26.202, s52r-016); left_toolbar.rs drops them otherwise.
+    t(Icon::Axis, "Axis - 2 Planes", "", Command("axis_2planes")),
+    t(Icon::Plane, "Plane - Midplane", "", Command("midplane")),
     t(Icon::Visualize, "Visualize", "", U(UiAction::Visualization)),
     t(Icon::Pattern, "Pattern - Linear", "", Tool(ToolKind::Pattern)),
     t(Icon::PatternCircular, "Pattern - Circular", "", Tool(ToolKind::CircularPattern)),

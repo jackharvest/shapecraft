@@ -27,6 +27,14 @@ fn construction_planes() {
     let face = |z: f64| faces.iter().find(|f| f["normal"][2].as_f64() == Some(z)).unwrap()["face"].as_u64().unwrap();
     s.execute("midplane", &json!({"a": {"body": id, "face": face(1.0)}, "b": {"body": id, "face": face(-1.0)}})).unwrap();
     assert!((s.doc.planes[1].plane.origin.z - 12.0).abs() < 1e-9, "{:?}", s.doc.planes[1].plane.origin);
+    // Two faces at a corner (top, +x side): the plane through their edge halving the angle inside the part.
+    let side = faces.iter().find(|f| f["normal"][0].as_f64() == Some(1.0)).unwrap()["face"].as_u64().unwrap();
+    s.execute("midplane", &json!({"a": {"body": id, "face": face(1.0)}, "b": {"body": id, "face": side}})).unwrap();
+    let bis = s.doc.planes.last().unwrap().plane;
+    let n = bis.normal();
+    assert!((n.x.abs() - n.z.abs()).abs() < 1e-9 && n.y.abs() < 1e-9 && n.x * n.z < 0.0, "{n:?}");
+    assert!(n.dot(bis.origin - glam::DVec3::new(5.0, 0.0, 14.0)).abs() < 1e-6, "through the edge: {bis:?}");
+    s.execute("undo", &json!({})).unwrap();
     s.execute("plane_3points", &json!({"points": [[0, 0, 0], [1, 0, 0], [0, 0, 1]]})).unwrap();
     assert!(s.doc.planes[2].plane.normal().y.abs() > 0.999);
     assert!(s.execute("plane_3points", &json!({"points": [[0, 0, 0], [1, 0, 0], [2, 0, 0]]})).is_err());

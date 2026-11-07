@@ -276,11 +276,12 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
             .picked_angle()
             .map(|d| p.layout_no_wrap(crate::workspace::viewport::format_degrees(d), theme::body(11.0), Tokens::text_strong()));
         let angle_w = ag.as_ref().map_or(0.0, |a| a.size().x + 24.0 + 6.0);
-        let extra = lg.as_ref().map_or(0.0, |l| l.size().x + 24.0 + 6.0 + 22.0) + angle_w;
-        let h = if lg.is_some() { 26.0 } else { 22.0 };
+        let extra = lg.as_ref().map_or(0.0, |l| l.size().x + 24.0 + 6.0) + angle_w + if ag.is_some() || lg.is_some() { 22.0 } else { 0.0 };
+        let h = if lg.is_some() || ag.is_some() { 26.0 } else { 22.0 };
         let r = Rect::from_center_size(pos2(vp.center().x, vp.bottom() - 28.0), vec2(g.size().x + 16.0 + extra, h));
         p.rect_filled(r, radius(6), Tokens::pill());
         p.text(pos2(r.left() + 8.0, r.center().y), Align2::LEFT_CENTER, text, theme::body(11.0), Tokens::text());
+        let measured = ag.is_some() || lg.is_some();
         if let Some(ag) = ag {
             let chip = Rect::from_min_size(pos2(r.left() + g.size().x + 14.0, r.top() + 4.0), vec2(ag.size().x + 24.0, 18.0));
             p.rect_filled(chip, radius(9), theme::c(0x48484b));
@@ -308,6 +309,8 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
                 p.add(Shape::line(wave, Stroke::new(1.1, Tokens::text())));
             }
             p.galley(pos2(chip.left() + 19.0, chip.center().y - lg.size().y / 2.0), lg, Tokens::text_strong());
+        }
+        if measured {
             let knob = pos2(r.right() - 12.0, r.center().y);
             p.circle_stroke(knob, 6.5, Stroke::new(1.0, Tokens::text_dim()));
             p.text(knob + vec2(-0.5, -0.5), Align2::CENTER_CENTER, "‹", theme::body(11.0), Tokens::text());
