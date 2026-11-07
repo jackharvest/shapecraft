@@ -432,6 +432,26 @@ impl MoveTool {
                 unlinked: false,
             });
         }
+        // One rim (a closed edge): it moves with its flat face, the gizmo at its middle (26.202, s51r-033); no
+        // turning rings yet.
+        if let Some((edge, pivot, _)) = picked_rim(s) {
+            return Some(Self {
+                items: Vec::new(),
+                faces: None,
+                edge: Some(edge),
+                frame: GizmoFrame { turns: false, ..GizmoFrame::WORLD },
+                pivot,
+                dragging: None,
+                value: 0.0,
+                handle: Handle::Arrow(2),
+                planar: DVec3::ZERO,
+                planar_start: DVec3::ZERO,
+                relocating: false,
+                snapped: false,
+                copy: false,
+                unlinked: false,
+            });
+        }
         // Faces of one body (nothing else picked): they move on their own, the gizmo at their middle.
         if let Some((body, faces)) = picked_faces(s) {
             let b = s.doc.body(body)?;

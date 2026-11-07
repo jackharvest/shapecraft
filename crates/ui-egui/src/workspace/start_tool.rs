@@ -112,7 +112,7 @@ impl Workspace {
         let only_faces = !self.session.selection.is_empty() && self.session.selection.iter().all(|p| matches!(p, Pick::Face { .. }));
         match kind {
             // M over faces or edges waits for items to move, keeping the pick (s24 matrix). Faces of one body, or one
-            // straight edge, move on their own (the gizmo comes up at them); so do sketch regions.
+            // straight edge or rim, move on their own (the gizmo comes up at them); so do sketch regions.
             ToolKind::Move
                 if self.session.active_sketch.is_none()
                     && tools::picked_faces(&self.session).is_none()

@@ -80,6 +80,7 @@
 #include <ShapeFix_Solid.hxx>
 #include <ShapeFix_Shape.hxx>
 #include <gp_GTrsf.hxx>
+#include <gp_Mat.hxx>
 #include <gp_Lin.hxx>
 #include <GeomLib_IsPlanarSurface.hxx>
 #include <BRepPrimAPI_MakeRevol.hxx>
@@ -1548,12 +1549,23 @@ int sk_scale(const SkShape* s, double cx, double cy, double cz, double sx, doubl
   });
 }
 
-// Scales one closed edge (a rim) about `c` by (sx, sy, sz): the flat face it bounds scales with it and the face on
-// its other side runs straight from its far edge(s) to the scaled rim, so a cylinder's rim pulled out makes a taper
-// (26.202, s51r-017; a one-axis pull makes an oval top, s51r-024). The other faces stay as they are.
-int sk_scale_edge(const SkShape* s, uint32_t edge, double cx, double cy, double cz, double sx, double sy, double sz, SkShape** out) {
+// Moves, turns or scales one closed edge (a rim): the flat face it bounds goes with it and the face on its other side
+// runs straight from its far edge(s) to the new rim, so a cylinder's rim scaled up makes a taper (26.202, s51r-017;
+// a one-axis pull makes an oval top, s51r-024) and moved up makes it taller (s51r-035). The other faces stay.
+// `m` is the map, row by row: x' = m[0] x + m[1] y + m[2] z + m[3], and so on for y' and z'. A move or turn keeps
+// curves exact; a stretch makes them B-splines.
+int sk_map_edge(const SkShape* s, uint32_t edge, const double* m, SkShape** out) {
   return guard([&] {
-    if (!(sx > 0.0) || !(sy > 0.0) || !(sz > 0.0)) return fail("scale factors must be positive");
+    gp_Mat lin(m[0], m[1], m[2], m[4], m[5], m[6], m[8], m[9], m[10]);
+    const gp_XYZ off(m[3], m[7], m[11]);
+    if (!(lin.Determinant() > 1e-12)) return fail("that would fold the edge flat or inside out");
+    // Rigid or uniformly scaled: an exact transform.
+    const gp_Mat mtm = lin.Transposed().Multiplied(lin);
+    const double k2 = mtm(1, 1);
+    bool similar = k2 > 0.0;
+    for (int i = 1; i <= 3; ++i)
+      for (int j = 1; j <= 3; ++j) similar = similar && std::abs(mtm(i, j) - (i == j ? k2 : 0.0)) < 1e-9 * k2;
+    const double grow = std::sqrt(std::max({mtm(1, 1), mtm(2, 2), mtm(3, 3), 1.0}));
     TopoDS_Shape sub;
     if (!sub_shape(s->shape, 2, edge, sub) || sub.ShapeType() != TopAbs_EDGE) return fail("no such edge");
     const TopoDS_Edge e = TopoDS::Edge(sub);
@@ -1593,20 +1605,15 @@ int sk_scale_edge(const SkShape* s, uint32_t edge, double cx, double cy, double 
     const int far_n = far_edges.Extent();
     // A cone up to a point has no far loop: nothing to run the side from.
     if (far_n == 0 || !far.IsDone() || !BRep_Tool::IsClosed(far.Wire())) return fail(cant);
-    // The scaled rim (and any holes in the cap, which scale with it).
-    gp_Pnt c(cx, cy, cz);
+    // The moved rim (and any holes in the cap, which go with it).
     auto scaled = [&](const TopoDS_Shape& x) -> TopoDS_Shape {
-      if (std::abs(sx - sy) < 1e-12 && std::abs(sx - sz) < 1e-12) {
-        gp_Trsf t;
-        t.SetScale(c, sx);
-        return BRepBuilderAPI_Transform(x, t, Standard_True).Shape();
+      if (similar) {
+        gp_Trsf tr;
+        tr.SetValues(m[0], m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9], m[10], m[11]);
+        return BRepBuilderAPI_Transform(x, tr, Standard_True).Shape();
       }
-      gp_GTrsf g;
-      g.SetValue(1, 1, sx);
-      g.SetValue(2, 2, sy);
-      g.SetValue(3, 3, sz);
-      g.SetTranslationPart(gp_XYZ(cx * (1 - sx), cy * (1 - sy), cz * (1 - sz)));
-      Handle(StretchNurbs) st = new StretchNurbs(g, std::max({sx, sy, sz, 1.0}));
+      gp_GTrsf g(lin, off);
+      Handle(StretchNurbs) st = new StretchNurbs(g, grow);
       BRepTools_Modifier mod(x, st);
       if (!mod.IsDone() || st->failed()) return TopoDS_Shape();
       return mod.ModifiedShape(x);
@@ -1616,7 +1623,7 @@ int sk_scale_edge(const SkShape* s, uint32_t edge, double cx, double cy, double 
     const TopoDS_Wire rim_w = TopoDS::Wire(rim2);
     BRepAdaptor_Surface cap_s(cap, Standard_False);
     BRepBuilderAPI_MakeFace mf(rim_w, Standard_True);
-    if (!mf.IsDone()) return fail("the scaled rim isn't flat any more");
+    if (!mf.IsDone()) return fail("the rim isn't flat any more");
     for (TopExp_Explorer x(cap, TopAbs_WIRE); x.More(); x.Next()) {
       const TopoDS_Wire w = TopoDS::Wire(x.Current());
       if (w.IsSame(BRepTools::OuterWire(cap))) continue;
@@ -1642,7 +1649,7 @@ int sk_scale_edge(const SkShape* s, uint32_t edge, double cx, double cy, double 
     ts.AddWire(rim_w);
     ts.CheckCompatibility(Standard_True);
     ts.Build();
-    if (!ts.IsDone()) return fail("the side couldn't follow the scaled rim");
+    if (!ts.IsDone()) return fail("the side couldn't follow the rim");
     BRepBuilderAPI_Sewing sew(1e-4);
     for (TopExp_Explorer x(s->shape, TopAbs_FACE); x.More(); x.Next())
       if (!x.Current().IsSame(cap) && !x.Current().IsSame(side)) sew.Add(x.Current());
@@ -1665,7 +1672,7 @@ int sk_scale_edge(const SkShape* s, uint32_t edge, double cx, double cy, double 
       if (!(props.Mass() > 1e-9)) continue;
       return put(out, solid);
     }
-    return fail("the scaled rim couldn't be joined back to the body");
+    return fail("the rim couldn't be joined back to the body");
   });
 }
 

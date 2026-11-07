@@ -712,6 +712,13 @@ fn scaling_a_rim_tapers_the_cylinder() {
         .max_by(|a, b| kk.measure(&oval, SubShape::Edge(*a)).unwrap().1.z.total_cmp(&kk.measure(&oval, SubShape::Edge(*b)).unwrap().1.z))
         .unwrap();
     assert!(kk.scale_edge(&oval, top2, c, DVec3::new(1.0, 1.5, 1.0)).is_ok());
+    // Moved: up makes it taller, sideways slants it (same volume).
+    let base = std::f64::consts::PI * 4.5 * 4.5 * 19.0;
+    let up = kk.map_edge(&cyl, top, shapecraft_kernel::DMat3::IDENTITY, DVec3::new(0.0, 0.0, 5.0)).unwrap();
+    assert!((kk.mass_props(&up).unwrap().volume / (base * 24.0 / 19.0) - 1.0).abs() < 1e-3);
+    let slant = kk.map_edge(&cyl, top, shapecraft_kernel::DMat3::IDENTITY, DVec3::new(6.0, 0.0, 0.0)).unwrap();
+    assert!((kk.mass_props(&slant).unwrap().volume / base - 1.0).abs() < 1e-3);
+    assert!((kk.bounds(&slant).unwrap().max.x - 10.5).abs() < 1e-2);
     // A straight edge isn't a rim.
     let bx = kk.make_box(DVec3::ZERO, DVec3::splat(5.0)).unwrap();
     assert!(kk.scale_edge(&bx, 0, DVec3::ZERO, DVec3::splat(2.0)).is_err());

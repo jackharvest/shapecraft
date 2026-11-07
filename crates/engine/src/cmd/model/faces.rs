@@ -559,6 +559,13 @@ pub(super) fn move_edge(s: &mut Session, p: &Params) -> Result<Value> {
     let pts: Vec<DVec3> =
         m.edges.get(k).map(|l| l.iter().map(|q| DVec3::new(q[0] as f64, q[1] as f64, q[2] as f64)).collect()).unwrap_or_default();
     let (Some(&a), Some(&e)) = (pts.first(), pts.last()) else { return Err(EngineError::NotAvailable(CANT.into())) };
+    // A closed edge (a rim): it moves with the flat face it bounds, and the face beside it follows (26.202, s51r-035).
+    if pts.len() > 2 && a.distance(e) < 1e-6 * (1.0 + pts.iter().map(|q| q.distance(a)).fold(0.0, f64::max)) {
+        let moved = s.kernel.map_edge(&b.shape, edge, glam::DMat3::IDENTITY, by)?;
+        set_body_shape(s, body, moved)?;
+        s.selection.clear();
+        return Ok(json!({ "body": body.0 }));
+    }
     let dir = (e - a).normalize_or_zero();
     // Straight: every point on the line through its ends.
     if dir.length() < 0.5 || pts.iter().any(|q| (*q - a).cross(dir).length() > 1e-6 * (1.0 + (e - a).length())) {

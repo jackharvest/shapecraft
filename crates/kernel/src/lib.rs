@@ -323,11 +323,20 @@ pub trait Kernel: Send + Sync {
     /// Scales around `center` by a factor per world axis (all equal for a uniform scale).
     fn scale(&self, shape: &Shape, center: DVec3, factors: DVec3) -> Result<Shape>;
 
-    /// Scales one closed edge (a rim round a flat face) about `center`: the face it bounds scales with it and the face
-    /// on its other side runs straight from its far edge to the new rim (a cylinder's rim pulled out makes a taper).
+    /// Moves, turns or scales one closed edge (a rim round a flat face) by x' = linear·x + offset: the face it bounds
+    /// goes with it and the face on its other side runs straight from its far edge to the new rim (a cylinder's rim
+    /// scaled up makes a taper, moved up makes it taller).
+    fn map_edge(&self, shape: &Shape, edge: u32, linear: glam::DMat3, offset: DVec3) -> Result<Shape> {
+        let _ = (shape, edge, linear, offset);
+        Err(KernelError::InvalidInput("this kernel can't move an edge on its own".into()))
+    }
+
+    /// `map_edge` as a scale about `center` by a factor per world axis.
     fn scale_edge(&self, shape: &Shape, edge: u32, center: DVec3, factors: DVec3) -> Result<Shape> {
-        let _ = (shape, edge, center, factors);
-        Err(KernelError::InvalidInput("this kernel can't scale an edge".into()))
+        if !factors.is_finite() || factors.min_element() < 1e-6 || factors.max_element() > 1e6 || !center.is_finite() {
+            return Err(KernelError::InvalidInput("scale factors must be positive".into()));
+        }
+        self.map_edge(shape, edge, glam::DMat3::from_diagonal(factors), center - center * factors)
     }
 
     /// Moves faces along their normals (planar or curved); neighbouring faces stretch to follow.

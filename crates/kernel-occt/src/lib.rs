@@ -455,14 +455,16 @@ impl Kernel for OcctKernel {
         shape_out("scale", |out| unsafe { ffi::sk_scale(s, center.x, center.y, center.z, factors.x, factors.y, factors.z, out) })
     }
 
-    fn scale_edge(&self, shape: &Shape, edge: u32, center: DVec3, factors: DVec3) -> Result<Shape> {
-        finite("scale", &[center.x, center.y, center.z, factors.x, factors.y, factors.z])?;
-        if factors.min_element() <= 0.0 || factors.max_element() > 1e6 || factors.min_element() < 1e-6 {
-            return Err(KernelError::InvalidInput("scale factors must be positive".into()));
-        }
+    fn map_edge(&self, shape: &Shape, edge: u32, linear: shapecraft_kernel::DMat3, offset: DVec3) -> Result<Shape> {
+        let cols = linear.to_cols_array();
+        finite("move edge", &cols)?;
+        finite("move edge", &offset.to_array())?;
+        // Row by row, as the shim takes it.
+        let r = linear.transpose().to_cols_array();
+        let m = [r[0], r[1], r[2], offset.x, r[3], r[4], r[5], offset.y, r[6], r[7], r[8], offset.z];
         let s = raw(shape)?;
-        // SAFETY: plain values in.
-        shape_out("scale", |out| unsafe { ffi::sk_scale_edge(s, edge, center.x, center.y, center.z, factors.x, factors.y, factors.z, out) })
+        // SAFETY: `m` holds the 12 values the shim reads.
+        shape_out("move edge", |out| unsafe { ffi::sk_map_edge(s, edge, m.as_ptr(), out) })
     }
 
     fn offset_faces(&self, shape: &Shape, faces: &[u32], distance: f64) -> Result<Shape> {
