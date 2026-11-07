@@ -406,7 +406,7 @@ impl MoveTool {
                 items.push(b);
             }
         }
-        // One straight edge (nothing else picked): it moves on its own, the gizmo at its middle, no turning rings.
+        // One straight edge (nothing else picked): it moves or turns on its own, the gizmo at its middle.
         if let [Pick::Edge { body, edge }] = s.selection.as_slice()
             && let Some(b) = s.doc.body(*body)
             && let Some(k) = b.mesh.edge_ids.iter().position(|e| e == edge)
@@ -419,7 +419,7 @@ impl MoveTool {
                 items: Vec::new(),
                 faces: None,
                 edge: Some((*body, *edge)),
-                frame: GizmoFrame { turns: false, ..GizmoFrame::WORLD },
+                frame: GizmoFrame::WORLD,
                 pivot: (a + z) / 2.0,
                 dragging: None,
                 value: 0.0,
@@ -432,14 +432,13 @@ impl MoveTool {
                 unlinked: false,
             });
         }
-        // One rim (a closed edge): it moves with its flat face, the gizmo at its middle; no turning rings
-        // yet.
+        // One rim (a closed edge): it moves or turns with its flat face, the gizmo at its middle.
         if let Some((edge, pivot, _)) = picked_rim(s) {
             return Some(Self {
                 items: Vec::new(),
                 faces: None,
                 edge: Some(edge),
-                frame: GizmoFrame { turns: false, ..GizmoFrame::WORLD },
+                frame: GizmoFrame::WORLD,
                 pivot,
                 dragging: None,
                 value: 0.0,
@@ -543,12 +542,9 @@ impl MoveTool {
             }
         };
         if let Some((body, edge)) = self.edge {
-            let by = match self.handle {
-                Handle::Arrow(a) => self.frame.axes[a.min(2)] * value,
-                Handle::Plane(_) => self.planar,
-                Handle::Ring(_) => DVec3::ZERO,
-            };
-            return ("move_edge", json!({ "body": body.0, "edge": edge, "by": [by.x, by.y, by.z] }));
+            v["body"] = json!(body.0);
+            v["edge"] = json!(edge);
+            return ("move_edge", v);
         }
         if let Some((body, faces)) = &self.faces {
             v["body"] = json!(body.0);
@@ -632,6 +628,22 @@ pub(super) fn selected_items_bounds(s: &Session) -> Option<(Vec<ItemId>, DVec3, 
         max = max.max(bb.max);
     }
     Some((items, min, max))
+}
+
+/// One picked edge a tool can work on by itself: a rim (closed) or a straight edge; with its middle and half size
+/// per axis.
+fn picked_edge(s: &Session) -> Option<((ItemId, u32), DVec3, [f64; 3])> {
+    picked_rim(s).or_else(|| {
+        let [Pick::Edge { body, edge }] = s.selection.as_slice() else { return None };
+        let b = s.doc.body(*body)?;
+        let k = b.mesh.edge_ids.iter().position(|e| e == edge)?;
+        let line = b.mesh.edges.get(k)?;
+        let (a, z) = (v3(*line.first()?), v3(*line.last()?));
+        let dir = (z - a).normalize_or_zero();
+        let straight = line.iter().all(|q| (v3(*q) - a).cross(dir).length() < 1e-6 * (1.0 + (z - a).length()));
+        (straight && (z - a).length() > 1e-9)
+            .then(|| ((*body, *edge), (a + z) / 2.0, ((z - a).abs() / 2.0).max(DVec3::splat(1e-3)).to_array()))
+    })
 }
 
 /// One picked closed edge (a rim): it, the middle of its drawn points and their half size per axis.
@@ -816,17 +828,22 @@ impl OffsetFaceTool {
     }
 }
 
+/// The handle a new Scale starts on: the one hammer for uniform, X for non-uniform (lit blue at once, 26.202 s52r-005).
+pub(crate) fn first_scale_handle(uniform: bool) -> Handle {
+    if uniform { Handle::Arrow(2) } else { Handle::Arrow(0) }
+}
+
 impl ScaleTool {
     /// Picked bodies, or (with none) picked sketch curves: the gizmo sits in the middle of what it scales.
     pub fn from_selection(s: &Session, uniform: bool) -> Option<Self> {
-        if let Some((edge, pivot, half)) = picked_rim(s) {
+        if let Some((edge, pivot, half)) = picked_edge(s) {
             return Some(Self {
                 items: Vec::new(),
                 edge: Some(edge),
                 pivot,
                 half,
                 uniform,
-                handle: Handle::Arrow(2),
+                handle: first_scale_handle(uniform),
                 factor: 1.0,
                 dragging: None,
                 relocating: false,
@@ -847,7 +864,7 @@ impl ScaleTool {
             pivot,
             half,
             uniform,
-            handle: Handle::Arrow(2),
+            handle: first_scale_handle(uniform),
             factor: 1.0,
             dragging: None,
             relocating: false,

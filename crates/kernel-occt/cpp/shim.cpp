@@ -12,6 +12,9 @@
 #include <vector>
 
 #include <BRepAdaptor_Curve.hxx>
+#include <BRepTools_WireExplorer.hxx>
+#include <TColgp_Array2OfPnt.hxx>
+#include <ShapeFix_Face.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <BRepAlgoAPI_Splitter.hxx>
 #include <BRepOffsetAPI_NormalProjection.hxx>
@@ -1549,6 +1552,115 @@ int sk_scale(const SkShape* s, double cx, double cy, double cz, double sx, doubl
   });
 }
 
+namespace {
+
+// Moves some vertices of a solid (`moves`: old point → new point) and lets the faces follow: a face that stays flat
+// stays a plane, a four-sided one that can't becomes a ruled (bilinear) patch, the rest are kept. Only straight edges
+// may have a moved end. An empty shape and `err` set when it can't.
+TopoDS_Shape move_vertices(const TopoDS_Shape& shape, const std::vector<std::pair<gp_Pnt, gp_Pnt>>& moves, const char*& err) {
+  err = "only straight edges can stretch that way";
+  double size = 0.0;
+  {
+    Bnd_Box bb;
+    BRepBndLib::Add(shape, bb);
+    if (!bb.IsVoid()) size = std::sqrt(bb.SquareExtent());
+  }
+  const double tol = 1e-6 * (1.0 + size);
+  auto moved = [&](const gp_Pnt& p, gp_Pnt& to) {
+    for (const auto& m : moves)
+      if (m.first.Distance(p) < tol) { to = m.second; return true; }
+    to = p;
+    return false;
+  };
+  BRepBuilderAPI_Sewing sew(1e-4 * (1.0 + size * 1e-2));
+  int changed = 0;
+  for (TopExp_Explorer fx(shape, TopAbs_FACE); fx.More(); fx.Next()) {
+    const TopoDS_Face f = TopoDS::Face(fx.Current());
+    bool touched = false;
+    for (TopExp_Explorer vx(f, TopAbs_VERTEX); vx.More() && !touched; vx.Next()) {
+      gp_Pnt to;
+      touched = moved(BRep_Tool::Pnt(TopoDS::Vertex(vx.Current())), to);
+    }
+    if (!touched) { sew.Add(f); continue; }
+    ++changed;
+    // Each wire again, its straight edges between the new ends.
+    const TopoDS_Wire outer = BRepTools::OuterWire(f);
+    std::vector<TopoDS_Wire> holes;
+    std::vector<gp_Pnt> corners;  // the outer wire's ends in order, when every edge is straight
+    bool all_lines = true;
+    TopoDS_Wire new_outer;
+    for (TopExp_Explorer wx(f, TopAbs_WIRE); wx.More(); wx.Next()) {
+      const TopoDS_Wire w = TopoDS::Wire(wx.Current());
+      const bool is_outer = w.IsSame(outer);
+      BRepBuilderAPI_MakeWire mw;
+      int edges = 0;
+      for (BRepTools_WireExplorer ex(w, f); ex.More(); ex.Next(), ++edges) {
+        const TopoDS_Edge e = ex.Current();
+        TopoDS_Vertex v1, v2;
+        TopExp::Vertices(e, v1, v2, Standard_True);
+        gp_Pnt a, b;
+        const bool ma = moved(BRep_Tool::Pnt(v1), a), mb = moved(BRep_Tool::Pnt(v2), b);
+        BRepAdaptor_Curve c(e);
+        const bool line = c.GetType() == GeomAbs_Line;
+        all_lines = all_lines && line;
+        if (is_outer) corners.push_back(a);
+        if (!ma && !mb) { mw.Add(e); continue; }
+        if (!line || a.Distance(b) < tol) return TopoDS_Shape();
+        mw.Add(BRepBuilderAPI_MakeEdge(a, b).Edge());
+      }
+      if (!mw.IsDone() || edges == 0) { err = "the edges couldn't be joined up again"; return TopoDS_Shape(); }
+      if (is_outer) new_outer = mw.Wire(); else holes.push_back(mw.Wire());
+    }
+    if (new_outer.IsNull()) return TopoDS_Shape();
+    BRepBuilderAPI_MakeFace mf(new_outer, Standard_True);
+    if (mf.IsDone()) {
+      for (const auto& h : holes) mf.Add(h);
+      TopoDS_Face nf = mf.Face();
+      ShapeFix_Face fix(nf);
+      fix.Perform();
+      sew.Add(fix.Face());
+      continue;
+    }
+    // Not flat any more: a four-sided face of straight edges becomes the ruled patch through its corners.
+    if (!holes.empty() || !all_lines || corners.size() != 4) { err = "that would bend a face that can't bend"; return TopoDS_Shape(); }
+    TColgp_Array2OfPnt poles(1, 2, 1, 2);
+    poles(1, 1) = corners[0];
+    poles(2, 1) = corners[1];
+    poles(2, 2) = corners[2];
+    poles(1, 2) = corners[3];
+    TColStd_Array1OfReal knots(1, 2);
+    TColStd_Array1OfInteger mults(1, 2);
+    knots(1) = 0.0; knots(2) = 1.0;
+    mults(1) = mults(2) = 2;
+    Handle(Geom_BSplineSurface) patch = new Geom_BSplineSurface(poles, knots, knots, mults, mults, 1, 1);
+    BRepBuilderAPI_MakeFace pf(patch, 0.0, 1.0, 0.0, 1.0, 1e-7);
+    if (!pf.IsDone()) { err = "that would bend a face that can't bend"; return TopoDS_Shape(); }
+    sew.Add(pf.Face());
+  }
+  if (changed == 0) { err = "nothing to move"; return TopoDS_Shape(); }
+  sew.Perform();
+  TopoDS_Shape sewn = sew.SewedShape();
+  for (TopExp_Explorer x(sewn, TopAbs_SHELL); x.More(); x.Next()) {
+    TopoDS_Shell shell = TopoDS::Shell(x.Current());
+    if (!BRep_Tool::IsClosed(shell)) continue;
+    BRepBuilderAPI_MakeSolid mk(shell);
+    if (!mk.IsDone()) continue;
+    ShapeFix_Solid fix;
+    fix.Init(mk.Solid());
+    fix.Perform();
+    TopoDS_Shape solid = fix.Solid();
+    if (solid.IsNull() || !BRepCheck_Analyzer(solid).IsValid()) continue;
+    GProp_GProps props;
+    BRepGProp::VolumeProperties(solid, props);
+    if (!(props.Mass() > 1e-9)) continue;
+    return solid;
+  }
+  err = "the faces couldn't be joined back into a solid";
+  return TopoDS_Shape();
+}
+
+}  // namespace
+
 // Moves, turns or scales one closed edge (a rim): the flat face it bounds goes with it and the face on its other side
 // runs straight from its far edge(s) to the new rim, so a cylinder's rim scaled up makes a taper (a
 // one-axis pull makes an oval top) and moved up makes it taller. The other faces stay.
@@ -1570,6 +1682,22 @@ int sk_map_edge(const SkShape* s, uint32_t edge, const double* m, SkShape** out)
     if (!sub_shape(s->shape, 2, edge, sub) || sub.ShapeType() != TopAbs_EDGE) return fail("no such edge");
     const TopoDS_Edge e = TopoDS::Edge(sub);
     const char* cant = "only a closed edge round a flat face scales on its own";
+    // A straight edge: its two ends move and the faces round them follow.
+    if (!BRep_Tool::IsClosed(e) && !BRep_Tool::Degenerated(e) && BRepAdaptor_Curve(e).GetType() == GeomAbs_Line) {
+      TopoDS_Vertex v1, v2;
+      TopExp::Vertices(e, v1, v2);
+      std::vector<std::pair<gp_Pnt, gp_Pnt>> moves;
+      for (const TopoDS_Vertex& v : {v1, v2}) {
+        gp_XYZ p = BRep_Tool::Pnt(v).XYZ();
+        gp_XYZ q = p;
+        q.Multiply(lin);
+        moves.emplace_back(gp_Pnt(p), gp_Pnt(q + off));
+      }
+      const char* err = nullptr;
+      TopoDS_Shape r = move_vertices(s->shape, moves, err);
+      if (r.IsNull()) return fail(err ? err : cant);
+      return put(out, r);
+    }
     if (!BRep_Tool::IsClosed(e) || BRep_Tool::Degenerated(e)) return fail(cant);
     TopTools_IndexedDataMapOfShapeListOfShape ef;
     TopExp::MapShapesAndAncestors(s->shape, TopAbs_EDGE, TopAbs_FACE, ef);

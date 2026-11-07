@@ -15,7 +15,7 @@ use super::toolbar::ToolKind;
 mod commit;
 mod setup;
 
-pub(crate) use setup::picked_faces;
+pub(crate) use setup::{first_scale_handle, picked_faces};
 use setup::{selected_items_bounds, v3, with_items};
 
 #[derive(Clone, Debug)]

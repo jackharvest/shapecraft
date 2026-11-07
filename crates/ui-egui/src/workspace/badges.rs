@@ -453,6 +453,9 @@ impl Workspace {
             }
             // The choice is remembered for the next Scale, as observed.
             (Badge::ScaleMode, Tool::Scale(t)) => {
+                if t.uniform != (i == 0) && (t.factor - 1.0).abs() < 1e-9 {
+                    t.handle = super::tools::first_scale_handle(i == 0);
+                }
                 t.uniform = i == 0;
                 self.variants.insert("Scale".into(), i);
             }

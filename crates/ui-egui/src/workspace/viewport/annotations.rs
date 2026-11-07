@@ -519,8 +519,8 @@ impl Workspace {
         if let Tool::Scale(t) = &self.tool {
             let hover = self.cursor.and_then(|c| self.scale_hit(t, c));
             let typed_f = typed.and_then(|n| n.trim().parse::<f64>().ok());
-            // Uniform shows its value from the start; the others once pulled (as observed).
-            let active = t.uniform || t.dragging.is_some() || (t.factor - 1.0).abs() > 1e-9 || typed.is_some();
+            // The value, Copy and the badge run out through the active handle from the start, "1.00×" (26.202, s52r-005).
+            let active = true;
             let rim = theme::c(0x6e6e73);
             let shapes = self.scale_shapes(t);
             for (h, pts) in &shapes {
@@ -558,7 +558,8 @@ impl Workspace {
                 });
                 match through {
                     Some((far, dir)) if active => {
-                        let text = typed.map(|n| format!("{n}×")).unwrap_or_else(|| format!("{:.2}×", typed_f.unwrap_or(t.factor)));
+                        let text =
+                            typed.map(|n| format!("{n}×")).unwrap_or_else(|| format!("{}×", factor_text(typed_f.unwrap_or(t.factor))));
                         let r = axis_pill(&painter, far + dir * 30.0, dir, &text, true);
                         let step = r.width().max(r.height()) / 2.0 + 26.0;
                         let pr = axis_pill(&painter, far + dir * (30.0 + step), dir, "Copy", t.copy);
@@ -1157,4 +1158,12 @@ impl Workspace {
             }
         }
     }
+}
+
+/// A scale factor as the reference writes it: two decimals at least, up to four ("1.00×", "1.7951×").
+fn factor_text(f: f64) -> String {
+    let s = format!("{f:.4}");
+    let trimmed = s.trim_end_matches('0');
+    let decimals = trimmed.split('.').nth(1).map_or(0, str::len);
+    if decimals >= 2 { trimmed.to_string() } else { format!("{f:.2}") }
 }

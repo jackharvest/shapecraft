@@ -535,6 +535,33 @@ fn moving_an_edge_tilts_the_faces_beside_it() {
 }
 
 #[test]
+fn a_straight_edge_scales_and_turns_on_its_own() {
+    let mut s = session();
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("rectangle", &json!({"corner": [-20, -15], "opposite": [20, 15]})).unwrap();
+    s.execute("extrude", &json!({"sketch": 1, "region": 0, "distance": 12})).unwrap();
+    let body = s.doc.bodies[0].id;
+    let top_edge = |s: &Session| {
+        let m = &s.doc.bodies[0].mesh;
+        let k = m.edges.iter().position(|l| l.iter().all(|q| (q[0] - 20.0).abs() < 1e-4 && (q[2] - 12.0).abs() < 1e-4)).unwrap();
+        m.edge_ids[k]
+    };
+    // Scale with the edge picked (y ×1.7951 about its middle): its ends go to y ±26.93, the rest stays.
+    s.selection = vec![shapecraft_doc::Pick::Edge { body, edge: top_edge(&s) }];
+    s.execute("scale", &json!({"factors": [1.0, 1.7951, 1.0], "center": [20, 0, 12]})).unwrap();
+    let bb = s.kernel.bounds(&s.doc.bodies[0].shape).unwrap();
+    assert!((bb.max.y - 26.9265).abs() < 1e-2 && (bb.min.x + 20.0).abs() < 1e-6, "{bb:?}");
+    assert_eq!(s.doc.bodies.len(), 1);
+    s.execute("undo", &json!({})).unwrap();
+    // A turn about z through its middle.
+    let edge = top_edge(&s);
+    s.execute("move_edge", &json!({"body": body.0, "edge": edge, "origin": [20, 0, 12], "axis": [0, 0, 1], "angle": 45})).unwrap();
+    let bb = s.kernel.bounds(&s.doc.bodies[0].shape).unwrap();
+    assert!((bb.max.x - (20.0 + 15.0 * std::f64::consts::FRAC_1_SQRT_2)).abs() < 1e-2, "{bb:?}");
+    assert!((volume(&mut s) - 14400.0).abs() > 1.0);
+}
+
+#[test]
 fn a_pushed_or_moved_face_stays_picked_where_it_went() {
     let mut s = session();
     let body = pocketed_block(&mut s);

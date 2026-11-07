@@ -719,7 +719,35 @@ fn scaling_a_rim_tapers_the_cylinder() {
     let slant = kk.map_edge(&cyl, top, shapecraft_kernel::DMat3::IDENTITY, DVec3::new(6.0, 0.0, 0.0)).unwrap();
     assert!((kk.mass_props(&slant).unwrap().volume / base - 1.0).abs() < 1e-3);
     assert!((kk.bounds(&slant).unwrap().max.x - 10.5).abs() < 1e-2);
-    // A straight edge isn't a rim.
-    let bx = kk.make_box(DVec3::ZERO, DVec3::splat(5.0)).unwrap();
-    assert!(kk.scale_edge(&bx, 0, DVec3::ZERO, DVec3::splat(2.0)).is_err());
+}
+
+#[test]
+fn scaling_a_straight_edge_stretches_it_and_the_ends_follow() {
+    let kk = k();
+    // 40 × 30 × 12 with a hole, like the reference's test part; the top edge along y at x = 20.
+    let bx = kk.make_box(DVec3::new(-20.0, -15.0, 0.0), DVec3::new(40.0, 30.0, 12.0)).unwrap();
+    let pin = kk.extrude_circle(DVec3::new(-10.0, 0.0, -1.0), 4.0, DVec3::new(0.0, 0.0, 14.0)).unwrap();
+    let bx = kk.boolean(shapecraft_kernel::BoolOp::Subtract, &bx, &pin).unwrap();
+    let edge = (0..kk.edge_count(&bx).unwrap())
+        .find(|e| {
+            matches!(kk.edge_curve(&bx, *e), Ok(EdgeCurve::Line { a, b })
+                if (a.x - 20.0).abs() < 1e-6 && (b.x - 20.0).abs() < 1e-6 && a.z > 11.9 && b.z > 11.9)
+        })
+        .unwrap();
+    let c = DVec3::new(20.0, 0.0, 12.0);
+    let k = 26.926 / 15.0;
+    let out = kk.scale_edge(&bx, edge, c, DVec3::new(1.0, k, 1.0)).unwrap();
+    let bb = kk.bounds(&out).unwrap();
+    assert!((bb.max.y - 26.926).abs() < 1e-2 && (bb.min.y + 26.926).abs() < 1e-2, "{bb:?}");
+    assert!((bb.max.x - 20.0).abs() < 1e-3 && (bb.max.z - 12.0).abs() < 1e-3, "{bb:?}");
+    // The two end faces bend (ruled); the box keeps its 7 faces.
+    assert_eq!(kk.face_count(&out).unwrap(), 7);
+    assert!(kk.mass_props(&out).unwrap().volume > kk.mass_props(&bx).unwrap().volume);
+    // Along a direction the edge doesn't run: nothing to stretch, the part stays as it was.
+    let same = kk.scale_edge(&bx, edge, c, DVec3::new(2.0, 1.0, 1.0)).unwrap();
+    assert!((kk.mass_props(&same).unwrap().volume / kk.mass_props(&bx).unwrap().volume - 1.0).abs() < 1e-6);
+    // A turn about the edge's middle (a quarter turn round z) bends both long sides.
+    let turned =
+        kk.map_edge(&bx, edge, shapecraft_kernel::DMat3::from_rotation_z(0.3), c - shapecraft_kernel::DMat3::from_rotation_z(0.3) * c);
+    assert!(turned.is_ok(), "{:?}", turned.err());
 }

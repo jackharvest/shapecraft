@@ -545,6 +545,23 @@ pub(super) fn move_edge(s: &mut Session, p: &Params) -> Result<Value> {
             _ => return Err(EngineError::NotAvailable("select one edge to move".into())),
         }
     };
+    // A turn ("origin", "axis", "angle" in degrees): the edge's ends (or the whole rim) go round the axis and the
+    // faces round them follow.
+    if p.has("angle") {
+        let (origin, axis, angle) = (p.vec3("origin")?, p.vec3("axis")?, p.f64("angle")?);
+        if !origin.is_finite() || !axis.is_finite() || axis.length() < 1e-12 || !angle.is_finite() {
+            return Err(EngineError::BadParams("a turn needs a finite origin, axis and angle".into()));
+        }
+        let b = s.doc.body(body).ok_or_else(|| EngineError::BadParams(format!("no body {}", body.0)))?;
+        if angle.abs() < 1e-9 {
+            return Ok(json!({ "body": body.0 }));
+        }
+        let rot = glam::DMat3::from_axis_angle(axis.normalize(), angle.to_radians());
+        let turned = s.kernel.map_edge(&b.shape, edge, rot, origin - rot * origin)?;
+        set_body_shape(s, body, turned)?;
+        s.selection.clear();
+        return Ok(json!({ "body": body.0 }));
+    }
     let by = p.vec3("by")?;
     if !by.is_finite() {
         return Err(EngineError::BadParams("by must be finite".into()));
