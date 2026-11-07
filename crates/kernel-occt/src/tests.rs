@@ -579,3 +579,110 @@ fn a_step_file_written_per_body_reads_back_one_shape_per_body() {
     assert!((k.mass_props(&back[1]).unwrap().volume - 16.0).abs() < 1e-6);
     assert!((k.mass_props(&back[2]).unwrap().volume - 8.0).abs() < 1e-6);
 }
+
+#[test]
+fn stretching_again_and_again_keeps_every_part_whole() {
+    // A second one-axis stretch of a cylinder used to crash inside OCCT's NURBS conversion (a null curve on the
+    // seam, no exception to catch), and filleted or chamfered rims crashed on the first one.
+    let kk = k();
+    let cyl = kk.extrude_circle(DVec3::ZERO, 9.0, DVec3::new(0.0, 0.0, 19.0)).unwrap();
+    let rims: Vec<u32> = (0..kk.edge_count(&cyl).unwrap()).collect();
+    let boxed = kk.make_box(DVec3::ZERO, DVec3::new(20.0, 12.0, 8.0)).unwrap();
+    let hole = kk.extrude_circle(DVec3::new(10.0, 6.0, -1.0), 3.0, DVec3::new(0.0, 0.0, 10.0)).unwrap();
+    let parts = [
+        cyl.clone(),
+        kk.fillet_edges(&cyl, &rims, 1.6).unwrap(),
+        kk.chamfer_edges(&cyl, &rims, 1.2).unwrap(),
+        kk.fillet_all_edges(&boxed, 1.0).unwrap(),
+        kk.boolean(BoolOp::Subtract, &boxed, &hole).unwrap(),
+        kk.shell(&cyl, &[1], 1.0).unwrap(),
+    ];
+    for (n, part) in parts.iter().enumerate() {
+        let v0 = kk.mass_props(part).unwrap().volume;
+        let mut s = part.clone();
+        let mut grow = 1.0;
+        for f in [DVec3::new(1.3, 1.0, 1.0), DVec3::new(1.0, 1.0, 1.25), DVec3::new(1.0, 0.8, 1.0), DVec3::new(1.2, 1.2, 1.0)] {
+            s = kk.scale(&s, DVec3::new(1.0, 2.0, 9.0), f).unwrap_or_else(|e| panic!("part {n} {f}: {e}"));
+            grow *= f.x * f.y * f.z;
+            let v = kk.mass_props(&s).unwrap().volume;
+            assert!((v / (v0 * grow) - 1.0).abs() < 1e-4, "part {n} after {f}: {v} vs {}", v0 * grow);
+            assert!(!kk.tessellate(&s, 0.05).unwrap().positions.is_empty());
+        }
+        // A uniform scale after the stretches still works on the B-spline part.
+        let u = kk.scale(&s, DVec3::ZERO, DVec3::splat(0.5)).unwrap();
+        assert!((kk.mass_props(&u).unwrap().volume / (v0 * grow * 0.125) - 1.0).abs() < 1e-4, "part {n} uniform");
+    }
+}
+
+#[test]
+#[ignore]
+// Slow (about 20 s): every face and edge operation on stretched (B-spline) parts, looking for hard crashes.
+fn sweep_every_op_on_stretched_parts() {
+    let kk = k();
+    let cyl = kk.extrude_circle(DVec3::ZERO, 9.0, DVec3::new(0.0, 0.0, 19.0)).unwrap();
+    let rims: Vec<u32> = (0..kk.edge_count(&cyl).unwrap()).collect();
+    let fil = kk.fillet_edges(&cyl, &rims, 1.6).unwrap();
+    let bx = kk.make_box(DVec3::ZERO, DVec3::new(20.0, 12.0, 8.0)).unwrap();
+    let st = |s: &Shape| {
+        kk.scale(&kk.scale(s, DVec3::ZERO, DVec3::new(1.3, 1.0, 1.0)).unwrap(), DVec3::ZERO, DVec3::new(1.0, 1.0, 1.2)).unwrap()
+    };
+    let dir = std::env::temp_dir();
+    for (name, s) in [("cyl", st(&cyl)), ("fil", st(&fil)), ("box", st(&bx))] {
+        let nf = kk.face_count(&s).unwrap();
+        let ne = kk.edge_count(&s).unwrap();
+        eprintln!("{name}: {nf} faces {ne} edges");
+        for f in 0..nf {
+            for d in [2.0, -0.5] {
+                eprintln!("{name} face {f} extrude {d}");
+                let _ = kk.extrude_face(&s, f, d);
+                eprintln!("{name} face {f} offset {d}");
+                let _ = kk.offset_faces(&s, &[f], d);
+            }
+            eprintln!("{name} face {f} shell");
+            let _ = kk.shell(&s, &[f], 0.8);
+            eprintln!("{name} face {f} remove/plane/axis/blend/measure/face");
+            let _ = kk.remove_faces(&s, &[f]);
+            let _ = kk.face_plane(&s, f);
+            let _ = kk.axis_of(&s, SubShape::Face(f));
+            let _ = kk.blend_of(&s, f);
+            let _ = kk.measure(&s, SubShape::Face(f));
+            let _ = kk.face_edges(&s, f);
+            let _ = kk.face(&s, f);
+        }
+        for e in 0..ne {
+            eprintln!("{name} edge {e} fillet/chamfer/curve/axis");
+            let _ = kk.fillet_edges(&s, &[e], 0.8);
+            let _ = kk.chamfer_edges(&s, &[e], 0.8);
+            let _ = kk.fillet_edges_variable(&s, &[e], 0.5, 1.0);
+            let _ = kk.edge_curve(&s, e);
+            let _ = kk.axis_of(&s, SubShape::Edge(e));
+            let _ = kk.measure(&s, SubShape::Edge(e));
+            let _ = kk.fill(&s, &[e]);
+        }
+        eprintln!("{name} whole-body ops");
+        let _ = kk.fillet_all_edges(&s, 0.5);
+        let _ = kk.split_by_plane(&s, DVec3::new(0.0, 0.0, 5.0), DVec3::Z);
+        let _ = kk.split_by_plane(&s, DVec3::new(1.0, 0.0, 0.0), DVec3::X);
+        for op in [BoolOp::Union, BoolOp::Subtract, BoolOp::Intersect] {
+            let _ = kk.boolean(op, &s, &bx);
+            let _ = kk.boolean(op, &bx, &s);
+        }
+        let _ = kk.mirror(&s, DVec3::ZERO, DVec3::X);
+        let _ = kk.rotate(&s, Axis::new(DVec3::ZERO, DVec3::Z), 0.7);
+        let _ = kk.translate(&s, DVec3::ONE);
+        let _ = kk.scale(&s, DVec3::ZERO, DVec3::splat(2.0));
+        let _ = kk.mass_props(&s);
+        let _ = kk.bounds(&s);
+        let _ = kk.hidden_lines(
+            std::slice::from_ref(&s),
+            ViewFrame { origin: DVec3::ZERO, toward: DVec3::new(0.0, -1.0, 0.0), x: DVec3::X },
+            0.05,
+        );
+        let p = dir.join(format!("sc-sweep-{name}.step"));
+        kk.write_step(std::slice::from_ref(&s), &p).unwrap();
+        let back = kk.read_step(&p).unwrap();
+        let _ = kk.scale(&back[0], DVec3::ZERO, DVec3::new(1.0, 1.4, 1.0)).unwrap();
+        let _ = std::fs::remove_file(&p);
+    }
+    eprintln!("sweep done");
+}

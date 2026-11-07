@@ -58,6 +58,21 @@
 #include <BRepOffsetAPI_MakeThickSolid.hxx>
 #include <BRepOffset_MakeOffset.hxx>
 #include <BRepBuilderAPI_GTransform.hxx>
+#include <GeomConvert_ApproxSurface.hxx>
+#include <GeomConvert_ApproxCurve.hxx>
+#include <GeomAdaptor_Surface.hxx>
+#include <GeomAdaptor_Curve.hxx>
+#include <BRepTools_Modification.hxx>
+#include <BRepTools_Modifier.hxx>
+#include <GeomConvert.hxx>
+#include <Geom_BSplineSurface.hxx>
+#include <Geom_BezierSurface.hxx>
+#include <Geom_BSplineCurve.hxx>
+#include <Geom_BezierCurve.hxx>
+#include <Geom_RectangularTrimmedSurface.hxx>
+#include <Geom_TrimmedCurve.hxx>
+#include <TColStd_Array1OfInteger.hxx>
+#include <algorithm>
 #include <BRepBuilderAPI_Sewing.hxx>
 #include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepOffsetAPI_MakeOffsetShape.hxx>
@@ -1351,6 +1366,159 @@ int sk_distance(const SkShape* a, int ka, uint32_t ia, const SkShape* b, int kb,
   });
 }
 
+namespace {
+
+// A stretch (non-uniform scale). Every curve and surface becomes a B-spline over its own parameters (exactly when it
+// is one already or a Bezier, else approximated within 1e-6 mm over the face's or edge's range), and the B-spline's
+// control points move by the map. An affine map moves each point of a B-spline to the image of that point at the
+// same parameter, so the face curves (pcurves) and vertex parameters stay valid as they are. OCCT's own GTransform
+// runs NurbsConvert first, and that reads a null curve on seam edges of filleted or already stretched cylinders
+// (a hard crash, which try/catch can't stop), so it isn't used.
+class StretchNurbs : public BRepTools_Modification {
+public:
+  StretchNurbs(const gp_GTrsf& g, double grow) : g_(g), grow_(grow) {}
+
+  Standard_Boolean NewSurface(const TopoDS_Face& F, Handle(Geom_Surface)& S, TopLoc_Location& L, Standard_Real& Tol,
+                              Standard_Boolean& RevWires, Standard_Boolean& RevFace) override {
+    TopLoc_Location loc;
+    Handle(Geom_Surface) s = BRep_Tool::Surface(F, loc);
+    if (s.IsNull()) return Standard_False;
+    double err = 0.0;
+    Handle(Geom_BSplineSurface) b = as_bspline(s, F, err);
+    if (b.IsNull()) {
+      failed_ = true;
+      return Standard_False;
+    }
+    if (!loc.IsIdentity()) b->Transform(loc.Transformation());
+    for (int i = 1; i <= b->NbUPoles(); ++i)
+      for (int j = 1; j <= b->NbVPoles(); ++j) b->SetPole(i, j, map(b->Pole(i, j)));
+    S = b;
+    L = TopLoc_Location();
+    Tol = std::max(BRep_Tool::Tolerance(F), err) * grow_;
+    RevWires = Standard_False;
+    RevFace = Standard_False;
+    return Standard_True;
+  }
+
+  Standard_Boolean NewCurve(const TopoDS_Edge& E, Handle(Geom_Curve)& C, TopLoc_Location& L, Standard_Real& Tol) override {
+    TopLoc_Location loc;
+    Standard_Real f, l;
+    Handle(Geom_Curve) c = BRep_Tool::Curve(E, loc, f, l);
+    double err = 0.0;
+    L = TopLoc_Location();
+    if (c.IsNull()) {
+      C.Nullify();
+      Tol = BRep_Tool::Tolerance(E) * grow_;
+      return Standard_True;
+    }
+    Handle(Geom_BSplineCurve) b = as_bspline(c, f, l, err);
+    if (b.IsNull()) {
+      failed_ = true;
+      return Standard_False;
+    }
+    if (!loc.IsIdentity()) b->Transform(loc.Transformation());
+    for (int i = 1; i <= b->NbPoles(); ++i) b->SetPole(i, map(b->Pole(i)));
+    C = b;
+    Tol = std::max(BRep_Tool::Tolerance(E), err) * grow_;
+    return Standard_True;
+  }
+
+  Standard_Boolean NewPoint(const TopoDS_Vertex& V, gp_Pnt& P, Standard_Real& Tol) override {
+    P = map(BRep_Tool::Pnt(V));
+    Tol = BRep_Tool::Tolerance(V) * grow_ + 1e-6;
+    return Standard_True;
+  }
+
+  Standard_Boolean NewCurve2d(const TopoDS_Edge& E, const TopoDS_Face& F, const TopoDS_Edge&, const TopoDS_Face&,
+                              Handle(Geom2d_Curve)& C, Standard_Real& Tol) override {
+    Standard_Real f, l;
+    Handle(Geom2d_Curve) c = BRep_Tool::CurveOnSurface(E, F, f, l);
+    if (c.IsNull()) return Standard_False;
+    C = Handle(Geom2d_Curve)::DownCast(c->Copy());
+    Tol = BRep_Tool::Tolerance(E) * grow_ + 1e-6;
+    return Standard_True;
+  }
+
+  Standard_Boolean NewParameter(const TopoDS_Vertex& V, const TopoDS_Edge& E, Standard_Real& P, Standard_Real& Tol) override {
+    P = BRep_Tool::Parameter(V, E);
+    Tol = BRep_Tool::Tolerance(V) * grow_ + 1e-6;
+    return Standard_True;
+  }
+
+  GeomAbs_Shape Continuity(const TopoDS_Edge& E, const TopoDS_Face& F1, const TopoDS_Face& F2, const TopoDS_Edge&,
+                           const TopoDS_Face&, const TopoDS_Face&) override {
+    return BRep_Tool::Continuity(E, F1, F2);
+  }
+
+  bool failed() const { return failed_; }
+
+  DEFINE_STANDARD_RTTI_INLINE(StretchNurbs, BRepTools_Modification)
+
+private:
+  static constexpr double kTol = 1e-6;
+
+  // A B-spline with the same parameters as `s` over the face (a copy when it is one, or a Bezier); null when
+  // the approximation fails. `err` is how far it may stray.
+  static Handle(Geom_BSplineSurface) as_bspline(Handle(Geom_Surface) s, const TopoDS_Face& F, double& err) {
+    Handle(Geom_Surface) base = s;
+    while (auto t = Handle(Geom_RectangularTrimmedSurface)::DownCast(base)) base = t->BasisSurface();
+    if (base->IsKind(STANDARD_TYPE(Geom_BSplineSurface)) || base->IsKind(STANDARD_TYPE(Geom_BezierSurface)))
+      return GeomConvert::SurfaceToBSplineSurface(Handle(Geom_Surface)::DownCast(base->Copy()));
+    Standard_Real u1, u2, v1, v2;
+    BRepTools::UVBounds(F, u1, u2, v1, v2);
+    if (!(u2 > u1) || !(v2 > v1)) return Handle(Geom_BSplineSurface)();
+    // A little room past the face, but not past where the surface ends (a sphere's poles).
+    Standard_Real a1, a2, b1, b2;
+    base->Bounds(a1, a2, b1, b2);
+    const double du = (u2 - u1) * 0.02 + 1e-7, dv = (v2 - v1) * 0.02 + 1e-7;
+    u1 -= du; u2 += du; v1 -= dv; v2 += dv;
+    if (!base->IsUPeriodic()) { u1 = std::max(u1, a1); u2 = std::min(u2, a2); }
+    if (!base->IsVPeriodic()) { v1 = std::max(v1, b1); v2 = std::min(v2, b2); }
+    // An adaptor, not a trimmed surface: trimming a periodic surface moves its range into [0, period).
+    Handle(GeomAdaptor_Surface) range = new GeomAdaptor_Surface(base, u1, u2, v1, v2);
+    GeomConvert_ApproxSurface ap(range, kTol, GeomAbs_C1, GeomAbs_C1, 9, 9, 200, 1);
+    if (!ap.HasResult()) return Handle(Geom_BSplineSurface)();
+    err = ap.MaxError();
+    if (!(err < 1e-3)) return Handle(Geom_BSplineSurface)();
+    return ap.Surface();
+  }
+
+  // The same for an edge's curve over [f, l].
+  static Handle(Geom_BSplineCurve) as_bspline(Handle(Geom_Curve) c, double f, double l, double& err) {
+    while (auto t = Handle(Geom_TrimmedCurve)::DownCast(c)) c = t->BasisCurve();
+    if (auto b = Handle(Geom_BSplineCurve)::DownCast(c)) return Handle(Geom_BSplineCurve)::DownCast(b->Copy());
+    if (auto z = Handle(Geom_BezierCurve)::DownCast(c)) {
+      // A Bezier runs over [0, 1]; the same poles as a single-span B-spline keep those parameters.
+      TColgp_Array1OfPnt poles(1, z->NbPoles());
+      TColStd_Array1OfReal weights(1, z->NbPoles());
+      for (int i = 1; i <= z->NbPoles(); ++i) { poles(i) = z->Pole(i); weights(i) = z->Weight(i); }
+      TColStd_Array1OfReal knots(1, 2);
+      TColStd_Array1OfInteger mults(1, 2);
+      knots(1) = 0.0; knots(2) = 1.0;
+      mults(1) = mults(2) = z->Degree() + 1;
+      return new Geom_BSplineCurve(poles, weights, knots, mults, z->Degree());
+    }
+    if (!(l > f)) return Handle(Geom_BSplineCurve)();
+    Handle(GeomAdaptor_Curve) range = new GeomAdaptor_Curve(c, f, l);
+    GeomConvert_ApproxCurve ap(range, kTol, GeomAbs_C2, 200, 9);
+    if (!ap.HasResult()) return Handle(Geom_BSplineCurve)();
+    err = ap.MaxError();
+    if (!(err < 1e-3)) return Handle(Geom_BSplineCurve)();
+    return ap.Curve();
+  }
+
+  gp_Pnt map(const gp_Pnt& p) const {
+    gp_XYZ x = p.XYZ();
+    g_.Transforms(x);
+    return gp_Pnt(x);
+  }
+  gp_GTrsf g_;
+  double grow_;
+  bool failed_ = false;
+};
+
+}  // namespace
+
 int sk_scale(const SkShape* s, double cx, double cy, double cz, double sx, double sy, double sz, SkShape** out) {
   return guard([&] {
     if (!(sx > 0.0) || !(sy > 0.0) || !(sz > 0.0)) return fail("scale factors must be positive");
@@ -1368,10 +1536,12 @@ int sk_scale(const SkShape* s, double cx, double cy, double cz, double sx, doubl
     g.SetValue(2, 2, sy);
     g.SetValue(3, 3, sz);
     g.SetTranslationPart(gp_XYZ(cx * (1 - sx), cy * (1 - sy), cz * (1 - sz)));
-    BRepBuilderAPI_GTransform tr(s->shape, g, Standard_True);
-    if (!tr.IsDone()) return fail("scale failed");
+    Handle(StretchNurbs) stretch = new StretchNurbs(g, std::max({sx, sy, sz, 1.0}));
+    BRepTools_Modifier mod(s->shape, stretch);
+    if (!mod.IsDone() || stretch->failed()) return fail("this shape can't be stretched");
+    TopoDS_Shape r = mod.ModifiedShape(s->shape);
+    if (r.IsNull()) return fail("scale failed");
     // The copy carries the old faces' display triangles, which no longer fit; drop them so it's meshed anew.
-    TopoDS_Shape r = tr.Shape();
     BRepTools::Clean(r);
     return put(out, r);
   });
