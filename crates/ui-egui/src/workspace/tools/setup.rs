@@ -406,8 +406,7 @@ impl MoveTool {
                 items.push(b);
             }
         }
-        // One sketch point: the gizmo on it, in its sketch's plane; it moves and what meets there follows (26.202,
-        // s52r-042/043).
+        // One sketch point: the gizmo on it, in its sketch's plane; it moves and what meets there follows.
         if let [Pick::SketchPoint { sketch, entity, index }] = s.selection.as_slice()
             && let Some(sk) = s.doc.sketch(*sketch)
             && let Some(at) =
@@ -873,7 +872,7 @@ impl OffsetFaceTool {
     }
 }
 
-/// The handle a new Scale starts on: the one hammer for uniform, X for non-uniform (lit blue at once, 26.202 s52r-005).
+/// The handle a new Scale starts on: the one hammer for uniform, X for non-uniform (lit blue at once).
 pub(crate) fn first_scale_handle(uniform: bool) -> Handle {
     if uniform { Handle::Arrow(2) } else { Handle::Arrow(0) }
 }

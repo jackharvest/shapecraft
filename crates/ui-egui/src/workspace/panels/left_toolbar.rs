@@ -70,11 +70,10 @@ fn context_tools(ws: &Workspace) -> (Vec<ToolDef>, Option<String>) {
             _ => false,
         });
         if curved {
-            // Nor shelled (26.202: a cylinder's four faces offer no Shell, s52r-019).
+            // Nor shelled (a cylinder's faces together offer no Shell).
             v.retain(|d| !matches!(d.label, "Extrude" | "Loft" | "Revolve" | "Sweep" | "Shell"));
         }
-        // Two flat faces: an axis where they meet (unless parallel) and a plane between them, and no Loft
-        // (26.202, s52r-016/017).
+        // Two flat faces: an axis where they meet (unless parallel) and a plane between them, and no Loft.
         let normals: Vec<_> = ws
             .session
             .selection

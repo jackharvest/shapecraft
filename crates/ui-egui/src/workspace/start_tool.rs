@@ -348,7 +348,7 @@ impl Workspace {
                 None => self.await_selection(ToolKind::SplitBody, "Select bodies to split"),
             },
             ToolKind::OffsetFace => {
-                // A whole body picked: Offset Face takes all its faces ("4 faces"), as the reference does (s52r-019).
+                // A whole body picked: Offset Face takes all its faces ("4 faces").
                 let whole = if let [Pick::Body { body }] = self.session.selection[..]
                     && let Some(b) = self.session.doc.body(body)
                     && let Ok(n) = self.session.kernel.face_count(&b.shape)
@@ -367,8 +367,7 @@ impl Workspace {
                     None => self.await_selection(ToolKind::OffsetFace, "Select faces to offset"),
                 }
             }
-            // A sketch region picked outside its sketch scales right there, the region staying picked (26.202,
-            // s52r-034; 26.200 opened the sketch and waited, s24 matrix).
+            // A sketch region picked outside its sketch scales right there, the region staying picked.
             ToolKind::ScaleNonUniform => match tools::ScaleTool::from_selection(&self.session, false) {
                 Some(t) => {
                     self.remember("scale");

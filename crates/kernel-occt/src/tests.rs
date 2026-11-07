@@ -724,7 +724,7 @@ fn scaling_a_rim_tapers_the_cylinder() {
 #[test]
 fn scaling_a_straight_edge_stretches_it_and_the_ends_follow() {
     let kk = k();
-    // 40 × 30 × 12 with a hole, like the reference's test part; the top edge along y at x = 20.
+    // 40 × 30 × 12 with a hole; the top edge along y at x = 20.
     let bx = kk.make_box(DVec3::new(-20.0, -15.0, 0.0), DVec3::new(40.0, 30.0, 12.0)).unwrap();
     let pin = kk.extrude_circle(DVec3::new(-10.0, 0.0, -1.0), 4.0, DVec3::new(0.0, 0.0, 14.0)).unwrap();
     let bx = kk.boolean(shapecraft_kernel::BoolOp::Subtract, &bx, &pin).unwrap();

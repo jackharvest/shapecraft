@@ -601,7 +601,7 @@ pub struct OffsetFaceTool {
     /// Whether the face offers distance types: a flat face (Offset / Total) or a cylinder's wall (Offset / Radius /
     /// Diameter). Cones, spheres and free-form faces only offset, with the value always on show (26.202, s40-023/024).
     pub kinds: bool,
-    /// Started on a whole body (its faces all picked): Done shows from the start (26.202, s52r-019).
+    /// Started on a whole body (its faces all picked): Done shows from the start.
     pub whole: bool,
 }
 
@@ -729,7 +729,7 @@ impl PointMove {
             }
         }
         // The point stays where it's put and the constraints bring the rest along (a rectangle's far corner follows
-        // its side), as the reference does (s52r-043).
+        // its side).
         if !self.constraints.is_empty() {
             use shapecraft_doc::constraints::{Constraint, Element};
             let mut cs = self.constraints.clone();

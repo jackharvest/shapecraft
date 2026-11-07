@@ -226,8 +226,8 @@ impl Workspace {
             }
             _ => base,
         };
-        // A profile pulled into a new body keeps its sketch drawn until Done (26.202, s52r-025: the outline shows
-        // through the see-through body); the step hides it once it's applied.
+        // A profile pulled into a new body keeps its sketch drawn until Done (the outline shows through the
+        // see-through body); the step hides it once it's applied.
         let base = match (&self.tool, &self.cut_base) {
             (Tool::Extrude(t), Some(before))
                 if let tools::Target::Region { sketch, .. } = t.target

@@ -33,7 +33,7 @@ impl Workspace {
 
     /// The angle between the two picked lines (degrees), for the pill's chip.
     pub(in crate::workspace) fn picked_angle(&self) -> Option<f64> {
-        // Two flat faces: the angle between them ("2 faces | ∠ 90°", 26.202 s52r-016).
+        // Two flat faces: the angle between them ("2 faces | ∠ 90°").
         if let [Pick::Face { body: b1, face: f1 }, Pick::Face { body: b2, face: f2 }] = self.session.selection[..] {
             let normal = |body, face| {
                 let b = self.session.doc.body(body)?;

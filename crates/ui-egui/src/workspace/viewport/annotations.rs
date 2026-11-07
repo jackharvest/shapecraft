@@ -519,7 +519,7 @@ impl Workspace {
         if let Tool::Scale(t) = &self.tool {
             let hover = self.cursor.and_then(|c| self.scale_hit(t, c));
             let typed_f = typed.and_then(|n| n.trim().parse::<f64>().ok());
-            // The value, Copy and the badge run out through the active handle from the start, "1.00×" (26.202, s52r-005).
+            // The value, Copy and the badge run out through the active handle from the start ("1.00×").
             let active = true;
             let rim = theme::c(0x6e6e73);
             let shapes = self.scale_shapes(t);
@@ -1160,7 +1160,7 @@ impl Workspace {
     }
 }
 
-/// A scale factor as the reference writes it: two decimals at least, up to four ("1.00×", "1.7951×").
+/// A scale factor: two decimals at least, up to four ("1.00×", "1.7951×").
 fn factor_text(f: f64) -> String {
     let s = format!("{f:.4}");
     let trimmed = s.trim_end_matches('0');

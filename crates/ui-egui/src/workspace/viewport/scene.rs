@@ -433,7 +433,7 @@ impl Workspace {
             return vec![(body, Rgba(grey.0, grey.1, grey.2, 150))];
         }
         // A profile pulled out into a new body: that body in plain grey, a little see-through, so its sketch shows
-        // inside it (26.202, s52r-025).
+        // inside it.
         if let Tool::Extrude(t) = &self.tool
             && matches!(t.target, crate::workspace::tools::Target::Region { .. })
             && (self.is_live() || self.has_live_preview())

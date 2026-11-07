@@ -211,8 +211,8 @@ pub(super) fn sketch_dimension_label(painter: &egui::Painter, mid: Pos2, u: egui
 /// The value field opened by typing (26.200, s11-014): a dark rounded panel holding a blue-rimmed field with the
 /// text, an "x+" variable glyph at its right end, and a "123" keypad key beside it.
 pub(super) fn value_field(painter: &egui::Painter, center: Pos2, typed: &str) {
-    // See-through, as in 26.202 (s52r-044: the panel reads #282931 over the dark view and the field takes on the
-    // colour of a face behind it): the panel #30323d at 64 %, the field a light veil over it.
+    // See-through: the panel #30323d at 64 % (about #282931 over the dark view), the field a light veil over it, so
+    // a face behind tints it.
     let alpha = |c: Color32, a: u8| Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), a);
     let panel = Rect::from_center_size(center + vec2(13.0, 0.0), vec2(214.0, 34.0));
     painter.rect_filled(panel, radius(9), alpha(theme::c(0x30323d), 165));
