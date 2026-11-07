@@ -2,10 +2,10 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.6.1-alpha
+## 0.6.2-alpha
 
-**No more crash when stretching a part a second time, value pills you can click, and Scale or Move/Rotate on a
-picked rim works on that edge.**
+**No more crash when stretching a part a second time, value pills you can click, and edges, sketch points and sketch
+profiles you can scale, move and turn right where they are.**
 
 ### New
 - **Click a value pill to type into it.** The number on a handle ("19 mm", "R 2mm", "1.50×") opens the value
@@ -15,13 +15,30 @@ picked rim works on that edge.**
   an oval top.
 - **Move/Rotate on a rim.** The same edge can be moved: the gizmo comes up at its middle, and moving it up makes the
   part taller, sideways slants it.
+- **Scale and turn a straight edge.** With one straight edge picked, Scale stretches that edge about its middle and
+  Move/Rotate's turning handles turn it; the faces around it follow (a face that can't stay flat bends smoothly).
+- **Move a sketch point.** Pick a point (a corner, an end, a center) and press M: the gizmo sits on it, the point
+  moves in its sketch, and whatever meets there comes along, keeping the sketch's constraints.
+- **Two flat faces.** The bar at the bottom shows the angle between them, and the left column offers **Axis - 2
+  Planes** and **Plane - Midplane**; between two faces that meet, the midplane halves the angle inside the part.
+- **Copy for sketch curves.** Move/Rotate's Copy works on sketch curves: copies made in the plane join the sketch,
+  copies lifted off it go to a new sketch and the originals stay.
 
 ### Changed
 - **Split Body** isn't offered for a single straight edge any more (a round edge still offers it).
+- **Offset Face on a whole body** picks all of its faces and starts at once, with Done showing.
+- **Scale on a sketch profile** picked outside its sketch scales it right there, instead of opening the sketch.
+- **Pulling a profile into a new body** shows the body a little see-through, with its sketch inside, until Done.
+- **The value field** you type into is see-through over the view, and Scale shows its factor ("1.00×", up to four
+  decimals) along the active handle from the start.
+- **Several faces with a curved one** no longer offer Shell.
 
 ### Fixed
 - **Crash when stretching a part again.** A one-axis (non-uniform) scale of a part that had been stretched before,
   or of a cylinder with a filleted or chamfered rim, could close the app. Those stretches now work.
+- **Scale with one straight edge picked** scaled the whole part.
+- **A handle left on screen** after running a command from the left column (Offset Face's arrow stayed up after
+  Plane - Midplane, for one).
 
 ## 0.6.0-alpha
 
