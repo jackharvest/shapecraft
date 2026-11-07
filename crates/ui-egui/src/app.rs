@@ -1312,6 +1312,18 @@ impl ShapeCraftApp {
                 }
                 Ok(Value::Null)
             }
+            "ui.window" => {
+                // Size and place the window (points), for side-by-side checks at the reference's size.
+                let num = |k: &str| params.get(k).and_then(Value::as_f64).filter(|v| v.is_finite() && (0.0..=20_000.0).contains(v));
+                if let (Some(w), Some(h)) = (num("w"), num("h")) {
+                    self.egui.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(w.max(400.0) as f32, h.max(300.0) as f32)));
+                }
+                if let (Some(x), Some(y)) = (num("x"), num("y")) {
+                    self.egui.send_viewport_cmd(egui::ViewportCommand::OuterPosition(egui::pos2(x as f32, y as f32)));
+                }
+                self.egui.request_repaint();
+                Ok(Value::Null)
+            }
             "ui.theme" => {
                 // Preferences ▸ Theme: System, Light or Dark.
                 let name = params.get("theme").and_then(Value::as_str).ok_or("theme: System, Light or Dark")?;
