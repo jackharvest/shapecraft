@@ -432,8 +432,8 @@ impl MoveTool {
                 unlinked: false,
             });
         }
-        // One rim (a closed edge): it moves with its flat face, the gizmo at its middle (26.202, s51r-033); no
-        // turning rings yet.
+        // One rim (a closed edge): it moves with its flat face, the gizmo at its middle; no turning rings
+        // yet.
         if let Some((edge, pivot, _)) = picked_rim(s) {
             return Some(Self {
                 items: Vec::new(),

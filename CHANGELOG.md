@@ -2,6 +2,27 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.6.1-alpha
+
+**No more crash when stretching a part a second time, value pills you can click, and Scale or Move/Rotate on a
+picked rim works on that edge.**
+
+### New
+- **Click a value pill to type into it.** The number on a handle ("19 mm", "R 2mm", "1.50×") opens the value
+  field with that value selected when you click it, the same as typing would; the first key replaces it.
+- **Scale on a rim.** With one round edge picked (the top of a cylinder, say), Scale works on that edge alone: the
+  flat face inside it scales with it and the side follows, so pulling it out makes a taper and a one-axis pull makes
+  an oval top.
+- **Move/Rotate on a rim.** The same edge can be moved: the gizmo comes up at its middle, and moving it up makes the
+  part taller, sideways slants it.
+
+### Changed
+- **Split Body** isn't offered for a single straight edge any more (a round edge still offers it).
+
+### Fixed
+- **Crash when stretching a part again.** A one-axis (non-uniform) scale of a part that had been stretched before,
+  or of a cylinder with a filleted or chamfered rim, could close the app. Those stretches now work.
+
 ## 0.6.0-alpha
 
 **Your projects, kept safe and on every computer: a Work Folder that autosave writes to, backups to Google Drive,

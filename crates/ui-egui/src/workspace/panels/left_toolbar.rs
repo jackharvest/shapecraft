@@ -74,7 +74,7 @@ fn context_tools(ws: &Workspace) -> (Vec<ToolDef>, Option<String>) {
         }
     }
     // A round edge has no line to put an axis along or a plane through (s24 matrix); a straight one doesn't close
-    // round anything to split by (26.202, s51r-b-vedge / s51r-c-rim).
+    // round anything to split by.
     if let [Pick::Edge { body, edge }] = ws.session.selection.as_slice()
         && let Some(b) = ws.session.doc.body(*body)
     {

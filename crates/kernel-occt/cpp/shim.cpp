@@ -1550,8 +1550,8 @@ int sk_scale(const SkShape* s, double cx, double cy, double cz, double sx, doubl
 }
 
 // Moves, turns or scales one closed edge (a rim): the flat face it bounds goes with it and the face on its other side
-// runs straight from its far edge(s) to the new rim, so a cylinder's rim scaled up makes a taper (26.202, s51r-017;
-// a one-axis pull makes an oval top, s51r-024) and moved up makes it taller (s51r-035). The other faces stay.
+// runs straight from its far edge(s) to the new rim, so a cylinder's rim scaled up makes a taper (a
+// one-axis pull makes an oval top) and moved up makes it taller. The other faces stay.
 // `m` is the map, row by row: x' = m[0] x + m[1] y + m[2] z + m[3], and so on for y' and z'. A move or turn keeps
 // curves exact; a stretch makes them B-splines.
 int sk_map_edge(const SkShape* s, uint32_t edge, const double* m, SkShape** out) {

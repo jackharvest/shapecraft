@@ -625,7 +625,7 @@ impl FilletFace {
 #[derive(Clone, Debug)]
 pub struct ScaleTool {
     pub items: Vec<ItemId>,
-    /// One picked rim (closed edge) scaled on its own, about its center (26.202, s51r-015..024).
+    /// One picked rim (closed edge) scaled on its own, about its center.
     pub edge: Option<(ItemId, u32)>,
     pub pivot: DVec3,
     /// The selection's half size per axis: pulling a hammer this far (in mm) doubles that axis.

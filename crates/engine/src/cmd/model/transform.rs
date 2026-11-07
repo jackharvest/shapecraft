@@ -367,7 +367,7 @@ pub(super) fn scale(s: &mut Session, p: &Params) -> Result<Value> {
         return sketch_xform(s, sel, &[m], p.bool_or("copy", false), false);
     }
     // One closed edge (a rim): it scales on its own; its flat face goes with it and the face beside it follows
-    // (26.202, s51r-017/024). Picked, or named with "body" + "edge".
+    // Picked, or named with "body" + "edge".
     let edge = if p.has("edge") {
         Some((p.id("body")?, p.f64("edge")?.clamp(0.0, u32::MAX as f64) as u32))
     } else if p.has("items") {

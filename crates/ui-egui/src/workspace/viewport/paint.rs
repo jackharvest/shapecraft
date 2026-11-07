@@ -243,7 +243,7 @@ pub(super) fn value_field(painter: &egui::Painter, center: Pos2, typed: &str) {
 }
 
 /// Where this frame's value pills were drawn, with their text: a click on one opens the value field with that
-/// value in it (the reference does, s15; some people click rather than type).
+/// value in it (some people click rather than type).
 pub(in crate::workspace) fn value_pills(ctx: &egui::Context) -> Vec<(Rect, String)> {
     ctx.data(|d| d.get_temp::<Vec<(Rect, String)>>(egui::Id::unique("sc-value-pills"))).unwrap_or_default()
 }
