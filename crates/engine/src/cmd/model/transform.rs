@@ -4,7 +4,7 @@
 use glam::{DAffine2, DVec2, DVec3};
 use serde_json::{Value, json};
 use shapecraft_doc::{Constraint, ItemId, Pick, SketchEntity, SketchPlane};
-use shapecraft_kernel::{Axis, BoolOp};
+use shapecraft_kernel::{Axis, BoolOp, SubShape};
 
 use super::sweep::topo_axis;
 use super::{add_body, add_copy, face_frame, selected_bodies, set_body_shape, target_bodies};
@@ -365,6 +365,26 @@ pub(super) fn scale(s: &mut Session, p: &Params) -> Result<Value> {
             * DAffine2::from_scale(DVec2::new(along(pl.x), along(pl.y)))
             * DAffine2::from_translation(-center);
         return sketch_xform(s, sel, &[m], p.bool_or("copy", false), false);
+    }
+    // One closed edge (a rim): it scales on its own; its flat face goes with it and the face beside it follows
+    // (26.202, s51r-017/024). Picked, or named with "body" + "edge".
+    let edge = if p.has("edge") {
+        Some((p.id("body")?, p.f64("edge")?.clamp(0.0, u32::MAX as f64) as u32))
+    } else if p.has("items") {
+        None
+    } else {
+        match s.selection.as_slice() {
+            [Pick::Edge { body, edge }] => Some((*body, *edge)),
+            _ => None,
+        }
+    };
+    if let Some((body, edge)) = edge {
+        let b = s.doc.body(body).ok_or_else(|| EngineError::BadParams(format!("no body {}", body.0)))?;
+        let center = if p.has("center") { p.vec3("center")? } else { s.kernel.measure(&b.shape, SubShape::Edge(edge))?.1 };
+        let scaled = s.kernel.scale_edge(&b.shape, edge, center, factors)?;
+        set_body_shape(s, body, scaled)?;
+        s.selection.clear();
+        return Ok(json!({ "scaled": 1, "body": body.0, "copies": [] }));
     }
     let ids = target_bodies(s, p, "select bodies to scale")?;
     let center = if p.has("center") { p.vec3("center")? } else { bodies_center(s, &ids)? };

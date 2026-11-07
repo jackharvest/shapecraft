@@ -84,6 +84,7 @@
 #include <GeomLib_IsPlanarSurface.hxx>
 #include <BRepPrimAPI_MakeRevol.hxx>
 #include <TopTools_ListOfShape.hxx>
+#include <TopTools_MapOfShape.hxx>
 #include <gp_Ax1.hxx>
 #include <BRepGProp.hxx>
 #include <BRepGProp_Face.hxx>
@@ -1547,6 +1548,127 @@ int sk_scale(const SkShape* s, double cx, double cy, double cz, double sx, doubl
   });
 }
 
+// Scales one closed edge (a rim) about `c` by (sx, sy, sz): the flat face it bounds scales with it and the face on
+// its other side runs straight from its far edge(s) to the scaled rim, so a cylinder's rim pulled out makes a taper
+// (26.202, s51r-017; a one-axis pull makes an oval top, s51r-024). The other faces stay as they are.
+int sk_scale_edge(const SkShape* s, uint32_t edge, double cx, double cy, double cz, double sx, double sy, double sz, SkShape** out) {
+  return guard([&] {
+    if (!(sx > 0.0) || !(sy > 0.0) || !(sz > 0.0)) return fail("scale factors must be positive");
+    TopoDS_Shape sub;
+    if (!sub_shape(s->shape, 2, edge, sub) || sub.ShapeType() != TopAbs_EDGE) return fail("no such edge");
+    const TopoDS_Edge e = TopoDS::Edge(sub);
+    const char* cant = "only a closed edge round a flat face scales on its own";
+    if (!BRep_Tool::IsClosed(e) || BRep_Tool::Degenerated(e)) return fail(cant);
+    TopTools_IndexedDataMapOfShapeListOfShape ef;
+    TopExp::MapShapesAndAncestors(s->shape, TopAbs_EDGE, TopAbs_FACE, ef);
+    if (!ef.Contains(e)) return fail(cant);
+    TopTools_IndexedMapOfShape around;
+    for (const TopoDS_Shape& f : ef.FindFromKey(e)) around.Add(f);
+    if (around.Extent() != 2) return fail(cant);
+    // The cap: the flat one whose outer wire is this edge alone.
+    int cap_i = 0;
+    for (int i = 1; i <= 2; ++i) {
+      const TopoDS_Face f = TopoDS::Face(around(i));
+      BRepAdaptor_Surface a(f, Standard_False);
+      if (a.GetType() != GeomAbs_Plane) continue;
+      TopoDS_Wire w = BRepTools::OuterWire(f);
+      int n = 0;
+      bool has = false;
+      for (TopExp_Explorer x(w, TopAbs_EDGE); x.More(); x.Next(), ++n) has = has || x.Current().IsSame(e);
+      if (has && n == 1) cap_i = i;
+    }
+    if (cap_i == 0) return fail(cant);
+    const TopoDS_Face cap = TopoDS::Face(around(cap_i));
+    const TopoDS_Face side = TopoDS::Face(around(3 - cap_i));
+    // The side's far loop: its edges other than the rim and its seams (edges it holds twice).
+    TopTools_MapOfShape taken;
+    TopTools_ListOfShape far_edges;
+    for (TopExp_Explorer x(side, TopAbs_EDGE); x.More(); x.Next()) {
+      const TopoDS_Edge d = TopoDS::Edge(x.Current());
+      if (d.IsSame(e) || BRep_Tool::IsClosed(d, side) || BRep_Tool::Degenerated(d) || !taken.Add(d)) continue;
+      far_edges.Append(d);
+    }
+    BRepBuilderAPI_MakeWire far;
+    if (!far_edges.IsEmpty()) far.Add(far_edges);
+    const int far_n = far_edges.Extent();
+    // A cone up to a point has no far loop: nothing to run the side from.
+    if (far_n == 0 || !far.IsDone() || !BRep_Tool::IsClosed(far.Wire())) return fail(cant);
+    // The scaled rim (and any holes in the cap, which scale with it).
+    gp_Pnt c(cx, cy, cz);
+    auto scaled = [&](const TopoDS_Shape& x) -> TopoDS_Shape {
+      if (std::abs(sx - sy) < 1e-12 && std::abs(sx - sz) < 1e-12) {
+        gp_Trsf t;
+        t.SetScale(c, sx);
+        return BRepBuilderAPI_Transform(x, t, Standard_True).Shape();
+      }
+      gp_GTrsf g;
+      g.SetValue(1, 1, sx);
+      g.SetValue(2, 2, sy);
+      g.SetValue(3, 3, sz);
+      g.SetTranslationPart(gp_XYZ(cx * (1 - sx), cy * (1 - sy), cz * (1 - sz)));
+      Handle(StretchNurbs) st = new StretchNurbs(g, std::max({sx, sy, sz, 1.0}));
+      BRepTools_Modifier mod(x, st);
+      if (!mod.IsDone() || st->failed()) return TopoDS_Shape();
+      return mod.ModifiedShape(x);
+    };
+    TopoDS_Shape rim2 = scaled(BRepBuilderAPI_MakeWire(e).Wire());
+    if (rim2.IsNull() || rim2.ShapeType() != TopAbs_WIRE) return fail(cant);
+    const TopoDS_Wire rim_w = TopoDS::Wire(rim2);
+    BRepAdaptor_Surface cap_s(cap, Standard_False);
+    BRepBuilderAPI_MakeFace mf(rim_w, Standard_True);
+    if (!mf.IsDone()) return fail("the scaled rim isn't flat any more");
+    for (TopExp_Explorer x(cap, TopAbs_WIRE); x.More(); x.Next()) {
+      const TopoDS_Wire w = TopoDS::Wire(x.Current());
+      if (w.IsSame(BRepTools::OuterWire(cap))) continue;
+      TopoDS_Shape h = scaled(w);
+      if (h.IsNull() || h.ShapeType() != TopAbs_WIRE) return fail(cant);
+      mf.Add(TopoDS::Wire(h));
+    }
+    TopoDS_Face cap2 = mf.Face();
+    // Face it the way the old cap faced.
+    {
+      BRepGProp_Face a(cap), b(cap2);
+      Standard_Real u1, u2, v1, v2;
+      a.Bounds(u1, u2, v1, v2);
+      gp_Pnt p; gp_Vec na, nb;
+      a.Normal((u1 + u2) / 2, (v1 + v2) / 2, p, na);
+      b.Bounds(u1, u2, v1, v2);
+      b.Normal((u1 + u2) / 2, (v1 + v2) / 2, p, nb);
+      if (na.Dot(nb) < 0) cap2.Reverse();
+    }
+    // The side, ruled from the far loop to the scaled rim.
+    BRepOffsetAPI_ThruSections ts(Standard_False, Standard_True, 1e-6);
+    ts.AddWire(far.Wire());
+    ts.AddWire(rim_w);
+    ts.CheckCompatibility(Standard_True);
+    ts.Build();
+    if (!ts.IsDone()) return fail("the side couldn't follow the scaled rim");
+    BRepBuilderAPI_Sewing sew(1e-4);
+    for (TopExp_Explorer x(s->shape, TopAbs_FACE); x.More(); x.Next())
+      if (!x.Current().IsSame(cap) && !x.Current().IsSame(side)) sew.Add(x.Current());
+    sew.Add(cap2);
+    for (TopExp_Explorer x(ts.Shape(), TopAbs_FACE); x.More(); x.Next()) sew.Add(x.Current());
+    sew.Perform();
+    TopoDS_Shape sewn = sew.SewedShape();
+    for (TopExp_Explorer x(sewn, TopAbs_SHELL); x.More(); x.Next()) {
+      TopoDS_Shell shell = TopoDS::Shell(x.Current());
+      if (!BRep_Tool::IsClosed(shell)) continue;
+      BRepBuilderAPI_MakeSolid mk(shell);
+      if (!mk.IsDone()) continue;
+      ShapeFix_Solid fix;
+      fix.Init(mk.Solid());
+      fix.Perform();
+      TopoDS_Shape solid = fix.Solid();
+      if (solid.IsNull() || !BRepCheck_Analyzer(solid).IsValid()) continue;
+      GProp_GProps props;
+      BRepGProp::VolumeProperties(solid, props);
+      if (!(props.Mass() > 1e-9)) continue;
+      return put(out, solid);
+    }
+    return fail("the scaled rim couldn't be joined back to the body");
+  });
+}
+
 // Moves the given faces along their normals by `distance` (curved faces too); the neighbours stretch to follow.
 namespace {
 
@@ -2794,6 +2916,7 @@ int sk_wrap_emboss(const SkShape* body, int64_t face, const SkShape* const* regi
 #include <BRepLProp_SLProps.hxx>
 #include <TopTools_IndexedDataMapOfShapeListOfShape.hxx>
 #include <TopTools_ListOfShape.hxx>
+#include <TopTools_MapOfShape.hxx>
 
 namespace {
 

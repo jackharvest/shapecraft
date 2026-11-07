@@ -323,6 +323,13 @@ pub trait Kernel: Send + Sync {
     /// Scales around `center` by a factor per world axis (all equal for a uniform scale).
     fn scale(&self, shape: &Shape, center: DVec3, factors: DVec3) -> Result<Shape>;
 
+    /// Scales one closed edge (a rim round a flat face) about `center`: the face it bounds scales with it and the face
+    /// on its other side runs straight from its far edge to the new rim (a cylinder's rim pulled out makes a taper).
+    fn scale_edge(&self, shape: &Shape, edge: u32, center: DVec3, factors: DVec3) -> Result<Shape> {
+        let _ = (shape, edge, center, factors);
+        Err(KernelError::InvalidInput("this kernel can't scale an edge".into()))
+    }
+
     /// Moves faces along their normals (planar or curved); neighbouring faces stretch to follow.
     fn offset_faces(&self, shape: &Shape, faces: &[u32], distance: f64) -> Result<Shape>;
 

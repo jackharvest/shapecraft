@@ -686,3 +686,33 @@ fn sweep_every_op_on_stretched_parts() {
     }
     eprintln!("sweep done");
 }
+
+#[test]
+fn scaling_a_rim_tapers_the_cylinder() {
+    let kk = k();
+    let cyl = kk.extrude_circle(DVec3::ZERO, 4.5, DVec3::new(0.0, 0.0, 19.0)).unwrap();
+    let top = (0..kk.edge_count(&cyl).unwrap())
+        .find(|e| matches!(kk.edge_curve(&cyl, *e), Ok(EdgeCurve::Circle { center, .. }) if center.z > 18.0))
+        .unwrap();
+    let c = DVec3::new(0.0, 0.0, 19.0);
+    // Uniform ×2: a cone frustum r 4.5 → 9 over 19 mm.
+    let up = kk.scale_edge(&cyl, top, c, DVec3::splat(2.0)).unwrap();
+    let v = kk.mass_props(&up).unwrap().volume;
+    let frustum = std::f64::consts::PI * 19.0 / 3.0 * (4.5f64.powi(2) + 4.5 * 9.0 + 9.0f64.powi(2));
+    assert!((v / frustum - 1.0).abs() < 1e-3, "{v} vs {frustum}");
+    let bb = kk.bounds(&up).unwrap();
+    assert!((bb.max.x - 9.0).abs() < 1e-3 && (bb.max.z - 19.0).abs() < 1e-3, "{bb:?}");
+    // One axis: an oval top, the bottom untouched.
+    let oval = kk.scale_edge(&cyl, top, c, DVec3::new(1.8, 1.0, 1.0)).unwrap();
+    let bb = kk.bounds(&oval).unwrap();
+    assert!((bb.max.x - 8.1).abs() < 1e-2 && (bb.max.y - 4.5).abs() < 1e-2, "{bb:?}");
+    assert!(kk.mass_props(&oval).unwrap().volume > std::f64::consts::PI * 4.5 * 4.5 * 19.0);
+    // And again on the result (a B-spline rim now).
+    let top2 = (0..kk.edge_count(&oval).unwrap())
+        .max_by(|a, b| kk.measure(&oval, SubShape::Edge(*a)).unwrap().1.z.total_cmp(&kk.measure(&oval, SubShape::Edge(*b)).unwrap().1.z))
+        .unwrap();
+    assert!(kk.scale_edge(&oval, top2, c, DVec3::new(1.0, 1.5, 1.0)).is_ok());
+    // A straight edge isn't a rim.
+    let bx = kk.make_box(DVec3::ZERO, DVec3::splat(5.0)).unwrap();
+    assert!(kk.scale_edge(&bx, 0, DVec3::ZERO, DVec3::splat(2.0)).is_err());
+}

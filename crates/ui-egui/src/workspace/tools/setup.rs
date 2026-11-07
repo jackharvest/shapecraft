@@ -614,6 +614,23 @@ pub(super) fn selected_items_bounds(s: &Session) -> Option<(Vec<ItemId>, DVec3, 
     Some((items, min, max))
 }
 
+/// One picked closed edge (a rim): it, the middle of its drawn points and their half size per axis.
+fn picked_rim(s: &Session) -> Option<((ItemId, u32), DVec3, [f64; 3])> {
+    let [Pick::Edge { body, edge }] = s.selection.as_slice() else { return None };
+    let b = s.doc.body(*body)?;
+    let k = b.mesh.edge_ids.iter().position(|e| e == edge)?;
+    let pts: Vec<DVec3> = b.mesh.edges.get(k)?.iter().map(|q| DVec3::new(q[0] as f64, q[1] as f64, q[2] as f64)).collect();
+    let (first, last) = (*pts.first()?, *pts.last()?);
+    let min = pts.iter().fold(DVec3::splat(f64::INFINITY), |m, q| m.min(*q));
+    let max = pts.iter().fold(DVec3::splat(f64::NEG_INFINITY), |m, q| m.max(*q));
+    let size = (max - min).length();
+    if pts.len() < 3 || size <= 1e-9 || first.distance(last) > size * 1e-4 {
+        return None;
+    }
+    let center = s.kernel.measure(&b.shape, shapecraft_kernel::SubShape::Edge(*edge)).ok().map(|m| m.1).unwrap_or((min + max) / 2.0);
+    Some(((*body, *edge), center, ((max - min) / 2.0).max(DVec3::splat(1e-3)).to_array()))
+}
+
 /// Bodies go in "items"; with none, the command works on the selected sketch curves.
 pub(super) fn with_items(v: &mut serde_json::Value, items: &[ItemId]) {
     if !items.is_empty() {
@@ -782,6 +799,21 @@ impl OffsetFaceTool {
 impl ScaleTool {
     /// Picked bodies, or (with none) picked sketch curves: the gizmo sits in the middle of what it scales.
     pub fn from_selection(s: &Session, uniform: bool) -> Option<Self> {
+        if let Some((edge, pivot, half)) = picked_rim(s) {
+            return Some(Self {
+                items: Vec::new(),
+                edge: Some(edge),
+                pivot,
+                half,
+                uniform,
+                handle: Handle::Arrow(2),
+                factor: 1.0,
+                dragging: None,
+                relocating: false,
+                snapped: false,
+                copy: false,
+            });
+        }
         let (items, pivot, half) = match selected_items_bounds(s) {
             Some((items, min, max)) => (items, (min + max) / 2.0, ((max - min) / 2.0).max(DVec3::splat(1e-3)).to_array()),
             None => {
@@ -791,6 +823,7 @@ impl ScaleTool {
         };
         Some(Self {
             items,
+            edge: None,
             pivot,
             half,
             uniform,
@@ -831,6 +864,10 @@ impl ScaleTool {
     pub fn request(&self, f: f64) -> (&'static str, serde_json::Value) {
         let c = self.pivot;
         let mut v = json!({ "factors": self.factors(f), "center": [c.x, c.y, c.z], "copy": self.copy });
+        if let Some((body, edge)) = self.edge {
+            v["body"] = json!(body.0);
+            v["edge"] = json!(edge);
+        }
         with_items(&mut v, &self.items);
         ("scale", v)
     }

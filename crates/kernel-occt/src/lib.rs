@@ -455,6 +455,16 @@ impl Kernel for OcctKernel {
         shape_out("scale", |out| unsafe { ffi::sk_scale(s, center.x, center.y, center.z, factors.x, factors.y, factors.z, out) })
     }
 
+    fn scale_edge(&self, shape: &Shape, edge: u32, center: DVec3, factors: DVec3) -> Result<Shape> {
+        finite("scale", &[center.x, center.y, center.z, factors.x, factors.y, factors.z])?;
+        if factors.min_element() <= 0.0 || factors.max_element() > 1e6 || factors.min_element() < 1e-6 {
+            return Err(KernelError::InvalidInput("scale factors must be positive".into()));
+        }
+        let s = raw(shape)?;
+        // SAFETY: plain values in.
+        shape_out("scale", |out| unsafe { ffi::sk_scale_edge(s, edge, center.x, center.y, center.z, factors.x, factors.y, factors.z, out) })
+    }
+
     fn offset_faces(&self, shape: &Shape, faces: &[u32], distance: f64) -> Result<Shape> {
         finite("offset", &[distance])?;
         if faces.is_empty() || distance == 0.0 {

@@ -310,3 +310,28 @@ fn an_unlinked_copy_keeps_its_geometry_when_earlier_steps_change() {
     assert_eq!(s.doc.history.last().unwrap().label, "Unlinked Copy 01");
     assert!(s.execute("translate", &json!({"by": [0, 0, 0], "frozen": [[body, "garbage"]]})).is_err());
 }
+
+#[test]
+fn scale_on_a_picked_rim_tapers_the_body() {
+    let mut s = session();
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("circle", &json!({"center": [0, 0], "radius": 4})).unwrap();
+    s.execute("exit_sketching", &json!({})).unwrap();
+    s.execute("extrude", &json!({"sketch": 1, "region": 0, "distance": 10})).unwrap();
+    let b = s.doc.bodies[0].id;
+    let shape = s.doc.bodies[0].shape.clone();
+    let top = (0..s.kernel.edge_count(&shape).unwrap())
+        .find(|e| s.kernel.measure(&shape, shapecraft_kernel::SubShape::Edge(*e)).unwrap().1.z > 9.0)
+        .unwrap();
+    s.execute("select", &json!({"picks": [{"kind": "edge", "body": b.0, "edge": top}]})).unwrap();
+    // About the rim's own center by default; the bottom stays.
+    s.execute("scale", &json!({"factor": 2})).unwrap();
+    let frustum = std::f64::consts::PI * 10.0 / 3.0 * (16.0 + 32.0 + 64.0);
+    assert!((volume(&mut s) / frustum - 1.0).abs() < 1e-3, "{}", volume(&mut s));
+    assert!(s.selection.is_empty());
+    // Undo, then the same edge named outright, one axis only.
+    s.execute("undo", &json!({})).unwrap();
+    s.execute("scale", &json!({"body": b.0, "edge": top, "factors": [1.5, 1, 1], "center": [0, 0, 10]})).unwrap();
+    let bb = s.kernel.bounds(&s.doc.bodies[0].shape).unwrap();
+    assert!((bb.max.x - 6.0).abs() < 1e-2 && (bb.max.y - 4.0).abs() < 1e-2, "{bb:?}");
+}
