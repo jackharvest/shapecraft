@@ -211,10 +211,13 @@ pub(super) fn sketch_dimension_label(painter: &egui::Painter, mid: Pos2, u: egui
 /// The value field opened by typing (26.200, s11-014): a dark rounded panel holding a blue-rimmed field with the
 /// text, an "x+" variable glyph at its right end, and a "123" keypad key beside it.
 pub(super) fn value_field(painter: &egui::Painter, center: Pos2, typed: &str) {
+    // See-through, as in 26.202 (s52r-044: the panel reads #282931 over the dark view and the field takes on the
+    // colour of a face behind it): the panel #30323d at 64 %, the field a light veil over it.
+    let alpha = |c: Color32, a: u8| Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), a);
     let panel = Rect::from_center_size(center + vec2(13.0, 0.0), vec2(214.0, 34.0));
-    painter.rect_filled(panel, radius(9), theme::c(0x262525));
+    painter.rect_filled(panel, radius(9), alpha(theme::c(0x30323d), 165));
     let field = Rect::from_min_size(panel.min + vec2(4.0, 4.0), vec2(176.0, 26.0));
-    painter.rect_filled(field, radius(7), theme::c(0x323131));
+    painter.rect_filled(field, radius(7), alpha(theme::c(0x5f6a86), 51));
     painter.rect_stroke(field, radius(7), Stroke::new(2.0, theme::c(0x2f4793)), StrokeKind::Inside);
     let g = painter.layout_no_wrap(typed.to_string(), theme::body(14.0), Tokens::text_strong());
     let tw = g.size().x;
@@ -235,8 +238,8 @@ pub(super) fn value_field(painter: &egui::Painter, center: Pos2, typed: &str) {
     let x = pos2(field.right() - 15.0, field.center().y);
     painter.text(x, Align2::CENTER_CENTER, "x", egui::FontId::new(15.0, egui::FontFamily::Proportional), ink);
     painter.circle_filled(x + vec2(5.0, 4.0), 4.0, ink);
-    painter.line_segment([x + vec2(3.0, 4.0), x + vec2(7.0, 4.0)], Stroke::new(1.2, theme::c(0x323131)));
-    painter.line_segment([x + vec2(5.0, 2.0), x + vec2(5.0, 6.0)], Stroke::new(1.2, theme::c(0x323131)));
+    painter.line_segment([x + vec2(3.0, 4.0), x + vec2(7.0, 4.0)], Stroke::new(1.2, theme::c(0x3a3c48)));
+    painter.line_segment([x + vec2(5.0, 2.0), x + vec2(5.0, 6.0)], Stroke::new(1.2, theme::c(0x3a3c48)));
     let key = Rect::from_center_size(pos2(panel.right() - 16.0, panel.center().y), vec2(18.0, 13.0));
     painter.rect_stroke(key, radius(2), Stroke::new(1.0, ink), StrokeKind::Inside);
     painter.text(key.center(), Align2::CENTER_CENTER, "123", egui::FontId::new(6.5, egui::FontFamily::Proportional), ink);
