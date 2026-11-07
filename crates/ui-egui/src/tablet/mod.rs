@@ -413,6 +413,33 @@ mod tests {
         let _ = std::fs::remove_dir_all(projects);
     }
 
+    /// A request that arrives a little after the connection still gets its answer.
+    #[test]
+    fn a_slow_request_still_gets_an_answer() {
+        use std::io::{Read, Write};
+        let projects = std::env::temp_dir().join(format!("shapecraft-tablet-test3-{}", std::process::id()));
+        let opts = Options {
+            projects_root: projects.clone(),
+            control_port: None,
+            open: None,
+            new_project: false,
+            native_menu: false,
+            settings_file: None,
+            hosted: false,
+        };
+        let kernel = Arc::new(shapecraft_kernel_occt::OcctKernel::new());
+        let host = Host::start("127.0.0.1:0".parse().unwrap(), "testkey".into(), kernel, opts).unwrap();
+        let mut s = std::net::TcpStream::connect(("127.0.0.1", host.port)).unwrap();
+        s.set_read_timeout(Some(std::time::Duration::from_secs(10))).unwrap();
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        s.write_all(b"GET /icon.png HTTP/1.1\r\nHost: localhost\r\n\r\n").unwrap();
+        let mut head = [0u8; 12];
+        s.read_exact(&mut head).expect("an answer, not a dropped connection");
+        assert_eq!(&head, b"HTTP/1.1 200");
+        drop(host);
+        let _ = std::fs::remove_dir_all(projects);
+    }
+
     #[test]
     fn loopback_hosts_say_localhost() {
         let u = urls("127.0.0.1:8780".parse().unwrap(), 8780, "abc");

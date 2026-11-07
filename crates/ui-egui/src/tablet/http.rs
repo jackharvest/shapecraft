@@ -37,6 +37,11 @@ impl Request {
 }
 
 pub(super) fn serve(stream: TcpStream, shared: &Arc<Shared>) {
+    // The listener doesn't block, and on macOS a connection it accepts starts out the same way: a request
+    // that hadn't arrived yet read as nothing and the connection was dropped.
+    if stream.set_nonblocking(false).is_err() {
+        return;
+    }
     let _ = stream.set_read_timeout(Some(Duration::from_secs(15)));
     let _ = stream.set_nodelay(true);
     let Ok(read_half) = stream.try_clone() else { return };
