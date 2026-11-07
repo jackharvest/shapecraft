@@ -2,7 +2,7 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.6.2-alpha
+## 0.6.3-alpha
 
 **No more crash when stretching a part a second time, value pills you can click, and edges, sketch points and sketch
 profiles you can scale, move and turn right where they are.**
