@@ -1728,11 +1728,11 @@ int sk_map_edge(const SkShape* s, uint32_t edge, const double* m, SkShape** out)
       if (d.IsSame(e) || BRep_Tool::IsClosed(d, side) || BRep_Tool::Degenerated(d) || !taken.Add(d)) continue;
       far_edges.Append(d);
     }
-    BRepBuilderAPI_MakeWire far;
-    if (!far_edges.IsEmpty()) far.Add(far_edges);
+    BRepBuilderAPI_MakeWire far_wire;
+    if (!far_edges.IsEmpty()) far_wire.Add(far_edges);
     const int far_n = far_edges.Extent();
     // A cone up to a point has no far loop: nothing to run the side from.
-    if (far_n == 0 || !far.IsDone() || !BRep_Tool::IsClosed(far.Wire())) return fail(cant);
+    if (far_n == 0 || !far_wire.IsDone() || !BRep_Tool::IsClosed(far_wire.Wire())) return fail(cant);
     // The moved rim (and any holes in the cap, which go with it).
     auto scaled = [&](const TopoDS_Shape& x) -> TopoDS_Shape {
       if (similar) {
@@ -1773,7 +1773,7 @@ int sk_map_edge(const SkShape* s, uint32_t edge, const double* m, SkShape** out)
     }
     // The side, ruled from the far loop to the scaled rim.
     BRepOffsetAPI_ThruSections ts(Standard_False, Standard_True, 1e-6);
-    ts.AddWire(far.Wire());
+    ts.AddWire(far_wire.Wire());
     ts.AddWire(rim_w);
     ts.CheckCompatibility(Standard_True);
     ts.Build();
