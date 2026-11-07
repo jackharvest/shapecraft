@@ -601,6 +601,8 @@ pub struct OffsetFaceTool {
     /// Whether the face offers distance types: a flat face (Offset / Total) or a cylinder's wall (Offset / Radius /
     /// Diameter). Cones, spheres and free-form faces only offset, with the value always on show (26.202, s40-023/024).
     pub kinds: bool,
+    /// Started on a whole body (its faces all picked): Done shows from the start (26.202, s52r-019).
+    pub whole: bool,
 }
 
 #[derive(Clone, Debug)]

@@ -70,7 +70,8 @@ fn context_tools(ws: &Workspace) -> (Vec<ToolDef>, Option<String>) {
             _ => false,
         });
         if curved {
-            v.retain(|d| !matches!(d.label, "Extrude" | "Loft" | "Revolve" | "Sweep"));
+            // Nor shelled (26.202: a cylinder's four faces offer no Shell, s52r-019).
+            v.retain(|d| !matches!(d.label, "Extrude" | "Loft" | "Revolve" | "Sweep" | "Shell"));
         }
         // Two flat faces: an axis where they meet (unless parallel) and a plane between them, and no Loft
         // (26.202, s52r-016/017).

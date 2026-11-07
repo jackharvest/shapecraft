@@ -347,13 +347,26 @@ impl Workspace {
                 }
                 None => self.await_selection(ToolKind::SplitBody, "Select bodies to split"),
             },
-            ToolKind::OffsetFace => match tools::OffsetFaceTool::from_selection(&self.session, self.last_hit) {
-                Some(t) => {
-                    self.remember("offset_face");
-                    self.tool = Tool::OffsetFace(t);
+            ToolKind::OffsetFace => {
+                // A whole body picked: Offset Face takes all its faces ("4 faces"), as the reference does (s52r-019).
+                let whole = if let [Pick::Body { body }] = self.session.selection[..]
+                    && let Some(b) = self.session.doc.body(body)
+                    && let Ok(n) = self.session.kernel.face_count(&b.shape)
+                    && n > 0
+                {
+                    self.session.selection = (0..n as u32).map(|face| Pick::Face { body, face }).collect();
+                    true
+                } else {
+                    false
+                };
+                match tools::OffsetFaceTool::from_selection(&self.session, self.last_hit.filter(|_| !whole)) {
+                    Some(t) => {
+                        self.remember("offset_face");
+                        self.tool = Tool::OffsetFace(tools::OffsetFaceTool { whole, ..t });
+                    }
+                    None => self.await_selection(ToolKind::OffsetFace, "Select faces to offset"),
                 }
-                None => self.await_selection(ToolKind::OffsetFace, "Select faces to offset"),
-            },
+            }
             // A sketch region picked: Scale works on its sketch, waiting for the curves to scale (s24 matrix).
             ToolKind::Scale | ToolKind::ScaleNonUniform
                 if self.session.active_sketch.is_none() && self.session.selection_kind() == shapecraft_engine::SelectionKind::Regions =>

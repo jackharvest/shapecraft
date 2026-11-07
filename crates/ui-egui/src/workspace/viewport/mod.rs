@@ -204,11 +204,16 @@ impl Workspace {
             Tool::CircularPattern(t) => t.about.is_some(),
             Tool::RotateAxis(t) => t.angle.abs() > 1e-9,
             Tool::BodyEdgeOffset(t) => t.distance.abs() > 1e-9,
+            Tool::OffsetFace(t) => t.whole,
             _ => false,
         };
         if (live || self.picked_modify_tool()) && self.sketch_transform().is_none() && !self.offsetting_region() {
             match self.bottom_actions(ui, live || boolean) {
                 Some("Cancel") => self.ui_action(crate::workspace::toolbar::UiAction::ToolCancel),
+                // Nothing pulled yet: Done just ends it.
+                Some(_) if !live && matches!(self.tool, Tool::OffsetFace(_)) => {
+                    self.ui_action(crate::workspace::toolbar::UiAction::ToolCancel)
+                }
                 Some(_) if boolean && !live => self.commit_tool(),
                 Some(_) => self.finish_live(),
                 None => {}

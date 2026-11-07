@@ -772,7 +772,7 @@ impl OffsetFaceTool {
         };
         // Several faces just offset: a plain "0 mm" pill, no Total / Radius choice.
         let kinds = (flat || radius.is_some()) && faces.len() == 1;
-        Some(Self { body, faces, distance: 0.0, anchor, dir, dragging: None, thickness, radius, fillet, kinds })
+        Some(Self { body, faces, distance: 0.0, anchor, dir, dragging: None, thickness, radius, fillet, kinds, whole: false })
     }
 
     /// +1 when pulling out of the part grows the radius (a shaft), -1 when it shrinks it (a hole).
@@ -1262,6 +1262,7 @@ mod tests {
             radius: Some((5.0, DVec3::ZERO)),
             fillet: None,
             kinds: true,
+            whole: false,
         }
     }
 
