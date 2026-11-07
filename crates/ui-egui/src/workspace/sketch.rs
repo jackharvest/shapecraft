@@ -115,6 +115,10 @@ impl Workspace {
 
     pub(super) fn sketch_column_no_plane(&self) -> bool {
         self.offsetting_region()
+            // Scale on a region outside its sketch, waiting and once pulled (26.202, s52r-034/038).
+            || self.session.active_sketch.is_none()
+                && matches!(&self.tool, Tool::Scale(t) if t.items.is_empty() && t.edge.is_none())
+                && self.session.selection.iter().any(|p| matches!(p, Pick::Region { .. } | Pick::SketchEntity { .. }))
             || self.session.active_sketch.is_none()
                 && (matches!(self.tool, Tool::Await { kind: ToolKind::OffsetEdge | ToolKind::Trim, .. } | Tool::BodyEdgeOffset(_))
                     || matches!(&self.tool, Tool::Onto(t) if t.sketch))

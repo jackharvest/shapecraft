@@ -367,21 +367,8 @@ impl Workspace {
                     None => self.await_selection(ToolKind::OffsetFace, "Select faces to offset"),
                 }
             }
-            // A sketch region picked: Scale works on its sketch, waiting for the curves to scale (s24 matrix).
-            ToolKind::Scale | ToolKind::ScaleNonUniform
-                if self.session.active_sketch.is_none() && self.session.selection_kind() == shapecraft_engine::SelectionKind::Regions =>
-            {
-                let sketch = self.session.selection.iter().find_map(|p| match *p {
-                    Pick::Region { sketch, .. } => Some(sketch),
-                    _ => None,
-                });
-                if let Some(sk) = sketch
-                    && self.open_sketch_in_place(sk)
-                {
-                    self.session.selection.clear();
-                    self.await_selection(kind, "Select sketch curves to scale up or down");
-                }
-            }
+            // A sketch region picked outside its sketch scales right there, the region staying picked (26.202,
+            // s52r-034; 26.200 opened the sketch and waited, s24 matrix).
             ToolKind::ScaleNonUniform => match tools::ScaleTool::from_selection(&self.session, false) {
                 Some(t) => {
                     self.remember("scale");
