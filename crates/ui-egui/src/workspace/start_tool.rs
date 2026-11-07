@@ -354,7 +354,7 @@ impl Workspace {
                     && let Ok(n) = self.session.kernel.face_count(&b.shape)
                     && n > 0
                 {
-                    self.session.selection = (0..n as u32).map(|face| Pick::Face { body, face }).collect();
+                    self.session.selection = (0..n).map(|face| Pick::Face { body, face }).collect();
                     true
                 } else {
                     false
