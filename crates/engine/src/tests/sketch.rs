@@ -159,6 +159,16 @@ fn curves_moved_off_their_plane_take_a_plane_along() {
     s.execute("select", &json!({"picks": [{"kind": "region", "sketch": sk.0, "region": 0}]})).unwrap();
     s.execute("translate", &json!({"by": [0, 5, 0]})).unwrap();
     assert_ne!(s.doc.sketch(sk).unwrap().entities, before);
+    // Copy: lifted copies go to a new sketch and the originals stay; in the plane, the copies join the sketch.
+    let count = s.doc.sketch(sk).unwrap().entities.len();
+    s.execute("select", &json!({"picks": [{"kind": "sketch", "sketch": sk.0}]})).unwrap();
+    s.execute("translate", &json!({"by": [0, 0, 6], "copy": true})).unwrap();
+    assert_eq!(s.doc.sketches.len(), 3);
+    assert_eq!(s.doc.sketch(sk).unwrap().entities.len(), count);
+    assert!((s.doc.sketches[2].plane.origin.z - 9.0).abs() < 1e-9 && s.doc.sketches[2].entities.len() == count);
+    s.execute("select", &json!({"picks": [{"kind": "sketch", "sketch": sk.0}]})).unwrap();
+    s.execute("translate", &json!({"by": [50, 0, 0], "copy": true})).unwrap();
+    assert_eq!(s.doc.sketch(sk).unwrap().entities.len(), count * 2);
 }
 
 #[test]

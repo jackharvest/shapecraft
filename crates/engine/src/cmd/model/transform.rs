@@ -148,7 +148,7 @@ fn sketch_xform(s: &mut Session, (sketch, ents): (ItemId, Vec<u32>), maps: &[DAf
 /// Curves carried off their sketch's plane (the gizmo's normal arrow, or a turn about an axis across the sketch).
 /// With every curve picked the sketch's plane goes with them; otherwise they move into a new sketch on the moved
 /// plane, which opens in place of the old one when that was open.
-fn lift_curves(s: &mut Session, (sketch, ents): (ItemId, Vec<u32>), f: impl Fn(SketchPlane) -> SketchPlane) -> Result<Value> {
+fn lift_curves(s: &mut Session, (sketch, ents): (ItemId, Vec<u32>), copy: bool, f: impl Fn(SketchPlane) -> SketchPlane) -> Result<Value> {
     let old = s.doc.sketch(sketch).cloned().ok_or_else(|| EngineError::BadParams(format!("no sketch {}", sketch.0)))?;
     let moved = f(old.plane);
     if !(moved.origin.is_finite() && moved.x.is_finite() && moved.y.is_finite()) {
@@ -158,7 +158,7 @@ fn lift_curves(s: &mut Session, (sketch, ents): (ItemId, Vec<u32>), f: impl Fn(S
     if ents.iter().any(|i| *i as usize >= n) {
         return Err(EngineError::BadParams("no such sketch curve".into()));
     }
-    if (0..n as u32).all(|i| ents.contains(&i)) {
+    if !copy && (0..n as u32).all(|i| ents.contains(&i)) {
         if let Some(sk) = s.doc.sketch_mut(sketch) {
             sk.plane = moved;
             sk.on_body = None;
@@ -194,6 +194,15 @@ fn lift_curves(s: &mut Session, (sketch, ents): (ItemId, Vec<u32>), f: impl Fn(S
     new.constraints =
         constraints.into_iter().filter(|c| !c.elements().iter().any(|e| matches!(e, shapecraft_doc::Element::Origin { .. }))).collect();
     new.construction = construction;
+    // Copy: the curves stay where they were too; only the new sketch is added.
+    if copy {
+        s.doc.sketches.push(new);
+        if s.active_sketch == Some(sketch) {
+            s.active_sketch = Some(id);
+        }
+        s.selection = (0..a).map(|entity| Pick::SketchEntity { sketch: id, entity }).collect();
+        return Ok(json!({ "sketch": id.0, "name": name, "entities": (0..a).collect::<Vec<_>>() }));
+    }
     let (entities, constraints, construction) = side(&kept);
     let at = |e: &u32| kept.get(*e as usize).copied().flatten();
     let patterns: Vec<shapecraft_doc::SketchPattern> = old
@@ -269,11 +278,12 @@ pub(super) fn translate(s: &mut Session, p: &Params) -> Result<Value> {
     if let Some(sel) = selected_entities(s, p) {
         let pl = sketch_plane_of(s, sel.0)?;
         // Off the sketch's plane: the curves take a plane of their own along with them.
+        let copy = p.bool_or("copy", false);
         if by.dot(pl.normal()).abs() > 1e-9 {
-            return lift_curves(s, sel, |pl| SketchPlane { origin: pl.origin + by, ..pl });
+            return lift_curves(s, sel, copy, |pl| SketchPlane { origin: pl.origin + by, ..pl });
         }
         let d = DVec2::new(by.dot(pl.x), by.dot(pl.y));
-        return sketch_xform(s, sel, &[DAffine2::from_translation(d)], false, false);
+        return sketch_xform(s, sel, &[DAffine2::from_translation(d)], copy, false);
     }
     let ids = if p.has("items") { p.ids("items")? } else { selected_movables(s) };
     if ids.is_empty() {
@@ -582,12 +592,17 @@ pub(super) fn rotate(s: &mut Session, p: &Params) -> Result<Value> {
         let angle = p.f64("angle")?;
         let dir = axis.dir.try_normalize().ok_or_else(|| EngineError::BadParams("axis must not be zero".into()))?;
         // Turned about an axis across the sketch, the curves leave its plane.
+        let copy = p.bool_or("copy", false);
         if dir.cross(pl.normal()).length() > 1e-6 && angle.abs() > 1e-12 {
             let q = glam::DQuat::from_axis_angle(dir, angle.to_radians());
-            return lift_curves(s, sel, |pl| SketchPlane { origin: axis.origin + q * (pl.origin - axis.origin), x: q * pl.x, y: q * pl.y });
+            return lift_curves(s, sel, copy, |pl| SketchPlane {
+                origin: axis.origin + q * (pl.origin - axis.origin),
+                x: q * pl.x,
+                y: q * pl.y,
+            });
         }
         let m = sketch_rotation(&pl, axis, angle)?;
-        return sketch_xform(s, sel, &[m], false, false);
+        return sketch_xform(s, sel, &[m], copy, false);
     }
     let angle = p.f64("angle")?.to_radians();
     let ids = if p.has("items") { p.ids("items")? } else { selected_movables(s) };

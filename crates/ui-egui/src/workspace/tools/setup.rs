@@ -597,9 +597,9 @@ impl MoveTool {
             return ("move_faces", v);
         }
         with_items(&mut v, &self.items);
-        if self.copy && !self.items.is_empty() {
+        if self.copy {
             v["copy"] = json!(true);
-            if self.unlinked {
+            if self.unlinked && !self.items.is_empty() {
                 v["linked"] = json!(false);
             }
         }
