@@ -73,12 +73,16 @@ fn context_tools(ws: &Workspace) -> (Vec<ToolDef>, Option<String>) {
             v.retain(|d| !matches!(d.label, "Extrude" | "Loft" | "Revolve" | "Sweep"));
         }
     }
-    // A round edge has no line to put an axis along or a plane through (s24 matrix).
+    // A round edge has no line to put an axis along or a plane through (s24 matrix); a straight one doesn't close
+    // round anything to split by (26.202, s51r-b-vedge / s51r-c-rim).
     if let [Pick::Edge { body, edge }] = ws.session.selection.as_slice()
         && let Some(b) = ws.session.doc.body(*body)
-        && !matches!(ws.session.kernel.edge_curve(&b.shape, *edge), Ok(shapecraft_kernel::EdgeCurve::Line { .. }))
     {
-        v.retain(|d| !matches!(d.label, "Axis - Along Edge" | "Plane - Through Edge"));
+        if matches!(ws.session.kernel.edge_curve(&b.shape, *edge), Ok(shapecraft_kernel::EdgeCurve::Line { .. })) {
+            v.retain(|d| d.label != "Split Body");
+        } else {
+            v.retain(|d| !matches!(d.label, "Axis - Along Edge" | "Plane - Through Edge"));
+        }
     }
     (v, ws.session.selection_summary())
 }
@@ -615,6 +619,17 @@ impl Workspace {
             y += toolbar::group_height(group.len()) + gap;
         }
 
+        // `ui.press` from the control channel: the column button with that label, as if clicked.
+        if clicked.is_none()
+            && let Some(label) = self.press_label.take()
+        {
+            clicked = head
+                .into_iter()
+                .chain(tools.iter().copied())
+                .chain(tail_groups.iter().flatten().copied())
+                .chain(bottom.iter().copied())
+                .find(|d| d.label == label);
+        }
         if drawing {
             self.right_column(ui);
             if let Some(def) = clicked {

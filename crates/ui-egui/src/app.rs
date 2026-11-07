@@ -1361,6 +1361,13 @@ impl ShapeCraftApp {
                 ws.ui_action(crate::workspace::toolbar::UiAction::DrawTool(i.min(255) as u8));
                 Ok(Value::Null)
             }
+            "ui.press" => {
+                // A left-column button by its label ("Scale", "Fillet"…), pressed on the next frame like a click.
+                let ws = self.ws.as_deref_mut().ok_or("no project open")?;
+                let label = params.get("label").and_then(Value::as_str).ok_or("'label' is required")?;
+                ws.press_label = Some(label.chars().take(80).collect());
+                Ok(Value::Null)
+            }
             "ui.view_tool" => {
                 // A Views tool on the open drawing: 0 Base View, 1 Projection, 2 Section View, 3 Detail View.
                 let ws = self.ws.as_deref_mut().ok_or("no project open")?;
