@@ -428,9 +428,20 @@ impl Workspace {
     /// Split Body applied, before Done: the pieces grey-teal, the cuts showing as edges (s12-018).
     /// A face growing out (Extrude): the grown body in its own grey, see-through.
     pub(super) fn split_tints(&self) -> Vec<(shapecraft_doc::ItemId, Rgba)> {
+        let grey = if theme::is_light() { SceneColors::light() } else { SceneColors::default() }.body;
         if let Some((body, _)) = self.growing_face() {
-            let c = if theme::is_light() { SceneColors::light() } else { SceneColors::default() }.body;
-            return vec![(body, Rgba(c.0, c.1, c.2, 150))];
+            return vec![(body, Rgba(grey.0, grey.1, grey.2, 150))];
+        }
+        // A profile pulled out into a new body: that body in plain grey, a little see-through, so its sketch shows
+        // inside it (26.202, s52r-025).
+        if let Tool::Extrude(t) = &self.tool
+            && matches!(t.target, crate::workspace::tools::Target::Region { .. })
+            && (self.is_live() || self.has_live_preview())
+            && self.badge_current(crate::workspace::badges::Badge::Result) != Some(3)
+            && let Some(base) = &self.cut_base
+        {
+            let shown = self.shown_doc();
+            return shown.bodies.iter().filter(|b| base.body(b.id).is_none()).map(|b| (b.id, Rgba(grey.0, grey.1, grey.2, 205))).collect();
         }
         match &self.tool {
             Tool::Mirror(t) if t.split && self.is_live() => t.items.iter().chain(&t.pieces).map(|b| (*b, Rgba::hex(0x7da6b4))).collect(),

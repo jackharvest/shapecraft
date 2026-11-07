@@ -226,6 +226,22 @@ impl Workspace {
             }
             _ => base,
         };
+        // A profile pulled into a new body keeps its sketch drawn until Done (26.202, s52r-025: the outline shows
+        // through the see-through body); the step hides it once it's applied.
+        let base = match (&self.tool, &self.cut_base) {
+            (Tool::Extrude(t), Some(before))
+                if let tools::Target::Region { sketch, .. } = t.target
+                    && before.sketch(sketch).is_some_and(|s| s.visible)
+                    && base.sketch(sketch).is_some_and(|s| !s.visible) =>
+            {
+                let mut d = base.into_owned();
+                if let Some(sk) = d.sketch_mut(sketch) {
+                    sk.visible = true;
+                }
+                std::borrow::Cow::Owned(d)
+            }
+            _ => base,
+        };
         if !self.view_opts.decals && base.images.iter().any(|i| i.visible) {
             let mut d = base.into_owned();
             for i in &mut d.images {
