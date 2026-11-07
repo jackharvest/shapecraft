@@ -406,6 +406,38 @@ impl MoveTool {
                 items.push(b);
             }
         }
+        // One sketch point: the gizmo on it, in its sketch's plane; it moves and what meets there follows (26.202,
+        // s52r-042/043).
+        if let [Pick::SketchPoint { sketch, entity, index }] = s.selection.as_slice()
+            && let Some(sk) = s.doc.sketch(*sketch)
+            && let Some(at) =
+                sk.entities.get(*entity as usize).and_then(|e| shapecraft_doc::constraints::points(e).get(*index as usize).copied())
+        {
+            return Some(Self {
+                items: Vec::new(),
+                faces: None,
+                edge: None,
+                point: Some(Box::new(super::PointMove {
+                    sketch: *sketch,
+                    at,
+                    plane: sk.plane,
+                    base: sk.entities.clone(),
+                    constraints: sk.constraints.clone(),
+                    picked: (*entity, *index),
+                })),
+                frame: GizmoFrame { axes: [sk.plane.x, sk.plane.y, sk.plane.normal()], planar: true, turns: false },
+                pivot: sk.plane.to_world(at),
+                dragging: None,
+                value: 0.0,
+                handle: Handle::Arrow(0),
+                planar: DVec3::ZERO,
+                planar_start: DVec3::ZERO,
+                relocating: false,
+                snapped: false,
+                copy: false,
+                unlinked: false,
+            });
+        }
         // One straight edge (nothing else picked): it moves or turns on its own, the gizmo at its middle.
         if let [Pick::Edge { body, edge }] = s.selection.as_slice()
             && let Some(b) = s.doc.body(*body)
@@ -430,6 +462,7 @@ impl MoveTool {
                 snapped: false,
                 copy: false,
                 unlinked: false,
+                point: None,
             });
         }
         // One rim (a closed edge): it moves or turns with its flat face, the gizmo at its middle.
@@ -449,6 +482,7 @@ impl MoveTool {
                 snapped: false,
                 copy: false,
                 unlinked: false,
+                point: None,
             });
         }
         // Faces of one body (nothing else picked): they move on their own, the gizmo at their middle.
@@ -476,6 +510,7 @@ impl MoveTool {
                 snapped: false,
                 copy: false,
                 unlinked: false,
+                point: None,
             });
         }
         if items.is_empty() {
@@ -495,6 +530,7 @@ impl MoveTool {
                 snapped: false,
                 copy: false,
                 unlinked: false,
+                point: None,
             });
         }
         let mut min = DVec3::splat(f64::INFINITY);
@@ -525,6 +561,7 @@ impl MoveTool {
             snapped: false,
             copy: false,
             unlinked: false,
+            point: None,
         })
     }
 
@@ -545,6 +582,14 @@ impl MoveTool {
             v["body"] = json!(body.0);
             v["edge"] = json!(edge);
             return ("move_edge", v);
+        }
+        if let Some(pm) = &self.point {
+            let by = match self.handle {
+                Handle::Arrow(a) => self.frame.axes[a.min(2)] * value,
+                Handle::Plane(_) => self.planar,
+                Handle::Ring(_) => DVec3::ZERO,
+            };
+            return ("set_entity", json!({ "sketch": pm.sketch.0, "entities": pm.edits(by) }));
         }
         if let Some((body, faces)) = &self.faces {
             v["body"] = json!(body.0);

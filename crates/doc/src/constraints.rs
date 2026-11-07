@@ -284,6 +284,58 @@ pub fn points(e: &SketchEntity) -> Vec<DVec2> {
     }
 }
 
+/// The element with its point `index` (as in [`points`]) moved to `to`: a line's end, a rectangle's corner (the
+/// opposite corner stays) or center (the whole rectangle), a center (the whole circle, ellipse, polygon or arc), a
+/// polygon's corner (it turns and grows about its center), an arc's end, a spline point, a text's origin.
+pub fn with_point(e: &SketchEntity, index: usize, to: DVec2) -> Option<SketchEntity> {
+    let pts = points(e);
+    let from = *pts.get(index)?;
+    let by = to - from;
+    Some(match e {
+        SketchEntity::Line { a, b } => match index {
+            0 => SketchEntity::Line { a: to, b: *b },
+            _ => SketchEntity::Line { a: *a, b: to },
+        },
+        SketchEntity::Rectangle { min, max } if index == 4 => SketchEntity::Rectangle { min: *min + by, max: *max + by },
+        SketchEntity::Rectangle { .. } => {
+            let opp = pts[(index + 2) % 4];
+            SketchEntity::Rectangle { min: to.min(opp), max: to.max(opp) }
+        }
+        SketchEntity::Circle { center, radius } => SketchEntity::Circle { center: *center + by, radius: *radius },
+        SketchEntity::Ellipse { center, rx, ry, angle } => SketchEntity::Ellipse { center: *center + by, rx: *rx, ry: *ry, angle: *angle },
+        SketchEntity::Polygon { center, radius, sides, angle } if index == 0 => {
+            SketchEntity::Polygon { center: *center + by, radius: *radius, sides: *sides, angle: *angle }
+        }
+        SketchEntity::Polygon { center, sides, .. } => {
+            let d = to - *center;
+            let radius = d.length();
+            if radius < 1e-9 {
+                return None;
+            }
+            let angle = d.y.atan2(d.x) - std::f64::consts::TAU * (index - 1) as f64 / (*sides).max(3) as f64;
+            SketchEntity::Polygon { center: *center, radius, sides: *sides, angle }
+        }
+        SketchEntity::Arc { a, mid, b } => match index {
+            0 => SketchEntity::Arc { a: to, mid: *mid, b: *b },
+            1 => SketchEntity::Arc { a: *a, mid: *mid, b: to },
+            _ => SketchEntity::Arc { a: *a + by, mid: *mid + by, b: *b + by },
+        },
+        SketchEntity::Spline { points } => {
+            let mut points = points.clone();
+            *points.get_mut(index)? = to;
+            SketchEntity::Spline { points }
+        }
+        SketchEntity::ControlSpline { poles } => {
+            let mut poles = poles.clone();
+            *poles.get_mut(index)? = to;
+            SketchEntity::ControlSpline { poles }
+        }
+        SketchEntity::Text { text, size, angle, font, .. } => {
+            SketchEntity::Text { origin: to, text: text.clone(), size: *size, angle: *angle, font: font.clone() }
+        }
+    })
+}
+
 /// The element's straight sides: the line itself; rectangle sides (bottom, right, top, left); polygon sides.
 pub fn segments(e: &SketchEntity) -> Vec<(DVec2, DVec2)> {
     match e {
@@ -843,6 +895,27 @@ mod tests {
 
     fn line(a: (f64, f64), b: (f64, f64)) -> SketchEntity {
         SketchEntity::Line { a: DVec2::new(a.0, a.1), b: DVec2::new(b.0, b.1) }
+    }
+
+    #[test]
+    fn a_point_moves_on_its_own() {
+        let line = SketchEntity::Line { a: DVec2::ZERO, b: DVec2::new(4.0, 0.0) };
+        assert_eq!(with_point(&line, 1, DVec2::new(4.0, 2.0)), Some(SketchEntity::Line { a: DVec2::ZERO, b: DVec2::new(4.0, 2.0) }));
+        let rect = SketchEntity::Rectangle { min: DVec2::ZERO, max: DVec2::new(4.0, 2.0) };
+        // The corner at max goes; min, across from it, stays.
+        assert_eq!(
+            with_point(&rect, 2, DVec2::new(5.0, 3.0)),
+            Some(SketchEntity::Rectangle { min: DVec2::ZERO, max: DVec2::new(5.0, 3.0) })
+        );
+        // The center takes the whole rectangle.
+        assert_eq!(
+            with_point(&rect, 4, DVec2::new(3.0, 1.0)),
+            Some(SketchEntity::Rectangle { min: DVec2::new(1.0, 0.0), max: DVec2::new(5.0, 2.0) })
+        );
+        let poly = SketchEntity::Polygon { center: DVec2::ZERO, radius: 1.0, sides: 4, angle: 0.0 };
+        let Some(SketchEntity::Polygon { radius, angle, .. }) = with_point(&poly, 1, DVec2::new(0.0, 2.0)) else { panic!() };
+        assert!((radius - 2.0).abs() < 1e-12 && (angle - std::f64::consts::FRAC_PI_2).abs() < 1e-12);
+        assert_eq!(with_point(&line, 7, DVec2::ZERO), None);
     }
 
     #[test]

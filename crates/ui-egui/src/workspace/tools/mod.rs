@@ -688,6 +688,8 @@ pub struct MoveTool {
     pub faces: Option<(ItemId, Vec<u32>)>,
     /// One picked straight edge, moved on its own (the faces beside it tilt).
     pub edge: Option<(ItemId, u32)>,
+    /// One picked sketch point: it moves in its sketch's plane and the elements that meet there follow.
+    pub point: Option<Box<PointMove>>,
     pub frame: GizmoFrame,
     pub pivot: DVec3,
     /// The handle being dragged: where the drag started and the value then.
@@ -698,6 +700,51 @@ pub struct MoveTool {
 }
 
 pub const AXES: [DVec3; 3] = [DVec3::X, DVec3::Y, DVec3::Z];
+
+/// A sketch point under Move/Rotate: where it was (in the sketch) and the sketch's elements as they were.
+#[derive(Clone, Debug)]
+pub struct PointMove {
+    pub sketch: ItemId,
+    pub at: DVec2,
+    pub plane: shapecraft_doc::SketchPlane,
+    pub base: Vec<shapecraft_doc::SketchEntity>,
+    pub constraints: Vec<shapecraft_doc::Constraint>,
+    /// The picked point (element and index), held where it's taken while the rest of the sketch follows.
+    pub picked: (u32, u32),
+}
+
+impl PointMove {
+    /// The `set_entity` edits that put every element's point at `at` onto `at + by` (world offset, flattened onto the
+    /// sketch).
+    pub fn edits(&self, by: DVec3) -> Vec<serde_json::Value> {
+        let local = DVec2::new(by.dot(self.plane.x), by.dot(self.plane.y));
+        let to = self.at + local;
+        let size = self.base.iter().flat_map(shapecraft_doc::constraints::points).fold(1.0f64, |m, q| m.max(q.length()));
+        let mut moved = self.base.clone();
+        for e in &mut moved {
+            let pts = shapecraft_doc::constraints::points(e);
+            let Some(i) = pts.iter().position(|q| q.distance(self.at) < 1e-7 * size) else { continue };
+            if let Some(m) = shapecraft_doc::constraints::with_point(e, i, to) {
+                *e = m;
+            }
+        }
+        // The point stays where it's put and the constraints bring the rest along (a rectangle's far corner follows
+        // its side), as the reference does (s52r-043).
+        if !self.constraints.is_empty() {
+            use shapecraft_doc::constraints::{Constraint, Element};
+            let mut cs = self.constraints.clone();
+            let (entity, index) = self.picked;
+            cs.push(Constraint::Coincident {
+                a: Element::Point { entity, index },
+                b: Element::Origin { u: (to.x * 1e6).round() as i64, v: (to.y * 1e6).round() as i64 },
+            });
+            if let Some(solved) = shapecraft_doc::constraints::solve(&moved, &cs, &Default::default()) {
+                moved = solved;
+            }
+        }
+        moved.iter().zip(&self.base).enumerate().filter(|(_, (a, b))| a != b).map(|(k, (m, _))| serde_json::json!([k, m])).collect()
+    }
+}
 
 /// The directions a gizmo's handles follow: the world axes, or a sketch's u, v and normal (then only the two
 /// in-plane arrows and the ring around the normal show).
