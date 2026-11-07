@@ -46,6 +46,9 @@ impl Workspace {
                 egui::Event::Text(text) if self.tool.takes_numbers() || self.dim_edit.is_some() => {
                     for ch in text.chars() {
                         if ch.is_ascii_digit() || ch == '.' || ch == '-' || ch == ',' {
+                            if std::mem::take(&mut self.numeric_fresh) {
+                                self.numeric = None;
+                            }
                             self.numeric.get_or_insert_with(String::new).push(if ch == ',' { '.' } else { ch });
                         }
                     }
@@ -186,6 +189,8 @@ impl Workspace {
                 self.commit_tool();
             }
             Key::Backspace if typing && self.numeric.as_deref() == Some("") && self.dim_edit.is_some() => {}
+            // A value filled from a clicked pill goes all at once, leaving the field open and empty.
+            Key::Backspace if typing && std::mem::take(&mut self.numeric_fresh) => self.numeric = Some(String::new()),
             Key::Backspace if typing => {
                 if let Some(n) = &mut self.numeric {
                     n.pop();

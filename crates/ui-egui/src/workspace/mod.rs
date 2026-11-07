@@ -308,6 +308,8 @@ pub struct Workspace {
     /// column's labels top to bottom (with their sub-labels), and the bottom row's buttons.
     pub(crate) seen_banner: String,
     pub(crate) seen_column: Vec<String>,
+    /// A left-column button to press on the next frame (control channel `ui.press`).
+    pub(crate) press_label: Option<String>,
     pub(crate) seen_bottom: Vec<String>,
     pub(crate) confirm: Option<bool>,
     pub(crate) confirm_seen: Option<bool>,
@@ -357,6 +359,8 @@ pub struct Workspace {
     pub(crate) display_menu_at: Pos2,
     /// Digits typed while a tool is running (the reference app opens a value box as soon as you type).
     pub numeric: Option<String>,
+    /// `numeric` was filled from a clicked value pill and shows selected: the first key typed replaces it.
+    pub numeric_fresh: bool,
     /// A rectangle's width, typed and fixed with Tab as observed; the next typed value is its height.
     pub(crate) rect_width: Option<f64>,
     /// A line length typed and fixed with Tab: the pointer then only aims the segment (26.200, s11-035/036).
@@ -640,6 +644,7 @@ impl Workspace {
             font_list: None,
             seen_banner: String::new(),
             seen_column: Vec::new(),
+            press_label: None,
             seen_bottom: Vec::new(),
             confirm: None,
             confirm_seen: None,
@@ -669,6 +674,7 @@ impl Workspace {
             popup_opened_at: -1.0,
             display_menu_at: Pos2::ZERO,
             numeric: None,
+            numeric_fresh: false,
             rect_width: None,
             line_len: None,
             text_drag: None,

@@ -219,10 +219,18 @@ pub(super) fn value_field(painter: &egui::Painter, center: Pos2, typed: &str) {
     let g = painter.layout_no_wrap(typed.to_string(), theme::body(14.0), Tokens::text_strong());
     let tw = g.size().x;
     let text_at = pos2(field.left() + 8.0, field.center().y - g.size().y / 2.0);
+    // Filled from a clicked pill: the text shows selected (the next key replaces it), no caret.
+    let fresh = painter.ctx().data(|d| d.get_temp::<bool>(egui::Id::unique("sc-numeric-fresh"))).unwrap_or(false);
+    if fresh && tw > 0.0 {
+        let sel = Rect::from_min_size(text_at - vec2(1.0, 1.0), g.size() + vec2(2.0, 2.0));
+        painter.rect_filled(sel, radius(2), Tokens::accent().gamma_multiply(0.55));
+    }
     painter.galley(text_at, g, Tokens::text_strong());
     // The caret right after the text.
     let cx = field.left() + 9.0 + tw;
-    painter.line_segment([pos2(cx, field.top() + 6.0), pos2(cx, field.bottom() - 6.0)], Stroke::new(1.5, Tokens::accent()));
+    if !fresh {
+        painter.line_segment([pos2(cx, field.top() + 6.0), pos2(cx, field.bottom() - 6.0)], Stroke::new(1.5, Tokens::accent()));
+    }
     let ink = theme::c(0xd8d8d8);
     let x = pos2(field.right() - 15.0, field.center().y);
     painter.text(x, Align2::CENTER_CENTER, "x", egui::FontId::new(15.0, egui::FontFamily::Proportional), ink);
@@ -232,6 +240,35 @@ pub(super) fn value_field(painter: &egui::Painter, center: Pos2, typed: &str) {
     let key = Rect::from_center_size(pos2(panel.right() - 16.0, panel.center().y), vec2(18.0, 13.0));
     painter.rect_stroke(key, radius(2), Stroke::new(1.0, ink), StrokeKind::Inside);
     painter.text(key.center(), Align2::CENTER_CENTER, "123", egui::FontId::new(6.5, egui::FontFamily::Proportional), ink);
+}
+
+/// Where this frame's value pills were drawn, with their text: a click on one opens the value field with that
+/// value in it (the reference does, s15; some people click rather than type).
+pub(in crate::workspace) fn value_pills(ctx: &egui::Context) -> Vec<(Rect, String)> {
+    ctx.data(|d| d.get_temp::<Vec<(Rect, String)>>(egui::Id::unique("sc-value-pills"))).unwrap_or_default()
+}
+
+pub(super) fn clear_value_pills(ctx: &egui::Context, fresh: bool) {
+    ctx.data_mut(|d| {
+        d.insert_temp(egui::Id::unique("sc-value-pills"), Vec::<(Rect, String)>::new());
+        d.insert_temp(egui::Id::unique("sc-numeric-fresh"), fresh);
+    });
+}
+
+/// A blue-rimmed pill holding a number is a value the running tool takes.
+fn note_value_pill(painter: &egui::Painter, r: Rect, text: &str) {
+    if text.chars().any(|c| c.is_ascii_digit()) {
+        painter
+            .ctx()
+            .data_mut(|d| d.get_temp_mut_or_default::<Vec<(Rect, String)>>(egui::Id::unique("sc-value-pills")).push((r, text.to_string())));
+    }
+}
+
+/// The number in a pill's text ("R 2mm" → "2", "⌀10 mm" → "10", "-3.5 mm" → "-3.5").
+pub(in crate::workspace) fn pill_number(text: &str) -> Option<String> {
+    let start = text.find(|c: char| c.is_ascii_digit() || c == '-' || c == '.')?;
+    let n: String = text[start..].chars().take_while(|c| c.is_ascii_digit() || *c == '-' || *c == '.').collect();
+    n.parse::<f64>().ok().filter(|v| v.is_finite()).map(|_| n)
 }
 
 /// The value label. While typing it becomes the editable box with a blue border.
@@ -268,7 +305,11 @@ pub(super) fn axis_pill(painter: &egui::Painter, center: Pos2, dir: egui::Vec2, 
     let size = galley.size();
     let top_left = center - ax * (size.x / 2.0) - ay * (size.y / 2.0);
     painter.add(egui::epaint::TextShape::new(top_left, galley, ink).with_angle(angle));
-    Rect::from_points(&corners)
+    let r = Rect::from_points(&corners);
+    if blue_edge {
+        note_value_pill(painter, r, text);
+    }
+    r
 }
 
 /// The "Copy" pill under the Move gizmo: white, or blue while on.
@@ -374,6 +415,7 @@ pub(super) fn pill(painter: &egui::Painter, center: Pos2, text: &str, blue_edge:
     painter.rect_filled(r, radius(5), Color32::WHITE);
     if blue_edge {
         painter.rect_stroke(r, radius(5), Stroke::new(2.0, Tokens::accent()), StrokeKind::Inside);
+        note_value_pill(painter, r, text);
     }
     painter.galley(r.center() - galley.size() / 2.0, galley, PILL_INK);
 }
@@ -435,5 +477,20 @@ pub(super) fn angle_dim(painter: &egui::Painter, a: &AngleDim, typed: Option<&st
     } else {
         let u = (a.at(ANGLE_RADIUS, 0.55) - a.at(ANGLE_RADIUS, 0.45)).normalized();
         sketch_dimension_label(painter, a.label, u, &format_degrees(a.degrees), false);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_pill_gives_its_number() {
+        use super::pill_number;
+        assert_eq!(pill_number("19 mm").as_deref(), Some("19"));
+        assert_eq!(pill_number("R 2mm").as_deref(), Some("2"));
+        assert_eq!(pill_number("⌀10 mm").as_deref(), Some("10"));
+        assert_eq!(pill_number("-3.5 mm").as_deref(), Some("-3.5"));
+        assert_eq!(pill_number("1.50×").as_deref(), Some("1.50"));
+        assert_eq!(pill_number("45°").as_deref(), Some("45"));
+        assert_eq!(pill_number("Copy"), None);
     }
 }

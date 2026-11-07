@@ -18,6 +18,7 @@ impl Workspace {
     /// Dimension labels, handles and the value box, drawn in screen space over the 3D view.
     pub(super) fn draw_annotations(&self, ui: &Ui) {
         let painter = ui.painter_at(self.view_rect);
+        super::paint::clear_value_pills(ui.ctx(), self.numeric_fresh && self.numeric.is_some());
         let units = self.session.doc.units;
         let typed = self.numeric.as_deref();
         let plane = self.sketch_plane();

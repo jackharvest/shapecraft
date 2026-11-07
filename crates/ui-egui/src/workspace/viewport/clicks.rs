@@ -32,8 +32,22 @@ impl Workspace {
             return;
         }
         let Some(c) = self.cursor else { return };
+        self.numeric_fresh = false;
         // A running tool's badges open their menus.
         if self.badge_click(ui, c) {
+            return;
+        }
+        // A tool's value pill ("19 mm", "R 2mm", "45°"): the value field opens with that value, selected, as if
+        // it had been typed; the next key replaces it.
+        if self.tool.takes_numbers()
+            && let Some((_, text)) = super::paint::value_pills(ui.ctx()).into_iter().find(|(r, _)| r.expand(3.0).contains(c))
+        {
+            if self.numeric.is_none()
+                && let Some(n) = super::paint::pill_number(&text)
+            {
+                self.numeric = Some(n);
+                self.numeric_fresh = true;
+            }
             return;
         }
         // Visualization: a click on a decal picks it (not the body under it); anywhere else lets it go.
