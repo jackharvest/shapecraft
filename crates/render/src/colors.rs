@@ -77,7 +77,7 @@ impl Default for SceneColors {
             plane_tile: Rgba::hex(0x5a5a5a).with_alpha(70),
             plane_tile_hover: Rgba::hex(0x8a8a8a).with_alpha(110),
             hidden_sketch: Rgba::hex(0x3a3a3a),
-            region_tint: Rgba::hex(0x0034ff).with_alpha(10),
+            region_tint: Rgba::hex(0x005fff).with_alpha(7),
             xray: 0.28,
         }
     }

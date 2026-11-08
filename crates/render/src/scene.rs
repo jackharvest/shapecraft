@@ -385,8 +385,9 @@ fn sketch_geometry(out: &mut Built, scene: &SceneInput, sketch: &Sketch, active:
         } else {
             None
         };
-        // Outside sketch editing every region is tinted faint blue (26.200, s11-075/078); none while editing.
-        let color = color.or((scene.active_sketch.is_none() && sketch.visible).then_some(c.region_tint));
+        // Every closed region is tinted faint blue, in the sketch being edited too (26.202: a finished rectangle or
+        // circle reads as a profile at once; 26.200 left them plain while editing).
+        let color = color.or((active || sketch.visible).then_some(c.region_tint));
         if let Some(color) = color {
             for t in &region.triangles {
                 out.fills.push(([plane.to_world(t[0]), plane.to_world(t[1]), plane.to_world(t[2])], color, true));
