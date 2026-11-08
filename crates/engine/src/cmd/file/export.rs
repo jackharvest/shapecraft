@@ -126,8 +126,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             label: "DXF from Sketch…",
             menu: "File/Export to/DXF from Sketch…",
             shortcut: None,
-            help: "Export a sketch's elements as a DXF in its plane",
-            params: r#"{"path": "/out.dxf", "sketch": id? (default: the active, selected or first visible sketch)}"#,
+            help: "Export a sketch's elements as a DXF (or, for a .dwg path, a DWG) in its plane",
+            params: r#"{"path": "/out.dxf" | "/out.dwg", "sketch": id? (default: the active, selected or first visible sketch)}"#,
             modifies: false,
             enabled: |s| s.doc.sketches.iter().any(|k| !k.entities.is_empty()),
             run: export_sketch,
@@ -219,7 +219,13 @@ fn export_sketch(s: &mut Session, p: &Params) -> Result<Value> {
         .or_else(|| s.doc.sketches.iter().find(|k| k.visible && !k.entities.is_empty()).map(|k| k.id));
     let sk = id.and_then(|i| s.doc.sketch(i)).ok_or_else(|| EngineError::NotAvailable("there's no sketch to export".into()))?;
     let ents: Vec<_> = sk.entities.iter().enumerate().map(|(i, e)| (e.clone(), sk.construction.contains(&(i as u32)))).collect();
-    write_file(&path, formats::write_dxf(&ents).as_bytes())?;
+    // A .dwg path writes an AutoCAD drawing; anything else the DXF.
+    let dwg = path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("dwg"));
+    if dwg {
+        write_file(&path, &formats::write_dwg(&ents).map_err(EngineError::BadParams)?)?;
+    } else {
+        write_file(&path, formats::write_dxf(&ents).as_bytes())?;
+    }
     Ok(json!({ "path": path, "sketch": sk.id.0, "elements": ents.len() }))
 }
 

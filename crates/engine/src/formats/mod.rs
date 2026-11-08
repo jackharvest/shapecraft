@@ -10,7 +10,7 @@ mod zip;
 pub use mesh_in::{read_obj, read_stl};
 pub use mesh_out::{ExportBody, write_3mf, write_glb, write_obj, write_stl_ascii, write_usdz};
 pub use sketch_in::{read_dxf, read_svg};
-pub use sketch_out::write_dxf;
+pub use sketch_out::{write_dwg, write_dxf};
 
 use std::collections::HashMap;
 

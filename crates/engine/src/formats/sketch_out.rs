@@ -1,4 +1,4 @@
-//! Sketch exports: the elements of a sketch, in its own plane's x/y (millimetres), as an ASCII DXF.
+//! Sketch exports: the elements of a sketch, in its own plane's x/y (millimetres), as an ASCII DXF or a DWG.
 
 use std::fmt::Write as _;
 
@@ -73,4 +73,57 @@ pub fn write_dxf(entities: &[(SketchEntity, bool)]) -> String {
     }
     out.push_str("0\nENDSEC\n0\nEOF\n");
     out
+}
+
+/// A sketch's curves as an AutoCAD R2000 DWG, in millimetres in the sketch's plane: lines, circles and arcs as
+/// themselves, rectangles and polygons as closed polylines, ellipses and splines as fine polylines. Construction
+/// curves and text are left out, as in the DXF.
+pub fn write_dwg(entities: &[(SketchEntity, bool)]) -> std::result::Result<Vec<u8>, String> {
+    use shapecraft_dwg as dwg;
+    let mut d = dwg::Drawing { layers: Vec::new(), linetypes: Vec::new(), entities: Vec::new(), limits: None, date: None };
+    let p3 = |p: DVec2| [p.x, p.y, 0.0];
+    let poly =
+        |pts: &[DVec2], closed: bool| dwg::Shape::Polyline { points: pts.iter().map(|p| [p.x, p.y]).collect(), bulges: Vec::new(), closed };
+    for (e, construction) in entities {
+        if *construction {
+            continue;
+        }
+        let shape = match e {
+            SketchEntity::Line { a, b } => dwg::Shape::Line { a: p3(*a), b: p3(*b) },
+            SketchEntity::Rectangle { min, max } => poly(&[*min, DVec2::new(max.x, min.y), *max, DVec2::new(min.x, max.y)], true),
+            SketchEntity::Circle { center, radius } => dwg::Shape::Circle { center: p3(*center), radius: *radius },
+            SketchEntity::Polygon { center, radius, sides, angle } => {
+                let n = (*sides).clamp(3, 1000);
+                let pts: Vec<DVec2> = (0..n)
+                    .map(|k| *center + DVec2::from_angle(angle + std::f64::consts::TAU * f64::from(k) / f64::from(n)) * *radius)
+                    .collect();
+                poly(&pts, true)
+            }
+            SketchEntity::Arc { a, mid, b } => match circle_through(*a, *mid, *b) {
+                Some((c, r)) => {
+                    // Counter-clockwise from start to end.
+                    let ccw = (*mid - *a).perp_dot(*b - *mid) > 0.0;
+                    let (s, e) = if ccw { (*a, *b) } else { (*b, *a) };
+                    let ang = |p: DVec2| (p - c).y.atan2((p - c).x);
+                    dwg::Shape::Arc { center: p3(c), radius: r, start: ang(s), end: ang(e) }
+                }
+                None => dwg::Shape::Line { a: p3(*a), b: p3(*b) },
+            },
+            SketchEntity::Ellipse { center, rx, ry, angle } => {
+                let (u, v) = (DVec2::from_angle(*angle), DVec2::from_angle(angle + std::f64::consts::FRAC_PI_2));
+                let pts: Vec<DVec2> = (0..96)
+                    .map(|k| {
+                        let t = std::f64::consts::TAU * f64::from(k) / 96.0;
+                        *center + u * (rx * t.cos()) + v * (ry * t.sin())
+                    })
+                    .collect();
+                poly(&pts, true)
+            }
+            SketchEntity::Spline { points } => poly(&spline_points(points, 16), false),
+            SketchEntity::ControlSpline { poles } => poly(&bspline_points(poles, 16), false),
+            SketchEntity::Text { .. } => continue,
+        };
+        d.entities.push(dwg::Entity::new("0", shape));
+    }
+    dwg::write(&d).map_err(|e| e.to_string())
 }
