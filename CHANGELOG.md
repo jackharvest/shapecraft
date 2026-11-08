@@ -2,7 +2,7 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.6.6-alpha
+## 0.6.7-alpha
 **Coils, springs and threads from Revolve, a Screenshot mode with sizes up to 8K, more ways to measure, DWG from a
 sketch, and more picture formats.**
 ### New
@@ -17,6 +17,10 @@ sketch, and more picture formats.**
 - **Show Versions** on a project's right-click menu opens its older versions in your backups, ready to restore.
 ### Changed
 - **Pictures:** Insert Image, decals, custom materials and drawing-sheet images also take TIFF, BMP, GIF and ICO.
+- **More of ShapeCraft is Rust.** The helix behind Revolve's height and Offset Face's choice between ways of moving
+  faces are worked out in Rust, with only single geometry-kernel calls left in C++. Packaging for macOS, Windows and
+  Linux, the benchmark, the icons and the website's recordings are built by `cargo xtask` instead of Python, shell
+  and PowerShell scripts.
 
 ## 0.6.5-alpha
 
