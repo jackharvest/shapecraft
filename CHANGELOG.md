@@ -2,6 +2,23 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.6.4-alpha
+
+**Smoother first steps: the setup's Light and Dark pictures are the right way round, a typed extrude shows the part
+it will make, and sketches show their closed shapes while you draw.**
+
+### Changed
+- **Closed shapes are tinted while you sketch.** A rectangle or circle you just closed shows its faint blue fill in
+  the open sketch too, so you can see it's a profile ready to pull.
+
+### Fixed
+- **First-run setup:** the Light and Dark cards showed each other's picture when the app was in the light theme.
+- **Extrude with a typed depth** drew a blue stand-in box over the new part until Done, and showed a Result badge
+  for the body it was making; it now shows the new part in plain grey, the same as when you drag.
+- **Command search** no longer lists History's Edit Sketch (or other steps that need a place in History) among the
+  recent commands, where picking it only showed an error.
+- **Tablet connections no longer drop at random** when the Mac is the host.
+
 ## 0.6.3-alpha
 
 **No more crash when stretching a part a second time, value pills you can click, and edges, sketch points and sketch

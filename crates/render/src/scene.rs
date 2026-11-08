@@ -385,8 +385,8 @@ fn sketch_geometry(out: &mut Built, scene: &SceneInput, sketch: &Sketch, active:
         } else {
             None
         };
-        // Every closed region is tinted faint blue, in the sketch being edited too (26.202: a finished rectangle or
-        // circle reads as a profile at once; 26.200 left them plain while editing).
+        // Every closed region is tinted faint blue, in the sketch being edited too: a finished rectangle or circle
+        // reads as a profile at once.
         let color = color.or((active || sketch.visible).then_some(c.region_tint));
         if let Some(color) = color {
             for t in &region.triangles {
