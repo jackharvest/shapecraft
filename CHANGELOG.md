@@ -2,7 +2,7 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.6.4-alpha
+## 0.6.5-alpha
 
 **Smoother first steps: the setup's Light and Dark pictures are the right way round, a typed extrude shows the part
 it will make, and sketches show their closed shapes while you draw.**
