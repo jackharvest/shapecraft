@@ -177,6 +177,17 @@ impl Landing {
     }
 
     /// The backup `path` is in, if it's in one (the innermost folder wins, should one hold another).
+    /// Where a backup keeps a project's older versions (the first backup that has any).
+    fn versions_of(&self, project: &Path) -> Option<PathBuf> {
+        let rel = project.strip_prefix(&self.root).ok()?;
+        self.places.iter().find_map(|p| {
+            [p.dir.join(crate::backup::computer_name()), p.dir.clone()]
+                .into_iter()
+                .map(|base| base.join(crate::backup::OLDER).join(rel))
+                .find(|d| std::fs::read_dir(d).is_ok_and(|mut r| r.next().is_some()))
+        })
+    }
+
     fn backup_of(&self, path: &Path) -> Option<&Place> {
         let inner = self.roots().into_iter().filter(|r| path.starts_with(r)).max_by_key(|r| r.components().count())?;
         self.places.iter().find(|p| p.dir == inner)
@@ -1218,8 +1229,10 @@ impl Landing {
             let backed_up = self.backup_of(dir).is_some();
             let split = !backed_up && self.projects.iter().any(|p| &p.dir == dir && p.versions > 0);
             let entries: &[&str] = match (&tile, backed_up) {
-                (Tile::Project(_), false) if split => &["Open", "Rename", "Duplicate", "Split Off Other Version", "Delete"],
-                (Tile::Project(_), false) => &["Open", "Rename", "Duplicate", "Delete"],
+                (Tile::Project(_), false) if split => {
+                    &["Open", "Rename", "Duplicate", "Show Versions", "Split Off Other Version", "Delete"]
+                }
+                (Tile::Project(_), false) => &["Open", "Rename", "Duplicate", "Show Versions", "Delete"],
                 (Tile::Folder(_), false) => &["Open", "Rename", "Delete"],
                 // A backup's copies: brought back, never changed in place.
                 (Tile::Project(_), true) => &["Restore", "Restore and Open", SHOW_IN],
@@ -1245,6 +1258,17 @@ impl Landing {
                     }
                 }
                 Some(SHOW_IN) => reveal(dir.parent().unwrap_or(dir)),
+                // The project's older versions, kept by the backups (Preferences ▸ Sync): opened like a folder,
+                // each dated copy ready to Restore.
+                Some("Show Versions") => match self.versions_of(dir) {
+                    Some(at) => self.go_to(at),
+                    None => {
+                        self.toast = Some((
+                            "No older versions yet. Backups keep them (Preferences ▸ Sync), once a saved copy is replaced".into(),
+                            now + 5.0,
+                        ))
+                    }
+                },
                 Some("Rename") => {
                     let name = match &tile {
                         Tile::Project(d) => self.projects.iter().find(|p| &p.dir == d).map(|p| p.name.clone()),
