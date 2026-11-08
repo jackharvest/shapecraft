@@ -415,7 +415,7 @@ impl Workspace {
             // A typed depth shows once Return applies it (26.202, s39-cut-typed: only the orange profile meanwhile).
             if self.badge_current(crate::workspace::badges::Badge::Result) == Some(3) {
                 t.cut_overlays(&mut out);
-            } else if !self.has_live_preview() && self.growing_face().is_none() {
+            } else if !self.has_live_preview() && !self.is_live() && self.growing_face().is_none() {
                 t.overlays(&mut out);
             }
         }

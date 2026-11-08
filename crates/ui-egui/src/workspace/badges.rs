@@ -259,7 +259,12 @@ impl Workspace {
                 hi = hi.max(q);
             }
         }
-        self.session.doc.bodies.iter().filter(|b| b.visible).any(|b| {
+        // Once the pull is applied its own new body is in the model: look at the part as it was before it.
+        let before = match &self.cut_base {
+            Some(base) if self.is_live() => base,
+            _ => &self.session.doc,
+        };
+        before.bodies.iter().filter(|b| b.visible).any(|b| {
             b.mesh.bounds().is_some_and(|(a, b)| {
                 let (a, b) = (glam::DVec3::from(a.map(f64::from)), glam::DVec3::from(b.map(f64::from)));
                 a.cmple(hi).all() && b.cmpge(lo).all()
