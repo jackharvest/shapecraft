@@ -1,12 +1,12 @@
-{"task": {"category": "construction", "about": "Plane parallel to the top face through a point 5 above it"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "plane_parallel_face", "params": {"from": {"body": 2, "face": "@face:2:10,5,10"}, "point": [0, 0, 15]}}, "save": {"name": "p", "at": "/plane"}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"construction": "$p"}}, "save": {"name": "sk", "at": "/sketch"}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [4, 4]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": "$sk", "region": 0, "distance": 1, "result": "new"}}}
-{"expect": {"bodies": 2, "bounds": [[0, 0, 0], [20, 10, 16]]}}
+{"task":{"about":"Plane parallel to the top face through a point 5 above it","category":"construction"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"plane_parallel_face","params":{"from":{"body":2,"face":"@face:2:10,5,10"},"point":[0,0,15]}},"save":{"at":"/plane","name":"p"}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"construction":"$p"}},"save":{"at":"/sketch","name":"sk"}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0,0],"opposite":[4,4]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":1,"region":0,"result":"new","sketch":"$sk"}}}
+{"expect":{"bodies":2,"bounds":[[0,0,0],[20,10,16]]}}

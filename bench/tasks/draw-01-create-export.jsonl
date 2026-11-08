@@ -1,10 +1,10 @@
-{"task": {"category": "drawings", "about": "Create a drawing and export it as PDF"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "create_drawing", "params": {"bodies": [2]}}}
-{"control": "engine.execute", "params": {"command": "export_drawing", "params": {"path": "$TMP/d.pdf"}}}
-{"expect": {"file": "$TMP/d.pdf"}}
+{"task":{"about":"Create a drawing and export it as PDF","category":"drawings"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"create_drawing","params":{"bodies":[2]}}}
+{"control":"engine.execute","params":{"command":"export_drawing","params":{"path":"$TMP/d.pdf"}}}
+{"expect":{"file":"$TMP/d.pdf"}}

@@ -1,14 +1,14 @@
-{"task": {"category": "selection", "about": "Selection filter Bodies only: clicking a face picks its body"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "ui.view", "params": {"view": "default"}}
-{"wait": 1.0}
-{"control": "ui.selection_filter", "params": {"only": "bodies"}}
-{"click": [10, 5, 10]}
-{"wait": 0.2}
-{"control": "ui.state", "params": {}, "returns": {"at": "/selection/0/kind", "is": "body"}}
+{"task":{"about":"Selection filter Bodies only: clicking a face picks its body","category":"selection"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"ui.view","params":{"view":"default"}}
+{"wait":1.0}
+{"control":"ui.selection_filter","params":{"only":"bodies"}}
+{"click":[10,5,10]}
+{"wait":0.2}
+{"control":"ui.state","params":{},"returns":{"at":"/selection/0/kind","is":"body"}}

@@ -1,12 +1,12 @@
-{"task": {"category": "io", "about": "Export STEP, import it into a new project: same volume"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "export_step", "params": {"path": "$TMP/b.step"}}}
-{"expect": {"file": "$TMP/b.step"}}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "import_file", "params": {"path": "$TMP/b.step"}}}
-{"expect": {"bodies": 1, "volume": [2000, 0.01]}}
+{"task":{"about":"Export STEP, import it into a new project: same volume","category":"io"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"export_step","params":{"path":"$TMP/b.step"}}}
+{"expect":{"file":"$TMP/b.step"}}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"import_file","params":{"path":"$TMP/b.step"}}}
+{"expect":{"bodies":1,"volume":[2000,0.01]}}

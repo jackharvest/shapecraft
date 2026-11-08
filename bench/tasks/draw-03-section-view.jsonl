@@ -1,11 +1,11 @@
-{"task": {"category": "drawings", "about": "A section view from a cut line"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "create_drawing", "params": {"bodies": [2]}}, "save": {"name": "dr", "at": "/drawing"}}
-{"control": "engine.execute", "params": {"command": "add_drawing_view", "params": {"drawing": "$dr", "kind": "base", "orientation": "front", "at": [150, 150]}}, "save": {"name": "v", "at": "/view"}}
-{"control": "engine.execute", "params": {"command": "add_drawing_view", "params": {"drawing": "$dr", "kind": "section", "parent": "$v", "a": [-15, 5], "b": [15, 5], "at": [300, 150]}}}
-{"expect": {"bodies": 1}}
+{"task":{"about":"A section view from a cut line","category":"drawings"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"create_drawing","params":{"bodies":[2]}},"save":{"at":"/drawing","name":"dr"}}
+{"control":"engine.execute","params":{"command":"add_drawing_view","params":{"at":[150,150],"drawing":"$dr","kind":"base","orientation":"front"}},"save":{"at":"/view","name":"v"}}
+{"control":"engine.execute","params":{"command":"add_drawing_view","params":{"a":[-15,5],"at":[300,150],"b":[15,5],"drawing":"$dr","kind":"section","parent":"$v"}}}
+{"expect":{"bodies":1}}

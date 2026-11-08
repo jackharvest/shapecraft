@@ -1,9 +1,9 @@
-{"task": {"category": "sketch", "about": "Offset a rectangle's outline 2 outwards: a ring region (corner style unobserved: round or sharp both pass)"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "offset_edge", "params": {"distance": 2, "region": 0}}}
-{"expect": {"regions": 2}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "regions": [0, 1], "distance": 1}}}
-{"expect": {"volume_between": [332.5563706143592, 336.01]}}
+{"task":{"about":"Offset a rectangle's outline 2 outwards: a ring region (corner style unobserved: round or sharp both pass)","category":"sketch"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0,0],"opposite":[20,10]}}}
+{"control":"engine.execute","params":{"command":"offset_edge","params":{"distance":2,"region":0}}}
+{"expect":{"regions":2}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":1,"regions":[0,1],"sketch":1}}}
+{"expect":{"volume_between":[332.5563706143592,336.01]}}

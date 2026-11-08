@@ -1,7 +1,7 @@
-{"task": {"category": "sketch", "about": "Text makes regions that extrude"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "text", "params": {"at": [0, 0], "text": "HI", "size": 10}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "regions": [0, 1], "distance": 1}}}
-{"expect": {"bodies": 1}}
+{"task":{"about":"Text makes regions that extrude","category":"sketch"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"text","params":{"at":[0,0],"size":10,"text":"HI"}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":1,"regions":[0,1],"sketch":1}}}
+{"expect":{"bodies":1}}

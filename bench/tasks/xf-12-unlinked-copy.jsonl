@@ -1,10 +1,10 @@
-{"task": {"category": "transform", "about": "Move with Copy and the Link badge off: an Unlinked Copy that keeps its shape"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "translate", "params": {"by": [25, 0, 0], "items": [2], "copy": true, "linked": false}}}
-{"control": "engine.execute", "params": {"command": "edit_step", "params": {"step": 1, "params": {"distance": 4}}}}
-{"expect": {"bodies": 2, "volume": 2800}}
+{"task":{"about":"Move with Copy and the Link badge off: an Unlinked Copy that keeps its shape","category":"transform"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"translate","params":{"by":[25,0,0],"copy":true,"items":[2],"linked":false}}}
+{"control":"engine.execute","params":{"command":"edit_step","params":{"params":{"distance":4},"step":1}}}
+{"expect":{"bodies":2,"volume":2800}}

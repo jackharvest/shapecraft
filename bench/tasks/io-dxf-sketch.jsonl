@@ -1,10 +1,10 @@
-{"task": {"category": "io", "about": "Export a sketch as DXF and import it back"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [30, 0], "radius": 3}}}
-{"control": "engine.execute", "params": {"command": "export_sketch", "params": {"path": "$TMP/s.dxf"}}}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "import_file", "params": {"path": "$TMP/s.dxf"}}}
-{"expect": {"sketches": 1, "regions": 2}}
+{"task":{"about":"Export a sketch as DXF and import it back","category":"io"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0,0],"opposite":[20,10]}}}
+{"control":"engine.execute","params":{"command":"circle","params":{"center":[30,0],"radius":3}}}
+{"control":"engine.execute","params":{"command":"export_sketch","params":{"path":"$TMP/s.dxf"}}}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"import_file","params":{"path":"$TMP/s.dxf"}}}
+{"expect":{"regions":2,"sketches":1}}

@@ -1,15 +1,15 @@
-{"task": {"category": "history", "about": "Two holes in the top; delete the first: the second stays where it was"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"body": 2, "face": "@face:2:10,5,10"}}}
-{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [5, 0], "radius": 1}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 3, "region": 0, "distance": -10}}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"body": 2, "face": "@face:2:10,5,10"}}}
-{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [-5, 0], "radius": 1}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 4, "region": 0, "distance": -10}}}
-{"control": "engine.execute", "params": {"command": "delete_step", "params": {"step": 3}}}
-{"expect": {"failed_steps": 0, "volume": 1968.5840734641022}}
+{"task":{"about":"Two holes in the top; delete the first: the second stays where it was","category":"history"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"body":2,"face":"@face:2:10,5,10"}}}
+{"control":"engine.execute","params":{"command":"circle","params":{"center":[5,0],"radius":1}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":-10,"region":0,"sketch":3}}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"body":2,"face":"@face:2:10,5,10"}}}
+{"control":"engine.execute","params":{"command":"circle","params":{"center":[-5,0],"radius":1}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":-10,"region":0,"sketch":4}}}
+{"control":"engine.execute","params":{"command":"delete_step","params":{"step":3}}}
+{"expect":{"failed_steps":0,"volume":1968.5840734641022}}

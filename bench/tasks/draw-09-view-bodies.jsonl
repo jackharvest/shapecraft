@@ -1,13 +1,13 @@
-{"task": {"category": "drawings", "about": "A base view showing only some bodies (the view's Bodies\u2026 pill)"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [30, 0], "opposite": [35, 5]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 3, "region": 0, "distance": 5}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "create_drawing", "params": {"bodies": [2, 4]}}, "save": {"name": "dr", "at": "/drawing"}}
-{"control": "engine.execute", "params": {"command": "add_drawing_view", "params": {"drawing": "$dr", "kind": "base", "orientation": "front", "at": [120, 180], "bodies": [2]}}}
+{"task":{"about":"A base view showing only some bodies (the view's Bodies… pill)","category":"drawings"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[30.0,0.0],"opposite":[35.0,5.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":5.0,"region":0,"sketch":3}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"create_drawing","params":{"bodies":[2,4]}},"save":{"at":"/drawing","name":"dr"}}
+{"control":"engine.execute","params":{"command":"add_drawing_view","params":{"at":[120,180],"bodies":[2],"drawing":"$dr","kind":"base","orientation":"front"}}}

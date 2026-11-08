@@ -1,19 +1,19 @@
-{"task": {"category": "modeling", "about": "Fillet three edges meeting at a corner (corner blend)"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "ui.view", "params": {"view": "default"}}
-{"wait": 1.0}
-{"click": [10, 0, 10]}
-{"click": [20, 5, 10], "mods": "shift"}
-{"click": [20, 0, 5], "mods": "shift"}
-{"wait": 0.3}
-{"text": "2"}
-{"key": "Enter"}
-{"wait": 0.3}
-{"expect": {"selection": 0}}
-{"expect": {"volume_between": [1964.6637061435918, 1981.8318530717959]}}
+{"task":{"about":"Fillet three edges meeting at a corner (corner blend)","category":"modeling"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"ui.view","params":{"view":"default"}}
+{"wait":1.0}
+{"click":[10,0,10]}
+{"click":[20,5,10],"mods":"shift"}
+{"click":[20,0,5],"mods":"shift"}
+{"wait":0.3}
+{"text":"2"}
+{"key":"Enter"}
+{"wait":0.3}
+{"expect":{"selection":0}}
+{"expect":{"volume_between":[1964.6637061435918,1981.8318530717959]}}

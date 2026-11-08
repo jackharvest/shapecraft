@@ -1,12 +1,12 @@
-{"task": {"category": "projects", "about": "Save, go home, open again"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "save", "params": {"path": "$TMP/p1"}}}
-{"control": "project.home", "params": {}}
-{"control": "project.open", "params": {"path": "$TMP/p1"}}
-{"wait": 0.5}
-{"expect": {"bodies": 1, "volume": 2000}}
+{"task":{"about":"Save, go home, open again","category":"projects"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"save","params":{"path":"$TMP/p1"}}}
+{"control":"project.home","params":{}}
+{"control":"project.open","params":{"path":"$TMP/p1"}}
+{"wait":0.5}
+{"expect":{"bodies":1,"volume":2000}}

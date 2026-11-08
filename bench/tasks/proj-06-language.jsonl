@@ -1,4 +1,4 @@
-{"task": {"category": "projects", "about": "Switch the language"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "ui.setting", "params": {"key": "language", "value": "Deutsch"}}
+{"task":{"about":"Switch the language","category":"projects"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"ui.setting","params":{"key":"language","value":"Deutsch"}}

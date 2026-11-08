@@ -1,12 +1,12 @@
-{"task": {"category": "history", "about": "Extrude the ring around a circle, then move the circle: still the ring"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 20]}}}
-{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [10, 10], "radius": 3}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 5}}}
-{"expect": {"volume": 1858.6283305884592}}
-{"control": "engine.execute", "params": {"command": "edit_sketch_step", "params": {"step": 0}}}
-{"control": "engine.execute", "params": {"command": "set_entity", "params": {"sketch": 1, "entity": 4, "value": {"type": "circle", "center": [6, 6], "radius": 3}}}}
-{"control": "engine.execute", "params": {"command": "exit_sketching", "params": {}}}
-{"expect": {"failed_steps": 0, "volume": 1858.6283305884592}}
+{"task":{"about":"Extrude the ring around a circle, then move the circle: still the ring","category":"history"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0,0],"opposite":[20,20]}}}
+{"control":"engine.execute","params":{"command":"circle","params":{"center":[10,10],"radius":3}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":5,"region":0,"sketch":1}}}
+{"expect":{"volume":1858.6283305884592}}
+{"control":"engine.execute","params":{"command":"edit_sketch_step","params":{"step":0}}}
+{"control":"engine.execute","params":{"command":"set_entity","params":{"entity":4,"sketch":1,"value":{"center":[6,6],"radius":3,"type":"circle"}}}}
+{"control":"engine.execute","params":{"command":"exit_sketching","params":{}}}
+{"expect":{"failed_steps":0,"volume":1858.6283305884592}}

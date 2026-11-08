@@ -1,9 +1,9 @@
-{"task": {"category": "transform", "about": "Mirror a copy across x=0"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "mirror", "params": {"origin": [0, 0, 0], "normal": [1, 0, 0], "items": [2], "copy": true}}}
-{"expect": {"bodies": 2, "bounds": [[-20, 0, 0], [20, 10, 10]]}}
+{"task":{"about":"Mirror a copy across x=0","category":"transform"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"mirror","params":{"copy":true,"items":[2],"normal":[1,0,0],"origin":[0,0,0]}}}
+{"expect":{"bodies":2,"bounds":[[-20,0,0],[20,10,10]]}}

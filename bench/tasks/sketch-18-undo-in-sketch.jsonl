@@ -1,8 +1,8 @@
-{"task": {"category": "sketch", "about": "Draw two rectangles, \u2318Z removes the second"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [5, 5]}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [10, 0], "opposite": [15, 5]}}}
-{"key": "Z", "mods": "cmd"}
-{"expect": {"regions": 1}}
+{"task":{"about":"Draw two rectangles, ⌘Z removes the second","category":"sketch"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0,0],"opposite":[5,5]}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[10,0],"opposite":[15,5]}}}
+{"key":"Z","mods":"cmd"}
+{"expect":{"regions":1}}

@@ -1,0 +1,20 @@
+[package]
+name = "xtask"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+description = "ShapeCraft's build and maintenance jobs (cargo xtask …): packaging, generated assets, checks"
+
+[dependencies]
+anyhow.workspace = true
+serde_json.workspace = true
+flate2 = "1"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+resvg = { version = "0.45", default-features = false }
+png = "0.18"
+tungstenite = "0.30"
+base64 = "0.22"
+
+[lints]
+workspace = true

@@ -1,6 +1,6 @@
-{"task": {"category": "sketch", "about": "Text in a named font"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "text", "params": {"at": [0, 0], "text": "A", "size": 10, "font": "Helvetica"}}}
-{"expect": {"regions": 2}}
+{"task":{"about":"Text in a named font","category":"sketch"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"text","params":{"at":[0,0],"font":"Helvetica","size":10,"text":"A"}}}
+{"expect":{"regions":2}}

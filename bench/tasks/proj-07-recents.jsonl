@@ -1,10 +1,10 @@
-{"task": {"category": "projects", "about": "Projects screen lists a saved project"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "project.save", "params": {}}
-{"control": "project.home", "params": {}}
-{"control": "project.list", "params": {}, "returns": {"at": "/projects", "min": 1}}
+{"task":{"about":"Projects screen lists a saved project","category":"projects"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"project.save","params":{}}
+{"control":"project.home","params":{}}
+{"control":"project.list","params":{},"returns":{"at":"/projects","min":1}}

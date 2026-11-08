@@ -1,15 +1,15 @@
-{"task": {"category": "selection", "about": "Tab cycles what's under the cursor (face \u2192 edge \u2192 body)"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "ui.view", "params": {"view": "default"}}
-{"wait": 1.0}
-{"hover": [10, 5, 10]}
-{"key": "Tab"}
-{"key": "Tab"}
-{"click": [10, 5, 10]}
-{"expect": {"selection": 1}}
+{"task":{"about":"Tab cycles what's under the cursor (face → edge → body)","category":"selection"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"ui.view","params":{"view":"default"}}
+{"wait":1.0}
+{"hover":[10,5,10]}
+{"key":"Tab"}
+{"key":"Tab"}
+{"click":[10,5,10]}
+{"expect":{"selection":1}}

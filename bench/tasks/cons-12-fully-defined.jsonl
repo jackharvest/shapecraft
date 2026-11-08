@@ -1,14 +1,14 @@
-{"task": {"category": "constraints", "about": "R from the origin with both sizes typed: the rectangle is fully defined (green)"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "ui.view", "params": {"view": "top"}}
-{"wait": 0.8}
-{"key": "R"}
-{"click": [0, 0, 0]}
-{"hover": [3, 3, 0]}
-{"text": "20"}
-{"key": "Tab"}
-{"text": "10"}
-{"key": "Enter"}
-{"wait": 0.3}
-{"control": "engine.execute", "params": {"command": "inspect"}, "returns": {"at": "/sketches/0/defined", "is": true}}
+{"task":{"about":"R from the origin with both sizes typed: the rectangle is fully defined (green)","category":"constraints"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"ui.view","params":{"view":"top"}}
+{"wait":0.8}
+{"key":"R"}
+{"click":[0,0,0]}
+{"hover":[3,3,0]}
+{"text":"20"}
+{"key":"Tab"}
+{"text":"10"}
+{"key":"Enter"}
+{"wait":0.3}
+{"control":"engine.execute","params":{"command":"inspect"},"returns":{"at":"/sketches/0/defined","is":true}}

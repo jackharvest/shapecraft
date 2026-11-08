@@ -1,6 +1,6 @@
-{"task": {"category": "sketch", "about": "Break a spline at a point"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "spline", "params": {"points": [[0, 0], [5, 5], [10, 0]]}}}
-{"control": "engine.execute", "params": {"command": "break_curve", "params": {"entity": 0, "at": [5, 5]}}}
+{"task":{"about":"Break a spline at a point","category":"sketch"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"spline","params":{"points":[[0,0],[5,5],[10,0]]}}}
+{"control":"engine.execute","params":{"command":"break_curve","params":{"at":[5,5],"entity":0}}}

@@ -1,9 +1,9 @@
-{"task": {"category": "visualization", "about": "Set a material's roughness to 0.8"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "set_appearance", "params": {"items": [2], "appearance": {"name": "Matte", "color": [0.5, 0.5, 0.5], "metal": 0, "roughness": 0.8}}}}
-{"control": "engine.execute", "params": {"command": "inspect"}, "returns": {"at": "/bodies/0/appearance/gloss", "near": 0.2, "tol": 1e-06}}
+{"task":{"about":"Set a material's roughness to 0.8","category":"visualization"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"set_appearance","params":{"appearance":{"color":[0.5,0.5,0.5],"metal":0,"name":"Matte","roughness":0.8},"items":[2]}}}
+{"control":"engine.execute","params":{"command":"inspect"},"returns":{"at":"/bodies/0/appearance/gloss","near":0.2,"tol":1e-6}}

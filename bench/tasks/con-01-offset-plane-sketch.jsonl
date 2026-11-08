@@ -1,8 +1,8 @@
-{"task": {"category": "construction", "about": "Offset plane 15 up, sketch on it, extrude"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "offset_plane", "params": {"from": "xy", "distance": 15}}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"construction": 1}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [10, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 2, "region": 0, "distance": 5}}}
-{"expect": {"bounds": [[0, 0, 15], [10, 10, 20]]}}
+{"task":{"about":"Offset plane 15 up, sketch on it, extrude","category":"construction"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"offset_plane","params":{"distance":15,"from":"xy"}}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"construction":1}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0,0],"opposite":[10,10]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":5,"region":0,"sketch":2}}}
+{"expect":{"bounds":[[0,0,15],[10,10,20]]}}

@@ -1,10 +1,10 @@
-{"task": {"category": "construction", "about": "Plane perpendicular to an edge at a point"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "plane_perp_edge", "params": {"body": 2, "edge": "@edge:2:10,0,10", "point": [5, 0, 10]}}, "save": {"name": "p", "at": "/plane"}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"construction": "$p"}}}
-{"expect": {"sketches": 2}}
+{"task":{"about":"Plane perpendicular to an edge at a point","category":"construction"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"plane_perp_edge","params":{"body":2,"edge":"@edge:2:10,0,10","point":[5,0,10]}},"save":{"at":"/plane","name":"p"}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"construction":"$p"}}}
+{"expect":{"sketches":2}}

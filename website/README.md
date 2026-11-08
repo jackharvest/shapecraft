@@ -15,7 +15,7 @@ the modeling grid showing through:
 - a **History panel** on the right that lists the page's sections as modeling steps (Sketch 01, Extrude 01, Fillet 01…)
   and highlights the one you're reading, with a progress bar;
 - a **speed-lapse** at the top: a clamshell handheld modeled from a blank project in about thirty steps, every one a
-  real command (`gen/handheld.py`), with the camera orbiting through `ui.camera`;
+  real command (`handheld_steps` in `xtask/src/site.rs`), with the camera orbiting through `ui.camera`;
 - each feature shown as a recording of the real app next to a **Parameter Card** with the tool's settings;
 - platforms still in progress shown as greyed, dashed cards, the way the app greys the rows it doesn't do yet.
 
@@ -24,13 +24,13 @@ Every GIF and still is our own app, recorded offscreen by `shapecraft-snap` (no 
 
 ```sh
 cargo build --release -p shapecraft-snap
-sh website/gen/make_gifs.sh /tmp/sc-gifs        # writes website/media/*.gif, *.jpg, handheld.mp4 and rotate.mp4
+cargo xtask site-media /tmp/sc-gifs             # writes website/media/*.gif, *.jpg, handheld.mp4 and rotate.mp4
 ```
 
-`gen/gifs.py` holds the scenes (the clicks, drags and typed values per frame; pointer positions are model points in mm) and `gen/handheld.py` the speed-lapse model. Change a scene, run it again.
+`xtask/src/site.rs` holds the scenes (the clicks, drags and typed values per frame; pointer positions are model points in mm) and the speed-lapse model; `cargo xtask site-scenes DIR` writes them out to look at. Change a scene, run it again.
 
-To look at the page without opening a window: `node gen/shoot.mjs file://$PWD/index.html OUT 1600 1000 steps.json`, where the steps are
-`{"scroll": y}`, `{"wait": ms}`, `{"drag": [[x0,y0],[x1,y1]], "hold": true}`, `{"up": [x,y]}`, `{"click": [x,y]}`, `{"eval": "js"}` and `{"shot": "name"}`
+To look at the page without opening a window: `cargo xtask site-shot file://$PWD/website/index.html OUT 1600 1000 steps.json`, where the steps are
+`{"scroll": y}`, `{"wait": ms}`, `{"drag": [[x0,y0],[x1,y1]], "hold": true}`, `{"up": [x,y]}`, `{"click": [x,y]}`, `{"eval": "js"}`, `{"shot": "name"}` and `{"fullshot": "name", "scale": 0.5}`
 (set `THEME=dark` for the dark theme). It uses the headless Chromium that Playwright caches.
 Never put screenshots or recordings of the reference app here.
 
@@ -72,8 +72,8 @@ Links point to `github.com/jackharvest/shapecraft`. Change them in one pass if t
 It is `gen/og-card.html` shot at 2× and scaled down. The model in it is the speed-lapse handheld rendered see-through:
 
 ```sh
-python3 website/gen/handheld.py /tmp/hh.jsonl
-shapecraft-cli run /tmp/hh.jsonl --png /tmp/hh.png --size 1400x1200 --clear
+cargo xtask site-scenes /tmp/scn             # /tmp/scn/handheld-model.jsonl is the model on its own
+shapecraft-cli run /tmp/scn/handheld-model.jsonl --png /tmp/hh.png --size 1400x1200 --clear
 # trim to the model and save as website/gen/og-handheld.png, then:
 chrome-headless-shell --headless --hide-scrollbars --force-device-scale-factor=2 --window-size=1200,630 \
   --virtual-time-budget=4000 --screenshot=/tmp/card2x.png file://$PWD/website/gen/og-card.html

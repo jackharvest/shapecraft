@@ -1,8 +1,8 @@
-{"task": {"category": "construction", "about": "Plane through 3 points, sketch on it"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "plane_3points", "params": {"points": [[0, 0, 5], [10, 0, 5], [0, 10, 5]]}}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"construction": 1}}}
-{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [0, 0], "radius": 1}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 2, "region": 0, "distance": 1}}}
-{"expect": {"bodies": 1, "volume_between": [3.1315926535897933, 3.151592653589793]}}
+{"task":{"about":"Plane through 3 points, sketch on it","category":"construction"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"plane_3points","params":{"points":[[0,0,5],[10,0,5],[0,10,5]]}}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"construction":1}}}
+{"control":"engine.execute","params":{"command":"circle","params":{"center":[0,0],"radius":1}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":1,"region":0,"sketch":2}}}
+{"expect":{"bodies":1,"volume_between":[3.1315926535897933,3.151592653589793]}}

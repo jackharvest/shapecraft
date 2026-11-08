@@ -1,12 +1,12 @@
-{"task": {"category": "modeling", "about": "Extrude a region up to a face of another body"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [40, 5], "radius": 2}}}
-{"control": "engine.execute", "params": {"command": "offset_plane", "params": {"from": "xy", "distance": 25}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 3, "region": 0, "distance": 1, "extent": "to_object", "to": {"plane": 4}}}}
-{"expect": {"bodies": 2, "volume": 2314.159265358979}}
+{"task":{"about":"Extrude a region up to a face of another body","category":"modeling"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"circle","params":{"center":[40,5],"radius":2}}}
+{"control":"engine.execute","params":{"command":"offset_plane","params":{"distance":25,"from":"xy"}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":1,"extent":"to_object","region":0,"sketch":3,"to":{"plane":4}}}}
+{"expect":{"bodies":2,"volume":2314.159265358979}}

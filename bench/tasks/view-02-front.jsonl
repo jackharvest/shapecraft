@@ -1,10 +1,10 @@
-{"task": {"category": "viewport", "about": "Front view: level camera"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "ui.view", "params": {"view": "front"}}
-{"wait": 1.0}
-{"control": "ui.state", "params": {}, "returns": {"at": "/camera/pitch", "near": 0, "tol": 0.01}}
+{"task":{"about":"Front view: level camera","category":"viewport"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"ui.view","params":{"view":"front"}}
+{"wait":1.0}
+{"control":"ui.state","params":{},"returns":{"at":"/camera/pitch","near":0,"tol":0.01}}

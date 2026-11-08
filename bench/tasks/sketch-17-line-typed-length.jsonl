@@ -1,12 +1,12 @@
-{"task": {"category": "sketch", "about": "L, click, type 8 Enter: an 8 mm line"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "ui.view", "params": {"view": "top"}}
-{"wait": 0.8}
-{"key": "L"}
-{"click": [0, 0, 0]}
-{"hover": [5, 0.2, 0]}
-{"text": "8"}
-{"key": "Enter"}
-{"wait": 0.3}
-{"control": "engine.execute", "params": {"command": "inspect"}, "returns": {"at": "/sketches/0/entities/0/b/0", "near": 8, "tol": 0.3}}
+{"task":{"about":"L, click, type 8 Enter: an 8 mm line","category":"sketch"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"ui.view","params":{"view":"top"}}
+{"wait":0.8}
+{"key":"L"}
+{"click":[0,0,0]}
+{"hover":[5,0.2,0]}
+{"text":"8"}
+{"key":"Enter"}
+{"wait":0.3}
+{"control":"engine.execute","params":{"command":"inspect"},"returns":{"at":"/sketches/0/entities/0/b/0","near":8,"tol":0.3}}

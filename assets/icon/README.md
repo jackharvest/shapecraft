@@ -2,12 +2,12 @@
 
 `shapecraft.svg` is the master (full-bleed tile); `shapecraft-mac.svg` sits on Apple's icon grid with a soft
 shadow. `png/` holds the rendered sizes, `shapecraft.icns` (macOS) and `shapecraft.ico` (Windows) are built from
-them. Small sizes use heavier strokes and no blur so they stay crisp (see `VARIANTS` in `gen/icon_svg.py`).
+them. Small sizes use heavier strokes and no blur so they stay crisp (see `VARIANTS` in `xtask/src/icons.rs`).
 
-Regenerate (needs Python with Pillow and NumPy):
+Regenerate (Rust, no other tools; the .icns needs macOS's iconutil):
 
 ```sh
-python3 gen/icon_svg.py out/svg      # SVG variants
-python3 gen/icon_png.py out/png      # PNG renders (shapecraft-N.png, mac-N.png)
-# .icns: copy mac-N.png into ShapeCraft.iconset as icon_NxN[@2x].png, then: iconutil -c icns ShapeCraft.iconset
+cargo xtask icons /tmp/icon      # svg/ variants, png/ renders (shapecraft-N.png, mac-N.png), shapecraft.ico, shapecraft.icns
 ```
+
+The SVG is the one source: the PNGs are rendered from it with resvg. Check the renders, then copy what changed here.

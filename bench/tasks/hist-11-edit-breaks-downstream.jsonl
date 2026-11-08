@@ -1,10 +1,10 @@
-{"task": {"category": "history", "about": "Make the box too short for its 4 mm fillet: the edit applies, the fillet is marked"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "fillet", "params": {"body": 2, "edges": [11], "radius": 4}}}
-{"control": "engine.execute", "params": {"command": "edit_step", "params": {"step": 1, "params": {"distance": 3}}}}
-{"expect": {"bounds": [[0, 0, 0], [20, 10, 3]], "failed_steps": 1}}
+{"task":{"about":"Make the box too short for its 4 mm fillet: the edit applies, the fillet is marked","category":"history"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"fillet","params":{"body":2,"edges":[11],"radius":4}}}
+{"control":"engine.execute","params":{"command":"edit_step","params":{"params":{"distance":3},"step":1}}}
+{"expect":{"bounds":[[0,0,0],[20,10,3]],"failed_steps":1}}

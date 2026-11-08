@@ -1,8 +1,8 @@
-{"task": {"category": "constraints", "about": "Dimension a rectangle's bottom side to 30: the region follows"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "constrain", "params": {"kind": "distance", "entities": [0], "value": 30}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 1}}}
-{"expect": {"volume": 300}}
+{"task":{"about":"Dimension a rectangle's bottom side to 30: the region follows","category":"constraints"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0,0],"opposite":[20,10]}}}
+{"control":"engine.execute","params":{"command":"constrain","params":{"entities":[0],"kind":"distance","value":30}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":1,"region":0,"sketch":1}}}
+{"expect":{"volume":300}}

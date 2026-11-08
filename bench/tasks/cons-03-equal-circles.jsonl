@@ -1,9 +1,9 @@
-{"task": {"category": "constraints", "about": "Equal makes the second circle's radius the first's"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [0, 0], "radius": 5}}}
-{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [20, 0], "radius": 3}}}
-{"control": "engine.execute", "params": {"command": "constrain", "params": {"kind": "equal", "entities": [0, 1]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "regions": [0, 1], "distance": 1}}}
-{"expect": {"volume": 157.07963267948966}}
+{"task":{"about":"Equal makes the second circle's radius the first's","category":"constraints"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"circle","params":{"center":[0,0],"radius":5}}}
+{"control":"engine.execute","params":{"command":"circle","params":{"center":[20,0],"radius":3}}}
+{"control":"engine.execute","params":{"command":"constrain","params":{"entities":[0,1],"kind":"equal"}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":1,"regions":[0,1],"sketch":1}}}
+{"expect":{"volume":157.07963267948966}}

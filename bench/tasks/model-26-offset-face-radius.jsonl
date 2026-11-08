@@ -1,8 +1,8 @@
-{"task": {"category": "modeling", "about": "Offset Face 'Radius' distance type on a cylinder"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [0, 0], "radius": 5}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "offset_face", "params": {"body": 2, "faces": ["@face:2:0,0,5"], "distance": 6, "distance_type": "radius"}}}
-{"expect": {"volume": 1130.9733552923256}}
+{"task":{"about":"Offset Face 'Radius' distance type on a cylinder","category":"modeling"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"circle","params":{"center":[0,0],"radius":5}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"offset_face","params":{"body":2,"distance":6,"distance_type":"radius","faces":["@face:2:0,0,5"]}}}
+{"expect":{"volume":1130.9733552923256}}

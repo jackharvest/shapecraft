@@ -1,7 +1,7 @@
-{"task": {"category": "sketch", "about": "Hexagon of radius 10, extruded 1"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "polygon", "params": {"center": [0, 0], "radius": 10, "sides": 6}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 1}}}
-{"expect": {"volume": 259.8076211353316}}
+{"task":{"about":"Hexagon of radius 10, extruded 1","category":"sketch"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"polygon","params":{"center":[0,0],"radius":10,"sides":6}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":1,"region":0,"sketch":1}}}
+{"expect":{"volume":259.8076211353316}}

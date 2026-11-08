@@ -1,8 +1,8 @@
-{"task": {"category": "sketch", "about": "Round every corner of a 20 \u00d7 10 rectangle by 2; extrude 1"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "sketch_fillet", "params": {"radius": 2}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 1}}}
-{"expect": {"volume": 196.5663706143592}}
+{"task":{"about":"Round every corner of a 20 × 10 rectangle by 2; extrude 1","category":"sketch"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0,0],"opposite":[20,10]}}}
+{"control":"engine.execute","params":{"command":"sketch_fillet","params":{"radius":2}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":1,"region":0,"sketch":1}}}
+{"expect":{"volume":196.5663706143592}}

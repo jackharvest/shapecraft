@@ -1,12 +1,12 @@
-{"task": {"category": "modeling", "about": "Select a region, V, pick the sketch's axis line, type 180"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xz"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [2, 0], "opposite": [6, 10]}}}
-{"control": "engine.execute", "params": {"command": "line", "params": {"a": [0, 0], "b": [0, 10]}}}
-{"control": "engine.execute", "params": {"command": "exit_sketching", "params": {}}}
-{"control": "engine.execute", "params": {"command": "select", "params": {"picks": [{"kind": "region", "sketch": 1, "region": 0}]}}}
-{"key": "V"}
-{"wait": 0.3}
-{"control": "engine.execute", "params": {"command": "revolve", "params": {"sketch": 1, "region": 0, "axis": {"line": 4}, "angle": 180}}}
-{"expect": {"bodies": 1, "volume": 502.6548245743669}}
+{"task":{"about":"Select a region, V, pick the sketch's axis line, type 180","category":"modeling"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xz"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[2,0],"opposite":[6,10]}}}
+{"control":"engine.execute","params":{"command":"line","params":{"a":[0,0],"b":[0,10]}}}
+{"control":"engine.execute","params":{"command":"exit_sketching","params":{}}}
+{"control":"engine.execute","params":{"command":"select","params":{"picks":[{"kind":"region","region":0,"sketch":1}]}}}
+{"key":"V"}
+{"wait":0.3}
+{"control":"engine.execute","params":{"command":"revolve","params":{"angle":180,"axis":{"line":4},"region":0,"sketch":1}}}
+{"expect":{"bodies":1,"volume":502.6548245743669}}

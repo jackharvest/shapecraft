@@ -1,7 +1,7 @@
-{"task": {"category": "modeling", "about": "Symmetric extrude 10 puts 10 on each side (observed s16-009)"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [10, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10, "sides": "symmetric"}}}
-{"expect": {"bounds": [[0, 0, -10], [10, 10, 10]]}}
+{"task":{"about":"Symmetric extrude 10 puts 10 on each side (observed s16-009)","category":"modeling"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0,0],"opposite":[10,10]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10,"region":0,"sides":"symmetric","sketch":1}}}
+{"expect":{"bounds":[[0,0,-10],[10,10,10]]}}

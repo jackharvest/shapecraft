@@ -1,11 +1,11 @@
-{"task": {"category": "history", "about": "Push the top up twice, delete the first push: the second still pushes the top"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"body": 2, "face": "@face:2:10,5,10", "distance": 5}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"body": 2, "face": "@face:2:10,5,15", "distance": 5}}}
-{"control": "engine.execute", "params": {"command": "delete_step", "params": {"step": 2}}}
-{"expect": {"volume": 3000, "bounds": [[0, 0, 0], [20, 10, 15]], "failed_steps": 0}}
+{"task":{"about":"Push the top up twice, delete the first push: the second still pushes the top","category":"history"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"body":2,"distance":5,"face":"@face:2:10,5,10"}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"body":2,"distance":5,"face":"@face:2:10,5,15"}}}
+{"control":"engine.execute","params":{"command":"delete_step","params":{"step":2}}}
+{"expect":{"bounds":[[0,0,0],[20,10,15]],"failed_steps":0,"volume":3000}}

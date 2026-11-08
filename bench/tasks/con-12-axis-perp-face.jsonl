@@ -1,10 +1,10 @@
-{"task": {"category": "construction", "about": "Axis perpendicular to a face at a point, circular pattern around it"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [10, 0], "opposite": [14, 4]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 4}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "axis_perp_face", "params": {"body": 2, "face": "@face:2:12,2,0", "at": [0, 0, 0]}}, "save": {"name": "ax", "at": "/axis"}}
-{"control": "engine.execute", "params": {"command": "pattern_circular", "params": {"about": {"axis": "$ax"}, "count": 4, "angle": 360, "items": [2]}}}
-{"expect": {"bodies": 4}}
+{"task":{"about":"Axis perpendicular to a face at a point, circular pattern around it","category":"construction"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[10.0,0.0],"opposite":[14.0,4.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":4.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"axis_perp_face","params":{"at":[0,0,0],"body":2,"face":"@face:2:12,2,0"}},"save":{"at":"/axis","name":"ax"}}
+{"control":"engine.execute","params":{"command":"pattern_circular","params":{"about":{"axis":"$ax"},"angle":360,"count":4,"items":[2]}}}
+{"expect":{"bodies":4}}

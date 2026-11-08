@@ -1,8 +1,8 @@
-{"task": {"category": "constraints", "about": "Angle 45\u00b0 between two lines"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "line", "params": {"a": [0, 0], "b": [10, 0]}}}
-{"control": "engine.execute", "params": {"command": "line", "params": {"a": [0, 0], "b": [10, 3]}}}
-{"control": "engine.execute", "params": {"command": "constrain", "params": {"kind": "angle", "entities": [0, 1], "value": 45}}}
-{"control": "engine.execute", "params": {"command": "inspect"}, "returns": {"at": "/sketches/0/entities/1/b/1", "same": "/sketches/0/entities/1/b/0"}}
+{"task":{"about":"Angle 45° between two lines","category":"constraints"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"line","params":{"a":[0,0],"b":[10,0]}}}
+{"control":"engine.execute","params":{"command":"line","params":{"a":[0,0],"b":[10,3]}}}
+{"control":"engine.execute","params":{"command":"constrain","params":{"entities":[0,1],"kind":"angle","value":45}}}
+{"control":"engine.execute","params":{"command":"inspect"},"returns":{"at":"/sketches/0/entities/1/b/1","same":"/sketches/0/entities/1/b/0"}}

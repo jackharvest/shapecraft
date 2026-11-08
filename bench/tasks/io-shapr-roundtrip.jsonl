@@ -1,14 +1,14 @@
-{"task": {"category": "io", "about": "Export .shapr, import it into a new project: same body, and its Fillet comes back as an editable step"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "fillet", "params": {"body": 2, "edges": [11], "radius": 2}}}
-{"control": "engine.execute", "params": {"command": "export_shapr", "params": {"path": "$TMP/b.shapr"}}}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "import_file", "params": {"path": "$TMP/b.shapr"}}}
-{"wait": 0.5}
-{"expect": {"bodies": 1, "volume": 1982.8318530717959}}
-{"expect": {"history_has": ["Fillet"]}}
+{"task":{"about":"Export .shapr, import it into a new project: same body, and its Fillet comes back as an editable step","category":"io"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"fillet","params":{"body":2,"edges":[11],"radius":2}}}
+{"control":"engine.execute","params":{"command":"export_shapr","params":{"path":"$TMP/b.shapr"}}}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"import_file","params":{"path":"$TMP/b.shapr"}}}
+{"wait":0.5}
+{"expect":{"bodies":1,"volume":1982.8318530717959}}
+{"expect":{"history_has":["Fillet"]}}

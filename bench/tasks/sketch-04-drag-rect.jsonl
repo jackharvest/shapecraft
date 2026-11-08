@@ -1,9 +1,9 @@
-{"task": {"category": "sketch", "about": "R, press-drag-release draws a rectangle"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "ui.view", "params": {"view": "top"}}
-{"wait": 0.8}
-{"key": "R"}
-{"drag": [[0, 0, 0], [10, 8, 0]]}
-{"wait": 0.3}
-{"expect": {"sketches": 1, "regions": 1}}
+{"task":{"about":"R, press-drag-release draws a rectangle","category":"sketch"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"ui.view","params":{"view":"top"}}
+{"wait":0.8}
+{"key":"R"}
+{"drag":[[0,0,0],[10,8,0]]}
+{"wait":0.3}
+{"expect":{"regions":1,"sketches":1}}

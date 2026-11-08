@@ -1,22 +1,22 @@
-{"task": {"category": "sketch", "about": "R, click a corner, type 12 Tab 8 Enter; click the region, E 10"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "ui.view", "params": {"view": "top"}}
-{"wait": 0.8}
-{"key": "R"}
-{"click": [0, 0, 0]}
-{"hover": [3, 3, 0]}
-{"text": "12"}
-{"key": "Tab"}
-{"text": "8"}
-{"key": "Enter"}
-{"wait": 0.3}
-{"expect": {"sketches": 1, "regions": 1}}
-{"key": "Escape"}
-{"click": [3, 3, 0]}
-{"wait": 0.3}
-{"key": "E"}
-{"text": "10"}
-{"key": "Enter"}
-{"wait": 0.3}
-{"expect": {"bodies": 1, "volume": 960}}
+{"task":{"about":"R, click a corner, type 12 Tab 8 Enter; click the region, E 10","category":"sketch"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"ui.view","params":{"view":"top"}}
+{"wait":0.8}
+{"key":"R"}
+{"click":[0,0,0]}
+{"hover":[3,3,0]}
+{"text":"12"}
+{"key":"Tab"}
+{"text":"8"}
+{"key":"Enter"}
+{"wait":0.3}
+{"expect":{"regions":1,"sketches":1}}
+{"key":"Escape"}
+{"click":[3,3,0]}
+{"wait":0.3}
+{"key":"E"}
+{"text":"10"}
+{"key":"Enter"}
+{"wait":0.3}
+{"expect":{"bodies":1,"volume":960}}

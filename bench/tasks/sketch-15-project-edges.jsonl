@@ -1,11 +1,11 @@
-{"task": {"category": "sketch", "about": "Project a box's top face outline into a sketch above it"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "offset_plane", "params": {"from": "xy", "distance": 20}}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"construction": 3}}}
-{"control": "engine.execute", "params": {"command": "project", "params": {"faces": [{"body": 2, "face": 5}]}}}
-{"expect": {"regions": 1}}
+{"task":{"about":"Project a box's top face outline into a sketch above it","category":"sketch"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"offset_plane","params":{"distance":20,"from":"xy"}}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"construction":3}}}
+{"control":"engine.execute","params":{"command":"project","params":{"faces":[{"body":2,"face":5}]}}}
+{"expect":{"regions":1}}

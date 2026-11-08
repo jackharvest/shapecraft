@@ -1,4 +1,4 @@
-; Inno Setup script for the ShapeCraft installer; bundle.ps1 passes Version, Stage, OutDir and OutName.
+; Inno Setup script for the ShapeCraft installer; `cargo xtask bundle-windows` passes Version, Stage, OutDir and OutName.
 ; Installs for the current user (no administrator prompt), adds a Start menu entry and an uninstaller.
 
 #ifndef Version

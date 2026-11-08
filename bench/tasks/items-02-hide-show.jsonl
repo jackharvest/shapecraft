@@ -1,11 +1,11 @@
-{"task": {"category": "items", "about": "Hide a body, then Show All"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "show_hide", "params": {"items": [2], "visible": false}}}
-{"expect": {"visible_bodies": 0}}
-{"control": "engine.execute", "params": {"command": "show_all", "params": {}}}
-{"expect": {"visible_bodies": 1}}
+{"task":{"about":"Hide a body, then Show All","category":"items"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"show_hide","params":{"items":[2],"visible":false}}}
+{"expect":{"visible_bodies":0}}
+{"control":"engine.execute","params":{"command":"show_all","params":{}}}
+{"expect":{"visible_bodies":1}}

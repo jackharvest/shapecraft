@@ -1,12 +1,12 @@
-{"task": {"category": "drawings", "about": "Drawing follows a model edit (Update)"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "create_drawing", "params": {"bodies": [2]}}, "save": {"name": "dr", "at": "/drawing"}}
-{"control": "engine.execute", "params": {"command": "edit_step", "params": {"step": 1, "params": {"distance": 20}}}}
-{"control": "engine.execute", "params": {"command": "update_drawing", "params": {"drawing": "$dr"}}}
-{"control": "engine.execute", "params": {"command": "export_drawing", "params": {"drawing": "$dr", "path": "$TMP/u.svg"}}}
-{"expect": {"file": "$TMP/u.svg"}}
+{"task":{"about":"Drawing follows a model edit (Update)","category":"drawings"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"create_drawing","params":{"bodies":[2]}},"save":{"at":"/drawing","name":"dr"}}
+{"control":"engine.execute","params":{"command":"edit_step","params":{"params":{"distance":20},"step":1}}}
+{"control":"engine.execute","params":{"command":"update_drawing","params":{"drawing":"$dr"}}}
+{"control":"engine.execute","params":{"command":"export_drawing","params":{"drawing":"$dr","path":"$TMP/u.svg"}}}
+{"expect":{"file":"$TMP/u.svg"}}

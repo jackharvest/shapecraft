@@ -1,9 +1,9 @@
-{"task": {"category": "visualization", "about": "Import a panorama environment"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "ui.capture", "params": {"path": "$TMP/env.png"}}
-{"control": "engine.execute", "params": {"command": "import_environment", "params": {"path": "$TMP/env.png"}}}
+{"task":{"about":"Import a panorama environment","category":"visualization"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"ui.capture","params":{"path":"$TMP/env.png"}}
+{"control":"engine.execute","params":{"command":"import_environment","params":{"path":"$TMP/env.png"}}}

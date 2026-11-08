@@ -1,14 +1,14 @@
-{"task": {"category": "io", "about": "Export OBJ, 3MF, GLB and USDZ"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "export_obj", "params": {"path": "$TMP/b.obj"}}}
-{"control": "engine.execute", "params": {"command": "export_3mf", "params": {"path": "$TMP/b.3mf"}}}
-{"control": "engine.execute", "params": {"command": "export_glb", "params": {"path": "$TMP/b.glb"}}}
-{"control": "engine.execute", "params": {"command": "export_usdz", "params": {"path": "$TMP/b.usdz"}}}
-{"expect": {"file": "$TMP/b.3mf"}}
-{"expect": {"file": "$TMP/b.glb"}}
-{"expect": {"file": "$TMP/b.usdz"}}
+{"task":{"about":"Export OBJ, 3MF, GLB and USDZ","category":"io"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"export_obj","params":{"path":"$TMP/b.obj"}}}
+{"control":"engine.execute","params":{"command":"export_3mf","params":{"path":"$TMP/b.3mf"}}}
+{"control":"engine.execute","params":{"command":"export_glb","params":{"path":"$TMP/b.glb"}}}
+{"control":"engine.execute","params":{"command":"export_usdz","params":{"path":"$TMP/b.usdz"}}}
+{"expect":{"file":"$TMP/b.3mf"}}
+{"expect":{"file":"$TMP/b.glb"}}
+{"expect":{"file":"$TMP/b.usdz"}}

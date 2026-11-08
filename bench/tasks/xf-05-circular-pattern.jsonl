@@ -1,9 +1,9 @@
-{"task": {"category": "transform", "about": "Circular pattern of 6 around Z"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [20, 0], "opposite": [24, 4]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 4}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "pattern_circular", "params": {"origin": [0, 0, 0], "axis": [0, 0, 1], "count": 6, "angle": 360, "items": [2]}}}
-{"expect": {"bodies": 6, "volume": 384}}
+{"task":{"about":"Circular pattern of 6 around Z","category":"transform"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[20.0,0.0],"opposite":[24.0,4.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":4.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"pattern_circular","params":{"angle":360,"axis":[0,0,1],"count":6,"items":[2],"origin":[0,0,0]}}}
+{"expect":{"bodies":6,"volume":384}}

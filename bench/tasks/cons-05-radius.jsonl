@@ -1,8 +1,8 @@
-{"task": {"category": "constraints", "about": "Radius dimension 8 on a circle"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [0, 0], "radius": 5}}}
-{"control": "engine.execute", "params": {"command": "constrain", "params": {"kind": "radius", "entities": [0], "value": 8}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 1}}}
-{"expect": {"volume": 201.06192982974676}}
+{"task":{"about":"Radius dimension 8 on a circle","category":"constraints"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"circle","params":{"center":[0,0],"radius":5}}}
+{"control":"engine.execute","params":{"command":"constrain","params":{"entities":[0],"kind":"radius","value":8}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":1,"region":0,"sketch":1}}}
+{"expect":{"volume":201.06192982974676}}

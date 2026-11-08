@@ -1,9 +1,9 @@
-{"task": {"category": "transform", "about": "Linear pattern of 4, spacing 30"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "pattern", "params": {"direction": [1, 0, 0], "spacing": 30, "count": 4, "items": [2]}}}
-{"expect": {"bodies": 4, "volume": 8000}}
+{"task":{"about":"Linear pattern of 4, spacing 30","category":"transform"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"pattern","params":{"count":4,"direction":[1,0,0],"items":[2],"spacing":30}}}
+{"expect":{"bodies":4,"volume":8000}}

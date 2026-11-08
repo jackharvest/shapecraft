@@ -1,9 +1,9 @@
-{"task": {"category": "constraints", "about": "Concentric moves the second circle onto the first's center"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [0, 0], "radius": 10}}}
-{"control": "engine.execute", "params": {"command": "circle", "params": {"center": [1, 1], "radius": 3}}}
-{"control": "engine.execute", "params": {"command": "constrain", "params": {"kind": "concentric", "entities": [0, 1]}}}
-{"expect": {"regions": 2}}
-{"control": "engine.execute", "params": {"command": "inspect"}, "returns": {"at": "/sketches/0/entities/1/center/0", "near": 0, "tol": 0.0001}}
+{"task":{"about":"Concentric moves the second circle onto the first's center","category":"constraints"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"circle","params":{"center":[0,0],"radius":10}}}
+{"control":"engine.execute","params":{"command":"circle","params":{"center":[1,1],"radius":3}}}
+{"control":"engine.execute","params":{"command":"constrain","params":{"entities":[0,1],"kind":"concentric"}}}
+{"expect":{"regions":2}}
+{"control":"engine.execute","params":{"command":"inspect"},"returns":{"at":"/sketches/0/entities/1/center/0","near":0,"tol":0.0001}}

@@ -5,7 +5,7 @@ driven through the real UI offscreen by `shapecraft-snap` (keys, clicks on model
 control channel the app serves) with checks on the model it leaves behind.
 
 ```sh
-python3 bench/make_tasks.py                        # writes bench/tasks/*.jsonl (only files that changed)
+cargo xtask bench-tasks                            # writes bench/tasks/*.jsonl (only files that changed)
 shapecraft-snap --bench bench/tasks                # runs them all, writes bench/RESULTS.md and results.json
 shapecraft-snap --bench bench/tasks --only hist-   # just the History tasks
 ```
@@ -28,7 +28,7 @@ Build `shapecraft-snap` in release with `CARGO_TARGET_DIR=~/.cache/shapecraft-ta
 
 ## Writing a task
 
-`make_tasks.py` holds every task as a list of steps (the `shapecraft-snap` scenario format) plus checks:
+`xtask/src/bench.rs` holds every task as a list of steps (the `shapecraft-snap` scenario format) plus checks:
 
 | Step | Meaning |
 |---|---|
@@ -37,7 +37,7 @@ Build `shapecraft-snap` in release with `CARGO_TARGET_DIR=~/.cache/shapecraft-ta
 | `{"control": …, "save": {"name": "dr", "at": "/drawing"}}` | keep a returned value; `"$dr"` in a later step puts it in |
 | `$TMP` | a scratch folder for files a task writes and reads back |
 
-Mark a task `allow_errors=True` only when the reference itself refuses the action.
+Mark a task `allow_errors` (`task_with(…, true)`) only when the reference itself refuses the action.
 
 ## Second benchmark: real `.shapr` projects
 

@@ -1,11 +1,11 @@
-{"task": {"category": "io", "about": "Import Parasolid text (x_t)"}}
-{"size": [1840, 1324]}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "sketch", "params": {"plane": "xy"}}}
-{"control": "engine.execute", "params": {"command": "rectangle", "params": {"corner": [0, 0], "opposite": [20, 10]}}}
-{"control": "engine.execute", "params": {"command": "extrude", "params": {"sketch": 1, "region": 0, "distance": 10}}}
-{"control": "engine.execute", "params": {"command": "deselect_all", "params": {}}}
-{"control": "engine.execute", "params": {"command": "export_parasolid", "params": {"path": "$TMP/b.x_t"}}}
-{"control": "project.new", "params": {}}
-{"control": "engine.execute", "params": {"command": "import_file", "params": {"path": "$TMP/b.x_t"}}}
-{"expect": {"bodies": 1, "volume": [2000, 0.01]}}
+{"task":{"about":"Import Parasolid text (x_t)","category":"io"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"deselect_all","params":{}}}
+{"control":"engine.execute","params":{"command":"export_parasolid","params":{"path":"$TMP/b.x_t"}}}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"import_file","params":{"path":"$TMP/b.x_t"}}}
+{"expect":{"bodies":1,"volume":[2000,0.01]}}
