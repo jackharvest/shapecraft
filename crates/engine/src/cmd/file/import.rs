@@ -29,6 +29,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                 if bytes.len() > 64 << 20 {
                     return Err(EngineError::BadParams("that picture is too big (64 MB at most)".into()));
                 }
+                let bytes = shapecraft_doc::RefImage::normalize(bytes).map_err(EngineError::BadParams)?;
                 let (ext, pixels) = shapecraft_doc::RefImage::decode(&bytes).map_err(EngineError::BadParams)?;
                 let (plane, _) = crate::cmd::sketch::plane_from(s, p)?.unwrap_or((shapecraft_doc::SketchPlane::XY, None));
                 let width = p.f64_or("width", 100.0)?;

@@ -798,7 +798,12 @@ impl ShapeCraftApp {
     fn image_dialog(&mut self) {
         let Some(ws) = self.ws.as_deref_mut() else { return };
         ws.wants_image = false;
-        let Some(path) = open_path(&mut self.tablet_files, Wanted::Image, "Insert Image", &[("Image", &["png", "jpg", "jpeg"])]) else {
+        let Some(path) = open_path(
+            &mut self.tablet_files,
+            Wanted::Image,
+            "Insert Image",
+            &[("Image", &["png", "jpg", "jpeg", "tif", "tiff", "bmp", "gif", "ico"])],
+        ) else {
             return;
         };
         self.image_picked(path);
@@ -818,7 +823,12 @@ impl ShapeCraftApp {
     fn decal_dialog(&mut self) {
         let Some(ws) = self.ws.as_deref_mut() else { return };
         ws.wants_decal = false;
-        let Some(path) = open_path(&mut self.tablet_files, Wanted::Decal, "Add a Decal", &[("Image", &["png", "jpg", "jpeg"])]) else {
+        let Some(path) = open_path(
+            &mut self.tablet_files,
+            Wanted::Decal,
+            "Add a Decal",
+            &[("Image", &["png", "jpg", "jpeg", "tif", "tiff", "bmp", "gif", "ico"])],
+        ) else {
             return;
         };
         let _ = ws.run("import_decal", json!({ "path": path }));
@@ -828,8 +838,12 @@ impl ShapeCraftApp {
     fn material_dialog(&mut self) {
         let Some(ws) = self.ws.as_deref_mut() else { return };
         ws.wants_material = false;
-        let Some(path) = open_path(&mut self.tablet_files, Wanted::Material, "Custom Material", &[("Image", &["png", "jpg", "jpeg"])])
-        else {
+        let Some(path) = open_path(
+            &mut self.tablet_files,
+            Wanted::Material,
+            "Custom Material",
+            &[("Image", &["png", "jpg", "jpeg", "tif", "tiff", "bmp", "gif", "ico"])],
+        ) else {
             return;
         };
         let _ = ws.run("import_material", json!({ "path": path }));

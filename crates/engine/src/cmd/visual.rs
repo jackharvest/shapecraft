@@ -25,6 +25,7 @@ pub(super) fn import_picture(s: &mut Session, path: &str, material: bool) -> Res
     if s.doc.decal_images.len() >= 1000 {
         return Err(bad("a project holds 1000 pictures at most"));
     }
+    let bytes = shapecraft_doc::RefImage::normalize(bytes).map_err(EngineError::BadParams)?;
     let (ext, pixels) = shapecraft_doc::RefImage::decode(&bytes).map_err(EngineError::BadParams)?;
     let id = s.doc.alloc_id();
     let n = s.doc.decal_images.iter().filter(|i| i.material == material && !i.sheet).count() + 1;

@@ -243,6 +243,29 @@ impl PartialEq for RefImage {
 }
 
 impl RefImage {
+    /// A picture file as projects keep it: PNG and JPEG as they are; TIFF, BMP, GIF (its first frame) and ICO
+    /// turned into PNG.
+    pub fn normalize(file: Vec<u8>) -> Result<Vec<u8>, String> {
+        let format =
+            image::guess_format(&file).map_err(|_| "not a picture this app reads (PNG, JPEG, TIFF, BMP, GIF or ICO)".to_string())?;
+        match format {
+            image::ImageFormat::Png | image::ImageFormat::Jpeg => Ok(file),
+            image::ImageFormat::Tiff | image::ImageFormat::Bmp | image::ImageFormat::Gif | image::ImageFormat::Ico => {
+                let mut reader = image::ImageReader::with_format(std::io::Cursor::new(&file), format);
+                let mut limits = image::Limits::default();
+                limits.max_image_width = Some(16384);
+                limits.max_image_height = Some(16384);
+                limits.max_alloc = Some(1 << 30);
+                reader.limits(limits);
+                let img = reader.decode().map_err(|e| e.to_string())?;
+                let mut out = Vec::new();
+                img.to_rgba8().write_to(&mut std::io::Cursor::new(&mut out), image::ImageFormat::Png).map_err(|e| e.to_string())?;
+                Ok(out)
+            }
+            _ => Err("only PNG, JPEG, TIFF, BMP, GIF and ICO pictures can be inserted".into()),
+        }
+    }
+
     /// Decodes a PNG or JPEG file. Very large pictures are scaled down for drawing.
     pub fn decode(file: &[u8]) -> Result<(String, Pixels), String> {
         let format = image::guess_format(file).map_err(|e| e.to_string())?;
@@ -1163,6 +1186,20 @@ pub fn v2(x: f64, y: f64) -> DVec2 {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn other_picture_formats_become_png() {
+        let img = image::RgbaImage::from_pixel(3, 2, image::Rgba([10, 20, 30, 255]));
+        for format in [image::ImageFormat::Bmp, image::ImageFormat::Tiff, image::ImageFormat::Gif] {
+            let mut bytes = Vec::new();
+            img.write_to(&mut std::io::Cursor::new(&mut bytes), format).unwrap();
+            let png = super::RefImage::normalize(bytes).unwrap();
+            assert_eq!(image::guess_format(&png).unwrap(), image::ImageFormat::Png, "{format:?}");
+            let (ext, (w, h, _)) = super::RefImage::decode(&png).unwrap();
+            assert_eq!((ext.as_str(), w, h), ("png", 3, 2));
+        }
+        assert!(super::RefImage::normalize(b"not a picture".to_vec()).is_err());
+    }
+
     use super::*;
 
     #[test]
