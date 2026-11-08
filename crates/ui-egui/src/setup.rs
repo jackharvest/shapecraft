@@ -165,15 +165,16 @@ fn look(ui: &mut Ui, body: Rect, st: &mut Setup) {
 }
 
 /// A tiny ShapeCraft window: sidebar, title strip and a part, in light or dark (clipped to `clip` for half of one).
+/// Its colours are fixed: the Light card shows a light window whichever theme the app is in now.
 fn window_art(p: &egui::Painter, r: Rect, light: bool, clip: Option<Rect>) {
     let p = match clip {
         Some(c) => p.with_clip_rect(c),
         None => p.clone(),
     };
     let (bg, side, strip, ink) = if light {
-        (theme::c(0xf4f4f5), theme::c(0xe2e2e4), theme::c(0xffffff), theme::c(0x9a9aa0))
+        (theme::hex(0xf4f4f5), theme::hex(0xe2e2e4), theme::hex(0xffffff), theme::hex(0x9a9aa0))
     } else {
-        (theme::c(0x1e1e1f), theme::c(0x2a2a2c), theme::c(0x333335), theme::c(0x7a7a80))
+        (theme::hex(0x1e1e1f), theme::hex(0x2a2a2c), theme::hex(0x333335), theme::hex(0x7a7a80))
     };
     p.rect_filled(r, radius(6), bg);
     p.rect_filled(Rect::from_min_size(r.min, vec2(r.width() * 0.28, r.height())), egui::CornerRadius { nw: 6, sw: 6, ne: 0, se: 0 }, side);
@@ -191,12 +192,12 @@ fn window_art(p: &egui::Painter, r: Rect, light: bool, clip: Option<Rect>) {
     let top = [c + vec2(-30.0, -10.0), c + vec2(0.0, -24.0), c + vec2(30.0, -10.0), c + vec2(0.0, 4.0)];
     let left = [c + vec2(-30.0, -10.0), c + vec2(0.0, 4.0), c + vec2(0.0, 30.0), c + vec2(-30.0, 16.0)];
     let right = [c + vec2(0.0, 4.0), c + vec2(30.0, -10.0), c + vec2(30.0, 16.0), c + vec2(0.0, 30.0)];
-    let shade = |v: u32| if light { theme::c(v) } else { theme::c(v).gamma_multiply(0.8) };
+    let shade = |v: u32| if light { theme::hex(v) } else { theme::hex(v).gamma_multiply(0.8) };
     p.add(egui::Shape::convex_polygon(top.to_vec(), shade(0xd8dbe3), Stroke::NONE));
     p.add(egui::Shape::convex_polygon(left.to_vec(), shade(0xa9adb8), Stroke::NONE));
     p.add(egui::Shape::convex_polygon(right.to_vec(), shade(0x8c909b), Stroke::NONE));
     p.circle_filled(c + vec2(0.0, -10.0), 5.0, shade(0x6f727c));
-    p.rect_stroke(r, radius(6), Stroke::new(1.0, theme::c(0x55555a)), StrokeKind::Inside);
+    p.rect_stroke(r, radius(6), Stroke::new(1.0, theme::hex(0x55555a)), StrokeKind::Inside);
 }
 
 /// Step 2: the Work Folder. This computer, or a cloud app's folder (same projects and Recents everywhere).
