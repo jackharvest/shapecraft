@@ -221,8 +221,115 @@ fn measure(s: &mut Session, p: &Params) -> Result<Value> {
             }
             out["angle_deg"] = json!(deg);
         }
+        // Central distance: from a center point (a circle's or arc's, a body's centre of mass) or a central axis (a
+        // cylinder's or cone's) to the other pick's center, axis, line or plane.
+        let (fa, fb) = (feature(s, x, sa), feature(s, y, sb));
+        if let (Some(fa), Some(fb)) = (fa, fb)
+            && (fa.1 || fb.1)
+            && let Some((mm, from, to)) = gap(fa.0, fb.0, false)
+        {
+            out["central_distance"] = json!({ "mm": mm, "from": from.to_array(), "to": to.to_array() });
+        }
+        // Parallel distance: two parallel flat faces or straight edges (or an edge and a face parallel to it), or two
+        // parallel axes.
+        if let (Some(fa), Some(fb)) = (fa, fb)
+            && let Some((mm, from, to)) = gap(fa.0, fb.0, true)
+        {
+            out["parallel_distance"] = json!({ "mm": mm, "from": from.to_array(), "to": to.to_array() });
+        }
+    }
+    // One arc picked: the angle it sweeps.
+    if let [pick] = picks.as_slice()
+        && let Some((body, SubShape::Edge(e))) = sub_of(pick)
+        && let Some(b) = s.doc.body(body)
+        && let Ok(shapecraft_kernel::EdgeCurve::Arc { a, mid, b: end }) = s.kernel.edge_curve(&b.shape, e)
+        && let Some(deg) = arc_sweep(a, mid, end)
+    {
+        out["arc_angle_deg"] = json!(deg);
     }
     Ok(out)
+}
+
+/// What a pick measures from: a point, a line (an axis or a straight edge) or a plane, and whether it is a center
+/// (a center point or a central axis) for Central Distance.
+#[derive(Clone, Copy)]
+enum Feat {
+    Point(glam::DVec3),
+    Line(glam::DVec3, glam::DVec3),
+    Plane(glam::DVec3, glam::DVec3),
+}
+
+fn feature(s: &Session, b: &shapecraft_doc::Body, sub: shapecraft_kernel::SubShape) -> Option<(Feat, bool)> {
+    use shapecraft_kernel::{EdgeCurve, SubShape};
+    match sub {
+        SubShape::Whole => s.kernel.mass_props(&b.shape).ok().map(|m| (Feat::Point(m.centroid), true)),
+        SubShape::Edge(e) => match s.kernel.edge_curve(&b.shape, e).ok()? {
+            EdgeCurve::Line { a, b } => Some((Feat::Line(a, (b - a).try_normalize()?), false)),
+            EdgeCurve::Circle { center, .. } => Some((Feat::Point(center), true)),
+            EdgeCurve::Arc { a, mid, b } => arc_center(a, mid, b).map(|c| (Feat::Point(c), true)),
+            EdgeCurve::Other { .. } => None,
+        },
+        SubShape::Face(f) => {
+            if let Some(fp) = s.kernel.face_plane(&b.shape, f).ok().flatten() {
+                return Some((Feat::Plane(fp.origin, fp.normal.try_normalize()?), false));
+            }
+            let ax = s.kernel.axis_of(&b.shape, sub).ok().flatten()?;
+            Some((Feat::Line(ax.origin, ax.dir.try_normalize()?), true))
+        }
+    }
+}
+
+/// The center of the circle through three points.
+fn arc_center(a: glam::DVec3, m: glam::DVec3, b: glam::DVec3) -> Option<glam::DVec3> {
+    let (u, v) = (m - a, b - a);
+    let n = u.cross(v);
+    let nn = n.length_squared();
+    if nn < 1e-18 {
+        return None;
+    }
+    Some(a + (v.length_squared() * n.cross(u) + u.length_squared() * v.cross(n)) / (2.0 * nn))
+}
+
+/// The angle an arc from `a` through `m` to `b` sweeps, in degrees.
+fn arc_sweep(a: glam::DVec3, m: glam::DVec3, b: glam::DVec3) -> Option<f64> {
+    let c = arc_center(a, m, b)?;
+    let (ua, um, ub) = (a - c, m - c, b - c);
+    let n = ua.cross(ub);
+    let half = |p: glam::DVec3, q: glam::DVec3| p.angle_between(q);
+    let direct = half(ua, ub);
+    // The middle point tells the short way round from the long one.
+    let short = (ua.cross(um).dot(n) >= 0.0) == (um.cross(ub).dot(n) >= 0.0) && n.length_squared() > 1e-18;
+    Some(if short { direct } else { std::f64::consts::TAU - direct }.to_degrees())
+}
+
+/// The gap between two features, with the points it runs between. `parallel`: only for features parallel to each
+/// other (a plane, line or axis with another), the distance square across.
+fn gap(a: Feat, b: Feat, parallel: bool) -> Option<(f64, glam::DVec3, glam::DVec3)> {
+    use Feat::*;
+    let on_line = |p: glam::DVec3, o: glam::DVec3, d: glam::DVec3| o + d * (p - o).dot(d);
+    let on_plane = |p: glam::DVec3, o: glam::DVec3, n: glam::DVec3| p - n * (p - o).dot(n);
+    let par = |u: glam::DVec3, v: glam::DVec3| u.cross(v).length() < 1e-6;
+    let res = |from: glam::DVec3, to: glam::DVec3| Some((from.distance(to), from, to));
+    match (a, b, parallel) {
+        (Point(p), Point(q), false) => res(p, q),
+        (Point(p), Line(o, d), false) => res(p, on_line(p, o, d)),
+        (Line(o, d), Point(p), false) => res(on_line(p, o, d), p),
+        (Point(p), Plane(o, n), false) => res(p, on_plane(p, o, n)),
+        (Plane(o, n), Point(p), false) => res(on_plane(p, o, n), p),
+        (Line(o1, d1), Line(o2, d2), _) if par(d1, d2) => res(o1, on_line(o1, o2, d2)),
+        (Line(o1, d1), Line(o2, d2), false) => {
+            // Skew lines: the closest points.
+            let w = o1 - o2;
+            let (a, b, c, d, e) = (d1.dot(d1), d1.dot(d2), d2.dot(d2), d1.dot(w), d2.dot(w));
+            let den = a * c - b * b;
+            (den.abs() > 1e-12).then_some(())?;
+            res(o1 + d1 * ((b * e - c * d) / den), o2 + d2 * ((a * e - b * d) / den))
+        }
+        (Line(o, d), Plane(po, n), _) if d.dot(n).abs() < 1e-6 => res(o, on_plane(o, po, n)),
+        (Plane(po, n), Line(o, d), _) if d.dot(n).abs() < 1e-6 => res(on_plane(o, po, n), o),
+        (Plane(o1, n1), Plane(o2, n2), true) if par(n1, n2) => res(o1, on_plane(o1, o2, n2)),
+        _ => None,
+    }
 }
 
 /// Points of a body, face or edge from its tessellation (at most ~1500, spread evenly), for the farthest distance.

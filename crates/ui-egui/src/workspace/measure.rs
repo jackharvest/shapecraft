@@ -166,6 +166,23 @@ pub fn rows(ws: &mut Workspace) -> Vec<Measured> {
             anchor: (a + b) / 2.0,
         });
     }
+    for (key, label) in [("central_distance", "Central Distance"), ("parallel_distance", "Parallel Distance")] {
+        if let Some(d) = value[key].as_object()
+            && let (Some(mm), Some(a), Some(b)) =
+                (d.get("mm").and_then(Value::as_f64), d.get("from").and_then(vec3), d.get("to").and_then(vec3))
+        {
+            out.push(Measured {
+                icon: Icon::MDistance,
+                value: shapecraft_doc::format_length(mm, units),
+                sub: label.into(),
+                anchor: (a + b) / 2.0,
+            });
+        }
+    }
+    if let Some(deg) = value["arc_angle_deg"].as_f64() {
+        let at = edge_at.unwrap_or(DVec3::ZERO);
+        out.push(Measured { icon: Icon::MAngle, value: format!("{deg:.2}°"), sub: "Central Angle".into(), anchor: at });
+    }
     if let Some(deg) = value["angle_deg"].as_f64() {
         let at = face_at.or(edge_at).unwrap_or(DVec3::ZERO);
         out.push(Measured { icon: Icon::MAngle, value: format!("{deg:.2}°"), sub: "Angle".into(), anchor: at });

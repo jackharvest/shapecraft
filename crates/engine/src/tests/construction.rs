@@ -225,3 +225,30 @@ fn measure_two_faces_gives_min_max_and_angle() {
         .value;
     assert!((out["angle_deg"].as_f64().unwrap() - 90.0).abs() < 1e-6);
 }
+
+#[test]
+fn measure_central_and_parallel_distances() {
+    let mut s = session();
+    let body = super::holed_block(&mut s);
+    let v = s.execute("inspect", &json!({})).unwrap().value;
+    let faces = v["bodies"][0]["faces"].as_array().unwrap().clone();
+    let by_normal = |n: [f64; 3]| {
+        faces.iter().find(|f| f["normal"].as_array().is_some_and(|a| (0..3).all(|i| a[i].as_f64() == Some(n[i])))).unwrap()["face"]
+            .as_u64()
+            .unwrap()
+    };
+    let (left, right) = (by_normal([-1.0, 0.0, 0.0]), by_normal([1.0, 0.0, 0.0]));
+    let pick = |f: u64| json!({"kind": "face", "body": body.0, "face": f});
+    // The hole's wall: the biggest round face (the others are the fillet round its rim).
+    let area = |s: &mut crate::Session, f: u64| {
+        s.execute("measure", &json!({"picks": [pick(f)]})).unwrap().value["items"][0]["area_mm2"].as_f64().unwrap()
+    };
+    let round: Vec<u64> = faces.iter().filter(|f| f["planar"] == json!(false)).map(|f| f["face"].as_u64().unwrap()).collect();
+    let hole = *round.iter().max_by(|a, b| area(&mut s, **a).total_cmp(&area(&mut s, **b))).unwrap();
+    let out = s.execute("measure", &json!({"picks": [pick(hole), pick(left)]})).unwrap().value;
+    assert!((out["central_distance"]["mm"].as_f64().unwrap() - 10.0).abs() < 1e-6, "{out}");
+    assert!((out["parallel_distance"]["mm"].as_f64().unwrap() - 10.0).abs() < 1e-6, "{out}");
+    let out = s.execute("measure", &json!({"picks": [pick(left), pick(right)]})).unwrap().value;
+    assert!((out["parallel_distance"]["mm"].as_f64().unwrap() - 20.0).abs() < 1e-6, "{out}");
+    assert!(out.get("central_distance").is_none(), "two flat faces have no center: {out}");
+}
