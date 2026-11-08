@@ -80,7 +80,7 @@ fn cloud_name(key: &str) -> String {
     if account.is_empty() { name.to_string() } else { format!("{name} ({account})") }
 }
 
-/// This computer's name, for its folder in each backup ("Mike's MacBook Pro", "DESKTOP-4F2").
+/// This computer's name, for its folder in each backup ("Sam's MacBook Pro", "DESKTOP-4F2").
 pub fn computer_name() -> String {
     static NAME: OnceLock<String> = OnceLock::new();
     NAME.get_or_init(|| {
@@ -604,7 +604,7 @@ mod tests {
         assert_eq!(Target::parse("dropbox").root(&Found::default()), None);
         assert_eq!(dest(Path::new("/b"), false), Path::new("/b").join(BACKUPS_DIR));
         assert_eq!(dest(Path::new("/b"), true), Path::new("/b").join(BACKUPS_DIR).join(computer_name()));
-        assert_eq!(clean_name("Mike's: PC/2"), "Mike's- PC-2");
+        assert_eq!(clean_name("Sam's: PC/2"), "Sam's- PC-2");
         assert_eq!(clean_name("  "), "This Computer");
     }
 
@@ -708,11 +708,11 @@ mod tests {
 
         // Open on another computer: seen until its mark is three minutes old.
         project::mark_open(&dir, "Workshop PC");
-        let seen = project::open_elsewhere(&dir, "Mikebook", Duration::from_secs(180));
+        let seen = project::open_elsewhere(&dir, "Studio Mac", Duration::from_secs(180));
         assert_eq!(seen.map(|(who, _)| who), Some("Workshop PC".to_string()));
         assert!(project::open_elsewhere(&dir, "Workshop PC", Duration::from_secs(180)).is_none(), "not our own mark");
         project::mark_closed(&dir, "Workshop PC");
-        assert!(project::open_elsewhere(&dir, "Mikebook", Duration::from_secs(180)).is_none());
+        assert!(project::open_elsewhere(&dir, "Studio Mac", Duration::from_secs(180)).is_none());
         let _ = std::fs::remove_dir_all(&d);
     }
 }

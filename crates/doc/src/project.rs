@@ -670,7 +670,7 @@ pub fn list(root: &Path) -> Vec<ProjectSummary> {
 }
 
 /// The other project.json files a sync app left in a project folder when two computers saved it at once:
-/// Dropbox "project (Mike's conflicted copy 2026-11-06).json", OneDrive "project-DESKTOP-4F2.json", Google Drive
+/// Dropbox "project (Sam's conflicted copy 2026-11-06).json", OneDrive "project-DESKTOP-4F2.json", Google Drive
 /// "project (1).json", iCloud "project 2.json".
 pub fn other_versions(dir: &Path) -> Vec<PathBuf> {
     let Ok(rd) = fs::read_dir(dir) else { return Vec::new() };
