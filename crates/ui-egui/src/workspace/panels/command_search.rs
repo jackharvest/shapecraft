@@ -45,7 +45,8 @@ pub(super) fn command_search(ws: &mut Workspace, ui: &mut Ui) {
         )
     };
     if q.is_empty() {
-        for id in &ws.recent_commands {
+        // Only what a person can run from here: the History sidebar's Edit Sketch needs its step, for one.
+        for id in ws.recent_commands.iter().filter(|id| visible(id)) {
             if let Some(c) = registry.iter().find(|c| c.id == *id) {
                 entries.push((c.id, c.label, c.shortcut.unwrap_or("")));
             }
