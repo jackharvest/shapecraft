@@ -350,12 +350,13 @@ impl Kernel for OcctKernel {
     }
 
     fn revolve_helix(&self, face: &Shape, axis: Axis, angle: f64, height: f64) -> Result<Shape> {
-        let ax = axis.flat();
-        finite("revolve", &ax)?;
-        finite("revolve", &[angle, height])?;
+        let mesh = self.tessellate(face, 0.01)?;
+        let path = shapecraft_kernel::helix::path(&mesh, axis, angle, height)?;
+        let (pts, tangents): (Vec<f64>, Vec<f64>) =
+            (path.iter().flat_map(|(p, _)| p.to_array()).collect(), path.iter().flat_map(|(_, t)| t.to_array()).collect());
         let f = raw(face)?;
-        // SAFETY: `ax` outlives the call.
-        shape_out("revolve", |out| unsafe { ffi::sk_revolve_helix(f, ax.as_ptr(), angle, height, out) })
+        // SAFETY: both buffers hold 3 doubles per point and outlive the call.
+        shape_out("revolve", |out| unsafe { ffi::sk_pipe_through(f, pts.as_ptr(), tangents.as_ptr(), path.len(), out) })
     }
 
     fn shell(&self, shape: &Shape, open_faces: &[u32], thickness: f64) -> Result<Shape> {

@@ -13,6 +13,7 @@ use std::sync::Arc;
 pub use glam::{DMat3, DVec2, DVec3};
 
 pub mod brep;
+pub mod helix;
 mod mesh;
 pub mod spline;
 pub use mesh::Mesh;

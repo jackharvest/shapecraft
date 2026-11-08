@@ -80,7 +80,7 @@ unsafe extern "C" {
     ) -> i32;
     pub fn sk_prism(face: *const SkShape, dx: f64, dy: f64, dz: f64, out: *mut *mut SkShape) -> i32;
     pub fn sk_revolve_shape(face: *const SkShape, axis: *const f64, angle: f64, out: *mut *mut SkShape) -> i32;
-    pub fn sk_revolve_helix(face: *const SkShape, axis: *const f64, angle: f64, height: f64, out: *mut *mut SkShape) -> i32;
+    pub fn sk_pipe_through(face: *const SkShape, pts: *const f64, tangents: *const f64, n: usize, out: *mut *mut SkShape) -> i32;
     pub fn sk_sub_measure(s: *const SkShape, kind: i32, index: u32, value: *mut f64, center: *mut f64) -> i32;
     pub fn sk_distance(
         a: *const SkShape,
