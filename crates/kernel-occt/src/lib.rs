@@ -3,6 +3,7 @@
 //! All `unsafe` in ShapeCraft lives in this crate, at the FFI boundary to `cpp/shim.cpp`.
 
 mod ffi;
+mod offset_check;
 
 use std::any::Any;
 use std::ffi::{CStr, CString};
@@ -483,8 +484,22 @@ impl Kernel for OcctKernel {
             return Err(KernelError::InvalidInput("offset needs faces and a non-zero distance".into()));
         }
         let s = raw(shape)?;
-        // SAFETY: `faces` outlives the call.
-        blend_out("offset", |out| unsafe { ffi::sk_offset_faces(s, faces.as_ptr(), faces.len(), distance, out) })
+        // A face with a fillet running along it moves with the fillet riding along at the same radius (tried first: a
+        // plain offset would "succeed" by growing the tangent fillet instead); then a plain offset; then faces pulled
+        // past where they'd shrink to nothing. The first believable result wins.
+        let levels: Vec<Option<(DVec3, f64)>> = faces.iter().map(|f| self.face_level(shape, *f)).collect::<Result<_>>()?;
+        let before = (self.volume_of(shape)?, self.bounds(shape)?);
+        for way in 0..3 {
+            // SAFETY: `faces` outlives the call.
+            let Ok(r) = blend_out("offset", |out| unsafe { ffi::sk_offset_faces_way(s, faces.as_ptr(), faces.len(), distance, way, out) })
+            else {
+                continue;
+            };
+            if offset_check::plausible(before, &levels, distance, (self.volume_of(&r)?, self.bounds(&r)?)) {
+                return Ok(r);
+            }
+        }
+        Err(KernelError::Operation { op: "offset", message: "offset failed for this distance".into() })
     }
 
     fn remove_faces(&self, shape: &Shape, faces: &[u32]) -> Result<Shape> {
@@ -1031,4 +1046,24 @@ fn encode_curves(frame: PlaneFrame, curves: &[PlanarCurve]) -> Result<([f64; 9],
         }
     }
     Ok((plane, kinds, data))
+}
+
+impl OcctKernel {
+    /// A face on an analytic plane: its outward normal and level (n · a point of the plane); `None` for any other.
+    fn face_level(&self, shape: &Shape, face: u32) -> Result<Option<(DVec3, f64)>> {
+        let s = raw(shape)?;
+        let (mut n, mut h, mut found) = ([0.0; 3], 0.0, 0);
+        // SAFETY: `n` has 3 slots; the others are single values.
+        check("face level", unsafe { ffi::sk_face_level(s, face, n.as_mut_ptr(), &mut h, &mut found) })?;
+        Ok((found != 0).then(|| (DVec3::from_array(n), h)))
+    }
+
+    /// The volume by the fast fixed rule (what the offset check has always compared).
+    fn volume_of(&self, shape: &Shape) -> Result<f64> {
+        let s = raw(shape)?;
+        let mut v = 0.0;
+        // SAFETY: one out value.
+        check("volume", unsafe { ffi::sk_volume(s, &mut v) })?;
+        Ok(v)
+    }
 }

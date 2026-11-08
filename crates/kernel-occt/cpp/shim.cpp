@@ -835,6 +835,33 @@ bool plane_of(const TopoDS_Face& f, gp_Pnt& origin, gp_Dir& normal) {
 extern "C" {
 
 // Planar face: writes centre + outward normal, returns 0. Non-planar: returns 1.
+bool face_level(const TopoDS_Face& f, gp_Dir& n, double& h);
+
+// The volume by the fixed Gauss rule (fast; what the offset check compares).
+int sk_volume(const SkShape* s, double* volume) {
+  return guard([&] {
+    *volume = volume_of(s->shape);
+    return 0;
+  });
+}
+
+// A face lying on an analytic plane: its outward normal and level along it (n · a point of the plane). *found = 0
+// for any other face (a flattened B-spline face too).
+int sk_face_level(const SkShape* s, uint32_t face, double* normal, double* level, int* found) {
+  return guard([&] {
+    *found = 0;
+    TopoDS_Face f;
+    if (!face_at(s->shape, face, f)) return fail("no such face");
+    gp_Dir n;
+    double h;
+    if (!face_level(f, n, h)) return 0;
+    normal[0] = n.X(); normal[1] = n.Y(); normal[2] = n.Z();
+    *level = h;
+    *found = 1;
+    return 0;
+  });
+}
+
 int sk_face_plane(const SkShape* s, uint32_t face, double* origin, double* normal) {
   return guard([&] {
     TopoDS_Face f;
@@ -2066,36 +2093,6 @@ bool face_level(const TopoDS_Face& f, gp_Dir& n, double& h) {
   return true;
 }
 
-// Whether an offset's result is believable: pushing faces out only adds material, never reaches back behind the body
-// along a pushed flat face's normal nor past the face's new place; pulling them in only takes material away. (OCCT can come back with a valid
-// but runaway solid, e.g. where two drafted halves meet at a ridge.)
-bool plausible_offset(const TopoDS_Shape& before, const std::vector<TopoDS_Face>& faces, double distance, const TopoDS_Shape& after) {
-  double v0 = volume_of(before), v1 = volume_of(after);
-  if (distance > 0.0 ? !(v1 > v0) : !(v1 < v0)) return false;
-  Bnd_Box b0, b1;
-  BRepBndLib::AddOptimal(before, b0, Standard_False, Standard_False);
-  BRepBndLib::AddOptimal(after, b1, Standard_False, Standard_False);
-  if (b0.IsVoid() || b1.IsVoid()) return false;
-  double tol = 1e-6 * std::sqrt(b0.SquareExtent()) + 1e-7;
-  double a[6], b[6];
-  b0.Get(a[0], a[1], a[2], a[3], a[4], a[5]);
-  b1.Get(b[0], b[1], b[2], b[3], b[4], b[5]);
-  if (distance < 0.0) return b[0] >= a[0] - tol && b[1] >= a[1] - tol && b[2] >= a[2] - tol && b[3] <= a[3] + tol && b[4] <= a[4] + tol && b[5] <= a[5] + tol;
-  auto lowest = [](const double* c, const gp_Dir& n) {
-    double m = 1e300;
-    for (int i = 0; i < 8; ++i) m = std::min(m, (i & 1 ? c[3] : c[0]) * n.X() + (i & 2 ? c[4] : c[1]) * n.Y() + (i & 4 ? c[5] : c[2]) * n.Z());
-    return m;
-  };
-  for (const auto& f : faces) {
-    gp_Dir n;
-    double h;
-    if (!face_level(f, n, h)) continue;
-    gp_Dir back = n.Reversed();
-    // Nothing behind the body, and nothing past the face's new place unless the body already reached further.
-    if (lowest(b, n) < lowest(a, n) - tol || -lowest(b, back) > std::max(-lowest(a, back), h + distance) + tol) return false;
-  }
-  return true;
-}
 
 // Delete Face: the faces come out and their neighbours extend to close the body (BRepAlgoAPI_Defeaturing).
 int sk_remove_faces(const SkShape* s, const uint32_t* ids, size_t n, SkShape** out) {
@@ -2121,7 +2118,7 @@ int sk_remove_faces(const SkShape* s, const uint32_t* ids, size_t n, SkShape** o
   });
 }
 
-int sk_offset_faces(const SkShape* s, const uint32_t* ids, size_t n, double distance, SkShape** out) {
+int sk_offset_faces_way(const SkShape* s, const uint32_t* ids, size_t n, double distance, int way, SkShape** out) {
   return guard([&] {
     if (n == 0) return fail("no faces to offset");
     if (distance == 0.0) return fail("offset distance is zero");
@@ -2132,12 +2129,13 @@ int sk_offset_faces(const SkShape* s, const uint32_t* ids, size_t n, double dist
       if (ids[i] >= uint32_t(map.Extent())) return fail("no such face");
       faces.push_back(TopoDS::Face(map(int(ids[i]) + 1)));
     }
-    // A face with a fillet running along it moves with the fillet riding along at the same radius, as the reference
-    // does (observed 371). Tried first: a plain offset would "succeed" by growing the tangent fillet instead.
-    auto believable = [&](TopoDS_Shape r) { return !r.IsNull() && plausible_offset(s->shape, faces, distance, r) ? r : TopoDS_Shape(); };
-    TopoDS_Shape r = believable(offset_keeping_fillets(s->shape, faces, distance));
-    if (r.IsNull()) r = believable(offset_some(s->shape, faces, distance));
-    if (r.IsNull()) r = believable(offset_past_collapse(s->shape, faces, distance));
+    // One way of moving the faces (the order to try them and whether a result is believable are decided in Rust):
+    // 0 with the fillets running along them riding along, 1 a plain offset, 2 past where they'd shrink to nothing.
+    TopoDS_Shape r;
+    if (way == 0) r = offset_keeping_fillets(s->shape, faces, distance);
+    else if (way == 1) r = offset_some(s->shape, faces, distance);
+    else if (way == 2) r = offset_past_collapse(s->shape, faces, distance);
+    else return fail("no such offset method");
     if (r.IsNull()) return fail("offset failed for this distance");
     return put(out, r);
   });

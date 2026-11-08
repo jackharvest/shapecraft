@@ -113,7 +113,9 @@ unsafe extern "C" {
     pub fn sk_heal(s: *const SkShape, flags: i32, out: *mut *mut SkShape) -> i32;
     pub fn sk_scale(s: *const SkShape, cx: f64, cy: f64, cz: f64, sx: f64, sy: f64, sz: f64, out: *mut *mut SkShape) -> i32;
     pub fn sk_map_edge(s: *const SkShape, edge: u32, m: *const f64, out: *mut *mut SkShape) -> i32;
-    pub fn sk_offset_faces(s: *const SkShape, ids: *const u32, n: usize, distance: f64, out: *mut *mut SkShape) -> i32;
+    pub fn sk_offset_faces_way(s: *const SkShape, ids: *const u32, n: usize, distance: f64, way: i32, out: *mut *mut SkShape) -> i32;
+    pub fn sk_volume(s: *const SkShape, volume: *mut f64) -> i32;
+    pub fn sk_face_level(s: *const SkShape, face: u32, normal: *mut f64, level: *mut f64, found: *mut i32) -> i32;
     pub fn sk_remove_faces(s: *const SkShape, ids: *const u32, n: usize, out: *mut *mut SkShape) -> i32;
     pub fn sk_split_plane(
         s: *const SkShape,
