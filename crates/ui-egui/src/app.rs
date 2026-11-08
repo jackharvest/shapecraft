@@ -192,6 +192,9 @@ pub struct ShapeCraftApp {
     tablet: Option<(u16, bool, String, Option<crate::tablet::Host>)>,
     /// What the backup thread was last told: the Work Folder and each backup with its folder now.
     backup_sent: Option<(PathBuf, crate::backup::Targets, crate::backup::Plan)>,
+    /// This run was given its own projects folder (`--projects`, $SHAPECRAFT_PROJECTS): it isn't the Work Folder,
+    /// so it doesn't back up into the Work Folder's backups, where same-named projects would replace each other.
+    own_folder: bool,
     /// The open project's "open on this computer" mark (for other computers sharing the folder), and when it was renewed.
     marked: Option<(PathBuf, std::time::Instant)>,
     /// Asking before opening a project another computer has open: it, that computer, and how long ago it was seen.
@@ -278,6 +281,7 @@ impl ShapeCraftApp {
             kernel,
             landing: Landing::new(root),
             backup_sent: None,
+            own_folder: named,
             marked: None,
             ask_open: None,
             setup: None,
@@ -547,7 +551,11 @@ impl ShapeCraftApp {
             return;
         }
         let found = found.unwrap_or_default();
-        let targets: crate::backup::Targets = self.settings.backups.iter().map(|b| (b.clone(), Target::parse(b).root(&found))).collect();
+        let targets: crate::backup::Targets = if self.own_folder {
+            crate::backup::Targets::default()
+        } else {
+            self.settings.backups.iter().map(|b| (b.clone(), Target::parse(b).root(&found))).collect()
+        };
         let plan = crate::backup::Plan {
             per_computer: self.settings.backup_per_computer,
             versions: self.settings.backup_versions,

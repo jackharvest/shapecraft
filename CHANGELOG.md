@@ -18,6 +18,8 @@ it will make, and sketches show their closed shapes while you draw.**
 - **Command search** no longer lists History's Edit Sketch (or other steps that need a place in History) among the
   recent commands, where picking it only showed an error.
 - **Tablet connections no longer drop at random** when the Mac is the host.
+- **A run given its own projects folder** (`--projects`, as a tablet server uses) no longer backs up into the
+  normal Work Folder's backups, where a project with the same name would have replaced the other's latest copy.
 
 ## 0.6.3-alpha
 
