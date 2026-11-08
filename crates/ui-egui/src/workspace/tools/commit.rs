@@ -239,13 +239,26 @@ impl Workspace {
                     self.tool = Tool::Idle;
                 }
             }
-            Tool::Revolve(t) => {
-                // Typed values are angles here, not lengths.
-                let angle = self.numeric_angle.take().unwrap_or(t.angle);
+            Tool::Revolve(mut t) => {
+                // Typed values are angles here, not lengths, unless Tab moved on to the height.
+                let typed_angle = self.numeric_angle.take();
+                let angle = if t.height_typed {
+                    if let Some(h) = typed {
+                        t.height = h;
+                    }
+                    t.angle.clamp(-t.max_angle(), t.max_angle())
+                } else {
+                    typed_angle.unwrap_or(t.angle)
+                };
                 if let Some(params) = t.params(angle)
                     && self.run("revolve", params).is_some()
                 {
                     self.tool = Tool::Idle;
+                } else {
+                    // Refused (turns that overlap, say): the tool stays with what was typed, to change it.
+                    t.angle = angle;
+                    self.numeric = None;
+                    self.tool = Tool::Revolve(t);
                 }
             }
             Tool::CircularPattern(t) => {
@@ -408,6 +421,18 @@ impl Workspace {
         {
             self.line_len = Some(v.abs());
             self.numeric = None;
+            return;
+        }
+        // Revolve: Tab fixes the typed angle and opens the height (a helix rises as it turns).
+        if let Tool::Revolve(t) = &mut self.tool
+            && !t.height_typed
+        {
+            if let Some(a) = self.numeric.as_deref().and_then(|n| n.trim().parse::<f64>().ok()).filter(|a| a.is_finite() && a.abs() > 1e-9)
+            {
+                t.angle = a.clamp(-360.0 * 200.0, 360.0 * 200.0);
+            }
+            t.height_typed = true;
+            self.numeric = Some(String::new());
             return;
         }
         // Other tools have one field: Tab commits it like Return would.

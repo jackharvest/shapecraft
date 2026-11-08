@@ -593,3 +593,25 @@ fn a_pushed_or_moved_face_stays_picked_where_it_went() {
     s.execute("fillet", &json!({"body": body.0, "edges": [0], "radius": 1})).unwrap();
     assert!(s.selection.is_empty(), "{:?}", s.selection);
 }
+
+#[test]
+fn revolve_with_a_height_makes_a_coil() {
+    let mut s = session();
+    s.execute("sketch", &json!({"plane": "xz"})).unwrap();
+    s.execute("circle", &json!({"center": [5, 0], "radius": 1})).unwrap();
+    // Three turns rising 12 mm: a spring of wire 2 mm thick, 4 mm between turns.
+    s.execute("revolve", &json!({"sketch": 1, "region": 0, "axis": "v", "angle": 1080, "height": 12})).unwrap();
+    let v = volume(&mut s);
+    let want = std::f64::consts::PI * std::f64::consts::TAU * 5.0 * 3.0;
+    assert!((v - want).abs() < want * 2e-3, "{v} vs {want}");
+    let body = s.doc.bodies.last().unwrap();
+    let bb = s.kernel.bounds(&body.shape).unwrap();
+    assert!((bb.max.z - bb.min.z - 14.0).abs() < 0.05, "{bb:?}");
+    // Turns closer than the profile is tall run into each other: refused.
+    let mut s = session();
+    s.execute("sketch", &json!({"plane": "xz"})).unwrap();
+    s.execute("circle", &json!({"center": [5, 0], "radius": 1})).unwrap();
+    assert!(s.execute("revolve", &json!({"sketch": 1, "region": 0, "axis": "v", "angle": 1080, "height": 3})).is_err());
+    // Without a height, past one turn is still refused.
+    assert!(s.execute("revolve", &json!({"sketch": 1, "region": 0, "axis": "v", "angle": 720})).is_err());
+}

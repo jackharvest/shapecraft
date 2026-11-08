@@ -255,6 +255,7 @@ impl Workspace {
         // A grab is tested where the button went down (the pointer has moved a little by the time a drag starts).
         let pointer = ui.input(|i| if pressed { i.pointer.press_origin().or(i.pointer.interact_pos()) } else { i.pointer.interact_pos() });
         if self.draft_drags(pressed, released, pointer)
+            || self.revolve_height_drags(pressed, released, pointer)
             || self.chamfer2_drags(pressed, released, pointer)
             || self.fillet_slider_drags(pressed, released, pointer)
         {
@@ -280,7 +281,10 @@ impl Workspace {
                     Tool::OffsetFace(t) => t.dragging = Some((p, value)),
                     Tool::OffsetEdge(t) => t.dragging = Some((p, value)),
                     Tool::OffsetPlane(t) => t.dragging = Some((p, value)),
-                    Tool::Revolve(t) => t.dragging = Some((p, value)),
+                    Tool::Revolve(t) => {
+                        t.dragging = Some((p, value));
+                        t.height_typed = false;
+                    }
                     _ => {}
                 }
             }
@@ -338,7 +342,7 @@ impl Workspace {
                 Tool::OffsetPlane(t) => t.distance = snap(v0 + along),
                 // Whole degrees, within a turn either way.
                 Tool::Revolve(t) => {
-                    let a = (v0 + along).round().clamp(-360.0, 360.0);
+                    let a = (v0 + along).round().clamp(-t.max_angle(), t.max_angle());
                     t.angle = if a == 0.0 { if along < 0.0 { -1.0 } else { 1.0 } } else { a };
                 }
                 _ => {}
@@ -569,6 +573,41 @@ impl Workspace {
     fn off_axis(p: Pos2, s0: Pos2, sdir: egui::Vec2) -> bool {
         let off = p - s0;
         (off.x * sdir.y - off.y * sdir.x).abs() >= 40.0
+    }
+
+    /// Revolve's height arrow: on the axis level with the profile's middle, raised by the height, pointing along the
+    /// axis. Its screen point, screen direction and pixels per mm.
+    pub(super) fn revolve_height_handle(&self) -> Option<(Pos2, egui::Vec2, f64)> {
+        let Tool::Revolve(t) = &self.tool else { return None };
+        t.params(t.angle)?;
+        let (_, foot, axis) = self.revolve_frame(t)?;
+        self.handle_frame(foot + axis * t.height, axis)
+    }
+
+    /// Dragging the height arrow raises the helix along the axis (0.1 mm steps); typing then sets the height.
+    fn revolve_height_drags(&mut self, pressed: bool, released: bool, pointer: Option<Pos2>) -> bool {
+        let Some((at, sdir, px_per_mm)) = self.revolve_height_handle() else { return false };
+        if pressed
+            && let Some(p) = pointer
+            && (p - at).length() < 14.0
+            && let Tool::Revolve(t) = &mut self.tool
+        {
+            t.lifting = Some((p, t.height));
+            t.height_typed = true;
+            self.numeric = None;
+        }
+        let Tool::Revolve(t) = &mut self.tool else { return false };
+        let Some((p0, h0)) = t.lifting else { return false };
+        if let Some(p) = pointer {
+            let along = (p - p0).dot(sdir) as f64 / px_per_mm.max(1e-9);
+            t.height = ((h0 + along) * 10.0).round() / 10.0;
+            // Back to a flat revolve, the angle goes back within one turn.
+            t.angle = t.angle.clamp(-t.max_angle(), t.max_angle());
+        }
+        if released {
+            t.lifting = None;
+        }
+        true
     }
 
     /// Revolve's handle (the profile's middle), the nearest point of the axis to it, and the axis direction.

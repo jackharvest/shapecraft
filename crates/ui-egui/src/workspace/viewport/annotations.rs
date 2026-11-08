@@ -846,13 +846,31 @@ impl Workspace {
                 let out = if (s0 - f).length() > 1.0 { (s0 - f).normalized() } else { vec2(-1.0, 0.0) };
                 let n = self.badges().len() as f32;
                 crate::workspace::badges::paint_row(self, ui, &painter, s0 + out * 30.0, out);
-                let shown = typed.map(|n| format!("{n}°")).unwrap_or_else(|| format!("{}°", t.angle));
+                let typing_angle = typed.filter(|_| !t.height_typed);
+                let shown = typing_angle.map(|n| format!("{n}°")).unwrap_or_else(|| format!("{}°", t.angle));
                 let half = shown.chars().count() as f32 * 3.3 + 6.0;
                 let at = s0 + out * (30.0 + 23.0 * n + half - 4.0);
-                if typed.is_some() {
-                    value_box(&painter, at + out * 40.0, "", typed);
+                if typing_angle.is_some() {
+                    value_box(&painter, at + out * 40.0, "", typing_angle);
                 } else {
                     axis_pill(&painter, at, out, &shown, true);
+                }
+            }
+            // The height arrow on the axis: pulled along it, the profile rises as it turns (a helix); its length in
+            // a pill beside it, or the value field once Tab moved on to it.
+            if let Some((hs, hdir, _)) = self.revolve_height_handle() {
+                if t.height.abs() > 1e-9 {
+                    painter.add(egui::Shape::dashed_line(&[f, hs], Stroke::new(1.3, ink), 5.0, 4.0));
+                }
+                let hot = t.lifting.is_some() || t.height_typed || self.cursor.is_some_and(|p| (p - hs).length() < 16.0);
+                double_arrow(&painter, hs, hdir, 12.0, if hot { Tokens::accent() } else { Color32::WHITE }, theme::c(0x5a5d66));
+                let side = vec2(-hdir.y, hdir.x);
+                let side = if side.x < 0.0 { -side } else { side };
+                if t.height_typed && typed.is_some() {
+                    value_box(&painter, hs + side * 70.0, "", typed);
+                } else if t.height.abs() > 1e-9 || t.height_typed {
+                    let text = format_length(t.height, units);
+                    pill(&painter, hs + side * (24.0 + text.chars().count() as f32 * 3.3), &text, true);
                 }
             }
         } else if let Some((base, dir, value, _)) = handle

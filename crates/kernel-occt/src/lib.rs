@@ -349,6 +349,15 @@ impl Kernel for OcctKernel {
         shape_out("revolve", |out| unsafe { ffi::sk_revolve_shape(f, ax.as_ptr(), angle, out) })
     }
 
+    fn revolve_helix(&self, face: &Shape, axis: Axis, angle: f64, height: f64) -> Result<Shape> {
+        let ax = axis.flat();
+        finite("revolve", &ax)?;
+        finite("revolve", &[angle, height])?;
+        let f = raw(face)?;
+        // SAFETY: `ax` outlives the call.
+        shape_out("revolve", |out| unsafe { ffi::sk_revolve_helix(f, ax.as_ptr(), angle, height, out) })
+    }
+
     fn shell(&self, shape: &Shape, open_faces: &[u32], thickness: f64) -> Result<Shape> {
         finite("shell", &[thickness])?;
         if thickness <= 0.0 {

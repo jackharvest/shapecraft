@@ -827,6 +827,12 @@ pub struct RevolveTool {
     pub result: &'static str,
     /// Dragging the ↕ handle on the profile: where it started and the angle then.
     pub dragging: Option<(egui::Pos2, f64)>,
+    /// How far it rises along the axis while it turns (mm): non-zero makes a helix (coil, spring, thread).
+    pub height: f64,
+    /// Dragging the height arrow on the axis: where it started and the height then.
+    pub lifting: Option<(egui::Pos2, f64)>,
+    /// What typing sets: the height once Tab moved on to it or its arrow was pulled, else the angle.
+    pub height_typed: bool,
 }
 
 /// An axis chosen by clicking: a line of the profile's sketch, or a body's straight/round edge or round face.
@@ -1294,7 +1300,9 @@ impl Tool {
             Tool::Revolve(t) if t.axis.is_none() => {
                 ("Revolve (V)", "Pick a profile or a face, and an axis to spin it around into a solid.")
             }
-            Tool::Revolve(_) => ("Revolve (V)", "Type an angle, or click a line or edge to spin around it. Return applies"),
+            Tool::Revolve(_) => {
+                ("Revolve (V)", "Type an angle (Tab, then a height for a helix), or click a line or edge to spin around it. Return applies")
+            }
             Tool::RotateAxis(t) if t.about.is_none() && t.items.is_empty() => {
                 ("Rotate Around Axis", "Click more curves to turn, then a sketch point to turn them around")
             }

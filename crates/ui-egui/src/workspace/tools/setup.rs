@@ -1026,7 +1026,7 @@ impl RevolveTool {
             Pick::Face { body, face } => s.doc.body(body).is_some_and(|b| s.kernel.face_plane(&b.shape, face).ok().flatten().is_some()),
             _ => false,
         })?;
-        Some(Self { profile, axis: None, angle: 360.0, result: "auto", dragging: None })
+        Some(Self { profile, axis: None, angle: 360.0, result: "auto", dragging: None, height: 0.0, lifting: None, height_typed: false })
     }
 
     pub fn sketch(&self) -> Option<ItemId> {
@@ -1066,12 +1066,20 @@ impl RevolveTool {
         (d.length() > 1e-12).then(|| (o, d.normalize()))
     }
 
+    /// The widest angle allowed: one turn, or 200 turns once it rises (a helix).
+    pub fn max_angle(&self) -> f64 {
+        if self.height.abs() > 1e-9 { 360.0 * 200.0 } else { 360.0 }
+    }
+
     /// The command parameters, or `None` while the profile still waits for its axis: nothing spins (and nothing
     /// previews) until a line, edge, round face or axis is clicked, for a region as for a face.
     pub fn params(&self, angle: f64) -> Option<serde_json::Value> {
         let mut v = profile_json(&self.profile)?;
         v["axis"] = self.axis.as_ref()?.json();
         v["angle"] = json!(angle);
+        if self.height.abs() > 1e-9 {
+            v["height"] = json!(self.height);
+        }
         if self.result != "auto" {
             v["result"] = json!(self.result);
         }

@@ -46,7 +46,7 @@ pub const FEATURES: &[Feature] = &[
         name: "Extrude",
         fields: &[f("distance", "Distance", Length, 0.0), f("draft", "Draft Angle", Angle, 0.0)],
     },
-    Feature { command: "revolve", name: "Revolve", fields: &[f("angle", "Angle", Angle, 360.0)] },
+    Feature { command: "revolve", name: "Revolve", fields: &[f("angle", "Angle", Angle, 360.0), f("height", "Height", Length, 0.0)] },
     Feature { command: "loft", name: "Loft", fields: &[] },
     Feature { command: "sweep", name: "Sweep", fields: &[f("scale", "Scale", Factor, 1.0), f("twist", "Twist", Angle, 0.0)] },
     Feature { command: "fillet", name: "Fillet", fields: &[f("radius", "Radius", Length, 1.0)] },

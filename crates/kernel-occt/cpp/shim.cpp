@@ -80,6 +80,11 @@
 #include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepOffsetAPI_MakeOffsetShape.hxx>
 #include <BRepLib.hxx>
+#include <Geom_CylindricalSurface.hxx>
+#include <Geom2d_Line.hxx>
+#include <GeomFill_Trihedron.hxx>
+#include <gp_Vec2d.hxx>
+#include <BRepBuilderAPI_MakeWire.hxx>
 #include <ShapeFix_Solid.hxx>
 #include <ShapeFix_Shape.hxx>
 #include <gp_GTrsf.hxx>
@@ -1311,6 +1316,65 @@ int sk_revolve_shape(const SkShape* face, const double* axis, double angle, SkSh
     BRepPrimAPI_MakeRevol mk(face->shape, gp_Ax1(gp_Pnt(axis[0], axis[1], axis[2]), gp_Dir(dir)), angle, Standard_True);
     mk.Build();
     if (!mk.IsDone()) return fail("revolve failed (does the profile cross the axis?)");
+    return put(out, mk.Shape());
+  });
+}
+
+// A helical revolve: the face turned `angle` radians around the axis while it rises `height` along it (a coil, a
+// spring, a thread). Swept along a helix with the Frenet frame, which for a helix is exactly a screw motion, so the
+// profile keeps its shape and its place relative to the axis. Turns that would run into each other are refused.
+int sk_revolve_helix(const SkShape* face, const double* axis, double angle, double height, SkShape** out) {
+  return guard([&] {
+    gp_Vec dv(axis[3], axis[4], axis[5]);
+    if (dv.Magnitude() <= 0.0) return fail("revolve axis has no direction");
+    if (std::abs(angle) < 1e-9) return fail("revolve angle is zero");
+    const gp_Dir dir(dv);
+    const gp_Pnt o(axis[0], axis[1], axis[2]);
+    TopExp_Explorer fx(face->shape, TopAbs_FACE);
+    if (!fx.More()) return fail("the profile isn't a face");
+    const TopoDS_Face prof = TopoDS::Face(fx.Current());
+    // The profile's middle, its distance from the axis and its extent along the axis (sampled along its edges).
+    GProp_GProps gp;
+    BRepGProp::SurfaceProperties(prof, gp);
+    const gp_Pnt c = gp.CentreOfMass();
+    const double along_c = gp_Vec(o, c).Dot(gp_Vec(dir));
+    const gp_Pnt foot = o.Translated(gp_Vec(dir) * along_c);
+    gp_Vec radial(foot, c);
+    double lo = 1e300, hi = -1e300, rmin = 1e300;
+    for (TopExp_Explorer ex(prof, TopAbs_EDGE); ex.More(); ex.Next()) {
+      BRepAdaptor_Curve cv(TopoDS::Edge(ex.Current()));
+      for (int i = 0; i <= 32; ++i) {
+        const gp_Pnt q = cv.Value(cv.FirstParameter() + (cv.LastParameter() - cv.FirstParameter()) * i / 32.0);
+        const double h = gp_Vec(o, q).Dot(gp_Vec(dir));
+        lo = std::min(lo, h);
+        hi = std::max(hi, h);
+        rmin = std::min(rmin, q.Distance(o.Translated(gp_Vec(dir) * h)));
+      }
+    }
+    if (rmin < 1e-6) return fail("a helical revolve needs the profile clear of the axis");
+    const double turns = std::abs(angle) / (2.0 * M_PI);
+    if (turns > 1.0 && std::abs(height) / turns < (hi - lo) - 1e-6)
+      return fail("the turns overlap: make the height larger, or the angle smaller");
+    // The helix through the profile's middle (any radius gives the same screw motion; this one keeps it accurate).
+    double r = radial.Magnitude();
+    gp_Dir xd;
+    if (r > 1e-6) {
+      xd = gp_Dir(radial);
+    } else {
+      xd = std::abs(dir.X()) < 0.9 ? gp_Dir(gp_Vec(dir).Crossed(gp_Vec(1, 0, 0))) : gp_Dir(gp_Vec(dir).Crossed(gp_Vec(0, 1, 0)));
+      r = 1.0;
+    }
+    Handle(Geom_CylindricalSurface) cyl = new Geom_CylindricalSurface(gp_Ax3(foot, dir, xd), r);
+    const gp_Vec2d step(angle, height);
+    Handle(Geom2d_Line) line = new Geom2d_Line(gp_Pnt2d(0.0, 0.0), gp_Dir2d(step));
+    TopoDS_Edge helix = BRepBuilderAPI_MakeEdge(line, cyl, 0.0, step.Magnitude());
+    BRepLib::BuildCurves3d(helix, 1e-6, GeomAbs_C2, 14, 0);
+    const TopoDS_Wire spine = BRepBuilderAPI_MakeWire(helix);
+    BRepOffsetAPI_MakePipe mk(spine, prof, GeomFill_IsFrenet, Standard_False);
+    mk.Build();
+    if (!mk.IsDone()) return fail("helical revolve failed");
+    BRepCheck_Analyzer check(mk.Shape());
+    if (!check.IsValid()) return fail("helical revolve made an invalid solid");
     return put(out, mk.Shape());
   });
 }

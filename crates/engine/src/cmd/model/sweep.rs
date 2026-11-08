@@ -111,8 +111,18 @@ fn revolve_shape(s: &Session, p: &Params) -> Result<(Shape, Profile, Option<Opti
             .ok_or_else(|| EngineError::NotAvailable("select a sketch region or flat face to revolve".into()))?
     };
     let angle = p.f64_or("angle", 360.0)?;
-    if angle.abs() < 1e-6 || angle.abs() > 360.0 {
-        return Err(EngineError::BadParams("angle must be between 0 and 360 degrees".into()));
+    // A height makes it helical: then the angle may run past one turn (360° per turn).
+    let height = p.f64_or("height", 0.0)?;
+    if !height.is_finite() || height.abs() > 1e6 {
+        return Err(EngineError::BadParams("height must be a length".into()));
+    }
+    let max_angle = if height.abs() > 1e-9 { 360.0 * 200.0 } else { 360.0 };
+    if !angle.is_finite() || angle.abs() < 1e-6 || angle.abs() > max_angle {
+        return Err(EngineError::BadParams(if height.abs() > 1e-9 {
+            "angle must be between 0 and 72000 degrees (200 turns)".into()
+        } else {
+            "angle must be between 0 and 360 degrees".into()
+        }));
     }
     let face = profile_face(s, profile)?;
     let sketch = profile_sketch(profile).and_then(|id| s.doc.sketch(id));
@@ -146,7 +156,11 @@ fn revolve_shape(s: &Session, p: &Params) -> Result<(Shape, Profile, Option<Opti
         }
     };
     let result = result_param(p)?;
-    let shape = s.kernel.revolve(&face, axis, angle.to_radians())?;
+    let shape = if height.abs() > 1e-9 {
+        s.kernel.revolve_helix(&face, axis, angle.to_radians(), height)?
+    } else {
+        s.kernel.revolve(&face, axis, angle.to_radians())?
+    };
     Ok((shape, profile, result))
 }
 

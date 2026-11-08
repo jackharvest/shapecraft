@@ -303,6 +303,13 @@ pub trait Kernel: Send + Sync {
     /// Spins a planar face around an axis (radians).
     fn revolve(&self, face: &Shape, axis: Axis, angle: f64) -> Result<Shape>;
 
+    /// Spins a planar face around an axis (radians) while it rises `height` along it: a helical body (coil, spring,
+    /// thread).
+    fn revolve_helix(&self, face: &Shape, axis: Axis, angle: f64, height: f64) -> Result<Shape> {
+        let _ = (face, axis, angle, height);
+        Err(KernelError::InvalidInput("this kernel can't make helical revolves".into()))
+    }
+
     /// Hollows a solid to `thickness` (inwards), leaving `open_faces` open.
     fn shell(&self, shape: &Shape, open_faces: &[u32], thickness: f64) -> Result<Shape>;
 
