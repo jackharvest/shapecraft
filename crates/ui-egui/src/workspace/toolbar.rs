@@ -126,6 +126,11 @@ pub enum UiAction {
     ViewDone,
     ViewCancel,
     Screenshot,
+    /// Screenshot mode's switches and Capture.
+    ShotGrid,
+    ShotTransparency,
+    ShotEdges,
+    ShotCapture,
     /// Shows something without doing anything when clicked (the sketch name row).
     Noop,
     ConstructionMode,
@@ -212,6 +217,7 @@ pub fn variants(label: &str) -> (&'static [&'static str], usize) {
         "Offset Edge" => (&["Single", "Chain"], 0),
         "Scale" => (&["Uniform", "Non-uniform"], 1),
         "Measure mode" => (&["Object Measurements", "Point-to-Point Distance", "3-Point Angle"], 0),
+        "Resolution" => (&["Actual", "Double", "Full HD", "4K", "8K"], 0),
         _ => (&[], 0),
     }
 }
@@ -476,6 +482,13 @@ pub const RULED_OPTION: ToolDef = t(Icon::Gear, "Ruled", "", U(UiAction::ToolOpt
 pub const OFFSET_EDGE_TYPE: ToolDef = tv(Icon::OffsetEdge, "Offset Edge Type", "Single", "", Soon);
 pub const PATTERN_TYPE: ToolDef = tv(Icon::Pattern, "Pattern Type", "Linear", "", Tool(ToolKind::Pattern));
 /// Measure mode's column, as observed (L24): Exit Measure, and the mode with its cascade.
+/// Screenshot mode's column, as observed: Exit Screenshot, the grid, background and edge switches, the size, Capture.
+pub const EXIT_SCREENSHOT: ToolDef = t(Icon::Close, "Exit Screenshot", "", U(UiAction::Screenshot));
+pub const SHOT_GRID: ToolDef = t(Icon::ShotGrid, "Grid", "", U(UiAction::ShotGrid));
+pub const SHOT_TRANSPARENCY: ToolDef = t(Icon::ShotChecker, "Transparency", "", U(UiAction::ShotTransparency));
+pub const SHOT_EDGES: ToolDef = t(Icon::Body, "Body Edges", "", U(UiAction::ShotEdges));
+pub const SHOT_RESOLUTION: ToolDef = ToolDef { flyout: true, ..tv(Icon::ShotResolution, "Resolution", "Actual", "", Soon) };
+pub const SHOT_CAPTURE: ToolDef = t(Icon::Screenshot, "Capture", "", U(UiAction::ShotCapture));
 pub const EXIT_MEASURE: ToolDef = t(Icon::Close, "Exit Measure", "", U(UiAction::Measure));
 pub const MEASURE_MODE: ToolDef = ToolDef { flyout: true, ..tv(Icon::Measure, "Measure mode", "Object Measurements", "", Soon) };
 

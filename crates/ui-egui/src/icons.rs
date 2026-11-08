@@ -156,6 +156,10 @@ pub enum Icon {
     MakeConstruction,
     DisplayCurvature,
     Screenshot,
+    /// Screenshot mode: a dotted grid with an eye, a checkerboard, a box with "1x".
+    ShotGrid,
+    ShotChecker,
+    ShotResolution,
     History,
     Folder,
     NewFolder,
@@ -1481,6 +1485,46 @@ fn paint_dark(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
             pen.fill(&[(8.0, 8.0), (9.5, 5.2), (14.5, 5.2), (16.0, 8.0)], grey);
             painter.circle_stroke(pen.at(12.0, 13.4), 3.9 * pen.s, Stroke::new(1.3 * pen.s, Tokens::button()));
             painter.circle_filled(pen.at(18.3, 10.2), 0.9 * pen.s, Tokens::button());
+        }
+        // A dotted grid with a small eye at its lower right (as observed).
+        ShotGrid => {
+            for gx in 0..4 {
+                for gy in 0..4 {
+                    if gx >= 2 && gy >= 2 {
+                        continue;
+                    }
+                    painter.circle_filled(pen.at(4.0 + gx as f32 * 4.5, 4.0 + gy as f32 * 4.5), 0.9 * pen.s, color);
+                }
+            }
+            pen.line(&[
+                (12.0, 17.5),
+                (15.0, 15.0),
+                (18.0, 14.2),
+                (21.0, 15.0),
+                (23.0, 17.5),
+                (21.0, 20.0),
+                (18.0, 20.8),
+                (15.0, 20.0),
+                (12.0, 17.5),
+            ]);
+            painter.circle_filled(pen.at(17.5, 17.5), 1.4 * pen.s, color);
+        }
+        // A checkerboard: see-through.
+        ShotChecker => {
+            let grey = Color32::from_rgb((color.r() as f32 * 0.55) as u8, (color.g() as f32 * 0.55) as u8, (color.b() as f32 * 0.55) as u8);
+            for cx in 0..4 {
+                for cy in 0..4 {
+                    let fill = if (cx + cy) % 2 == 0 { color } else { grey };
+                    let x = 4.0 + cx as f32 * 4.0;
+                    let y = 4.0 + cy as f32 * 4.0;
+                    painter.add(Shape::rect_filled(Rect::from_min_max(pen.at(x, y), pen.at(x + 4.0, y + 4.0)), 0.0, fill));
+                }
+            }
+        }
+        // A rounded box with "1x" in it.
+        ShotResolution => {
+            pen.closed(&[(3.0, 6.0), (21.0, 6.0), (21.0, 18.0), (3.0, 18.0)]);
+            painter.text(pen.at(12.0, 12.2), egui::Align2::CENTER_CENTER, "1x", egui::FontId::proportional(7.5 * pen.s), color);
         }
         // A clock with firm hands at twelve and nine (as observed, s30-100).
         History => {

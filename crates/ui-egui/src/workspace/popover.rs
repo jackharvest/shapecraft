@@ -63,6 +63,8 @@ pub enum Row<'a> {
 pub enum Place {
     Left(Pos2),
     Below(Pos2),
+    /// Right of a left-column button (its right edge, at its middle), the arrow pointing back at it.
+    Right(Pos2),
 }
 
 const W: f32 = 300.0;
@@ -101,6 +103,9 @@ pub fn show_at(ui: &mut Ui, id: &str, place: Place, bounds: Rect, rows: &[Row]) 
             ((anchor.x - ARROW - W).max(bounds.left() + 4.0), (anchor.y - h / 2.0).min(bounds.bottom() - h - 4.0).max(bounds.top() + 13.0))
         }
         Place::Below(anchor) => ((anchor.x - W / 2.0).clamp(bounds.left() + 4.0, bounds.right() - W - 4.0), anchor.y + ARROW),
+        Place::Right(anchor) => {
+            ((anchor.x + ARROW).min(bounds.right() - W - 4.0), (anchor.y - h / 2.0).min(bounds.bottom() - h - 4.0).max(bounds.top() + 13.0))
+        }
     };
     let mut clicked = None;
     // With nothing checked the names sit at the left edge; a check mark makes room for itself (as observed, 402/404).
@@ -119,6 +124,10 @@ pub fn show_at(ui: &mut Ui, id: &str, place: Place, bounds: Rect, rows: &[Row]) 
             Place::Left(anchor) => {
                 let ay = anchor.y.clamp(rect.top() + 18.0, rect.bottom() - 18.0);
                 [pos2(rect.right() - 1.0, ay - 10.0), pos2(rect.right() + ARROW - 1.0, ay), pos2(rect.right() - 1.0, ay + 10.0)]
+            }
+            Place::Right(anchor) => {
+                let ay = anchor.y.clamp(rect.top() + 18.0, rect.bottom() - 18.0);
+                [pos2(rect.left() + 1.0, ay - 10.0), pos2(rect.left() - ARROW + 1.0, ay), pos2(rect.left() + 1.0, ay + 10.0)]
             }
             Place::Below(anchor) => {
                 let ax = anchor.x.clamp(rect.left() + 18.0, rect.right() - 18.0);

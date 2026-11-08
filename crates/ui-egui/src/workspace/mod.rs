@@ -248,6 +248,10 @@ pub struct Workspace {
     pub display: shapecraft_render::DisplayMode,
     /// The Measure panel is open (it follows the selection).
     pub measuring: bool,
+    /// Screenshot mode (modeling): the column shows its switches and Capture.
+    pub(crate) screenshotting: bool,
+    /// Screenshot mode's Resolution list, open beside its button.
+    pub(crate) shot_res_menu: Option<Pos2>,
     /// Last Measure result, keyed by the selection and the model's history length.
     history: history::HistoryUi,
     /// The feature card (Extrude's settings, or a History step's).
@@ -357,6 +361,8 @@ pub struct Workspace {
     /// When the last popup (flyout, menu, window) opened, so the click that opened it doesn't close it.
     pub(crate) popup_opened_at: f64,
     pub(crate) display_menu_at: Pos2,
+    /// The view's pixels per point, from the last frame (the Screenshot tool's Actual size).
+    pub(crate) ppp: f32,
     /// Digits typed while a tool is running (the reference app opens a value box as soon as you type).
     pub numeric: Option<String>,
     /// `numeric` was filled from a clicked value pill and shows selected: the first key typed replaces it.
@@ -615,6 +621,8 @@ impl Workspace {
             tutorial: None,
             display: Default::default(),
             measuring: false,
+            screenshotting: false,
+            shot_res_menu: None,
             history: history::HistoryUi::default(),
             card: step_card::CardUi::default(),
             card_popup_at: Pos2::ZERO,
@@ -673,6 +681,7 @@ impl Workspace {
             variables_dialog: None,
             popup_opened_at: -1.0,
             display_menu_at: Pos2::ZERO,
+            ppp: 0.0,
             numeric: None,
             numeric_fresh: false,
             rect_width: None,

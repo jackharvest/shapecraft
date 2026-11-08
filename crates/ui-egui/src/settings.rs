@@ -65,6 +65,11 @@ pub struct Settings {
     /// The first run's second question (navigation style) has been answered or skipped.
     pub nav_asked: bool,
     pub last_export_dir: Option<String>,
+    /// Screenshot mode's last switches: the grid, a see-through background, body edges (its size is the
+    /// "Resolution" tool variant).
+    pub shot_grid: bool,
+    pub shot_transparent: bool,
+    pub shot_edges: bool,
     /// Each tool's picked variant (Rectangle ▸ 3 Points, Fillet ▸ G2 …), by its label.
     pub tool_variants: std::collections::BTreeMap<String, usize>,
     /// Export ▸ Slicer: the slicer last opened (its name).
@@ -112,6 +117,9 @@ impl Default for Settings {
             extend_needs_shift: true,
             theme: "System".into(),
             start_with: "Recents".into(),
+            shot_grid: true,
+            shot_transparent: false,
+            shot_edges: true,
             menu_labels: "Always".into(),
             circular_annotations: "Radius and Diameter".into(),
             single_key_action: "Hotkeys".into(),

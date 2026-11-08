@@ -133,6 +133,21 @@ pub(super) fn tool_options(ws: &Workspace) -> Vec<(ToolDef, bool)> {
 /// While a tool waits for more picks, the toolbar's middle is only its option(s), then Done once there's something
 /// to apply, then Cancel (as observed, 324–334). `None` for tools that keep the full set.
 pub(super) fn tool_mode(ws: &Workspace) -> Option<Vec<ToolDef>> {
+    let on_off = |def: ToolDef, on: bool| ToolDef { sub: Some(if on { "On" } else { "Off" }), ..def };
+    // Screenshot mode takes the column (as observed): Exit Screenshot, its switches, the size, Capture.
+    if ws.screenshotting && !ws.visualizing && ws.drawings.is_none() {
+        let names = toolbar::variants("Resolution").0;
+        let res = ToolDef { sub: names.get(ws.variant("Resolution")).copied(), ..toolbar::SHOT_RESOLUTION };
+        let st = &ws.settings;
+        return Some(vec![
+            toolbar::EXIT_SCREENSHOT,
+            on_off(toolbar::SHOT_GRID, st.shot_grid),
+            on_off(toolbar::SHOT_TRANSPARENCY, st.shot_transparent),
+            on_off(toolbar::SHOT_EDGES, st.shot_edges),
+            res,
+            toolbar::SHOT_CAPTURE,
+        ]);
+    }
     // Measure takes the column: Exit Measure and the mode (as observed, L24).
     if ws.measuring && matches!(ws.tool, Tool::Idle) && ws.drawings.is_none() && !ws.visualizing {
         let names = toolbar::variants("Measure mode").0;
@@ -144,7 +159,6 @@ pub(super) fn tool_mode(ws: &Workspace) -> Option<Vec<ToolDef>> {
         };
         return Some(vec![toolbar::EXIT_MEASURE, mode]);
     }
-    let on_off = |def: ToolDef, on: bool| ToolDef { sub: Some(if on { "On" } else { "Off" }), ..def };
     if ws.sketch_transform().is_some() {
         return None;
     }
@@ -304,7 +318,16 @@ impl Workspace {
                 if toolbar::group(ui, pos2(x, y), &[*d], &[false], labels, &format!("mode{i}")).is_some() {
                     clicked = Some(*d);
                     // Pattern Type opens the Linear / Circular cascade, as the Pattern button does.
-                    if d.label == "Pattern Type" || d.label == "Measure mode" {
+                    // Screenshot's Resolution: a list of sizes with a check mark (as observed).
+                    if d.label == "Resolution" {
+                        self.shot_res_menu = if self.shot_res_menu.is_some() {
+                            None
+                        } else {
+                            Some(pos2(x + Tokens::TOOL_BUTTON + 2.0, y + toolbar::group_height(1) / 2.0))
+                        };
+                        self.popup_opened_at = self.now;
+                        clicked = None;
+                    } else if d.label == "Pattern Type" || d.label == "Measure mode" {
                         let at = pos2(x + Tokens::TOOL_BUTTON + 5.0, y);
                         let label = if d.label == "Pattern Type" { "Pattern" } else { "Measure mode" };
                         self.variant_menu = if self.variant_menu.is_some() { None } else { Some((label, at)) };
@@ -313,6 +336,26 @@ impl Workspace {
                     }
                 }
                 y += toolbar::group_height(1) + gap;
+            }
+        }
+        if !self.screenshotting {
+            self.shot_res_menu = None;
+        }
+        if let Some(at) = self.shot_res_menu {
+            use crate::workspace::popover::{Place, Row};
+            let names = toolbar::variants("Resolution").0;
+            let cur = self.variant("Resolution");
+            let mut rows = vec![Row::Header("Resolution")];
+            rows.extend(names.iter().enumerate().map(|(i, n)| Row::Choice { label: n, checked: i == cur, enabled: true }));
+            let bounds = ui.ctx().content_rect();
+            let (c, r) = crate::workspace::popover::show_at(ui, "shot-res", Place::Right(at), bounds, &rows);
+            if let Some((i @ 1.., _)) = c {
+                self.variants.insert("Resolution".into(), i - 1);
+                self.shot_res_menu = None;
+            } else if self.now - self.popup_opened_at > 0.15
+                && ui.input(|i| i.pointer.primary_clicked() && i.pointer.interact_pos().is_some_and(|q| !r.contains(q)))
+            {
+                self.shot_res_menu = None;
             }
         }
         // Bottom group (3D only).

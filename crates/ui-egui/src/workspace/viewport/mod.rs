@@ -80,6 +80,7 @@ impl Workspace {
         self.navigate(ui, &resp);
 
         let ppp = ui.ctx().pixels_per_point();
+        self.ppp = ppp;
         let px = ((rect.width() * ppp).round().max(1.0) as u32, (rect.height() * ppp).round().max(1.0) as u32);
         let tiles: Vec<PlaneTile> = self.plane_tiles().into_iter().map(|(_, t)| t).collect();
         self.refresh_section_caps();

@@ -136,9 +136,11 @@ impl Workspace {
     }
 
     fn capture_rgba(&mut self) -> Result<(u32, u32, Vec<u8>), String> {
-        // The Transparent environment captures with a see-through backdrop: drawn over black and over white, what
-        // differs between the two is how see-through each pixel is (soft shadows stay half see-through).
-        if self.visualizing && self.session.doc.visual.environment == 1 {
+        // The Transparent environment (or the Screenshot tool's Transparency) captures with a see-through backdrop:
+        // drawn over black and over white, what differs between the two is how see-through each pixel is (soft
+        // shadows stay half see-through).
+        let see_through = if self.visualizing { self.session.doc.visual.environment == 1 } else { self.settings.shot_transparent };
+        if see_through {
             let (w, h, black) = self.capture_over(Some(Rgba::hex(0x000000)))?;
             let (_, _, white) = self.capture_over(Some(Rgba::hex(0xffffff)))?;
             return Ok((w, h, unmix(&black, &white)));
@@ -148,8 +150,20 @@ impl Workspace {
 
     fn capture_over(&mut self, backdrop: Option<Rgba>) -> Result<(u32, u32, Vec<u8>), String> {
         let rect = self.view_rect;
-        let px = ((rect.width() * 2.0).round().max(16.0) as u32, (rect.height() * 2.0).round().max(16.0) as u32);
-        let grid = (self.view_opts.grid && !self.visualizing).then(|| {
+        // The Screenshot tool's size: the view's own pixels, twice that, or Full HD; Visualization's Capture is
+        // the view's pixels.
+        let ppp = if self.ppp > 0.0 { self.ppp } else { 2.0 };
+        let modeling = !self.visualizing;
+        let res = if modeling { self.variant("Resolution") } else { 0 };
+        let scale = if res == 1 { ppp * 2.0 } else { ppp };
+        let mut px =
+            ((rect.width() * scale).round().clamp(16.0, 8192.0) as u32, (rect.height() * scale).round().clamp(16.0, 8192.0) as u32);
+        // Full HD, 4K and 8K: that many pixels across, as tall as the view's shape gives.
+        if let Some(w) = [None, None, Some(1920.0), Some(3840.0), Some(7680.0)].get(res).copied().flatten() {
+            let h = (w * rect.height() / rect.width().max(1.0)).round().clamp(16.0, 8192.0);
+            px = (w as u32, h as u32);
+        }
+        let grid = (self.view_opts.grid && !self.visualizing && self.settings.shot_grid).then(|| {
             [SketchPlane::XY, SketchPlane::YZ, SketchPlane { origin: DVec3::ZERO, x: DVec3::Z, y: DVec3::X }][self.grid_plane.min(2)]
         });
         let doc = self.session.doc.clone();
@@ -165,8 +179,8 @@ impl Workspace {
                 ..if theme::is_light() { SceneColors::light() } else { SceneColors::default() }
             },
             show_axes: self.view_opts.axes && !self.visualizing,
-            show_edges: self.view_opts.edges,
-            show_hidden_edges: self.view_opts.hidden_edges,
+            show_edges: self.view_opts.edges && (self.visualizing || self.settings.shot_edges),
+            show_hidden_edges: self.view_opts.hidden_edges && (self.visualizing || self.settings.shot_edges),
             show_decals: self.view_opts.decals,
             grid,
             display: self.display,

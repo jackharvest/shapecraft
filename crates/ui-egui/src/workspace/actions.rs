@@ -260,7 +260,20 @@ impl Workspace {
                     self.start_draw_tool(t);
                 }
             }
+            // Modeling: Screenshot mode takes the column (grid, background, edges, size, then Capture), as
+            // observed. Visualization's Capture saves at once.
+            UiAction::Screenshot if !self.visualizing => {
+                self.screenshotting = !self.screenshotting;
+                if self.screenshotting {
+                    self.measuring = false;
+                    self.tool = Tool::Idle;
+                }
+            }
             UiAction::Screenshot => self.wants_capture = true,
+            UiAction::ShotGrid => self.settings.shot_grid = !self.settings.shot_grid,
+            UiAction::ShotTransparency => self.settings.shot_transparent = !self.settings.shot_transparent,
+            UiAction::ShotEdges => self.settings.shot_edges = !self.settings.shot_edges,
+            UiAction::ShotCapture => self.wants_capture = true,
             UiAction::Noop => {}
             UiAction::InsertImage => self.wants_image = true,
             UiAction::ImportMaterial => self.wants_material = true,
@@ -367,6 +380,9 @@ impl Workspace {
     /// Escape: leaves the running tool, then clears the selection.
     pub fn escape(&mut self) {
         if self.section_pick.take().is_some() {
+            return;
+        }
+        if std::mem::take(&mut self.screenshotting) {
             return;
         }
         if self.creating_drawing {
