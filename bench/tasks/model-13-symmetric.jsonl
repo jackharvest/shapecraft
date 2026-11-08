@@ -1,4 +1,4 @@
-{"task":{"about":"Symmetric extrude 10 puts 10 on each side (observed s16-009)","category":"modeling"}}
+{"task":{"about":"Symmetric extrude 10 puts 10 on each side","category":"modeling"}}
 {"size":[1840,1324]}
 {"control":"project.new","params":{}}
 {"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}

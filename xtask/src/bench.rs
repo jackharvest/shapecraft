@@ -664,7 +664,7 @@ fn modeling_tasks(t: &mut Tasks) {
     t.task(
         "model-13-symmetric",
         "modeling",
-        "Symmetric extrude 10 puts 10 on each side (observed s16-009)",
+        "Symmetric extrude 10 puts 10 on each side",
         vec![
             e("sketch", json!({ "plane": "xy" })),
             e("rectangle", json!({ "corner": [0, 0], "opposite": [10, 10] })),

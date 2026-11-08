@@ -37,7 +37,7 @@ Build `shapecraft-snap` in release with `CARGO_TARGET_DIR=~/.cache/shapecraft-ta
 | `{"control": …, "save": {"name": "dr", "at": "/drawing"}}` | keep a returned value; `"$dr"` in a later step puts it in |
 | `$TMP` | a scratch folder for files a task writes and reads back |
 
-Mark a task `allow_errors` (`task_with(…, true)`) only when the reference itself refuses the action.
+Mark a task `allow_errors` (`task_with(…, true)`) only when the action itself is meant to be refused.
 
 ## Second benchmark: real `.shapr` projects
 
