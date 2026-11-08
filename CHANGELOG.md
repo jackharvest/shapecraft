@@ -2,6 +2,22 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.6.6-alpha
+**Coils, springs and threads from Revolve, a Screenshot mode with sizes up to 8K, more ways to measure, DWG from a
+sketch, and more picture formats.**
+### New
+- **Revolve with a height makes a helix.** An arrow on the axis raises the profile as it turns; type an angle, press
+  Tab and type the height (1080, Tab, 12 is three turns rising 12 mm). Turns that would run into each other are
+  refused. Height is on the History card too, so a spring's pitch can change later.
+- **Screenshot mode.** Screenshot takes the left column: Grid, Transparency and Body Edges switches, Resolution
+  (Actual, Double, Full HD, 4K or 8K) and Capture. Your choices are remembered.
+- **Measure: Central Distance and Parallel Distance.** From a hole's axis, a circle's or arc's center, or a body's
+  center to the other pick, and between parallel faces, edges and axes. A picked arc shows its Central Angle.
+- **DWG from Sketch** (File ▸ Export to): a sketch's curves as an AutoCAD drawing, like DXF from Sketch.
+- **Show Versions** on a project's right-click menu opens its older versions in your backups, ready to restore.
+### Changed
+- **Pictures:** Insert Image, decals, custom materials and drawing-sheet images also take TIFF, BMP, GIF and ICO.
+
 ## 0.6.5-alpha
 
 **Smoother first steps: the setup's Light and Dark pictures are the right way round, a typed extrude shows the part
