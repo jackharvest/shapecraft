@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" data-version="0.5.10-alpha">
+<html lang="en" data-version="0.6.5-alpha">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -380,12 +380,12 @@ html.cubing .hint,html.cubing .status{opacity:0}
     <a class="rowlink" href="#download"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 2.5 16.5 6v8L10 17.5 3.5 14V6z"/><path d="M3.5 6 10 9.5 16.5 6M10 9.5v8"/></svg><span class="tx">Windows</span><span class="tag">alpha</span></a>
     <a class="rowlink" href="#download"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10 2.5 16.5 6v8L10 17.5 3.5 14V6z"/><path d="M3.5 6 10 9.5 16.5 6M10 9.5v8"/></svg><span class="tx">Linux</span><span class="tag">alpha</span></a>
     <div class="group">Sketches · on the way</div>
-    <a class="rowlink muted" href="#soon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg><span class="tx">iPad and iPhone</span><span class="tag">15%</span><i class="mini" style="--w:15%"></i></a>
+    <a class="rowlink muted" href="#soon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg><span class="tx">iPad and iPhone</span><span class="tag">35%</span><i class="mini" style="--w:35%"></i></a>
     <a class="rowlink muted" href="#soon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg><span class="tx">Android tablets</span><span class="tag">10%</span><i class="mini" style="--w:10%"></i></a>
-    <a class="rowlink muted" href="#soon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg><span class="tx">In the browser</span><span class="tag">20%</span><i class="mini" style="--w:20%"></i></a>
+    <a class="rowlink muted" href="#soon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg><span class="tx">In the browser</span><span class="tag">35%</span><i class="mini" style="--w:35%"></i></a>
     <a class="rowlink muted" href="#soon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg><span class="tx">Proxmox / LXC</span><span class="tag">70%</span><i class="mini" style="--w:70%"></i></a>
     <a class="rowlink muted" href="#soon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg><span class="tx">Pure-Rust kernel</span><span class="tag">30%</span><i class="mini" style="--w:30%"></i></a>
-    <a class="rowlink muted" href="#soon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg><span class="tx">Cloud connectors</span><span class="tag">10%</span><i class="mini" style="--w:10%"></i></a>
+    <a class="rowlink muted" href="#soon"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M4 15c3-7 8-9 12-10"/><circle cx="4" cy="15" r="1.5"/></svg><span class="tx">Cloud connectors</span><span class="tag">40%</span><i class="mini" style="--w:40%"></i></a>
     <div class="group">Links</div>
     <a class="rowlink" href="https://github.com/jackharvest/shapecraft"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M7 6 3 10l4 4M13 6l4 4-4 4"/></svg><span class="tx">Source code</span></a>
     <a class="rowlink" href="https://github.com/jackharvest/shapecraft/issues/new/choose"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="10" cy="10" r="6.5"/><path d="M10 6.5v4.5M10 13.5v.1"/></svg><span class="tx">Report an issue</span></a>
@@ -498,7 +498,7 @@ html.cubing .hint,html.cubing .status{opacity:0}
       <div class="label"><span>02</span>Pull</div>
       <h2>Grab a face. Pull it.</h2>
       <p>Every face has a handle. Drag it, drop it onto another face to reach it, or type an exact value. ShapeCraft works out whether to add, cut or start a new body, and the badge lets you overrule it: push a sketch through a part and it cuts, switch the badge to New Body and the cut becomes a part of its own.</p>
-      <ul class="ticks"><li>One side, both sides, symmetric</li><li>Up to a face, or by distance</li><li>Every step editable later from History</li></ul>
+      <ul class="ticks"><li>One side or symmetric, with a draft angle</li><li>Up to a face, or by distance</li><li>Every step editable later from History</li></ul>
     </div>
     <div class="media reveal"><img src="media/extrude.gif" alt="Pulling a boss up out of a plate, then pushing a hexagon through it and switching the result to a new body, which lifts out" loading="lazy">
       <div class="float-card"><div class="title">Extrude</div><div class="row"><span class="k">Hexagon</span><span class="v">−12 mm</span></div><div class="row"><span class="k">Result</span><span class="v on">New Body</span></div></div></div>
@@ -525,8 +525,8 @@ html.cubing .hint,html.cubing .status{opacity:0}
     <div class="txt">
       <div class="label"><span>04</span>Arrange</div>
       <h2>Move, rotate, copy.<br>Linked or not.</h2>
-      <p>One gizmo moves and turns. Pattern a part around an axis or along a line, and the copies stay linked: turn the original and all eight follow. Or let them go free. Mirror, booleans, split, loft, sweep, revolve and wrap-and-emboss sit on the same toolbar.</p>
-      <ul class="ticks"><li>Linear and circular patterns</li><li>Union, subtract, intersect, split</li><li>Loft, sweep, revolve, wrap and emboss</li></ul>
+      <p>One gizmo moves and turns. Pattern a part around an axis or along a line, and the copies stay linked: turn the original and all eight follow. Or let them go free. Mirror, booleans, split, loft, sweep, revolve, fill and wrap-and-emboss sit on the same toolbar.</p>
+      <ul class="ticks"><li>Linear and circular patterns</li><li>Union, subtract, intersect, split</li><li>Loft, sweep, revolve, fill, wrap and emboss</li></ul>
     </div>
     <div class="media reveal"><video autoplay muted loop playsinline preload="metadata" poster="media/rotate.jpg" width="920" height="662" aria-label="One arm on a hub patterned into eight around it; turning the original arm swings every linked copy with it"><source src="media/rotate.mp4" type="video/mp4"></video>
       <div class="float-card"><div class="title">Pattern - Circular</div><div class="row"><span class="k">Count</span><span class="v on">8</span></div><div class="row"><span class="k">Copies</span><span class="v">Linked</span></div></div></div>
@@ -546,11 +546,14 @@ html.cubing .hint,html.cubing .status{opacity:0}
     </div>
     <div class="tiles6 reveal">
       <div><b>History</b><span>Open any step, change a number, and the model rebuilds.</span></div>
-      <div><b>Offsite, if you want</b><span>Projects are plain folders, so Dropbox, OneDrive, Google Drive or iCloud Drive sync them like anything else. Built-in connectors are on the way.</span></div>
+      <div><b>Work Folder and backups</b><span>Projects save as you work into a folder you choose. Back them up to Google Drive, OneDrive, Dropbox, iCloud Drive or a NAS, with the last ten versions of each to go back to.</span></div>
       <div><b>Visualize</b><span>Drag a material onto a body. Bring your own HDR panoramas.</span></div>
       <div><b>Drawings</b><span>Views of your part out to PDF, SVG, DXF and DWG.</span></div>
       <div><b>Tutorials, eleven languages</b><span>Guided first parts in seven minutes each. English, German, French, Spanish, Japanese, Chinese and more.</span></div>
       <div><b>Never lose work</b><span>Atomic saves, autosave when you switch away, and a project that reopens even after a crash.</span></div>
+      <div><b>Straight to your slicer</b><span>One click opens the part as a 3MF in Bambu Studio, PrusaSlicer, OrcaSlicer, Cura or another slicer you have. In Bambu Studio and OrcaSlicer each colour lands on its own filament slot.</span></div>
+      <div><b>Measure and section</b><span>Distances, angles, areas, volumes and overlaps between parts. Cut the model open with a section plane you can drag and tilt.</span></div>
+      <div><b>Variables</b><span>Name a size once and use it everywhere, in expressions with units. Change it, and every step that uses it follows.</span></div>
     </div>
     <div class="shots3 reveal">
       <figure><img src="media/home-get-started.jpg" alt="The Get Started page" loading="lazy"><figcaption>Get Started</figcaption></figure>
@@ -592,7 +595,7 @@ shapecraft-cli run part.jsonl --save out/ --png part.png</pre>
       <div><b>.shapr</b><span>Open and save</span></div>
       <div><b>STL · OBJ</b><span>Open and save</span></div>
       <div><b>DXF · SVG</b><span>Open as sketches</span></div>
-      <div><b>3MF · glTF · USDZ</b><span>Export</span></div>
+      <div><b>3MF · glTF · USDZ</b><span>Export, 3MF straight to your slicer</span></div>
     </div>
     <div class="trio reveal">
       <div><b>Folders you own</b><span>Back them up, sync them, put them in git. Nothing is locked in a database.</span></div>
@@ -626,12 +629,12 @@ shapecraft-cli run part.jsonl --save out/ --png part.png</pre>
     <h2 class="center">What's next.</h2>
     <p class="lede center">What you report from the desktop apps shapes these, so tell us how you use it.</p>
     <div class="soon5 reveal">
-      <div><span class="tag">In design</span><b>iPad and iPhone</b><span>A touch and Pencil interface of its own, iPhone Duo included.</span><i style="--w:15%"></i></div>
+      <div><span class="tag">In testing</span><b>iPad and iPhone</b><span>Model on an iPad in Safari with an Apple Pencil today, served from your computer (Preferences ▸ Tablet). Next: a touch interface of its own, iPhone Duo included.</span><i style="--w:35%"></i></div>
       <div><span class="tag">In design</span><b>Android tablets</b><span>The same touch and pen interface, on Android.</span><i style="--w:10%"></i></div>
-      <div><span class="tag">Planned</span><b>In the browser</b><span>The kernel on your server, drawing with WebGPU. Nothing to install.</span><i style="--w:20%"></i></div>
+      <div><span class="tag">In testing</span><b>In the browser</b><span>ShapeCraft already serves itself to a browser on your network. Next: the kernel on your server and drawing in the browser with WebGPU, so there is nothing to install.</span><i style="--w:35%"></i></div>
       <div><span class="tag">Soon</span><b>Proxmox / LXC</b><span>One-line container install for headless modeling and agents.</span><i style="--w:70%"></i></div>
       <div><span class="tag">In progress</span><b>Replaceable kernel</b><span>Today the geometry is Open CASCADE Technology (OCCT), behind one Rust interface. Pure-Rust kernels we want to plug in next: truck, Fornjot, and SolidCore as it matures. Your projects stay the same.</span><i style="--w:30%"></i></div>
-      <div><span class="tag">Planned</span><b>Your cloud, connected</b><span>Google Drive, OneDrive, Dropbox and iCloud Drive from inside the app. Until then, any synced folder works.</span><i style="--w:10%"></i></div>
+      <div><span class="tag">In progress</span><b>Your cloud, connected</b><span>Work Folder and backups in Google Drive, OneDrive, Dropbox or iCloud Drive work today, through their desktop apps. Next: connecting to them from inside the app.</span><i style="--w:40%"></i></div>
     </div>
   </div>
 </section>
