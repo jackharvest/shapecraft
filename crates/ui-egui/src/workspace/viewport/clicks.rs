@@ -630,8 +630,9 @@ impl Workspace {
                     self.tool = Tool::Plane3 { points };
                 }
             }
-            // 26.200: the click that picks the plane also places the waiting tool's first point, and the camera
-            // stays where it is ("Normal to Sketch" offers the turn). Empty floor counts as the XY plane (s11-008..022).
+            // With a tool waiting (L, R… before a plane), the click that picks the plane also places its first
+            // point and the camera stays where it is ("Normal to Sketch" offers the turn). Empty floor counts as the XY
+            // plane (s11-008..022).
             Tool::PickPlane { .. } => {
                 let params = if let Some(i) = self.tile_under(c) {
                     let plane = ["xy", "xz", "yz"].get(i).copied().unwrap_or("xy");
@@ -649,7 +650,14 @@ impl Workspace {
                         }
                     }
                 };
-                if let Some(params) = params
+                // Picked after the Sketch button (no tool waiting): the sketch opens on that
+                // plane, the camera turns to face it (a face is also framed) and Line is armed, but this click only
+                // picks the plane: no line starts from it.
+                if let Some(params) = params.clone()
+                    && self.pending_tool.is_none()
+                {
+                    self.start_sketch_on(params);
+                } else if let Some(params) = params
                     && self.start_sketch_in_place(params)
                 {
                     self.click_at(c, shift);

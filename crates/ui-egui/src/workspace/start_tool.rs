@@ -165,6 +165,7 @@ impl Workspace {
                     Pick::Plane { plane } => Some(plane),
                     _ => None,
                 });
+                self.pending_tool = None;
                 if let Some((body, face)) = face {
                     self.sketch_on_face(body, face);
                 } else if let Some(plane) = plane {

@@ -238,6 +238,8 @@ impl Workspace {
         self.start_sketch_on(params)
     }
 
+    /// Space, right-click ▸ Sketch on Face, the Sketch button with a face picked, or the Sketch button's plane-pick
+    /// click: turns to the plane (a face is framed too) with Line armed, and nothing drawn yet.
     pub fn start_sketch_on(&mut self, params: Value) -> bool {
         let face = params.get("body").and_then(Value::as_u64).zip(params.get("face").and_then(Value::as_u64));
         if self.run("sketch", params).is_none() {

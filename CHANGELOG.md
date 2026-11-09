@@ -2,6 +2,13 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.6.8-alpha
+**Starting a sketch no longer starts a line by itself.**
+### Fixed
+- **Sketch, then a click on a plane, a face or the grid** turns the view to face it and has Line ready, and that click
+  only picks where to sketch: it no longer becomes the first end of a line you then had to cancel. Picking a tool
+  first (L, R, C…) and then clicking still places that tool's first point.
+
 ## 0.6.7-alpha
 **Coils, springs and threads from Revolve, a Screenshot mode with sizes up to 8K, more ways to measure, DWG from a
 sketch, and more picture formats.**
