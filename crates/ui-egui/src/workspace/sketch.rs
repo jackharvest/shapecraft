@@ -220,14 +220,20 @@ impl Workspace {
         if let Some(fp) = fp {
             return (json!({ "body": body.0, "face": face }), Some((fp.origin, fp.normal)));
         }
+        let (name, normal) = self.facing_origin_plane();
+        (json!({ "plane": name }), Some((glam::DVec3::ZERO, normal)))
+    }
+
+    /// The origin plane facing the view most: its name for the sketch command and its normal.
+    pub(crate) fn facing_origin_plane(&self) -> (&'static str, glam::DVec3) {
         let back = self.camera.back();
         let (x, y, z) = (back.x.abs(), back.y.abs(), back.z.abs());
         if z >= x && z >= y {
-            (json!({ "plane": "xy" }), Some((glam::DVec3::ZERO, glam::DVec3::Z)))
+            ("xy", glam::DVec3::Z)
         } else if y >= x {
-            (json!({ "plane": "xz" }), Some((glam::DVec3::ZERO, glam::DVec3::Y)))
+            ("xz", glam::DVec3::Y)
         } else {
-            (json!({ "plane": "yz" }), Some((glam::DVec3::ZERO, glam::DVec3::X)))
+            ("yz", glam::DVec3::X)
         }
     }
 

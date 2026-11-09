@@ -644,9 +644,12 @@ impl Workspace {
                             Some(self.sketch_on_face_params(body, face).0).filter(|p| p.get("body").is_some())
                         }
                         Some((Pick::Plane { plane }, _)) => Some(json!({ "construction": plane.0 })),
+                        // Empty background: the floor where the click meets it, else (a side view looking along
+                        // the floor) the origin plane facing the view, so the background is never dead.
                         _ => {
                             let (o, d) = self.camera.ray(self.local(c), self.size());
-                            SketchPlane::XY.intersect_ray(o, d).is_some().then(|| json!({ "plane": "xy" }))
+                            let plane = if SketchPlane::XY.intersect_ray(o, d).is_some() { "xy" } else { self.facing_origin_plane().0 };
+                            Some(json!({ "plane": plane }))
                         }
                     }
                 };

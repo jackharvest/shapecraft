@@ -683,8 +683,26 @@ impl Workspace {
         }
     }
 
-    /// 26.200 keeps the History sidebar open while sketching (26.142 closed it).
+    /// The History sidebar stays open while sketching. Looking straight at an origin
+    /// plane (Front, Left, Top… or any view square to one) skips the plane pick: Sketch or a sketch tool
+    /// opens the sketch on that plane at once, the camera stays, the grid fills the view and the tool (Line after
+    /// Sketch) is armed, so the next click on the empty background is the first point.
     fn enter_plane_pick(&mut self) {
+        if let Some(plane) = self.square_origin_plane()
+            && self.start_sketch_in_place(json!({ "plane": plane }))
+        {
+            return;
+        }
         self.tool = Tool::PickPlane { hovered: None };
+    }
+
+    /// The origin plane the view (or the view it is turning to) looks straight at, if any.
+    pub(super) fn square_origin_plane(&self) -> Option<&'static str> {
+        let cam = self.anim.as_ref().map_or(self.camera, |a| a.to);
+        let back = cam.back();
+        [("xy", glam::DVec3::Z), ("xz", glam::DVec3::Y), ("yz", glam::DVec3::X)]
+            .into_iter()
+            .find(|(_, n)| back.dot(*n).abs() > 1.0 - 1e-6)
+            .map(|(name, _)| name)
     }
 }

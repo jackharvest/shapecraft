@@ -49,8 +49,9 @@ impl Camera {
             StandardView::Default => (-std::f64::consts::FRAC_PI_4, 0.52),
             StandardView::Front => (0.0, 0.0),
             StandardView::Back => (std::f64::consts::PI, 0.0),
-            StandardView::Right => (HALF_PI, 0.0),
-            StandardView::Left => (-HALF_PI, 0.0),
+            // Right looks from +X (+Y runs to the right), Left from -X (+Y to the left).
+            StandardView::Right => (-HALF_PI, 0.0),
+            StandardView::Left => (HALF_PI, 0.0),
             StandardView::Top => (0.0, HALF_PI),
             StandardView::Bottom => (0.0, -HALF_PI),
         };
@@ -262,6 +263,16 @@ mod tests {
         let (z, _) = c.project(DVec3::Z, size).unwrap_or_default();
         let (x, _) = c.project(DVec3::X, size).unwrap_or_default();
         assert!(z.y < 50.0 && x.x > 50.0);
+    }
+
+    #[test]
+    fn side_views_look_from_their_own_side() {
+        let back = |v| Camera::standard(v, DVec3::ZERO, 1.0).back();
+        assert!(back(StandardView::Right).distance(DVec3::X) < 1e-9);
+        assert!(back(StandardView::Left).distance(-DVec3::X) < 1e-9);
+        assert!(back(StandardView::Front).distance(-DVec3::Y) < 1e-9);
+        assert!(back(StandardView::Back).distance(DVec3::Y) < 1e-9);
+        assert!(back(StandardView::Top).distance(DVec3::Z) < 1e-9);
     }
 
     #[test]

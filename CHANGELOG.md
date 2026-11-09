@@ -2,6 +2,17 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.6.9-alpha
+**Sketch on the empty background when you look straight at a plane.**
+### Fixed
+- **Sketching in a side view.** In Front, Back, Left, Right, Top or Bottom (or any view square to an origin plane),
+  Sketch or a sketch tool (L, R, C…) now opens the sketch on the plane you're facing straight away, with the grid
+  across the view and the tool ready, so clicks on the empty background draw. Before, nothing happened there unless
+  you clicked the model. A click on the empty background while a sketch waits for its plane also uses the plane
+  facing you when the floor can't be reached.
+- **Left and Right views were swapped.** View ▸ Left (⌘7) now looks from the left side and View ▸ Right (⌘6) from
+  the right, matching the view cube's labels.
+
 ## 0.6.8-alpha
 **Starting a sketch no longer starts a line by itself.**
 ### Fixed
