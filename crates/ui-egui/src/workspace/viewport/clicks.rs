@@ -841,6 +841,7 @@ impl Workspace {
                     }
                 }
             }
+            Tool::Thread(_) => {}
             Tool::Revolve(mut t) => {
                 // A line of the same sketch, or a straight or round edge, becomes the axis.
                 if let Some((p, _)) = self.pick_at(c)

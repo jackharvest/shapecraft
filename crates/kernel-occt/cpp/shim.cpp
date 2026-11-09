@@ -862,6 +862,34 @@ int sk_face_level(const SkShape* s, uint32_t face, double* normal, double* level
   });
 }
 
+int sk_cylinder_face(const SkShape* s, uint32_t face, double* data, int* internal, int* found) {
+  return guard([&] {
+    *found = 0;
+    TopoDS_Face f;
+    if (!face_at(s->shape, face, f)) return fail("no such face");
+    BRepAdaptor_Surface surface(f);
+    if (surface.GetType() != GeomAbs_Cylinder) return 0;
+    double u0, u1, v0, v1;
+    BRepTools::UVBounds(f, u0, u1, v0, v1);
+    const double tau = 2.0 * std::acos(-1.0);
+    if (!std::isfinite(v0) || !std::isfinite(v1) || v1 - v0 < 1e-6 || std::abs(u1 - u0 - tau) > 1e-6) return 0;
+    const auto cylinder = surface.Cylinder();
+    // A notch or crossing hole also has full UV bounds. Only an uninterrupted wall has this area.
+    GProp_GProps props;
+    BRepGProp::SurfaceProperties(f, props);
+    const double area = tau * cylinder.Radius() * (v1 - v0);
+    if (std::abs(props.Mass() - area) > area * 1e-7) return 0;
+    const gp_Dir d = cylinder.Axis().Direction();
+    const gp_Pnt o = cylinder.Location().Translated(gp_Vec(d) * v0);
+    data[0] = o.X(); data[1] = o.Y(); data[2] = o.Z();
+    data[3] = d.X(); data[4] = d.Y(); data[5] = d.Z();
+    data[6] = cylinder.Radius(); data[7] = v1 - v0;
+    *internal = (f.Orientation() == TopAbs_REVERSED) != !cylinder.Position().Direct();
+    *found = 1;
+    return 0;
+  });
+}
+
 int sk_face_plane(const SkShape* s, uint32_t face, double* origin, double* normal) {
   return guard([&] {
     TopoDS_Face f;
@@ -1370,7 +1398,16 @@ int sk_pipe_through(const SkShape* face, const double* pts, const double* tangen
     mk.Build();
     if (!mk.IsDone()) return fail("sweep failed");
     BRepCheck_Analyzer check(mk.Shape());
-    if (!check.IsValid()) return fail("sweep made an invalid solid");
+    if (!check.IsValid()) {
+      // Long, narrow helical flanks can leave inconsistent edge tolerances after the pipe approximation.
+      // Heal only within a small tolerance and still require a valid B-rep before publishing it.
+      ShapeFix_Shape fix(mk.Shape());
+      fix.SetPrecision(1e-7);
+      fix.SetMaxTolerance(1e-5);
+      fix.Perform();
+      if (!BRepCheck_Analyzer(fix.Shape()).IsValid()) return fail("sweep made an invalid solid");
+      return put(out, fix.Shape());
+    }
     return put(out, mk.Shape());
   });
 }

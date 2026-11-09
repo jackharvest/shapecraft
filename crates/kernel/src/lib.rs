@@ -16,6 +16,7 @@ pub mod brep;
 pub mod helix;
 mod mesh;
 pub mod spline;
+pub mod threads;
 pub use mesh::Mesh;
 
 #[derive(Debug, thiserror::Error)]
@@ -86,6 +87,16 @@ pub struct MassProps {
 pub struct FacePlane {
     pub origin: DVec3,
     pub normal: DVec3,
+}
+
+/// A complete cylindrical wall between two circular rims. `axis.origin` is on the first rim;
+/// `length` runs along `axis.dir`. Internal walls face toward the axis.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct CylinderFace {
+    pub axis: Axis,
+    pub radius: f64,
+    pub length: f64,
+    pub internal: bool,
 }
 
 /// A sketch plane for region finding: origin plus in-plane x and y axes.
@@ -274,6 +285,12 @@ pub trait Kernel: Send + Sync {
 
     /// The plane of a planar face, or `None` if the face is curved.
     fn face_plane(&self, shape: &Shape, face: u32) -> Result<Option<FacePlane>>;
+
+    /// A full, unbroken cylindrical face suitable for threading, or `None` for other faces.
+    fn cylinder_face(&self, shape: &Shape, face: u32) -> Result<Option<CylinderFace>> {
+        let _ = (shape, face);
+        Ok(None)
+    }
 
     /// Push/pull: moves a planar face along its normal, adding material (positive) or removing it.
     fn extrude_face(&self, shape: &Shape, face: u32, distance: f64) -> Result<Shape>;

@@ -89,7 +89,7 @@ It's an **alpha**, so keep backups of anything precious, and tell us when someth
   constraints, driving dimensions and linked patterns. Type a size at any time.
 - **Modeling:** extrude, revolve, sweep, loft, fillet (radius or chordal, G1 or G2, setback corners, curvature),
   chamfer, shell, offset face, booleans, split, mirror, patterns, move and rotate with linked or unlinked copies,
-  wrap and emboss.
+  wrap and emboss, and [modeled metric and imperial threads](docs/threads.md).
 - **History:** every step stays editable on its Parameter Card; change a number and the model rebuilds.
 - **Files:** projects are folders (`project.json` plus STEP). Open and save STEP, IGES, Parasolid XT, STL, 3MF, OBJ
   and `.shapr`; export glTF, and 2D drawings to PDF, SVG, DXF and DWG.

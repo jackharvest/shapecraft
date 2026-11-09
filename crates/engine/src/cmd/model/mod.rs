@@ -23,6 +23,7 @@ mod boolean;
 mod extrude;
 mod faces;
 mod sweep;
+mod thread;
 mod transform;
 mod wrap;
 
@@ -41,6 +42,28 @@ fn has_bodies_or_curves(s: &Session) -> bool {
 
 pub(super) fn commands() -> Vec<CommandSpec> {
     vec![
+        CommandSpec {
+            id: "thread_presets",
+            label: "Thread Presets",
+            menu: "",
+            shortcut: None,
+            help: "List metric coarse/fine and imperial UNC/UNF thread sizes (dimensions in mm)",
+            params: "{}",
+            modifies: false,
+            enabled: |_| true,
+            run: |_, _| Ok(json!({ "presets": crate::threads::PRESETS })),
+        },
+        CommandSpec {
+            id: "thread",
+            label: "Thread",
+            menu: "Tools/Thread",
+            shortcut: None,
+            help: "Cut modeled metric or imperial threads into a cylindrical shaft or hole",
+            params: r#"{"body": id?, "face": n?, "preset": "M6x1" | "1/4-20 UNC" | other thread_presets id, "kind": "external"|"internal" (default: face), "length": mm, "offset": mm (0), "clearance": radial mm (0; up to pitch/4), "hand": "right"|"left", "reverse": bool (false; start at the other rim)}  (default: one selected cylindrical face; up to 100 turns)"#,
+            modifies: true,
+            enabled: has_bodies,
+            run: thread::thread,
+        },
         CommandSpec {
             id: "extrude",
             label: "Extrude - One-Sided",

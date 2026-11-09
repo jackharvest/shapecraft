@@ -63,6 +63,7 @@ unsafe extern "C" {
     pub fn sk_mesh_edge_face(m: *const SkMesh, i: usize, side: usize) -> u32;
     pub fn sk_mesh_edge_id(m: *const SkMesh, i: usize) -> u32;
     pub fn sk_face_plane(s: *const SkShape, face: u32, origin: *mut f64, normal: *mut f64) -> i32;
+    pub fn sk_cylinder_face(s: *const SkShape, face: u32, data: *mut f64, internal: *mut i32, found: *mut i32) -> i32;
     pub fn sk_extrude_face(s: *const SkShape, face: u32, distance: f64, out: *mut *mut SkShape) -> i32;
     pub fn sk_fillet_edges(s: *const SkShape, ids: *const u32, n: usize, radius: f64, out: *mut *mut SkShape) -> i32;
     pub fn sk_fillet_edges_var(s: *const SkShape, ids: *const u32, n: usize, r1: f64, r2: f64, out: *mut *mut SkShape) -> i32;

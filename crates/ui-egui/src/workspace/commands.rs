@@ -94,6 +94,9 @@ impl Workspace {
             self.preview = None;
             return;
         }
+        if matches!(&self.tool, Tool::Thread(t) if t.dragging.is_some()) {
+            return;
+        }
         let request = match &self.tool {
             Tool::Extrude(t) => {
                 let d = t.distance;
@@ -124,6 +127,7 @@ impl Workspace {
             Tool::OffsetPlane(t) => Some(t.request(t.distance)),
             Tool::Loft(t) => t.request(),
             Tool::Sweep(t) => t.request(),
+            Tool::Thread(t) => Some(("thread", t.params())),
             Tool::Revolve(t) => {
                 let a = t.angle;
                 t.params(a).map(|p| ("revolve", p))

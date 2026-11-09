@@ -170,6 +170,7 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
                 Tool::Onto(_) => Icon::ReplaceFace,
                 Tool::Translate { .. } => Icon::Translate,
                 Tool::Revolve(_) => Icon::Revolve,
+                Tool::Thread(_) => Icon::Thread,
                 _ if title.starts_with("Chamfer") => Icon::Fillet,
                 _ => Icon::Extrude,
             };

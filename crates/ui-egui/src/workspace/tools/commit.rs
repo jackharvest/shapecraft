@@ -239,6 +239,18 @@ impl Workspace {
                     self.tool = Tool::Idle;
                 }
             }
+            Tool::Thread(mut t) => {
+                if let Some(v) = typed {
+                    t.length = v;
+                }
+                if self.run("thread", t.params()).is_some() {
+                    self.tool = Tool::Idle;
+                    self.options_menu = None;
+                    self.preview = None;
+                } else {
+                    self.tool = Tool::Thread(t);
+                }
+            }
             Tool::Revolve(mut t) => {
                 // Typed values are angles here, not lengths, unless Tab moved on to the height.
                 let typed_angle = self.numeric_angle.take();

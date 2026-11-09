@@ -799,6 +799,7 @@ impl Workspace {
                     | Tool::Shell(_)
                     | Tool::OffsetFace(_)
                     | Tool::Revolve(_)
+                    | Tool::Thread(_)
                     | Tool::RotateAxis(_)
                     | Tool::Pattern(_)
                     | Tool::CircularPattern(_)

@@ -79,6 +79,7 @@ pub enum Icon {
     Loft,
     SplitBody,
     Revolve,
+    Thread,
     Sweep,
     WrapEmboss,
     Visualize,
@@ -1048,6 +1049,13 @@ fn paint_dark(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
             pen.fill(&[(4.4, 17.0), (12.0, 21.4), (19.6, 17.0), (19.6, 18.6), (12.0, 23.0), (4.4, 18.6)], grey);
         }
         // A white half disc and a grey disc about a dashed axis (as observed).
+        Thread => {
+            pen.line(&[(7.0, 3.0), (7.0, 21.0), (17.0, 21.0), (17.0, 3.0), (7.0, 3.0)]);
+            for i in 0..5 {
+                let y = 5.0 + i as f32 * 3.0;
+                pen.line(&[(5.0, y + 2.5), (19.0, y)]);
+            }
+        }
         Revolve => {
             let (light, grey) = two_tone(color);
             let half: Vec<(f32, f32)> = (0..=16)

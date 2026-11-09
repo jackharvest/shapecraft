@@ -761,6 +761,19 @@ pub fn home_art(args: &[String]) -> Result<()> {
         ("fillet", json!({ "radius": 1.5 })),
         ("deselect_all", json!({})),
     ];
+    if want("new") {
+        let threads = vec![
+            ("sketch", json!({"plane":"xy"})),
+            ("circle", json!({"center":[0,0],"radius":4})),
+            ("extrude", json!({"sketch":1,"region":0,"distance":15})),
+            ("thread", json!({"body":2,"face":0,"preset":"M8x1.25","length":12})),
+            ("sketch", json!({"plane":"xy"})),
+            ("polygon", json!({"center":[0,0],"radius":6.5,"sides":6})),
+            ("extrude", json!({"sketch":3,"region":0,"distance":-4,"result":"union"})),
+            ("deselect_all", json!({})),
+        ];
+        cli_run(&cli, &scratch, "new-threads", &threads, true)?;
+    }
     if want("tut") {
         let cup: Vec<(&str, Value)> = vec![
             ("sketch", json!({ "plane": "xy" })),

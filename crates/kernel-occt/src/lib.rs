@@ -11,8 +11,8 @@ use std::path::Path;
 use std::ptr;
 
 use shapecraft_kernel::{
-    Aabb, Axis, BoolOp, DVec3, Distance, EdgeCurve, FacePlane, Kernel, KernelError, MassProps, Mesh, PartInfo, PlanarCurve, PlaneFrame,
-    Result, Shape, ShapeData, SubShape, SweepOptions, ViewFrame, ViewLine,
+    Aabb, Axis, BoolOp, CylinderFace, DVec3, Distance, EdgeCurve, FacePlane, Kernel, KernelError, MassProps, Mesh, PartInfo, PlanarCurve,
+    PlaneFrame, Result, Shape, ShapeData, SubShape, SweepOptions, ViewFrame, ViewLine,
 };
 
 struct OcctShape(*mut ffi::SkShape);
@@ -116,6 +116,18 @@ impl OcctKernel {
 }
 
 impl Kernel for OcctKernel {
+    fn cylinder_face(&self, shape: &Shape, face: u32) -> Result<Option<CylinderFace>> {
+        let s = raw(shape)?;
+        let (mut data, mut internal, mut found) = ([0.0; 8], 0, 0);
+        // SAFETY: the shape lives for the call, with eight doubles and two integer output slots.
+        check("cylinder", unsafe { ffi::sk_cylinder_face(s, face, data.as_mut_ptr(), &mut internal, &mut found) })?;
+        Ok((found != 0).then(|| CylinderFace {
+            axis: Axis::new(DVec3::new(data[0], data[1], data[2]), DVec3::new(data[3], data[4], data[5])),
+            radius: data[6],
+            length: data[7],
+            internal: internal != 0,
+        }))
+    }
     fn name(&self) -> &'static str {
         "OpenCASCADE"
     }

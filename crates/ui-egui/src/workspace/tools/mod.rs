@@ -14,6 +14,8 @@ use super::toolbar::ToolKind;
 
 mod commit;
 mod setup;
+mod thread;
+pub use thread::ThreadTool;
 
 pub(crate) use setup::{first_scale_handle, picked_faces};
 use setup::{selected_items_bounds, v3, with_items};
@@ -67,6 +69,7 @@ pub enum Tool {
     Fillet(FilletTool),
     Shell(ShellTool),
     Revolve(RevolveTool),
+    Thread(ThreadTool),
     Move(MoveTool),
     Mirror(MirrorTool),
     Pattern(PatternTool),
@@ -1236,7 +1239,9 @@ impl Tool {
             Tool::Circle { center } | Tool::Polygon { center } => center.is_some(),
             Tool::Ellipse { center, .. } => center.is_some(),
             Tool::Arc { .. } | Tool::Spline { .. } => false,
-            Tool::Extrude(_) | Tool::Fillet(_) | Tool::Shell(_) | Tool::Revolve(_) | Tool::Move(_) | Tool::Pattern(_) => true,
+            Tool::Extrude(_) | Tool::Fillet(_) | Tool::Shell(_) | Tool::Revolve(_) | Tool::Thread(_) | Tool::Move(_) | Tool::Pattern(_) => {
+                true
+            }
             Tool::RotateAxis(_) | Tool::CircularPattern(_) => true,
             Tool::EdgePlane(t) => t.through,
             Tool::BodyEdgeOffset(_) => true,
@@ -1297,6 +1302,7 @@ impl Tool {
             Tool::Shell(_) => {
                 ("Shell (H)", "Pick the faces to take away and hollow the body out; pull the arrow or type the wall thickness.")
             }
+            Tool::Thread(_) => ("Thread", "Choose a preset and length. Return applies; Escape cancels."),
             Tool::Revolve(t) if t.axis.is_none() => {
                 ("Revolve (V)", "Pick a profile or a face, and an axis to spin it around into a solid.")
             }

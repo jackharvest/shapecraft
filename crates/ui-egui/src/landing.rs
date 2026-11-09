@@ -1109,6 +1109,7 @@ const ART: &[(&str, &[u8])] = &[
     ("tut-pencil-cup", include_bytes!("../../../assets/home/tut-pencil-cup.png")),
     ("tut-key-tag", include_bytes!("../../../assets/home/tut-key-tag.png")),
     ("new-navigation", include_bytes!("../../../assets/home/new-navigation.png")),
+    ("new-threads", include_bytes!("../../../assets/home/new-threads.png")),
     ("new-tutorials", include_bytes!("../../../assets/home/new-tutorials.png")),
     ("new-view-cube", include_bytes!("../../../assets/home/new-view-cube.png")),
     ("new-cards", include_bytes!("../../../assets/home/new-cards.png")),

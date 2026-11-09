@@ -30,6 +30,7 @@ pub enum ToolKind {
     Fillet,
     Shell,
     Revolve,
+    Thread,
     Polygon,
     Arc,
     Move,
@@ -389,6 +390,7 @@ pub const BODY: &[ToolDef] = &[
 
 // A curved face, e.g. a fillet's (362).
 pub const CURVED_FACE: &[ToolDef] = &[
+    t(Icon::Thread, "Thread", "", Tool(ToolKind::Thread)),
     // As 26.200 lists it (s24 matrix).
     t(Icon::MoveRotate, "Move/Rotate", "M", Tool(ToolKind::Move)),
     t(Icon::Scale, "Scale", "S", Tool(ToolKind::Scale)),
@@ -618,6 +620,7 @@ const TOOLS: &[ToolDef] = &[
     t(Icon::Fill, "Fill (Beta)", "", Command("fill")),
     t(Icon::ReplaceFace, "Replace Face", "", Tool(ToolKind::ReplaceFace)),
     t(Icon::ProjectEdge, "Project as Edge", "", Tool(ToolKind::ProjectEdge)),
+    t(Icon::Thread, "Thread", "", Tool(ToolKind::Thread)),
     t(Icon::WrapEmboss, "Wrap & Emboss", "", Tool(ToolKind::WrapEmboss)),
 ];
 

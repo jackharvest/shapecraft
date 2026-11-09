@@ -383,6 +383,7 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                 sep(),
                 item("Split Body", None, Tool(ToolKind::SplitBody), Bodies),
                 item("Revolve", Some("V"), Tool(ToolKind::Revolve), InProject),
+                item("Thread", None, Tool(ToolKind::Thread), Bodies),
                 item("Sweep", Some("W"), Tool(ToolKind::Sweep), InProject),
                 item("Fill (Beta)", None, Command("fill"), Selection),
                 item("Replace Face", None, Tool(ToolKind::ReplaceFace), Bodies),

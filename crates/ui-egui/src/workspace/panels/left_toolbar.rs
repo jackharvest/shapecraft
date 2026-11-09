@@ -263,6 +263,7 @@ pub(super) fn is_active(ws: &Workspace, def: &ToolDef) -> bool {
         | (Action::Tool(K::PlaneEdge), Tool::EdgePlane(crate::workspace::tools::EdgePlaneTool { through: true, .. }))
         | (Action::Tool(K::PlaneCurve), Tool::EdgePlane(crate::workspace::tools::EdgePlaneTool { through: false, .. }))
         | (Action::Tool(K::Plane3), Tool::Plane3 { .. })
+        | (Action::Tool(K::Thread), Tool::Thread(_))
         | (Action::Tool(K::Revolve), Tool::Revolve(_)) => true,
         // Waiting for a plane, the tool that will start on it is shown on (Line unless another was picked).
         (Action::Tool(kind), Tool::PickPlane { .. }) => ws.pending_tool == Some(kind),
@@ -538,6 +539,7 @@ impl Workspace {
             Tool::Shell(_) => Some(ToolKind::Shell),
             Tool::Sweep(_) => Some(ToolKind::Sweep),
             Tool::Revolve(_) => Some(ToolKind::Revolve),
+            Tool::Thread(_) => Some(ToolKind::Thread),
             Tool::Loft(_) => Some(ToolKind::Loft),
             Tool::Extrude(_) if self.options_menu.is_some() => Some(ToolKind::Extrude),
             Tool::Fillet(t) if self.options_menu.is_some() && !t.chamfer => Some(ToolKind::Fillet),

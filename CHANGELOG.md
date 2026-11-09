@@ -2,6 +2,15 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.7.0-alpha
+**Modeled metric and imperial threads on shafts and holes.**
+### New
+- **Thread.** Select a cylindrical wall and choose Tools → Thread. Its Parameter Card offers 58 metric coarse/fine
+  and imperial UNC/UNF presets, detects internal or external threads, and sets length, offset, handedness, radial
+  clearance, and the starting end. The length arrow and typed values set the threaded span. Threads are solid
+  geometry for export, undo in one step, and remain editable in History. See [Thread](docs/threads.md) for blank
+  sizes and the basic profile's limits.
+
 ## 0.6.9-alpha
 **Sketch on the empty background when you look straight at a plane.**
 ### Fixed

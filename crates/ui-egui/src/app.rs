@@ -1264,6 +1264,7 @@ impl ShapeCraftApp {
                     "fillet" => K::Fillet,
                     "shell" => K::Shell,
                     "revolve" => K::Revolve,
+                    "thread" => K::Thread,
                     "polygon" => K::Polygon,
                     "arc" => K::Arc,
                     "move" => K::Move,

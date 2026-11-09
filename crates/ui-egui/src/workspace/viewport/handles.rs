@@ -278,6 +278,7 @@ impl Workspace {
                     Tool::Extrude(t) => t.dragging = Some((p, value)),
                     Tool::Fillet(t) => t.dragging = Some((p, value)),
                     Tool::Shell(t) => t.dragging = Some((p, value)),
+                    Tool::Thread(t) => t.dragging = Some((p, value)),
                     Tool::OffsetFace(t) => t.dragging = Some((p, value)),
                     Tool::OffsetEdge(t) => t.dragging = Some((p, value)),
                     Tool::OffsetPlane(t) => t.dragging = Some((p, value)),
@@ -293,6 +294,7 @@ impl Workspace {
             Tool::Extrude(t) => t.dragging,
             Tool::Fillet(t) => t.dragging,
             Tool::Shell(t) => t.dragging,
+            Tool::Thread(t) => t.dragging,
             Tool::OffsetFace(t) => t.dragging,
             Tool::OffsetEdge(t) => t.dragging,
             Tool::OffsetPlane(t) => t.dragging,
@@ -336,6 +338,7 @@ impl Workspace {
                     t.radius = v.abs();
                 }
                 Tool::Shell(t) => t.thickness = snap((v0 + along).max(0.0)),
+                Tool::Thread(t) => t.length = snap(v0 + along).clamp(0.01, (t.wall.length - t.offset).max(0.01)),
                 // Pulled off its axis onto a flat face, the face's offset reaches it; back on the axis, the drag rules.
                 Tool::OffsetFace(t) => t.distance = onto_offset.unwrap_or_else(|| snap(v0 + along)),
                 Tool::OffsetEdge(t) => t.distance = snap(v0 + along),
@@ -364,6 +367,10 @@ impl Workspace {
                         t.dragging = None;
                         self.tool = Tool::Fillet(t.clone());
                         self.apply_fillet(&t);
+                    }
+                    Tool::Thread(mut t) => {
+                        t.dragging = None;
+                        self.tool = Tool::Thread(t);
                     }
                     Tool::Shell(mut t) => {
                         t.dragging = None;
@@ -517,6 +524,11 @@ impl Workspace {
                 (t.anchor + t.dir * v, t.dir, v, 1.0)
             }
             Tool::Shell(t) => (t.anchor + t.dir * t.thickness, t.dir, t.thickness, 1.0),
+            Tool::Thread(t) => {
+                let d = t.wall.axis.dir * if t.reverse { -1.0 } else { 1.0 };
+                let start = t.wall.axis.origin + if t.reverse { t.wall.axis.dir * t.wall.length } else { DVec3::ZERO };
+                (start + d * (t.offset + t.length) + d.any_orthonormal_vector() * t.wall.radius, d, t.length, 1.0)
+            }
             Tool::OffsetFace(t) => (t.anchor + t.dir * t.distance, t.dir, t.distance, 1.0),
             Tool::OffsetEdge(t) => (t.anchor + t.dir * t.distance, t.dir, t.distance, 1.0),
             Tool::OffsetPlane(t) => (t.anchor + t.dir * t.distance, t.dir, t.distance, 1.0),

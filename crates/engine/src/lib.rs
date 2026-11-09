@@ -20,6 +20,7 @@ pub mod history;
 mod keep;
 mod params;
 mod refs;
+pub mod threads;
 pub use cmd::{CommandSpec, face_offset, offset_entities, registry};
 pub use params::Params;
 

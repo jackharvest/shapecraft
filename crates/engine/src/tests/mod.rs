@@ -20,6 +20,7 @@ mod history;
 mod project;
 mod shapr;
 mod sketch;
+mod threads;
 mod transform;
 
 fn session() -> Session {

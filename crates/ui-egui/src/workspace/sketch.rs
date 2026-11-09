@@ -108,7 +108,7 @@ impl Workspace {
 
     /// A running tool whose ≡ opens a Parameter Card (step_card.rs) rather than an options menu.
     pub(super) fn card_tool(&self) -> bool {
-        matches!(&self.tool, Tool::Extrude(_))
+        matches!(&self.tool, Tool::Extrude(_) | Tool::Thread(_))
             || matches!(&self.tool, Tool::Fillet(t) if !t.chamfer)
             || matches!(&self.tool, Tool::Mirror(t) if t.split)
     }

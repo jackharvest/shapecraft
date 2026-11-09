@@ -42,6 +42,11 @@ use FieldKind::{Angle, Count, Factor, Length};
 
 pub const FEATURES: &[Feature] = &[
     Feature {
+        command: "thread",
+        name: "Thread",
+        fields: &[f("length", "Length", Length, 10.0), f("offset", "Offset", Length, 0.0), f("clearance", "Radial Clearance", Length, 0.0)],
+    },
+    Feature {
         command: "extrude",
         name: "Extrude",
         fields: &[f("distance", "Distance", Length, 0.0), f("draft", "Draft Angle", Angle, 0.0)],

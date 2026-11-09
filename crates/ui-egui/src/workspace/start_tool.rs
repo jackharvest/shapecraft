@@ -37,6 +37,7 @@ impl Workspace {
             ToolKind::OffsetPlane => "Plane - Offset",
             ToolKind::Sweep => "Sweep (W)",
             ToolKind::Revolve => "Revolve (V)",
+            ToolKind::Thread => "Thread",
             ToolKind::WrapEmboss => "Wrap & Emboss",
             _ => "Select",
         };
@@ -529,6 +530,15 @@ impl Workspace {
                 let radius = if shortest.is_finite() { (shortest * 0.1 * 10.0).round().max(1.0) / 10.0 } else { 1.0 };
                 self.remember("sketch_fillet");
                 self.tool = Tool::SketchFillet { all, corners, radius };
+            }
+            ToolKind::Thread => {
+                if let Some(t) = tools::ThreadTool::from_selection(&self.session) {
+                    self.remember("thread");
+                    self.options_menu = Some(self.viewport_rect.left_top());
+                    self.tool = Tool::Thread(t);
+                } else {
+                    self.await_selection(ToolKind::Thread, "Select one cylindrical shaft or hole wall");
+                }
             }
             ToolKind::WrapEmboss => {
                 // The manual's order: the sketch profiles, then one cylindrical or conical face; the step's card then

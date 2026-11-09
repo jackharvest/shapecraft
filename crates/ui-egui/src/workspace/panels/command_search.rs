@@ -42,6 +42,7 @@ pub(super) fn command_search(ws: &mut Workspace, ui: &mut Ui) {
                 | "offset_body_edge"
                 | "constrain"
                 | "restore_merged"
+                | "thread_presets"
         )
     };
     if q.is_empty() {
@@ -249,6 +250,7 @@ fn tool_for(id: &str) -> Option<crate::workspace::toolbar::ToolKind> {
         "chamfer" => K::Chamfer,
         "shell" => K::Shell,
         "revolve" => K::Revolve,
+        "thread" => K::Thread,
         "loft" => K::Loft,
         "sweep" => K::Sweep,
         "offset_face" => K::OffsetFace,

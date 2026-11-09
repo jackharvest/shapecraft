@@ -19,6 +19,13 @@ pub struct Entry {
 
 pub const ENTRIES: &[Entry] = &[
     Entry {
+        version: "0.7.0",
+        title: "Threads that fit your part",
+        text: "Select a shaft or hole wall and choose Thread. Pick from 58 metric and imperial sizes, set the length, \
+               handedness and clearance, and keep the threads as solid geometry when you export.",
+        art: "new-threads",
+    },
+    Entry {
         version: "0.5.0",
         title: "Make yourself at home",
         text: "The first launch asks which app's navigation your hands already know, so orbit, pan and zoom work the \

@@ -199,6 +199,7 @@ impl Workspace {
         let boolean = match &self.tool {
             Tool::Boolean(t) => t.op == "union" || t.ready(),
             Tool::Pattern(t) => t.spacing.abs() > 1e-9,
+            Tool::Thread(_) => true,
             Tool::Translate { to, .. } => to.is_some(),
             Tool::Align { to, .. } => to.is_some(),
             Tool::Onto(_) => self.is_live(),

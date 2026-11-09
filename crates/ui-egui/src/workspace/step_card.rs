@@ -59,6 +59,7 @@ fn link_blue() -> Color32 {
 enum Source {
     Tool(Box<ExtrudeTool>),
     Fillet(Box<FilletTool>),
+    Thread(Box<super::tools::ThreadTool>),
     /// Split Body (s29-027): what's split, what it's split with, Keep Originals.
     Split {
         items: usize,
@@ -77,7 +78,7 @@ enum Row {
     /// Label, sub-label, icons, the lit one, the parameter values they stand for.
     Segments(&'static str, &'static str, &'static [Icon], usize, &'static str, &'static [&'static str]),
     /// Label, key, current value, (shown name, value, enabled).
-    Choice(&'static str, &'static str, &'static str, &'static [(&'static str, &'static str, bool)]),
+    Choice(&'static str, &'static str, &'static str, Vec<(&'static str, &'static str, bool)>),
     Number(&'static str, &'static str, FieldKind, f64, Option<String>),
 }
 
@@ -120,7 +121,7 @@ fn fillet_rows(f: &Fillet) -> Vec<Row> {
             SIZE_TYPES,
         ),
         Row::Number("Radius", "radius", FieldKind::Length, f.radius, f.expr.clone()),
-        Row::Choice("Continuity", "continuity", if f.g2 { "G2 - Curvature" } else { "G1 - Tangent" }, CONTINUITIES),
+        Row::Choice("Continuity", "continuity", if f.g2 { "G2 - Curvature" } else { "G1 - Tangent" }, CONTINUITIES.to_vec()),
         Row::Segments(
             "Corner",
             if f.setback { "Setback" } else { "Rolling Ball" },
@@ -129,7 +130,7 @@ fn fillet_rows(f: &Fillet) -> Vec<Row> {
             "corner",
             CORNER_TYPES,
         ),
-        Row::Choice("Overflow", "overflow", "Auto", OVERFLOWS),
+        Row::Choice("Overflow", "overflow", "Auto", OVERFLOWS.to_vec()),
         Row::Number("Curvature", "curvature", FieldKind::Factor, f.curvature, None),
         // OCCT's fillets always run on along tangent edges; no Y-shaped blends.
         Row::Switch("Include Tangent Edges", "tangent_edges", true),
@@ -222,7 +223,7 @@ fn extrude_rows(e: &Extrude) -> (Vec<Row>, String) {
             } else {
                 "Distance"
             },
-            EXTENTS,
+            EXTENTS.to_vec(),
         ),
     ];
     if !e.through_all && !e.to_object {
@@ -239,7 +240,7 @@ fn extrude_rows(e: &Extrude) -> (Vec<Row>, String) {
         } else {
             "From Profile"
         },
-        STARTS,
+        STARTS.to_vec(),
     ));
     if let Some(o) = e.offset {
         rows.push(Row::Number("Start Offset", "start_offset", FieldKind::Length, o, None));
@@ -310,6 +311,19 @@ fn step_rows(ws: &Workspace, i: usize) -> Option<(String, Vec<Row>, String)> {
         let (rows, sub) = extrude_rows(&step_extrude(ws, i)?);
         return Some((step.label.clone(), rows, sub));
     }
+    if step.kind == "thread" {
+        let mut rows = thread_rows(&step.entries.first()?.params);
+        let fields = history::feature("thread")?.fields;
+        for row in &mut rows {
+            if let Row::Number(_, key, _, value, expr) = row
+                && let Some(field) = fields.iter().find(|f| f.key == *key)
+            {
+                *value = history::value(step, field, &ws.session.doc.variables);
+                *expr = history::expression(step, field).map(str::to_string);
+            }
+        }
+        return Some((step.label.clone(), rows, String::new()));
+    }
     if step.kind == "fillet" {
         return Some((step.label.clone(), fillet_rows(&step_fillet(ws, i)?), String::new()));
     }
@@ -332,10 +346,46 @@ fn step_rows(ws: &Workspace, i: usize) -> Option<(String, Vec<Row>, String)> {
             let set = step.entries.first().and_then(|e| e.params.get(key)).and_then(Value::as_str);
             choices.iter().find(|c| Some(c.1) == set).unwrap_or(&choices[0]).0
         };
-        rows.push(Row::Choice("Orientation", "orientation", param("orientation", ORIENTATIONS), ORIENTATIONS));
-        rows.push(Row::Choice("Corner Type", "corners", param("corners", CORNERS), CORNERS));
+        rows.push(Row::Choice("Orientation", "orientation", param("orientation", ORIENTATIONS), ORIENTATIONS.to_vec()));
+        rows.push(Row::Choice("Corner Type", "corners", param("corners", CORNERS), CORNERS.to_vec()));
     }
     Some((step.label.clone(), rows, String::new()))
+}
+
+fn thread_rows(params: &Value) -> Vec<Row> {
+    use shapecraft_engine::threads;
+    let p = params["preset"].as_str().and_then(threads::preset).unwrap_or(&threads::PRESETS[5]);
+    let internal = params["kind"].as_str() == Some("internal");
+    vec![
+        Row::Choice(
+            "Type",
+            "kind",
+            if internal { "Internal" } else { "External" },
+            vec![(if internal { "Internal" } else { "External" }, if internal { "internal" } else { "external" }, true)],
+        ),
+        Row::Choice(
+            "Series",
+            "series",
+            p.series,
+            vec![
+                ("Metric coarse", "Metric coarse", true),
+                ("Metric fine", "Metric fine", true),
+                ("UNC", "UNC", true),
+                ("UNF", "UNF", true),
+            ],
+        ),
+        Row::Choice("Size", "preset", p.id, threads::PRESETS.iter().filter(|q| q.series == p.series).map(|q| (q.id, q.id, true)).collect()),
+        Row::Number("Length", "length", FieldKind::Length, params["length"].as_f64().unwrap_or(10.0), None),
+        Row::Number("Offset", "offset", FieldKind::Length, params["offset"].as_f64().unwrap_or(0.0), None),
+        Row::Number("Radial Clearance", "clearance", FieldKind::Length, params["clearance"].as_f64().unwrap_or(0.0), None),
+        Row::Choice(
+            "Hand",
+            "hand",
+            if params["hand"] == "left" { "Left" } else { "Right" },
+            vec![("Right", "right", true), ("Left", "left", true)],
+        ),
+        Row::Switch("Start at Other End", "reverse", params["reverse"].as_bool().unwrap_or(false)),
+    ]
 }
 
 fn show_value(kind: FieldKind, v: f64, units: shapecraft_doc::Units) -> String {
@@ -369,6 +419,7 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
     // (A tool a pick started counts: the reference lights it as running, s29-010.)
     let tool_name = match &ws.tool {
         Tool::Extrude(_) => Some("extrude"),
+        Tool::Thread(_) => Some("thread"),
         Tool::Fillet(t) if !t.chamfer => Some("fillet"),
         _ => None,
     };
@@ -380,6 +431,7 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
     }
     let source = match &ws.tool {
         Tool::Extrude(t) if ws.options_menu.is_some() => Source::Tool(Box::new(t.clone())),
+        Tool::Thread(t) if ws.options_menu.is_some() => Source::Thread(Box::new(t.clone())),
         Tool::Fillet(t) if ws.options_menu.is_some() && !t.chamfer => Source::Fillet(Box::new(t.clone())),
         Tool::Mirror(t) if ws.options_menu.is_some() && t.split => Source::Split { items: t.items.len(), with: t.with.len(), keep: t.keep },
         Tool::Idle if ws.show_history && ws.drawings.is_none() && !ws.visualizing && ws.settings.card_on_history_edit => {
@@ -395,6 +447,7 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
             let (rows, sub) = extrude_rows(&tool_extrude(ws, t));
             ("Extrude".to_string(), rows, sub)
         }
+        Source::Thread(t) => ("Thread".to_string(), thread_rows(&t.params()), String::new()),
         Source::Fillet(t) => ("Fillet".to_string(), fillet_rows(&tool_fillet(t)), String::new()),
         Source::Split { items, with, keep } => (
             "Split Body".to_string(),
@@ -479,7 +532,7 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
                     let editing = matches!((&source, ws.profile_edit.as_ref()), (Source::Step(i), Some((s, ..))) if s == i);
                     let link = Rect::from_min_max(pos2(rx - 50.0, y + 8.0), pos2(rx, y + 28.0));
                     // Split Body's rows are only their chips (s29-027).
-                    let editable = !matches!(source, Source::Split { .. });
+                    let editable = !matches!(source, Source::Split { .. } | Source::Thread(_));
                     if editable {
                         p.text(
                             pos2(rx, y + 18.0),
@@ -538,7 +591,7 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
                     let knob = if *on { track.right() - 10.0 } else { track.left() + 10.0 };
                     p.circle_filled(pos2(knob, cy), 8.0, Color32::WHITE);
                     if ui.interact(track, ui.scope_id().with(("card-switch", *key)), Sense::click()).clicked() {
-                        if *key == "keep" {
+                        if matches!(*key, "keep" | "reverse") {
                             change = Some((key, json!(!*on)));
                         } else {
                             pick_hint = Some(if *key == "tangent_edges" {
@@ -551,7 +604,10 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
                 }
                 Row::Choice(label, key, value, _) => {
                     p.text(pos2(lx, cy), Align2::LEFT_CENTER, tr(label), theme::body(13.0), Tokens::text());
-                    let pill = Rect::from_min_max(pos2(rx - 108.0, cy - 10.0), pos2(rx, cy + 10.0));
+                    let pill = Rect::from_min_max(
+                        pos2(rx - if matches!(*key, "preset" | "series") { 148.0 } else { 108.0 }, cy - 10.0),
+                        pos2(rx, cy + 10.0),
+                    );
                     p.rect_filled(pill, radius(5), pill_grey());
                     p.text(pos2(pill.center().x - 7.0, cy), Align2::CENTER_CENTER, tr(value), theme::body(12.0), Tokens::text_strong());
                     let knob = Rect::from_center_size(pos2(pill.right() - 9.5, cy), vec2(14.0, 15.0));
@@ -683,13 +739,16 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
         let (current, options) = rows
             .iter()
             .find_map(|r| match r {
-                Row::Choice(_, k, v, o) if *k == key => Some((*v, *o)),
+                Row::Choice(_, k, v, o) if *k == key => Some((*v, o.as_slice())),
                 _ => None,
             })
             .unwrap_or(("", &[]));
         let rows: Vec<(&str, Option<Icon>, bool)> = options.iter().map(|(name, _, _)| (*name, None, *name == current)).collect();
-        let top = ws.card_popup_at - vec2(0.0, 24.0 * options.len() as f32 / 2.0);
-        let (hit, rect) = super::popover::pull_down(ui, "step-card-popup", top, 120.0, &rows);
+        let mut top = ws.card_popup_at - vec2(0.0, 24.0 * options.len() as f32 / 2.0);
+        let bounds = ui.ctx().content_rect();
+        top.y = top.y.clamp(bounds.top() + 4.0, (bounds.bottom() - 24.0 * options.len() as f32 - 14.0).max(bounds.top() + 4.0));
+        let (hit, rect) =
+            super::popover::pull_down(ui, "step-card-popup", top, if key == "preset" || key == "series" { 170.0 } else { 120.0 }, &rows);
         if let Some(k) = hit {
             ws.card.popup = None;
             if let Some((_, value, true)) = options.get(k) {
@@ -711,6 +770,28 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
 
 fn apply(ws: &mut Workspace, source: Source, key: &'static str, value: Value) {
     match source {
+        Source::Thread(t) => {
+            let mut t = *t;
+            match key {
+                "series" => {
+                    if let Some(series) = value.as_str() {
+                        t.preset = shapecraft_engine::threads::nearest(t.wall.radius * 2.0, t.wall.internal, series);
+                    }
+                }
+                "preset" => {
+                    if let Some(preset) = value.as_str().and_then(shapecraft_engine::threads::preset) {
+                        t.preset = preset;
+                    }
+                }
+                "length" => t.length = value.as_f64().unwrap_or(t.length),
+                "offset" => t.offset = value.as_f64().unwrap_or(t.offset),
+                "clearance" => t.clearance = value.as_f64().unwrap_or(t.clearance),
+                "hand" => t.left_hand = value.as_str() == Some("left"),
+                "reverse" => t.reverse = value.as_bool().unwrap_or(false),
+                _ => {}
+            }
+            ws.tool = Tool::Thread(t);
+        }
         Source::Split { keep, .. } => {
             if key == "keep" && value.as_bool() != Some(keep) {
                 ws.ui_action(super::toolbar::UiAction::ToolOption);
@@ -774,6 +855,18 @@ fn apply(ws: &mut Workspace, source: Source, key: &'static str, value: Value) {
         }
         Source::Step(_) if matches!(value.as_str(), Some("to_object" | "plane")) => {
             ws.toast("Pick the face or plane while extruding: open the step's sketch and extrude again");
+        }
+        Source::Step(i) if key == "series" => {
+            let all = ws.session.all_steps();
+            let current = all
+                .get(i)
+                .and_then(|s| s.entries.first())
+                .and_then(|e| e.params["preset"].as_str())
+                .and_then(shapecraft_engine::threads::preset);
+            if let (Some(current), Some(series)) = (current, value.as_str()) {
+                let preset = shapecraft_engine::threads::nearest(current.diameter, false, series);
+                let _ = ws.run("edit_step", json!({"step":i,"params":{"preset":preset.id}}));
+            }
         }
         Source::Step(i) => {
             let mut params = serde_json::Map::new();

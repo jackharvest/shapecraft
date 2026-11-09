@@ -123,6 +123,7 @@ impl Workspace {
             || matches!(&self.tool, Tool::Extrude(t) if t.dragging.is_some() || t.drafting.is_some())
             || matches!(&self.tool, Tool::Fillet(t) if t.dragging.is_some())
             || matches!(&self.tool, Tool::Shell(t) if t.dragging.is_some())
+            || matches!(&self.tool, Tool::Thread(t) if t.dragging.is_some())
             || matches!(&self.tool, Tool::OffsetFace(t) if t.dragging.is_some())
             || matches!(&self.tool, Tool::Scale(t) if t.dragging.is_some() || t.relocating)
             || matches!(&self.tool, Tool::RotateAxis(t) if t.dragging.is_some())
