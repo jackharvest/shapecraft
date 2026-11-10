@@ -13,8 +13,11 @@
 
 mod frames;
 mod http;
+mod native;
 mod session;
 mod touch;
+
+pub use native::NativeTouch;
 
 use std::cell::Cell;
 use std::net::{SocketAddr, TcpListener};

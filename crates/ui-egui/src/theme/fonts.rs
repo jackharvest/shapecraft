@@ -27,6 +27,8 @@ pub fn install_fonts(ctx: &egui::Context) {
         "/usr/share/fonts/opentype/inter/InterVariable.ttf",
         "/usr/share/fonts/cantarell/Cantarell-VF.otf",
         "C:\\Windows\\Fonts\\segoeui.ttf",
+        // Android 12+: variable, with a weight axis.
+        "/system/fonts/Roboto-Regular.ttf",
     ];
     let mut fonts = FontDefinitions::default();
     let semibold_family = FontFamily::Name(SEMIBOLD.into());
@@ -54,9 +56,12 @@ pub fn install_fonts(ctx: &egui::Context) {
         break;
     }
     // Dimension labels use the platform's monospaced UI face when there is one.
-    for path in
-        ["/System/Library/Fonts/SFNSMono.ttf", "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf", "C:\\Windows\\Fonts\\consola.ttf"]
-    {
+    for path in [
+        "/System/Library/Fonts/SFNSMono.ttf",
+        "/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf",
+        "C:\\Windows\\Fonts\\consola.ttf",
+        "/system/fonts/DroidSansMono.ttf",
+    ] {
         let Ok(bytes) = std::fs::read(path) else { continue };
         let mut d = FontData::from_owned(bytes);
         d.tweak = FontTweak { coords: VariationCoords::new([(b"wght", 560.0)]), ..Default::default() };
@@ -72,6 +77,8 @@ pub fn install_fonts(ctx: &egui::Context) {
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/dejavu/DejaVuSans.ttf",
         "C:\\Windows\\Fonts\\seguisym.ttf",
+        // Android: has every symbol the interface uses (✓ ⌥ ⌃ ⌀ ∿ …), checked against Android 15's copy.
+        "/system/fonts/NotoSansSymbols-Regular-Subsetted.ttf",
     ] {
         let Ok(bytes) = std::fs::read(path) else { continue };
         fonts.font_data.insert("symbols".into(), FontData::from_owned(bytes).into());
@@ -92,6 +99,7 @@ pub fn install_fonts(ctx: &egui::Context) {
             "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
             "/usr/share/fonts/google-noto-cjk/NotoSansCJK-Regular.ttc",
+            "/system/fonts/NotoSansCJK-Regular.ttc",
         ],
         &["C:\\Windows\\Fonts\\msyh.ttc", "/System/Library/Fonts/Hiragino Sans GB.ttc"],
         &["C:\\Windows\\Fonts\\malgun.ttf", "/System/Library/Fonts/AppleSDGothicNeo.ttc"],

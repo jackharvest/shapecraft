@@ -33,7 +33,7 @@ pub fn assets() -> Result<()> {
 }
 
 /// Each crate's layer: a crate may depend only on crates in lower layers.
-const LAYERS: [(&str, u8); 15] = [
+const LAYERS: [(&str, u8); 16] = [
     ("shapecraft-kernel", 0),
     ("shapecraft-dwg", 0),
     ("shapecraft-update", 0),
@@ -46,6 +46,7 @@ const LAYERS: [(&str, u8); 15] = [
     ("shapecraft-ui", 5),
     ("shapecraft-mcp", 5),
     ("shapecraft", 6),
+    ("shapecraft-android", 6),
     ("shapecraft-cli", 6),
     ("shapecraft-snap", 6),
     ("xtask", 7),

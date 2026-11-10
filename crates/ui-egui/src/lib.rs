@@ -8,6 +8,7 @@ pub mod backup;
 pub mod cloud;
 pub mod control;
 pub mod crash_log;
+pub mod dialogs;
 pub mod folder_access;
 pub mod graphics;
 pub mod i18n;

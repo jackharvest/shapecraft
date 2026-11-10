@@ -32,10 +32,10 @@ pub(crate) enum ToSession {
 }
 
 /// The smallest the desktop layout is drawn at (points); smaller screens see it scaled down to fit.
-const MIN_SIZE: [f32; 2] = [1000.0, 640.0];
+pub(super) const MIN_SIZE: [f32; 2] = [1000.0, 640.0];
 /// How far edges and curves reach for the pencil and a finger, against a mouse's (6 points for edges).
 const PEN_REACH: f32 = 2.0;
-const FINGER_REACH: f32 = 2.6;
+pub(super) const FINGER_REACH: f32 = 2.6;
 /// A frame the page hasn't shown yet holds up the next one past this many.
 const IN_FLIGHT: u32 = 2;
 /// How long the screen is still before JPEG parts are sent again as PNG.

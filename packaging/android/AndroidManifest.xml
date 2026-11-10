@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- ShapeCraft for Android: one NativeActivity running libshapecraft.so (apps/shapecraft-android), no Java code.
+     `cargo xtask android-apk` fills in PACKAGE and links this with aapt2; versions and SDK levels come from there. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="PACKAGE">
+    <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+    <application
+        android:label="ShapeCraft"
+        android:icon="@mipmap/ic_launcher"
+        android:hasCode="false"
+        android:extractNativeLibs="false"
+        android:allowBackup="false"
+        android:appCategory="productivity"
+        android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
+        <activity
+            android:name="android.app.NativeActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:resizeableActivity="true"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboard|keyboardHidden|navigation|uiMode|density|fontScale">
+            <meta-data android:name="android.app.lib_name" android:value="shapecraft" />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>

@@ -267,7 +267,7 @@ fn projects(ui: &mut Ui, body: Rect, st: &mut Setup, found: Option<&Found>) {
     }
     let r = Rect::from_min_size(pos2(body.right() - 170.0, body.bottom() - 34.0), vec2(170.0, 28.0));
     if pill(ui, r, "Choose a Folder…", false, "setup-work-pick")
-        && let Some(dir) = rfd::FileDialog::new().set_title("Choose your Work Folder").pick_folder()
+        && let Some(dir) = crate::dialogs::FileDialog::new().set_title("Choose your Work Folder").pick_folder()
     {
         (st.work, st.work_cloud) = (Some(dir), None);
     }
@@ -339,7 +339,7 @@ fn backups(ui: &mut Ui, body: Rect, st: &mut Setup, found: Option<&Found>) {
     }
     let r = Rect::from_min_size(pos2(body.left(), y + 2.0), vec2(190.0, 28.0));
     if pill(ui, r, "Add a Folder or NAS…", false, "setup-backup-folder")
-        && let Some(dir) = rfd::FileDialog::new().set_title("Choose a folder to back up to").pick_folder()
+        && let Some(dir) = crate::dialogs::FileDialog::new().set_title("Choose a folder to back up to").pick_folder()
     {
         let s = crate::backup::Target::Folder(dir).setting();
         if !st.backups.contains(&s) {

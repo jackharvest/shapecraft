@@ -662,7 +662,7 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
     let pending_id = ui.scope_id().with("sync-work-pending");
     let mut pending: Option<std::path::PathBuf> = ui.data(|d| d.get_temp(pending_id)).flatten();
     if small_button(ui, pos2(right - 136.0, y + 2.0), "sync-work-change", "Change…")
-        && let Some(dir) = rfd::FileDialog::new().set_title("Choose your Work Folder").set_directory(&work).pick_folder()
+        && let Some(dir) = crate::dialogs::FileDialog::new().set_title("Choose your Work Folder").set_directory(&work).pick_folder()
         && dir != work
     {
         pending = Some(dir);
@@ -796,7 +796,7 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
             y += 26.0;
         }
         if small_button(ui, pos2(x, y), "sync-add-folder", "+ Folder or NAS…")
-            && let Some(dir) = rfd::FileDialog::new().set_title("Choose a folder to back up to").pick_folder()
+            && let Some(dir) = crate::dialogs::FileDialog::new().set_title("Choose a folder to back up to").pick_folder()
         {
             let setting = Target::Folder(dir.clone()).setting();
             if dir.starts_with(&work) || work.starts_with(&dir) {

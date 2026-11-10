@@ -1,0 +1,24 @@
+[package]
+name = "shapecraft-android"
+description = "ShapeCraft for Android: the desktop interface in a native activity (see packaging/android)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+name = "shapecraft"
+crate-type = ["cdylib"]
+
+# Everything is Android-only, so the crate is an empty library in desktop workspace builds.
+[target.'cfg(target_os = "android")'.dependencies]
+shapecraft-ui.workspace = true
+shapecraft-kernel-occt.workspace = true
+eframe = { version = "0.37", default-features = false, features = ["wgpu", "default_fonts", "android-native-activity"] }
+egui = "0.37"
+# The same winit eframe runs on, for the `AndroidApp` handle.
+winit = { version = "0.30", default-features = false, features = ["android-native-activity"] }
+log = "0.4"
+android_logger = { version = "0.15", default-features = false }
+
+[lints]
+workspace = true

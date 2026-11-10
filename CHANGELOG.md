@@ -2,16 +2,23 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.6.10-alpha
-**The command-line tools build for Android, with the full modelling kernel inside.**
+## 0.7.0-alpha
+**ShapeCraft runs on Android: a first test build of the app, and the command-line tools with the full modelling kernel.**
 ### New
+- **ShapeCraft for Android (test build).** The whole app, the same interface as on the desktop, as an APK for
+  arm64 phones and tablets on Android 8.0 or later. Fingers work as they do on the tablet page: tap to pick, drag
+  on the background to turn the view, two fingers to pan and pinch, long press for the context menu, two- and
+  three-finger taps to undo and redo. The interface scales to fit small screens (sideways works best on a phone),
+  the on-screen keyboard opens for text fields, and a hardware keyboard types numbers into tools. Projects live in
+  the app's own storage; exports go to its folder under Android/data, which a computer can read over USB. Opening
+  files from elsewhere on the device isn't there yet. Build it with `cargo xtask android-apk`; the Android CI job
+  builds it too. See `packaging/android/README.md`.
 - **Android build of `shapecraft-cli`** (arm64, plus x86_64 for emulators). It is one self-contained executable,
   with OpenCASCADE built by the Android NDK and linked in. It is aligned for the 16 KB memory pages Android 15+
   devices use, and it runs on Android 8.0 and later. Build it with `cargo xtask android-occt`, then
   `cargo xtask android-cli`. `cargo xtask android-smoke` runs a modelling test on a device or emulator: extrude,
   fillet, boolean, STEP out and back in. The volumes must match the geometry, and they match the desktop exactly.
-  A weekly CI job builds it and runs the test on an Android 15 emulator. This is the first step towards Android
-  tablets; there is no app or touch interface yet. See `packaging/android/README.md`. Thanks
+  A weekly CI job builds it and runs the test on an Android 15 emulator. Thanks
   [@joravarsinghing](https://github.com/joravarsinghing) (#3).
 
 ## 0.6.9-alpha

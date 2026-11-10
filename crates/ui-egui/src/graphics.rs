@@ -62,6 +62,12 @@ pub fn passes(choice: &str) -> Vec<Vec<&'static str>> {
     passes
 }
 
+/// Every path for a choice in one attempt, best first, for a platform where the window can be made only once (Android:
+/// winit's event loop can't be built twice in a process). The AMD crash `passes` avoids is a desktop driver's.
+pub fn single_pass(choice: &str) -> Vec<&'static str> {
+    attempts(choice)
+}
+
 /// An adapter found at startup.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Found {
@@ -182,7 +188,13 @@ pub fn configuration(choice: &str, gpu: &str, pass: &[&'static str]) -> egui_wgp
     let (choice, gpu, pass) = (choice.to_string(), gpu.to_string(), pass.to_vec());
     let mut create = egui_wgpu::WgpuSetupCreateNew::without_display_handle();
     // On top of what WGPU_BACKEND already narrowed this to.
-    create.instance_descriptor.backends &= if pass == [OPENGL] { wgpu::Backends::GL } else { wgpu::Backends::PRIMARY };
+    create.instance_descriptor.backends &= if pass == [OPENGL] {
+        wgpu::Backends::GL
+    } else if pass.contains(&OPENGL) {
+        wgpu::Backends::PRIMARY | wgpu::Backends::GL
+    } else {
+        wgpu::Backends::PRIMARY
+    };
     create.native_adapter_selector = Some(Arc::new(move |adapters, surface| select(&choice, &gpu, &pass, adapters, surface)));
     create.device_descriptor = Arc::new(|adapter| wgpu::DeviceDescriptor {
         label: Some("shapecraft device"),
@@ -209,8 +221,8 @@ pub fn report_failure(reason: &str) {
         return;
     }
     eprintln!("ShapeCraft couldn't start its graphics: {reason}");
-    let _ = rfd::MessageDialog::new()
-        .set_level(rfd::MessageLevel::Error)
+    let _ = crate::dialogs::MessageDialog::new()
+        .set_level(crate::dialogs::MessageLevel::Error)
         .set_title("ShapeCraft can't start")
         .set_description(format!(
             "No graphics path worked on this computer (Vulkan, OpenGL or the processor). Updating the graphics driver usually helps.\n\n{reason}"

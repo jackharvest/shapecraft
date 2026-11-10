@@ -50,9 +50,20 @@ impl Options {
     }
 
     fn documents() -> PathBuf {
+        if let Some(dir) = DOCUMENTS.get() {
+            return dir.clone();
+        }
         dirs::document_dir().or_else(dirs::home_dir).unwrap_or_else(|| PathBuf::from("."))
     }
+
+    /// Where "Documents" is when the system has none to find (Android: the app's own storage). Set once, before the
+    /// app starts; later calls are ignored.
+    pub fn set_documents(dir: PathBuf) {
+        let _ = DOCUMENTS.set(dir);
+    }
 }
+
+static DOCUMENTS: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
 
 /// A project's name for messages: its folder name (the path is long and says little).
 fn project_name(dir: &Path) -> String {
@@ -105,7 +116,7 @@ fn open_path(tablet: &mut Option<TabletFiles>, wanted: Wanted, label: &str, filt
         t.picks.push((t.next, wanted));
         return None;
     }
-    filters.iter().fold(rfd::FileDialog::new(), |d, (name, exts)| d.add_filter(*name, exts)).pick_file()
+    filters.iter().fold(crate::dialogs::FileDialog::new(), |d, (name, exts)| d.add_filter(*name, exts)).pick_file()
 }
 
 /// A new folder whose files go to the tablet's page once this frame has written them.
@@ -121,7 +132,7 @@ fn tablet_folder(t: &mut TabletFiles) -> Option<PathBuf> {
 fn save_path(tablet: &mut Option<TabletFiles>, name: &str, filter: (&str, &[&str])) -> Option<PathBuf> {
     match tablet {
         Some(t) => Some(tablet_folder(t)?.join(crate::tablet::safe_file_name(name))),
-        None => rfd::FileDialog::new().set_file_name(name).add_filter(filter.0, filter.1).save_file(),
+        None => crate::dialogs::FileDialog::new().set_file_name(name).add_filter(filter.0, filter.1).save_file(),
     }
 }
 
@@ -129,7 +140,7 @@ fn save_path(tablet: &mut Option<TabletFiles>, name: &str, filter: (&str, &[&str
 fn save_folder(tablet: &mut Option<TabletFiles>) -> Option<PathBuf> {
     match tablet {
         Some(t) => tablet_folder(t),
-        None => rfd::FileDialog::new().set_title("Choose a folder to export to").pick_folder(),
+        None => crate::dialogs::FileDialog::new().set_title("Choose a folder to export to").pick_folder(),
     }
 }
 

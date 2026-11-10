@@ -1,5 +1,6 @@
-# Android command-line tools (#3): OCCT built with the NDK, shapecraft-cli cross-compiled for arm64, and the kernel
-# smoke test run on an emulator (x86_64 image; it runs the arm64 build through Android's ARM translation).
+# Android (#3): OCCT built with the NDK; shapecraft-cli cross-compiled for arm64 with the kernel smoke test run on an
+# emulator (x86_64 image; it runs the arm64 build through Android's ARM translation); the app as a debug-signed APK,
+# started on the same emulator.
 # Manual or weekly: the OCCT build is long, so it doesn't run on every push. See packaging/android/README.md.
 name: android
 on:
@@ -42,6 +43,11 @@ jobs:
         run: test -f target/android/occt-arm64-v8a/lib/libTKernel.a || cargo xtask android-occt arm64
       - name: shapecraft-cli for Android (16 KB pages checked)
         run: cargo xtask android-cli arm64
+      - name: ShapeCraft APK (debug-signed)
+        run: |
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;35.0.1" "platforms;android-35" > /dev/null
+          cargo xtask android-apk arm64
       - name: Emulator
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm.rules
@@ -56,7 +62,15 @@ jobs:
           echo "$ANDROID_HOME/platform-tools" >> "$GITHUB_PATH"
       - name: Kernel smoke test on the emulator
         run: cargo xtask android-smoke arm64
+      - name: The app starts on the emulator
+        run: cargo xtask android-run arm64
       - uses: actions/upload-artifact@v4
         with:
           name: shapecraft-cli-android-arm64
           path: target/aarch64-linux-android/release/shapecraft-cli
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shapecraft-android-apk
+          path: |
+            target/android/ShapeCraft-*.apk
+            target/android/screen.png

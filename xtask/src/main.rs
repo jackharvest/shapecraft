@@ -7,6 +7,8 @@
 //!   cargo xtask android-occt [ABI]  OpenCASCADE for Android with the NDK (ANDROID_NDK_HOME, OCCT_SRC)
 //!   cargo xtask android-cli [ABI]   shapecraft-cli for Android (arm64 or x86_64), checked for 16 KB pages
 //!   cargo xtask android-smoke [ABI] kernel smoke test on the adb device
+//!   cargo xtask android-apk [ABI]   the app as an APK (ANDROID_HOME with build-tools and a platform)
+//!   cargo xtask android-run [ABI]   installs the APK on the adb device, starts it, takes a screenshot
 //!   cargo xtask bench-tasks         writes bench/tasks/*.jsonl, the task benchmark
 //!   cargo xtask icons OUT_DIR       the app icon: SVG variants and PNG renders
 //!   cargo xtask home-art SCRATCH    the home screen's pictures (assets/home/*.png), from our own models
@@ -37,6 +39,8 @@ fn main() -> std::process::ExitCode {
         Some("android-occt") => android::occt(rest),
         Some("android-cli") => android::cli(rest),
         Some("android-smoke") => android::smoke(rest),
+        Some("android-apk") => android::apk(rest),
+        Some("android-run") => android::apk_run(rest),
         Some("bench-tasks") => bench::write(rest),
         Some("icons") => icons::write(rest),
         Some("home-art") => site::home_art(rest),

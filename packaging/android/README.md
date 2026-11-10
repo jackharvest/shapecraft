@@ -1,15 +1,20 @@
-# Android (command-line tools)
+# Android
 
-The first step towards ShapeCraft on Android tablets ([#3](https://github.com/jackharvest/shapecraft/issues/3)):
-`shapecraft-cli` cross-compiled for `aarch64-linux-android` (and `x86_64-linux-android` for emulators), with
-OpenCASCADE built by the Android NDK and linked in statically. The result is one self-contained executable with no
-`.so` files beside it. There is no app or touch interface yet.
+ShapeCraft on Android phones and tablets ([#3](https://github.com/jackharvest/shapecraft/issues/3)), in two forms:
+
+- **The app** (`ShapeCraft-<version>-arm64-v8a.apk`): the desktop interface in a `NativeActivity`
+  (`apps/shapecraft-android`), with the tablet's touch model and the interface scaled to fit. A test build.
+- **`shapecraft-cli`**: the command-line tools as one self-contained executable, for Termux or `adb shell`.
+
+Both carry OpenCASCADE built by the Android NDK and linked in statically, so nothing else has to be installed.
 
 ## What you need
 
 - A Linux or macOS host with Rust, CMake and Ninja.
 - Android NDK r28 or newer. r28 aligns code for 16 KB memory pages by default, and Android 15+ devices need that.
 - OpenCASCADE 7.9 source (`https://github.com/Open-Cascade-SAS/OCCT/archive/refs/tags/V7_9_3.tar.gz`).
+- For the app: the Android SDK (`ANDROID_HOME`) with `build-tools;35.0.1` and `platforms;android-35` (any newer
+  ones work), and a JDK for `keytool` and `apksigner`.
 - For the smoke test: `adb` and a device or emulator. An x86_64 Android 11+ emulator image runs the arm64 build
   through its built-in ARM translation.
 
@@ -21,6 +26,9 @@ export ANDROID_NDK_HOME=~/android/android-ndk-r28c OCCT_SRC=~/android/OCCT-7_9_3
 cargo xtask android-occt      # ~25 min on 4 cores; only the toolkits ShapeCraft links
 cargo xtask android-cli       # → target/aarch64-linux-android/release/shapecraft-cli
 cargo xtask android-smoke     # runs smoke.jsonl on the adb device and checks the volumes
+export ANDROID_HOME=~/android/sdk
+cargo xtask android-apk       # → target/android/ShapeCraft-<version>-arm64-v8a.apk
+cargo xtask android-run       # installs it on the adb device, starts it, saves target/android/screen.png
 ```
 
 Add `x86_64` after each command for the emulator's own architecture.
@@ -31,13 +39,32 @@ Add `x86_64` after each command for the emulator's own architecture.
   for OCCT's messages. `OCCT_STATIC=1` forces this on other platforms.
 - `android-cli` checks that every loadable segment of the result is aligned for 16 KB pages.
 
+- `android-apk` builds `libshapecraft.so`, links the manifest (`AndroidManifest.xml`) and icon with `aapt2`, stores
+  the library uncompressed on a 16 KB boundary so Android maps it straight from the APK, and signs it with the
+  debug key (`~/.android/debug.keystore`, made if missing). APKs signed with different debug keys can't update
+  each other: uninstall first if Android refuses the install.
+
+## The app
+
+Install the APK (`adb install ShapeCraft-….apk`, or open it on the device and allow installs from that source).
+
+- **Touch**: tap to pick and press buttons; drag on the background to turn the view (a drag on a handle moves the
+  handle); two fingers pan and pinch; a long press is a right-click; a two-finger tap undoes, three fingers redo.
+- **Screen**: the interface is scaled so it has at least 1000 × 640 points. On a phone, sideways works best.
+- **Keyboard**: the on-screen keyboard opens when a text field has the focus. To type a number into a tool
+  (Extrude 10 ↵), a hardware or Bluetooth keyboard works today.
+- **Files**: projects are kept in the app's own storage. Saves and exports go to
+  `Android/data/com.jackharvest.shapecraft/files`, which a computer reads over USB. Opening a file from elsewhere
+  on the device needs a system file picker, which isn't wired up yet.
+- **Graphics**: Vulkan first, then OpenGL ES 3. `adb logcat -s ShapeCraft` shows which one started, and any error.
+
 ## Smoke test
 
 `smoke.jsonl` makes a 60×40×10 mm box, rounds every edge (r 1 mm) and subtracts a r 5 mm through hole. It then
 writes STEP and STL, reads the STEP back in, and measures both bodies. The expected volume comes from geometry,
 23121.516 mm³, and both measurements must match it to a millionth.
 
-## Trying it on your own device
+## Trying the command-line tools on your own device
 
 Copy `shapecraft-cli` and `smoke.jsonl` to the device, for example into Termux's home folder. Replace `OUT` in
 `smoke.jsonl` with a folder you can write to, then run:

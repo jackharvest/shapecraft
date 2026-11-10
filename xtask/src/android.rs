@@ -1,9 +1,11 @@
-//! Android builds of the command-line tools (issue #3's first step): OpenCASCADE cross-compiled with the NDK, the
-//! CLI linked against it statically, and a kernel smoke test run on a device or emulator through adb.
+//! Android builds: OpenCASCADE cross-compiled with the NDK and linked in statically, the command-line tools with a
+//! kernel smoke test run through adb, and the app itself as an APK (a NativeActivity around the desktop interface).
 //!
 //!   ANDROID_NDK_HOME=… OCCT_SRC=… cargo xtask android-occt [arm64|x86_64]   → target/android/occt-<abi>
 //!   ANDROID_NDK_HOME=… cargo xtask android-cli [arm64|x86_64]                → target/<triple>/release/shapecraft-cli
 //!   cargo xtask android-smoke [arm64|x86_64]                                 (adb on PATH, one device attached)
+//!   ANDROID_HOME=… cargo xtask android-apk [arm64|x86_64]                    → target/android/ShapeCraft-<version>-<abi>.apk
+//!   cargo xtask android-run [arm64|x86_64]                                   installs, starts, screenshots (adb)
 //!
 //! Linux or macOS host; NDK r28 or newer (16 KB pages by default, which Android 15+ devices need). See
 //! packaging/android/README.md.
@@ -144,9 +146,19 @@ fn find(dir: &Path, name: &str) -> Option<PathBuf> {
 /// executable whose segments are aligned for 16 KB pages.
 pub fn cli(rest: &[String]) -> Result<()> {
     let abi = abi(rest)?;
+    let bin = build(&abi, "shapecraft-cli")?;
+    let exe = target().join(abi.triple).join("release/shapecraft-cli");
+    let loads = check_pages(&bin, &exe)?;
+    println!("{} ({}, {loads} LOAD segments, 16 KB aligned)", exe.display(), mb(&exe));
+    Ok(())
+}
+
+/// `cargo build --release -p package` for an ABI with the NDK's clang and the OCCT `android-occt` installed. Returns
+/// the NDK's tool folder.
+fn build(abi: &Abi, package: &str) -> Result<PathBuf> {
     let ndk = ndk()?;
     let bin = toolchain(&ndk)?;
-    let occt = occt_dir(&abi);
+    let occt = occt_dir(abi);
     if !occt.join("lib/libTKernel.a").exists() {
         bail!("no OCCT at {}: run cargo xtask android-occt first", occt.display());
     }
@@ -154,7 +166,7 @@ pub fn cli(rest: &[String]) -> Result<()> {
     let under = abi.triple.replace('-', "_");
     let status = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()))
         .current_dir(root())
-        .args(["build", "--release", "-p", "shapecraft-cli", "--target", abi.triple])
+        .args(["build", "--release", "-p", package, "--target", abi.triple])
         .env(format!("CC_{under}"), &clang)
         .env(format!("CXX_{under}"), bin.join(format!("{}{API}-clang++", abi.triple)))
         .env(format!("AR_{under}"), bin.join("llvm-ar"))
@@ -164,16 +176,180 @@ pub fn cli(rest: &[String]) -> Result<()> {
         .status()
         .context("couldn't start cargo")?;
     if !status.success() {
-        bail!("cargo build for {} failed ({status})", abi.triple);
+        bail!("cargo build of {package} for {} failed ({status})", abi.triple);
     }
-    let exe = target().join(abi.triple).join("release/shapecraft-cli");
-    let segments = output(s(&bin.join("llvm-readelf")), &["--program-headers", "--wide", s(&exe)])?;
+    Ok(bin)
+}
+
+/// Checks every loadable segment of an ELF file is aligned for 16 KB pages (Android 15+ devices); returns how many.
+fn check_pages(bin: &Path, file: &Path) -> Result<usize> {
+    let segments = output(s(&bin.join("llvm-readelf")), &["--program-headers", "--wide", s(file)])?;
     let loads: Vec<&str> = segments.lines().filter(|l| l.trim_start().starts_with("LOAD")).collect();
     let aligned = |l: &&str| l.split_whitespace().last().and_then(|a| u64::from_str_radix(a.trim_start_matches("0x"), 16).ok());
     if loads.is_empty() || loads.iter().any(|l| aligned(l).is_none_or(|a| a < 0x4000)) {
-        bail!("{} has segments not aligned for 16 KB pages:\n{}", exe.display(), loads.join("\n"));
+        bail!("{} has segments not aligned for 16 KB pages:\n{}", file.display(), loads.join("\n"));
     }
-    println!("{} ({}, {} LOAD segments, 16 KB aligned)", exe.display(), mb(&exe), loads.len());
+    Ok(loads.len())
+}
+
+/// The Android package name, which also names the app's folders on the device.
+pub const PACKAGE: &str = "com.jackharvest.shapecraft";
+
+/// The app as an installable APK: apps/shapecraft-android built as libshapecraft.so, the manifest and icon linked by
+/// aapt2 against the newest platform in the SDK, the library stored uncompressed on a 16 KB boundary (so Android maps
+/// it straight from the APK), then aligned and signed with the debug key (~/.android/debug.keystore, made if missing).
+/// Needs ANDROID_HOME (or ANDROID_SDK_ROOT) with build-tools and a platform, and a JDK for keytool and apksigner.
+pub fn apk(rest: &[String]) -> Result<()> {
+    let abi = abi(rest)?;
+    let bin = build(&abi, "shapecraft-android")?;
+    let so = target().join(abi.triple).join("release/libshapecraft.so");
+    check_pages(&bin, &so)?;
+    let sdk = PathBuf::from(
+        std::env::var_os("ANDROID_HOME").or_else(|| std::env::var_os("ANDROID_SDK_ROOT")).context("set ANDROID_HOME to the Android SDK")?,
+    );
+    let tools = newest(&sdk.join("build-tools"), |_| true).context("no build-tools in the SDK (sdkmanager \"build-tools;35.0.1\")")?;
+    let platform = newest(&sdk.join("platforms"), |n| n.starts_with("android-"))
+        .context("no platform in the SDK (sdkmanager \"platforms;android-35\")")?;
+    let target_sdk = platform.file_name().and_then(|n| n.to_str()).and_then(|n| n.strip_prefix("android-")).unwrap_or("35").to_string();
+    let version = crate::util::version()?;
+    let code = version_code(&version)?;
+
+    let work = target().join("android").join(format!("apk-{}", abi.ndk));
+    clear(&work)?;
+    let icon = work.join("res/mipmap-xxxhdpi/ic_launcher.png");
+    copy(&root().join("assets/icon/png/shapecraft-256.png"), &icon)?;
+    let manifest = std::fs::read_to_string(root().join("packaging/android/AndroidManifest.xml"))?.replace("PACKAGE", PACKAGE);
+    std::fs::write(work.join("AndroidManifest.xml"), manifest)?;
+    let aapt2 = tools.join("aapt2");
+    run(s(&aapt2), &["compile", "--dir", s(&work.join("res")), "-o", s(&work.join("res.zip"))])?;
+    let linked = work.join("linked.apk");
+    run(
+        s(&aapt2),
+        &[
+            "link",
+            "-o",
+            s(&linked),
+            "--manifest",
+            s(&work.join("AndroidManifest.xml")),
+            "-I",
+            s(&platform.join("android.jar")),
+            "--min-sdk-version",
+            &API.to_string(),
+            "--target-sdk-version",
+            &target_sdk,
+            "--version-code",
+            &code.to_string(),
+            "--version-name",
+            &version,
+            s(&work.join("res.zip")),
+        ],
+    )?;
+    add_library(&linked, &format!("lib/{}/libshapecraft.so", abi.ndk), &so)?;
+    let aligned = work.join("aligned.apk");
+    run(s(&tools.join("zipalign")), &["-P", "16", "-f", "4", s(&linked), s(&aligned)])?;
+    let key = debug_key()?;
+    let apk = target().join(format!("android/ShapeCraft-{version}-{}.apk", abi.ndk));
+    run(
+        s(&tools.join("apksigner")),
+        &["sign", "--ks", s(&key), "--ks-pass", "pass:android", "--key-pass", "pass:android", "--out", s(&apk), s(&aligned)],
+    )?;
+    run(s(&tools.join("apksigner")), &["verify", s(&apk)])?;
+    println!("{} ({}; {PACKAGE} {version}, code {code}, API {API}-{target_sdk})", apk.display(), mb(&apk));
+    Ok(())
+}
+
+/// The subfolder of `dir` with the highest version-like name that passes `keep` (35.0.1 over 34.0.0, android-35 over android-9).
+fn newest(dir: &Path, keep: impl Fn(&str) -> bool) -> Option<PathBuf> {
+    let rank = |name: &str| -> Vec<u32> { name.split(|c: char| !c.is_ascii_digit()).filter_map(|p| p.parse().ok()).collect() };
+    std::fs::read_dir(dir)
+        .ok()?
+        .flatten()
+        .filter_map(|e| e.file_name().into_string().ok())
+        .filter(|n| keep(n))
+        .max_by_key(|n| rank(n))
+        .map(|n| dir.join(n))
+}
+
+/// 0.6.10 → 6010 (major·10⁶ + minor·10³ + patch): grows with every release, as Android requires for updates.
+fn version_code(version: &str) -> Result<u32> {
+    let core = version.split('-').next().unwrap_or(version);
+    let parts: Vec<u32> = core.split('.').map(|p| p.parse::<u32>()).collect::<Result<_, _>>().context("version isn't x.y.z")?;
+    match parts.as_slice() {
+        [major, minor, patch] if *minor < 1000 && *patch < 1000 && *major < 2000 => Ok(major * 1_000_000 + minor * 1000 + patch),
+        _ => bail!("version {version} isn't x.y.z with minor and patch under 1000"),
+    }
+}
+
+/// Adds the library to the APK uncompressed, its data starting on a 16 KB boundary (zipalign -P 16 keeps it there).
+fn add_library(apk: &Path, name: &str, so: &Path) -> Result<()> {
+    use std::io::Write;
+    let file = std::fs::OpenOptions::new().read(true).write(true).open(apk)?;
+    let mut zip = zip::ZipWriter::new_append(file)?;
+    let options = zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored).with_alignment(16384);
+    zip.start_file(name, options)?;
+    zip.write_all(&std::fs::read(so)?)?;
+    zip.finish()?;
+    Ok(())
+}
+
+/// The standard Android debug key, made once with keytool like Android Studio would.
+fn debug_key() -> Result<PathBuf> {
+    let home = std::env::var_os("HOME").context("no HOME for ~/.android/debug.keystore")?;
+    let key = PathBuf::from(home).join(".android/debug.keystore");
+    if !key.exists() {
+        if let Some(dir) = key.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        run(
+            "keytool",
+            &[
+                "-genkeypair",
+                "-keystore",
+                s(&key),
+                "-storepass",
+                "android",
+                "-keypass",
+                "android",
+                "-alias",
+                "androiddebugkey",
+                "-keyalg",
+                "RSA",
+                "-keysize",
+                "2048",
+                "-validity",
+                "10000",
+                "-dname",
+                "CN=Android Debug,O=Android,C=US",
+            ],
+        )?;
+    }
+    Ok(key)
+}
+
+/// Installs the APK on the attached device, starts it, waits for the first frames and saves a screenshot.
+pub fn apk_run(rest: &[String]) -> Result<()> {
+    let abi = abi(rest)?;
+    let version = crate::util::version()?;
+    let apk = target().join(format!("android/ShapeCraft-{version}-{}.apk", abi.ndk));
+    if !apk.exists() {
+        bail!("no {}: run cargo xtask android-apk first", apk.display());
+    }
+    run("adb", &["install", "-r", s(&apk)])?;
+    run("adb", &["logcat", "-c"])?;
+    run("adb", &["shell", &format!("am start -W -n {PACKAGE}/android.app.NativeActivity")])?;
+    std::thread::sleep(std::time::Duration::from_secs(8));
+    let pid = output("adb", &["shell", &format!("pidof {PACKAGE}")])?;
+    let log = output("adb", &["logcat", "-d", "-s", "ShapeCraft:*", "RustPanic:*", "AndroidRuntime:E", "DEBUG:*"])?;
+    for l in log.lines().take(60) {
+        println!("  {l}");
+    }
+    if pid.trim().is_empty() {
+        bail!("ShapeCraft isn't running on the device (see the log above)");
+    }
+    let shot = target().join("android/screen.png");
+    let png = Command::new("adb").args(["exec-out", "screencap", "-p"]).output().context("adb screencap")?;
+    std::fs::write(&shot, &png.stdout)?;
+    println!("running (pid {}); screenshot {}", pid.trim(), shot.display());
     Ok(())
 }
 
@@ -242,6 +418,14 @@ pub fn smoke(rest: &[String]) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn version_codes_grow_with_versions() {
+        assert_eq!(super::version_code("0.6.10").ok(), Some(6010));
+        assert_eq!(super::version_code("0.6.10-alpha").ok(), Some(6010));
+        assert_eq!(super::version_code("1.0.0").ok(), Some(1_000_000));
+        assert!(super::version_code("0.6").is_err());
+    }
+
     #[test]
     fn smoke_volume_matches_the_desktop_kernel() {
         // Worked out separately by hand/Python; the desktop CLI measures 23121.51626278067 mm³ for the same script.

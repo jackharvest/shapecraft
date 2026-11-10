@@ -14,12 +14,11 @@ shapecraft-update.workspace = true
 glam.workspace = true
 serde.workspace = true
 serde_json.workspace = true
-eframe = { version = "0.37", default-features = false, features = ["wgpu", "default_fonts", "wayland", "x11", "accesskit"] }
+eframe = { version = "0.37", default-features = false, features = ["wgpu", "default_fonts"] }
 egui = "0.37"
 egui-wgpu = "0.37"
 wgpu = "30"
 png = "0.18"
-rfd = "0.17"
 dirs = "6"
 # Tablet access (Preferences ▸ Tablet, `--serve`): the browser page talks over a WebSocket; frames go out as JPEG/PNG.
 tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
@@ -31,6 +30,15 @@ shapecraft-kernel-occt.workspace = true
 
 [lints]
 workspace = true
+
+# No backend for Android (see dialogs.rs).
+[target.'cfg(not(target_os = "android"))'.dependencies]
+rfd = "0.17"
+# Screen readers and the Linux window systems. On Android accesskit needs GameActivity; the APK is a NativeActivity.
+eframe = { version = "0.37", default-features = false, features = ["wayland", "x11", "accesskit"] }
+
+[target.'cfg(target_os = "android")'.dependencies]
+log = "0.4"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 muda = { version = "0.21", default-features = false }
