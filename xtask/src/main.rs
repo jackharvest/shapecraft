@@ -4,6 +4,9 @@
 //!   cargo xtask bundle-linux        self-contained folder + .tar.gz (Linux; BUNDLE_CXX_RUNTIME=1 adds libstdc++)
 //!   cargo xtask appimage            AppImage from bundle-linux's folder (APPIMAGETOOL=path)
 //!   cargo xtask bundle-windows      portable zip + Inno Setup installer (Windows, in a VS developer shell)
+//!   cargo xtask android-occt [ABI]  OpenCASCADE for Android with the NDK (ANDROID_NDK_HOME, OCCT_SRC)
+//!   cargo xtask android-cli [ABI]   shapecraft-cli for Android (arm64 or x86_64), checked for 16 KB pages
+//!   cargo xtask android-smoke [ABI] kernel smoke test on the adb device
 //!   cargo xtask bench-tasks         writes bench/tasks/*.jsonl, the task benchmark
 //!   cargo xtask icons OUT_DIR       the app icon: SVG variants and PNG renders
 //!   cargo xtask home-art SCRATCH    the home screen's pictures (assets/home/*.png), from our own models
@@ -13,6 +16,7 @@
 //!   cargo xtask assets              every file asset has its ATTRIBUTION.md row
 //!   cargo xtask layers              the crates depend on each other only downwards
 
+mod android;
 mod bench;
 mod checks;
 mod icons;
@@ -30,6 +34,9 @@ fn main() -> std::process::ExitCode {
         Some("bundle-linux") => linux::bundle(),
         Some("appimage") => linux::appimage(),
         Some("bundle-windows") => windows::bundle(),
+        Some("android-occt") => android::occt(rest),
+        Some("android-cli") => android::cli(rest),
+        Some("android-smoke") => android::smoke(rest),
         Some("bench-tasks") => bench::write(rest),
         Some("icons") => icons::write(rest),
         Some("home-art") => site::home_art(rest),

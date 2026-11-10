@@ -6,6 +6,14 @@ looks and behaves the same side by side"; the bar for code is "a newcomer finds 
 Every pull request is read and checked before it is merged, and accepted work is credited by your GitHub username
 in the [CHANGELOG](CHANGELOG.md).
 
+## Issues: what to expect
+
+1. A first reply within about a day, with labels: what kind it is (`bug`, `enhancement`, `question`) and where it
+   stands (`needs-triage`, then `accepted`, `needs-info` or `wontfix`).
+2. Bugs get a test that reproduces them before the fix, so they stay fixed. Big feature requests are split into
+   small steps; the issue covers the first step and the rest get their own linked issues.
+3. When the change ships, we comment with the version it is in and credit you in the CHANGELOG.
+
 Start with [`docs/architecture.md`](docs/architecture.md): the crates, the command registry, and where each kind
 of change goes. Project rules are in [`AGENTS.md`](AGENTS.md) (clean room, never crash, layering).
 

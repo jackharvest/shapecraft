@@ -1,0 +1,16 @@
+// Kernel smoke test for a cross-compiled CLI: extrude, fillet, boolean, STEP out and back in, measure.
+// `cargo xtask android-smoke` replaces OUT with a device folder and checks the volumes against geometry.
+{"command":"sketch","params":{"plane":"xy"}}
+{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[60.0,40.0]}}
+{"command":"extrude","params":{"distance":10.0,"sketch":1,"region":0}}
+{"command":"select","params":{"picks":[{"kind":"body","body":2}]}}
+{"command":"fillet","params":{"radius":1.0}}
+{"command":"sketch","params":{"plane":"xy"}}
+{"command":"circle","params":{"center":[30.0,20.0],"radius":5.0}}
+{"command":"extrude","params":{"distance":10.0,"sketch":3,"region":0,"result":"new"}}
+{"command":"subtract","params":{"target":2,"tools":[4]}}
+{"command":"measure","params":{"picks":[{"kind":"body","body":2}]}}
+{"command":"export_step","params":{"path":"OUT/smoke.step"}}
+{"command":"export_stl","params":{"path":"OUT/smoke.stl"}}
+{"command":"import_file","params":{"path":"OUT/smoke.step"}}
+{"command":"measure","params":{"picks":[{"kind":"body","body":5}]}}

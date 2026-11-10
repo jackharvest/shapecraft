@@ -2,6 +2,18 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.6.10-alpha
+**The command-line tools build for Android, with the full modelling kernel inside.**
+### New
+- **Android build of `shapecraft-cli`** (arm64, plus x86_64 for emulators). It is one self-contained executable,
+  with OpenCASCADE built by the Android NDK and linked in. It is aligned for the 16 KB memory pages Android 15+
+  devices use, and it runs on Android 8.0 and later. Build it with `cargo xtask android-occt`, then
+  `cargo xtask android-cli`. `cargo xtask android-smoke` runs a modelling test on a device or emulator: extrude,
+  fillet, boolean, STEP out and back in. The volumes must match the geometry, and they match the desktop exactly.
+  A weekly CI job builds it and runs the test on an Android 15 emulator. This is the first step towards Android
+  tablets; there is no app or touch interface yet. See `packaging/android/README.md`. Thanks
+  [@joravarsinghing](https://github.com/joravarsinghing) (#3).
+
 ## 0.6.9-alpha
 **Sketch on the empty background when you look straight at a plane.**
 ### Fixed
