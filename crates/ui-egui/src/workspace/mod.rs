@@ -617,7 +617,7 @@ impl Workspace {
             cursor: None,
             show_items: true,
             // A tablet opens projects with History hidden, for room to model (the button brings it back).
-            show_history: !crate::tablet::on_tablet(),
+            show_history: !crate::tablet::touch_ui(),
             tutorial: None,
             display: Default::default(),
             measuring: false,

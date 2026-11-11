@@ -701,7 +701,11 @@ impl Landing {
             p.text(
                 c + vec2(0.0, 20.0),
                 Align2::CENTER_CENTER,
-                format!("Press + or {} to start one", theme::key_text("⌘N")),
+                if crate::tablet::shows_shortcuts() {
+                    format!("Press + or {} to start one", theme::key_text("⌘N"))
+                } else {
+                    "Tap + to start one".to_string()
+                },
                 theme::body(11.0),
                 Tokens::text_dim(),
             );

@@ -48,9 +48,15 @@ Add `x86_64` after each command for the emulator's own architecture.
 
 Install the APK (`adb install ShapeCraft-….apk`, or open it on the device and allow installs from that source).
 
-- **Touch**: tap to pick and press buttons; drag on the background to turn the view (a drag on a handle moves the
-  handle); two fingers pan and pinch; a long press is a right-click; a two-finger tap undoes, three fingers redo.
-- **Screen**: the interface is scaled so it has at least 1000 × 640 points. On a phone, sideways works best.
+- **Stylus first**: the pen draws and edits like a precise mouse (it hovers; its barrel button is a right-click).
+  Fingers move the view: drag on the background to turn it (a drag on a handle moves the handle), two fingers pan
+  and pinch, a tap picks, a long press is a right-click, a two-finger tap undoes and three fingers redo. Drawing
+  with a finger works by taps but is awkward; without a pen, a mouse and keyboard are the way to model.
+- **Mouse**: all buttons and the wheel work, as on the desktop.
+- **Screen**: the interface is scaled so it has at least 1000 × 640 points, and up to 20% bigger where there's
+  room. On a phone, sideways works best. Shortcuts show only while a hardware keyboard is attached.
+- **Pointers**: winit 0.30 reports every Android pointer as a plain touch, so `third_party/winit` adds the tool type,
+  hover and mouse buttons (see its `PATCH.md`).
 - **Keyboard**: the on-screen keyboard opens when a text field has the focus. To type a number into a tool
   (Extrude 10 ↵), a hardware or Bluetooth keyboard works today.
 - **Files**: projects are kept in the app's own storage. Saves and exports go to

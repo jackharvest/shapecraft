@@ -740,7 +740,7 @@ pub fn chip_full(ui: &Ui, anchor: Pos2, def: &ToolDef, sub_text: Option<&str>, l
         .map(|c| painter.layout_no_wrap(c, theme::body(9.5), Tokens::text_dim()).size().x.max(7.0) + 10.0)
         .sum();
     let text_w = label.size().x.max(sub.as_ref().map_or(0.0, |s| s.size().x));
-    let caps_gap = if def.keys.is_empty() { 0.0 } else { 6.0 };
+    let caps_gap = if caps_w == 0.0 { 0.0 } else { 6.0 };
     let gear_w = if gear { 20.0 } else { 0.0 };
     let new_dot = is_new(def);
     let dot_w = if new_dot { 13.0 } else { 0.0 };

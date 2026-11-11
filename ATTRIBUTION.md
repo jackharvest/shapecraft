@@ -8,3 +8,9 @@ Every file asset in this repository (images, fonts, HDRIs, materials, sounds) ne
 | `assets/home/` (home screen pictures: tutorial and What's new cards) | ShapeCraft contributors | Original work: our own models rendered with `shapecraft-cli run … --png --clear` by `cargo xtask home-art`, and screenshots of our own Fillet card and Navigation Presets window | MIT OR Apache-2.0 |
 | `website/media/` (site recordings and stills) | ShapeCraft contributors | Original work: our own app recorded offscreen by `cargo xtask site-media`; the link preview card `og-card.jpg` from `website/gen/og-card.html` with our own render | MIT OR Apache-2.0 |
 | `website/media/icon.svg` | ShapeCraft contributors | Copy of `assets/icon/shapecraft.svg` | MIT OR Apache-2.0 |
+
+## Vendored code
+
+| Folder | Author | Source | License |
+|---|---|---|---|
+| `third_party/winit/` (winit 0.30.13, with a small Android pointer patch described in its `PATCH.md`) | The winit contributors | https://crates.io/crates/winit/0.30.13 | Apache-2.0 (see its `LICENSE`) |

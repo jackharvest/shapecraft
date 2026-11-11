@@ -2,16 +2,21 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.7.0-alpha
+## 0.7.1-alpha
 **ShapeCraft runs on Android: a first test build of the app, and the command-line tools with the full modelling kernel.**
 ### New
+- **Touch screens (Android, and the tablet page)**: everything is drawn up to 20% bigger where the screen has room,
+  History starts closed, a tap on the project name renames it, and keyboard shortcuts stay out of sight until a
+  keyboard is attached.
 - **ShapeCraft for Android (test build).** The whole app, the same interface as on the desktop, as an APK for
-  arm64 phones and tablets on Android 8.0 or later. Fingers work as they do on the tablet page: tap to pick, drag
-  on the background to turn the view, two fingers to pan and pinch, long press for the context menu, two- and
-  three-finger taps to undo and redo. The interface scales to fit small screens (sideways works best on a phone),
-  the on-screen keyboard opens for text fields, and a hardware keyboard types numbers into tools. Projects live in
-  the app's own storage; exports go to its folder under Android/data, which a computer can read over USB. Opening
-  files from elsewhere on the device isn't there yet. Build it with `cargo xtask android-apk`; the Android CI job
+  arm64 phones and tablets (and x86_64 for emulators) on Android 8.0 or later. A stylus draws and edits like a
+  precise mouse, hovering included, and fingers move the view as on the tablet page: drag on the background to
+  turn it, two fingers to pan and pinch, tap to pick, long press for the context menu, two- and three-finger taps
+  to undo and redo. A mouse works with all its buttons and the scroll wheel. The interface scales to fit small
+  screens (sideways works best on a phone), the on-screen keyboard opens for text fields, and a hardware keyboard
+  types numbers into tools. The launcher icon is an adaptive icon: the blue tile fills the device's icon shape.
+  Projects live in the app's own storage; exports go to its folder under Android/data, which a computer can read
+  over USB. Opening files from elsewhere on the device isn't there yet. Build it with `cargo xtask android-apk`; the Android CI job
   builds it too. See `packaging/android/README.md`.
 - **Android build of `shapecraft-cli`** (arm64, plus x86_64 for emulators). It is one self-contained executable,
   with OpenCASCADE built by the Android NDK and linked in. It is aligned for the 16 KB memory pages Android 15+
@@ -20,6 +25,9 @@ How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest fi
   fillet, boolean, STEP out and back in. The volumes must match the geometry, and they match the desktop exactly.
   A weekly CI job builds it and runs the test on an Android 15 emulator. Thanks
   [@joravarsinghing](https://github.com/joravarsinghing) (#3).
+### Fixed
+- **Renaming with Return** (the project name, or an item in the Items panel) no longer opens Search Commands as well.
+- **Preferences on a short screen** scrolls, so every setting and Done can be reached.
 
 ## 0.6.9-alpha
 **Sketch on the empty background when you look straight at a plane.**

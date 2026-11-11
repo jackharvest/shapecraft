@@ -315,7 +315,26 @@ pub(crate) struct PrefsOut {
 /// The Preferences window itself, with no Workspace behind it, so the projects screen can show it too.
 /// `shortcuts` is false where the Keyboard Shortcuts window can't open (projects screen).
 pub(crate) fn window(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings, shortcuts: bool) -> PrefsOut {
-    let r = dialog(ui, full, vec2(560.0, 848.0), "Preferences");
+    if full.height() >= PREFS_H + 2.0 * PREFS_MARGIN {
+        return window_in(ui, full, tab, s, shortcuts);
+    }
+    // A short screen (a phone held sideways): the whole window scrolls, so every setting and Done stay in reach.
+    let mut out = PrefsOut { done: false, customize: false, presets: false };
+    ui.painter().rect_filled(full, 0.0, Color32::from_black_alpha(90));
+    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(full));
+    egui::ScrollArea::vertical().id_salt("prefs-scroll").auto_shrink([false, false]).show(&mut child, |ui| {
+        let (tall, _) = ui.allocate_exact_size(vec2(full.width(), PREFS_H + 2.0 * PREFS_MARGIN), Sense::hover());
+        out = window_in(ui, tall, tab, s, shortcuts);
+    });
+    out
+}
+
+/// The Preferences window's height, and the space kept above and below it on a short screen.
+const PREFS_H: f32 = 848.0;
+const PREFS_MARGIN: f32 = 12.0;
+
+fn window_in(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings, shortcuts: bool) -> PrefsOut {
+    let r = dialog(ui, full, vec2(560.0, PREFS_H), "Preferences");
     let p = ui.painter().clone();
     let tabs = [
         ("General", Icon::Tools, true),

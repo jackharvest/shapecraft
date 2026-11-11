@@ -73,7 +73,11 @@ pub(in crate::workspace) fn titlebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
             select_all(ui.ctx(), edit_id, text.chars().count());
             *focus = false;
         }
-        let (enter, esc) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
+        // The key that ends the rename is used up here: the workspace reads keys later in the frame, and would take
+        // Return for Search Commands and Escape for deselecting.
+        let (enter, esc) = ui.input_mut(|i| {
+            (i.consume_key(egui::Modifiers::NONE, egui::Key::Enter), i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+        });
         if enter || resp.lost_focus() && !esc {
             let new = text.clone();
             ws.renaming = None;
@@ -87,7 +91,9 @@ pub(in crate::workspace) fn titlebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
         let painter = if system_menu_bar { ui.painter().clone() } else { ui.painter().with_clip_rect(name_rect) };
         let drawn = painter.text(pos2(r.left() + 134.0 - shift, r.top() + 25.0), Align2::LEFT_CENTER, name, theme::strong(16.0), text);
         name_end = name_end.min(drawn.right());
-        if ui.interact(name_rect, ui.scope_id().with("title-name"), Sense::click()).double_clicked() {
+        // A double-click renames, as on the desktop; on a touch screen one tap does (two taps are rarely quick enough).
+        let resp = ui.interact(name_rect, ui.scope_id().with("title-name"), Sense::click());
+        if resp.double_clicked() || crate::tablet::touch_ui() && resp.clicked() {
             ws.renaming = Some((None, ws.session.doc.name.clone(), true));
         }
     }

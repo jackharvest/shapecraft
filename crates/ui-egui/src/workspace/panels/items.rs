@@ -221,7 +221,11 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
                     select_all(ui.ctx(), edit_id, text.chars().count());
                     *focus = false;
                 }
-                let (enter, esc) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
+                // The key that ends the rename is used up here: the workspace reads keys later in the frame, and would take
+                // Return for Search Commands and Escape for deselecting.
+                let (enter, esc) = ui.input_mut(|i| {
+                    (i.consume_key(egui::Modifiers::NONE, egui::Key::Enter), i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+                });
                 if enter || resp.lost_focus() && !esc {
                     let new = text.clone();
                     ws.renaming = None;

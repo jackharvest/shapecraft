@@ -86,8 +86,36 @@ fn grad(id: &str, a: &str, b: &str) -> String {
 }
 
 /// One SVG variant; `mac` puts it on Apple's icon grid (tile ~80% of the canvas, soft drop shadow).
+/// What to draw: the whole icon (on its own, or on Apple's grid), or one of Android's adaptive-icon layers.
+#[derive(Clone, Copy, PartialEq)]
+enum Draw {
+    Icon {
+        mac: bool,
+    },
+    /// The blue tile's gradient across the whole square, which Android cuts to the device's shape.
+    AndroidBack,
+    /// The white shape alone, inside Android's safe zone (a 66 dp circle of the 108 dp layer).
+    AndroidFront,
+}
+
 fn svg(v: &Variant, mac: bool) -> String {
-    let (t, k) = if mac { (9.8, 80.4 / 96.0) } else { (2.0, 1.0) };
+    svg_drawing(v, Draw::Icon { mac })
+}
+
+/// Android's adaptive icon layers (background, foreground) as SVG, from the same drawing as the icon.
+pub fn android_layers() -> (String, String) {
+    let v = variant_for(1024);
+    (svg_drawing(v, Draw::AndroidBack), svg_drawing(v, Draw::AndroidFront))
+}
+
+fn svg_drawing(v: &Variant, draw: Draw) -> String {
+    let mac = draw == Draw::Icon { mac: true };
+    let (t, k) = match draw {
+        Draw::Icon { mac: true } => (9.8, 80.4 / 96.0),
+        Draw::Icon { mac: false } => (2.0, 1.0),
+        // The shape fills about 2/3 of the tile; on the 108 dp layer it should fill about 45% (inside the safe circle).
+        Draw::AndroidBack | Draw::AndroidFront => (0.0, 0.68),
+    };
     let w = 100.0 - 2.0 * t;
     let q = w / 96.0;
     let tile_d = format!("M{} Z", squircle(t, w).iter().map(|(x, y)| format!("{x:.3},{y:.3}")).collect::<Vec<_>>().join(" L"));
@@ -138,16 +166,20 @@ fn svg(v: &Variant, mac: bool) -> String {
                 .into(),
         );
     }
-    let mut body = vec![
-        format!(r#"<path d="{tile_d}" fill="url(#tile)"{}/>"#, if mac { r#" filter="url(#shadow)""# } else { "" }),
-        format!(
-            r#"<g clip-path="url(#tclip)"><path d="{tile_d}" fill="none" stroke="url(#rim)" mask="url(#rimfade)" stroke-width="{}" filter="url(#rimblur)"/>{}</g>"#,
-            py(2.0 * RIM_WIDTH * q),
-            (0..GLINTS.len())
-                .map(|i| format!(r#"<rect x="{tp}" y="{tp}" width="{wp}" height="{wp}" fill="url(#glint{i})"/>"#))
-                .collect::<String>()
-        ),
-    ];
+    let mut body = match draw {
+        Draw::AndroidFront => Vec::new(),
+        Draw::AndroidBack => vec![r#"<rect x="0" y="0" width="100" height="100" fill="url(#tile)"/>"#.to_string()],
+        Draw::Icon { .. } => vec![
+            format!(r#"<path d="{tile_d}" fill="url(#tile)"{}/>"#, if mac { r#" filter="url(#shadow)""# } else { "" }),
+            format!(
+                r#"<g clip-path="url(#tclip)"><path d="{tile_d}" fill="none" stroke="url(#rim)" mask="url(#rimfade)" stroke-width="{}" filter="url(#rimblur)"/>{}</g>"#,
+                py(2.0 * RIM_WIDTH * q),
+                (0..GLINTS.len())
+                    .map(|i| format!(r#"<rect x="{tp}" y="{tp}" width="{wp}" height="{wp}" fill="url(#glint{i})"/>"#))
+                    .collect::<String>()
+            ),
+        ],
+    };
     let stroke = py(v.stroke);
     let mut g: Vec<String> =
         FACES.iter().filter(|f| f.1).map(|(kind, _, p)| format!(r#"<polygon points="{p}" fill="url(#p{kind})"/>"#)).collect();
@@ -167,7 +199,9 @@ fn svg(v: &Variant, mac: bool) -> String {
     }
     let tf = if k != 1.0 { format!(r#" transform="translate(50 50) scale({k:.4}) translate(-50 -50)""#) } else { String::new() };
     let flt = if v.soft != 0.0 { r#" filter="url(#soft)""# } else { "" };
-    body.push(format!("<g{tf}><g{flt}>{}</g></g>", g.concat()));
+    if draw != Draw::AndroidBack {
+        body.push(format!("<g{tf}><g{flt}>{}</g></g>", g.concat()));
+    }
     format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="1024" height="1024"><title>ShapeCraft</title><defs>{}</defs>{}</svg>
 "#,
@@ -177,7 +211,7 @@ fn svg(v: &Variant, mac: bool) -> String {
 }
 
 /// Renders an SVG to an RGBA PNG of `size` × `size`.
-fn png(svg_text: &str, size: u32) -> Result<Vec<u8>> {
+pub fn png(svg_text: &str, size: u32) -> Result<Vec<u8>> {
     let tree = resvg::usvg::Tree::from_str(svg_text, &resvg::usvg::Options::default()).context("reading the SVG")?;
     let mut pixmap = resvg::tiny_skia::Pixmap::new(size, size).context("an empty image")?;
     let scale = size as f32 / tree.size().width();

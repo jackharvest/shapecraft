@@ -17,7 +17,7 @@ mod native;
 mod session;
 mod touch;
 
-pub use native::NativeTouch;
+pub use native::{NativeTouch, Pointer, PointerPhase, PointerTool};
 
 use std::cell::Cell;
 use std::net::{SocketAddr, TcpListener};
@@ -35,6 +35,33 @@ pub const DEFAULT_PORT: u16 = 8780;
 
 thread_local! {
     static ON_TABLET: Cell<bool> = const { Cell::new(false) };
+}
+
+/// The app is on a touch screen of its own (Android): see `touch_ui`.
+static TOUCH_SCREEN: AtomicBool = AtomicBool::new(false);
+/// A hardware keyboard is attached (Android says so in its configuration).
+static KEYBOARD: AtomicBool = AtomicBool::new(false);
+
+/// Set once by an app that draws on a touch screen (Android).
+pub fn set_touch_screen(on: bool) {
+    TOUCH_SCREEN.store(on, Ordering::Relaxed);
+}
+
+/// Set when a hardware keyboard comes or goes.
+pub fn set_keyboard(present: bool) {
+    KEYBOARD.store(present, Ordering::Relaxed);
+}
+
+/// Touch is the main input (Android, or the tablet's copy): History starts closed, a tap on the project name renames
+/// it, and shortcuts stay out of sight until a keyboard is attached.
+pub fn touch_ui() -> bool {
+    on_tablet() || TOUCH_SCREEN.load(Ordering::Relaxed)
+}
+
+/// Whether to show keyboard shortcuts beside tools and menu items: always with a mouse and keyboard, on a touch
+/// screen only with a hardware keyboard.
+pub fn shows_shortcuts() -> bool {
+    !touch_ui() || KEYBOARD.load(Ordering::Relaxed)
 }
 
 /// This thread draws the tablet's copy of the app (no system menu bar, no window buttons, files through the page).

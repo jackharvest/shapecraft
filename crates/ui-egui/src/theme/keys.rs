@@ -2,7 +2,15 @@
 //! keyboard says everywhere else: Ctrl, Alt and Shift, in the Windows order.
 
 /// The caps of a shortcut, in the order to show them: "⇧⌘F" is `["⇧", "⌘", "F"]` here on macOS, else `["Ctrl", "Shift", "F"]`.
+/// None on a touch screen with no keyboard (`tablet::shows_shortcuts`).
 pub fn key_caps(keys: &str) -> Vec<String> {
+    caps_if(keys, crate::tablet::shows_shortcuts())
+}
+
+fn caps_if(keys: &str, shown: bool) -> Vec<String> {
+    if !shown {
+        return Vec::new();
+    }
     if cfg!(target_os = "macos") { keys.chars().map(String::from).collect() } else { caps_elsewhere(keys) }
 }
 
@@ -25,6 +33,12 @@ fn caps_elsewhere(keys: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hidden_shortcuts_have_no_caps() {
+        assert!(caps_if("⌘N", false).is_empty());
+        assert_eq!(caps_if("⌘N", true).len(), 2);
+    }
 
     #[test]
     fn modifiers_read_as_on_the_keyboard() {

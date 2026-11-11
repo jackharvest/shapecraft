@@ -1031,6 +1031,9 @@ pub fn bare_key(accel: &str) -> Option<egui::Key> {
 
 /// "CmdOrCtrl+Shift+P" as shown beside the item off macOS: "Ctrl+Shift+P".
 fn shortcut_text(accel: &str) -> String {
+    if !crate::tablet::shows_shortcuts() {
+        return String::new();
+    }
     accel.replace("CmdOrCtrl", "Ctrl").replace("Comma", ",")
 }
 

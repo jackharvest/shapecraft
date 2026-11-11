@@ -1,9 +1,11 @@
 [workspace]
 resolver = "3"
 members = ["crates/*", "apps/*", "xtask"]
+# Patched dependencies (see each folder's PATCH.md); not workspace members.
+exclude = ["third_party/*"]
 
 [workspace.package]
-version = "0.7.0"
+version = "0.7.1"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.90"
@@ -42,3 +44,8 @@ opt-level = 2
 [profile.release]
 lto = "thin"
 strip = "symbols"
+
+# winit 0.30.13 with one addition for Android: pointer tool types, hover and mouse buttons
+# (third_party/winit/PATCH.md). Same code as the release everywhere else.
+[patch.crates-io]
+winit = { path = "third_party/winit" }

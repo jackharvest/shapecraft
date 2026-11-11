@@ -216,8 +216,27 @@ pub fn apk(rest: &[String]) -> Result<()> {
 
     let work = target().join("android").join(format!("apk-{}", abi.ndk));
     clear(&work)?;
-    let icon = work.join("res/mipmap-xxxhdpi/ic_launcher.png");
-    copy(&root().join("assets/icon/png/shapecraft-256.png"), &icon)?;
+    // The launcher icon: Android's adaptive layers (the blue tile behind, the white shape in front, cut to the
+    // device's icon shape; the shape alone for themed icons), with the flat icon for anything that can't use them.
+    let mipmap = work.join("res/mipmap-xxxhdpi");
+    std::fs::create_dir_all(&mipmap)?;
+    copy(&root().join("assets/icon/png/shapecraft-256.png"), &mipmap.join("ic_launcher.png"))?;
+    let (back, front) = crate::icons::android_layers();
+    // 108 dp at xxxhdpi (4 px per dp).
+    std::fs::write(mipmap.join("ic_launcher_background.png"), crate::icons::png(&back, 432)?)?;
+    std::fs::write(mipmap.join("ic_launcher_foreground.png"), crate::icons::png(&front, 432)?)?;
+    let adaptive = work.join("res/mipmap-anydpi-v26");
+    std::fs::create_dir_all(&adaptive)?;
+    std::fs::write(
+        adaptive.join("ic_launcher.xml"),
+        r#"<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+    <monochrome android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>
+"#,
+    )?;
     let manifest = std::fs::read_to_string(root().join("packaging/android/AndroidManifest.xml"))?.replace("PACKAGE", PACKAGE);
     std::fs::write(work.join("AndroidManifest.xml"), manifest)?;
     let aapt2 = tools.join("aapt2");
