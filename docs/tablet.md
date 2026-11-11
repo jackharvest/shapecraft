@@ -81,5 +81,6 @@ built into the app, with no web framework and no app download.
   controls for it. Projects open with History hidden and the Items column at its narrowest, for room to model.
 - The project title is a pill at the top with a ⋯ menu (Import, Export to, Help, Settings). The Items list has
   finger-sized rows, and Rename, Delete and More… along its bottom act on what's selected. One tap opens a project.
+- Phones are landscape only: held upright, the page asks you to turn the phone sideways. Tablets work both ways.
 - The layout is the desktop's. An iPad shows it at full size. Smaller screens (an iPad in portrait, a phone) see it
   scaled down to fit.

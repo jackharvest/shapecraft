@@ -241,6 +241,18 @@ pub fn apk(rest: &[String]) -> Result<()> {
 </adaptive-icon>
 "#,
     )?;
+    // Phones are landscape only (both ways round); from 600 dp across the narrow side (tablets, an opened foldable)
+    // the screen may turn freely. The manifest's screenOrientation reads this value.
+    for (dir, value) in [("values", 6), ("values-sw600dp", -1)] {
+        let d = work.join("res").join(dir);
+        std::fs::create_dir_all(&d)?;
+        std::fs::write(
+            d.join("orientation.xml"),
+            format!(
+                "<?xml version=\"1.0\" encoding=\"utf-8\"?>\n<resources>\n    <integer name=\"orientation\">{value}</integer>\n</resources>\n"
+            ),
+        )?;
+    }
     let manifest = std::fs::read_to_string(root().join("packaging/android/AndroidManifest.xml"))?.replace("PACKAGE", PACKAGE);
     std::fs::write(work.join("AndroidManifest.xml"), manifest)?;
     let aapt2 = tools.join("aapt2");

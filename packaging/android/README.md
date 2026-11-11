@@ -54,7 +54,7 @@ Install the APK (`adb install ShapeCraft-….apk`, or open it on the device and 
   3D view. Without a pen, a mouse and keyboard are the way to model.
 - **Mouse**: all buttons and the wheel work, as on the desktop.
 - **Screen**: one point is drawn 1.21 dp, the size of an iPad point, so a tablet shows the interface at the size it
-  has on an iPad; small screens shrink it to keep at least 1000 × 640 points. On a phone, sideways works best. Shortcuts show only while a hardware keyboard is attached.
+  has on an iPad; small screens shrink it to keep at least 1000 × 640 points. Phones (under 600 dp across the narrow side) run in landscape only, either way round; tablets and opened foldables turn freely. Shortcuts show only while a hardware keyboard is attached.
 - **Pointers**: winit 0.30 reports every Android pointer as a plain touch, so `third_party/winit` adds the tool type,
   hover and mouse buttons (see its `PATCH.md`).
 - **Keyboard**: the on-screen keyboard opens when a text field has the focus. To type a number into a tool

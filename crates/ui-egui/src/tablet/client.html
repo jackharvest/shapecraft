@@ -48,10 +48,20 @@
     text-decoration: none; font-weight: 500; }
   .sheet .b.go { background: var(--accent); color: #fff; }
   .sheet progress { width: 100%; accent-color: var(--accent); }
+  /* Phones are landscape only: upright, a card asks to turn it (tablets and opened foldables turn freely). */
+  #turn { position: fixed; inset: 0; z-index: 9; display: none; flex-direction: column; align-items: center; justify-content: center;
+    gap: 14px; padding: 32px; text-align: center; background: #1c1c1e; color: #f2f2f7; touch-action: none; }
+  #turn .d { color: #a1a1a6; font-size: 14px; max-width: 280px; }
+  body.upright-phone #turn { display: flex; }
   @media (prefers-color-scheme: light) { :root { --sheet: rgba(242,242,247,.94); --ink: #1c1c1e; --dim: #6e6e73; } }
 </style>
 </head>
 <body>
+<div id="turn" aria-live="polite">
+  <svg width="64" height="64" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="20" y="8" width="24" height="40" rx="4"/><path d="M29 43h6"/><path d="M14 52c6 6 18 7 27 3"/><path d="M41 55l2-5-5-1"/></svg>
+  <div style="font-weight:600;font-size:17px">Turn your phone sideways</div>
+  <div class="d">On a phone, ShapeCraft works in landscape only.</div>
+</div>
 <div id="stage"><canvas id="screen" tabindex="-1"></canvas></div>
 <textarea id="kb" autocapitalize="off" autocomplete="off" autocorrect="off" spellcheck="false" aria-hidden="true"></textarea>
 <div id="status" class="pill hidden">Connecting…</div>
@@ -378,6 +388,14 @@
 
   connect();
 })();
+  // Phones (narrow side under 600 points) are landscape only.
+  const uprightPhone = () => {
+    const narrow = Math.min(screen.width, screen.height) < 600;
+    document.body.classList.toggle("upright-phone", narrow && window.innerHeight > window.innerWidth);
+  };
+  uprightPhone();
+  addEventListener("resize", uprightPhone);
+  addEventListener("orientationchange", uprightPhone);
 </script>
 </body>
 </html>

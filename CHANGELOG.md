@@ -2,6 +2,13 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.7.4-alpha
+**Phones are landscape only.**
+### Changed
+- **Phones run ShapeCraft sideways.** The Android app stays in landscape (either way round) on screens under 600 dp
+  across, and the tablet page in a phone's browser asks you to turn the phone when it's upright. Tablets and opened
+  foldables still turn freely.
+
 ## 0.7.3-alpha
 **ShapeCraft runs on Android: a first test build of the app, and the command-line tools with the full modelling kernel.
 Touch screens get the Pencil's own gestures.**
