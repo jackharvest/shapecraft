@@ -2,6 +2,22 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.7.7-alpha
+**ShapeCraft for Android comes with each release, signed so later versions install over it, and a simpler first run on touch screens.**
+### New
+- **An Android APK on the Releases page** (`shapecraft-<version>-android-arm64.apk`, arm64, Android 8.0+). Every
+  version is signed with the same release key, so a new one updates the installed app and keeps your projects. A copy
+  from an earlier test build (debug-signed) has to be uninstalled once first. Follow-up to
+  [@joravarsinghing](https://github.com/joravarsinghing)'s #3 (#8).
+### Changed
+- **The first run on a tablet offers two choices, not three:** Apple Pencil or Mouse or Trackpad on an iPad, Stylus
+  or Mouse and Keyboard on Android. Fingers always move the view, so their gestures are in the pencil's list instead
+  of a choice of their own. A USB-C or Bluetooth mouse on an iPad works too: click and right-click as on a computer.
+- **"Apple Pencil (or Stylus) may not be connected" explains itself.** Tap it for what's needed: a connected stylus
+  that the device sees as a pen (Apple Pencil, S Pen, a USI pen), since rubber-tip styluses count as fingers and
+  fingers only move the view. **Use a Mouse** switches to the mouse instead. It comes back for a moment when a
+  finger taps the model before any pen has, and never shows for mouse or trackpad users.
+
 ## 0.7.6-alpha
 **Patterns take a typed quantity, value boxes insert and create variables, and Android opens and saves files anywhere.**
 ### New

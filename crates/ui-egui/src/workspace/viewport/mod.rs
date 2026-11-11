@@ -84,6 +84,9 @@ impl Workspace {
             // A finger on a touch screen only moves the view, as on iPad: no picking, no hover, no
             // handles (the pen does those). A double tap zooms to the face under it.
             self.hover = None;
+            if resp.clicked() && !crate::tablet::pen_seen() && !self.pen_answered {
+                self.pen_nudged = Some(self.now);
+            }
             if resp.double_clicked()
                 && let Some(c) = self.cursor
             {

@@ -1712,7 +1712,7 @@ impl ShapeCraftApp {
             let view = self.ws.as_deref().map_or(0.0, |ws| ws.view_ms);
             self.frame_work.push((began.elapsed().as_secs_f32() * 1000.0, view));
         }
-        // A tablet asks its own question once: pencil, fingers or keyboard, then shows that one's controls.
+        // A tablet asks its own question once: Pencil or keyboard, then shows that one's controls.
         if crate::tablet::on_tablet() {
             if (self.settings.tablet_device.is_empty() || self.ask_device)
                 && let Some(i) = crate::onboarding::tablet(ui, &mut self.tablet_choice)
@@ -1722,7 +1722,7 @@ impl ShapeCraftApp {
                 self.tablet_choice = None;
                 self.sync_settings();
             }
-        // Android asks the touch question too (stylus, fingers, or a mouse and keyboard, #10), then carries on as
+        // Android asks the touch question too (a stylus, or a mouse and keyboard, #10), then carries on as
         // the desktop does; only a mouse goes on to how the view moves.
         } else if crate::tablet::touch_ui() && ((self.settings_file.is_some() && self.settings.device.is_empty()) || self.ask_device) {
             if let Some(i) = crate::onboarding::tablet(ui, &mut self.tablet_choice) {

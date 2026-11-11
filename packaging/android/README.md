@@ -55,7 +55,9 @@ Add `x86_64` after each command for the emulator's own architecture.
 Install the APK (`adb install ShapeCraft-….apk`, or open it on the device and allow installs from that source).
 
 - **Stylus first**, as on iPad: the pen picks, draws and drags handles (it hovers; its barrel
-  button is a right-click). Fingers only move the view: one finger turns it, two pan and pinch, a double tap zooms
+  button is a right-click). It has to be a stylus Android reports as a pen, such as an S Pen or a USI pen;
+  rubber-tip styluses count as fingers. Until a pen is used, "Stylus may not be connected" under the project title
+  says so when tapped. Fingers only move the view: one finger turns it, two pan and pinch, a double tap zooms
   to a face, a three-finger swipe left or right undoes or redoes; they press buttons but never pick or draw in the
   3D view. Without a pen, a mouse and keyboard are the way to model.
 - **Mouse**: all buttons and the wheel work, as on the desktop.

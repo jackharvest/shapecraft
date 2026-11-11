@@ -456,6 +456,13 @@ pub struct Workspace {
     pub pill_bottom: f32,
     /// When this project opened on a touch screen (the "pen may not be connected" bubble shows for a while).
     pub touch_opened: Option<f64>,
+    /// When a finger last tapped the model with no pen seen yet: the bubble comes back for a while, since that's
+    /// when "why doesn't tapping work?" is asked.
+    pub pen_nudged: Option<f64>,
+    /// The bubble was tapped: its card explains what a stylus needs and offers the mouse instead.
+    pub pen_help: bool,
+    /// Its card was answered (OK or Use a Mouse): finger taps no longer bring the bubble back in this project.
+    pub pen_answered: bool,
     /// The touch ⋯ menu's open submenu (0 Import, 1 Export to).
     pub title_sub: Option<usize>,
     /// A file/app action asked for from inside the workspace (the touch screen's ⋯ menu); the app takes it.
@@ -517,7 +524,7 @@ pub(crate) struct Preview {
 }
 
 /// How long the "pen may not be connected" bubble stays.
-const PEN_BUBBLE_SECS: f64 = 6.0;
+pub(crate) const PEN_BUBBLE_SECS: f64 = 6.0;
 
 impl Workspace {
     /// The Distance Type Offset Face uses for this face: a round face's own, else Total or Offset.
@@ -768,6 +775,9 @@ impl Workspace {
             title_menu: false,
             pill_bottom: 0.0,
             touch_opened: None,
+            pen_nudged: None,
+            pen_help: false,
+            pen_answered: false,
             title_sub: None,
             app_request: None,
             recent_commands: vec!["extrude", "rectangle"],
@@ -930,10 +940,15 @@ impl Workspace {
         (self.viewport_rect.top() + 8.0).max(self.pill_bottom + 10.0 + bubble)
     }
 
-    /// iPad shows "Apple Pencil may not be connected" under the title on opening a project with no pencil paired:
-    /// here, for the first seconds of a project on a touch screen until a pen is used.
+    /// "Apple Pencil (or Stylus) may not be connected" under the title: for the first seconds of a project on a touch
+    /// screen, again after a finger taps the model, and while its card is open; until a pen is used. Only when the
+    /// first run's answer was the pen (an empty or pre-0.7.7 "touch" answer counts), never for a mouse or trackpad.
     pub(crate) fn pen_bubble(&self) -> bool {
-        self.pill_bottom > 0.0 && !crate::tablet::pen_seen() && self.touch_opened.is_some_and(|t| self.now - t < PEN_BUBBLE_SECS)
+        let recent = |t: Option<f64>| t.is_some_and(|t| self.now - t < PEN_BUBBLE_SECS);
+        self.pill_bottom > 0.0
+            && !crate::tablet::pen_seen()
+            && !matches!(self.settings.tablet_device.as_str(), "keyboard" | "mouse")
+            && (recent(self.touch_opened) || recent(self.pen_nudged) || self.pen_help)
     }
 
     pub(super) fn glass(&self) -> Option<(egui::TextureId, Rect)> {

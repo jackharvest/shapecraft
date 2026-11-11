@@ -42,6 +42,7 @@ Close the tab or let the iPad sleep and the copy keeps going: open it again and 
 | Magic Keyboard / any keyboard | Every shortcut, ⌘ included. Typing a number while a tool runs works as on the computer. |
 | On-screen keyboard | When ShapeCraft wants text, a keyboard button appears at the bottom right. iOS opens its keyboard only from a tap, so the button is there for that tap. |
 | Trackpad | Two-finger scroll turns the view, pinch zooms, as on a Mac trackpad. |
+| Mouse | A USB-C or Bluetooth mouse works too: click picks and draws, right-click opens more options. |
 
 ## Files
 
@@ -77,7 +78,9 @@ built into the app, with no web framework and no app download.
   **Use Here** button instead of taking it back.
 - The computer and the tablet can both open projects. Don't edit the *same* project on both at once: each saves its
   own copy over the other.
-- The first time, the tablet asks how you'll work (Apple Pencil, fingers, or keyboard and trackpad) and shows the
+- Until a pen is used, a red "Apple Pencil may not be connected" note sits under the project title for a few
+  seconds (and again when a finger taps the model). Tap it for what a stylus needs, or **Use a Mouse** instead.
+- The first time, the tablet asks how you'll work (Apple Pencil, or a mouse or trackpad with the keyboard; fingers always move the view) and shows the
   controls for it. Projects open with History hidden and the Items column at its narrowest, for room to model.
 - The project title is a pill at the top with a ⋯ menu (Import, Export to, Help, Settings). The Items list has
   finger-sized rows, and Rename, Delete and More… along its bottom act on what's selected. One tap opens a project.

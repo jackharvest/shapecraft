@@ -81,33 +81,28 @@ fn device_art(p: &egui::Painter, r: Rect, mouse: bool) {
 }
 
 /// A tablet's choices: (shown name, stored value). Each device's input is told apart by itself either way; this
-/// picks which controls are shown, and is the walk-through.
-pub const TABLET_DEVICES: [(&str, &str); 3] = [("Apple Pencil", "pencil"), ("Fingers", "touch"), ("Keyboard and Trackpad", "keyboard")];
+/// picks which controls are shown, and is the walk-through. Fingers aren't a choice of their own: they only move the
+/// view, so the pencil's list covers them.
+pub const TABLET_DEVICES: [(&str, &str); 2] = [("Apple Pencil", "pencil"), ("Mouse or Trackpad", "keyboard")];
 
-/// The same question in the Android app (#10): a stylus, fingers, or a mouse and keyboard.
-pub const ANDROID_DEVICES: [(&str, &str); 3] = [("Stylus", "pencil"), ("Fingers", "touch"), ("Mouse and Keyboard", "mouse")];
+/// The same question in the Android app (#10): a stylus, or a mouse and keyboard.
+pub const ANDROID_DEVICES: [(&str, &str); 2] = [("Stylus", "pencil"), ("Mouse and Keyboard", "mouse")];
 
 /// The touch-screen choices for this copy: the Android app's own, else the tablet page's.
-pub fn touch_devices() -> &'static [(&'static str, &'static str); 3] {
+pub fn touch_devices() -> &'static [(&'static str, &'static str); 2] {
     if crate::tablet::on_tablet() { &TABLET_DEVICES } else { &ANDROID_DEVICES }
 }
 
 /// What each Android choice does, as (gesture, effect).
-const ANDROID_CONTROLS: [&[(&str, &str)]; 3] = [
+const ANDROID_CONTROLS: [&[(&str, &str)]; 2] = [
     &[
         ("Stylus tap", "Pick and press. Hovering lights what a tap picks."),
         ("Stylus drag", "Draw (a round stroke makes a circle), and drag handles and arrows."),
         ("Stylus hold, then drag", "Area Selection."),
         ("Stylus button", "More options, like a right-click."),
-        ("One finger drag", "Turn the view, even while drawing."),
+        ("One finger drag", "Turn the view, even while drawing (fingers only move the view)."),
         ("Two fingers", "Pan, and pinch to zoom."),
-        ("Three-finger swipe", "Left to undo, right to redo."),
-    ],
-    &[
-        ("Fingers", "Move the view and press buttons; a stylus picks and draws."),
-        ("One finger drag", "Turn the view."),
-        ("Two fingers", "Pan, and pinch to zoom."),
-        ("Double tap", "Zoom to the face."),
+        ("Finger double tap", "Zoom to the face."),
         ("Three-finger swipe", "Left to undo, right to redo."),
     ],
     &[
@@ -119,21 +114,14 @@ const ANDROID_CONTROLS: [&[(&str, &str)]; 3] = [
 ];
 
 /// What each tablet choice does, as (gesture, effect).
-const TABLET_CONTROLS: [&[(&str, &str)]; 3] = [
+const TABLET_CONTROLS: [&[(&str, &str)]; 2] = [
     &[
         ("Pencil tap", "Pick and press. Hovering lights what a tap picks."),
         ("Pencil drag", "Draw (a round stroke makes a circle), and drag handles and arrows."),
         ("Pencil hold, then drag", "Area Selection."),
-        ("One finger drag", "Turn the view, even while drawing."),
+        ("One finger drag", "Turn the view, even while drawing (fingers only move the view)."),
         ("Two fingers", "Pan, and pinch to zoom."),
         ("Finger double tap", "Zoom to the face."),
-        ("Three-finger swipe", "Left to undo, right to redo."),
-    ],
-    &[
-        ("Fingers", "Move the view and press buttons; the Pencil picks and draws."),
-        ("One finger drag", "Turn the view."),
-        ("Two fingers", "Pan, and pinch to zoom."),
-        ("Double tap", "Zoom to the face."),
         ("Three-finger swipe", "Left to undo, right to redo."),
     ],
     &[
@@ -141,6 +129,7 @@ const TABLET_CONTROLS: [&[(&str, &str)]; 3] = [
         ("Two-finger scroll", "Turn the view."),
         ("Pinch", "Zoom."),
         ("Secondary click", "More options."),
+        ("Mouse", "Works too (USB-C or Bluetooth): click picks and draws, right-click for more options."),
         ("Keyboard", "Every shortcut, as on the computer."),
     ],
 ];
@@ -171,15 +160,15 @@ pub fn tablet(ui: &mut Ui, choice: &mut Option<usize>) -> Option<usize> {
             pos2(card.center().x, card.top() + 72.0),
             Align2::CENTER_CENTER,
             if android {
-                "Use any of them any time: a stylus, fingers and a mouse are told apart by themselves."
+                "Use either any time: a stylus and a mouse are told apart by themselves, and fingers always move the view."
             } else {
-                "Use any of them any time: the pencil, fingers and a trackpad are told apart by themselves."
+                "Use either any time: the Pencil, a mouse and a trackpad are told apart by themselves; fingers always move the view."
             },
             theme::body(13.0),
             Tokens::text_dim(),
         );
         for (i, (name, _)) in touch_devices().iter().enumerate() {
-            let tile = Rect::from_min_size(pos2(card.left() + 40.0 + i as f32 * 240.0, card.top() + 100.0), vec2(220.0, 190.0));
+            let tile = Rect::from_min_size(pos2(card.center().x - 230.0 + i as f32 * 240.0, card.top() + 100.0), vec2(220.0, 190.0));
             let resp = ui.interact(tile, ui.scope_id().with(("tablet-device", i)), Sense::click());
             let on = *choice == Some(i);
             let lit = on || resp.hovered();
@@ -203,7 +192,6 @@ pub fn tablet(ui: &mut Ui, choice: &mut Option<usize>) -> Option<usize> {
             let art = Rect::from_center_size(pos2(tile.center().x, tile.top() + 78.0), vec2(150.0, 100.0));
             match i {
                 0 => pencil_art(&p, art),
-                1 => finger_art(&p, art),
                 _ => device_art(&p, art, android),
             }
             p.text(pos2(tile.center().x, tile.bottom() - 26.0), Align2::CENTER_CENTER, *name, theme::strong(14.5), Tokens::text_strong());
@@ -240,16 +228,4 @@ fn pencil_art(p: &egui::Painter, r: Rect) {
     p.add(egui::Shape::closed_line(vec![tip, cone + n, end + n, end - n, cone - n], ink));
     p.line_segment([cone + n, cone - n], ink);
     p.circle_filled(tip + d * 5.0, 2.2, theme::c(0xbdbdc2));
-}
-
-/// Our own picture of a fingertip touching the glass.
-fn finger_art(p: &egui::Painter, r: Rect) {
-    let ink = Stroke::new(1.6, theme::c(0xbdbdc2));
-    let c = r.center();
-    let finger = Rect::from_min_max(pos2(c.x - 13.0, c.y - 44.0), pos2(c.x + 13.0, c.y + 22.0));
-    p.rect_stroke(finger, egui::CornerRadius { nw: 13, ne: 13, sw: 4, se: 4 }, ink, StrokeKind::Inside);
-    p.line_segment([pos2(c.x - 7.0, c.y - 34.0), pos2(c.x + 7.0, c.y - 34.0)], Stroke::new(1.2, Color32::from_white_alpha(80)));
-    for k in 1..=2 {
-        p.circle_stroke(pos2(c.x, c.y + 34.0), 8.0 * k as f32, Stroke::new(1.2, Color32::from_white_alpha(110 - 40 * k)));
-    }
 }

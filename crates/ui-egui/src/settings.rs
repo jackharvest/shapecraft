@@ -60,7 +60,7 @@ pub struct Settings {
     pub favorite_formats: Vec<String>,
     /// The first run's answer (onboarding): "mouse" or "trackpad"; empty until asked.
     pub device: String,
-    /// The same question on a tablet (its own answer): "pencil", "touch" or "keyboard"; empty until asked.
+    /// The same question on a tablet (its own answer): "pencil" or "keyboard" ("touch" from before 0.7.7, when fingers were a choice); empty until asked.
     pub tablet_device: String,
     /// The first run's second question (navigation style) has been answered or skipped.
     pub nav_asked: bool,

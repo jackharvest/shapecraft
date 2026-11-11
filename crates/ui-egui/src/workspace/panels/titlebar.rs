@@ -8,8 +8,8 @@ use super::select_all;
 use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens, radius};
 use crate::window_chrome;
-use crate::workspace::Workspace;
 use crate::workspace::toolbar::UiAction;
+use crate::workspace::{PEN_BUBBLE_SECS, Workspace};
 
 /// The title bar's home button, as observed: a filled grey house (19×17) with a chimney and a door.
 fn home_button(ui: &mut Ui, center: Pos2, ink: Color32, bar: Color32) -> bool {
@@ -141,14 +141,22 @@ pub(in crate::workspace) fn touch_title(ws: &mut Workspace, ui: &mut Ui, bar: Re
         ws.touch_opened = Some(ws.now);
     }
     if ws.pen_bubble() {
-        // Measured on iPad: a red-tinted capsule 10 pt under the pill, 27.5 tall.
-        let text = "Pen may not be connected";
+        // Measured on iPad: a red-tinted capsule 10 pt under the pill, 27.5 tall. A tap opens its card.
+        let text = if crate::tablet::on_tablet() { "Apple Pencil may not be connected" } else { "Stylus may not be connected" };
         let g = ui.painter().layout_no_wrap(text.into(), theme::body(13.0), theme::c(0xff6961));
         let r = Rect::from_center_size(pos2(frame.center().x, frame.bottom() + 10.0 + 14.0), vec2(g.size().x + 28.0, 27.5));
         ui.painter().rect_filled(r, radius(14), theme::c(0x3a1f1f));
         ui.painter().galley(r.center() - g.size() / 2.0, g, theme::c(0xff6961));
+        if ui.interact(r.expand(6.0), ui.scope_id().with("pen-bubble"), Sense::click()).clicked() {
+            ws.pen_help = !ws.pen_help;
+        }
+        if ws.pen_help {
+            pen_help_card(ws, ui, pos2(frame.center().x, r.bottom() + 8.0));
+        }
         // Wake up to take it away even if nothing else moves.
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
+    } else {
+        ws.pen_help = false;
     }
     if home_button(ui, home_c, ink, fill) {
         ws.go_home = true;
@@ -223,6 +231,79 @@ pub(in crate::workspace) fn touch_title(ws: &mut Workspace, ui: &mut Ui, bar: Re
         touch_more_menu(ws, ui, more, more_c, below, ink);
     } else {
         ws.title_sub = None;
+    }
+}
+
+/// The pen bubble's card: what a stylus needs (connected, and seen by the device as a pen, since fingers only move
+/// the view), and the mouse instead.
+fn pen_help_card(ws: &mut Workspace, ui: &mut Ui, top: Pos2) {
+    let ipad = crate::tablet::on_tablet();
+    let (title, body, alt) = if ipad {
+        (
+            "No Apple Pencil yet",
+            "Connect or pair your Apple Pencil, then tap with it. ShapeCraft picks and draws with the Pencil; fingers \
+             only move the view.",
+            "No Pencil? A mouse or trackpad works too.",
+        )
+    } else {
+        (
+            "No stylus yet",
+            "Connect or pair your stylus, then tap with it. ShapeCraft needs a stylus the device reports as a pen (an \
+             S Pen or a USI pen, for example). Rubber-tip styluses count as fingers, and fingers only move the view.",
+            "No stylus? A USB-C or Bluetooth mouse works too.",
+        )
+    };
+    let width = 400.0;
+    let wrap = |t: &str, font| ui.painter().layout(t.to_string(), font, Tokens::text_dim(), width - 40.0);
+    let (g_body, g_alt) = (wrap(body, theme::body(14.0)), wrap(alt, theme::body(14.0)));
+    let height = 20.0 + 24.0 + 10.0 + g_body.size().y + 10.0 + g_alt.size().y + 16.0 + 36.0 + 16.0;
+    let card = Rect::from_min_size(pos2(top.x - width / 2.0, top.y), vec2(width, height));
+    let mut close = false;
+    egui::Area::new(ui.scope_id().with("pen-help")).fixed_pos(card.min).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
+        let (_, _) = ui.allocate_exact_size(card.size(), Sense::click());
+        let p = ui.painter();
+        p.rect_filled(card.translate(vec2(0.0, 6.0)), radius(14), Color32::from_black_alpha(80));
+        p.rect_filled(card, radius(13), theme::c(0x2c2c2e));
+        let x = card.left() + 20.0;
+        let mut y = card.top() + 20.0;
+        p.text(pos2(x, y + 12.0), Align2::LEFT_CENTER, title, theme::strong(16.0), Tokens::text_strong());
+        y += 34.0;
+        let h = g_body.size().y;
+        p.galley(pos2(x, y), g_body, Tokens::text_dim());
+        y += h + 10.0;
+        let h = g_alt.size().y;
+        p.galley(pos2(x, y), g_alt, Tokens::text_dim());
+        y += h + 16.0;
+        let ok = Rect::from_min_size(pos2(card.right() - 20.0 - 90.0, y), vec2(90.0, 36.0));
+        let mouse = Rect::from_min_size(pos2(ok.left() - 10.0 - 150.0, y), vec2(150.0, 36.0));
+        let mouse_resp = ui.interact(mouse, ui.scope_id().with("pen-help-mouse"), Sense::click());
+        let ok_resp = ui.interact(ok, ui.scope_id().with("pen-help-ok"), Sense::click());
+        let p = ui.painter();
+        p.rect_filled(mouse, radius(9), if mouse_resp.hovered() { theme::c(0x48484a) } else { theme::c(0x3a3a3c) });
+        p.text(mouse.center(), Align2::CENTER_CENTER, "Use a Mouse", theme::strong(14.0), Tokens::text_strong());
+        p.rect_filled(ok, radius(9), if ok_resp.hovered() { theme::c(0x2f7cf6) } else { Tokens::accent() });
+        p.text(ok.center(), Align2::CENTER_CENTER, "OK", theme::strong(14.0), Color32::WHITE);
+        if mouse_resp.clicked() {
+            // As if the first run's answer had been the mouse (the app saves the workspace's settings).
+            if ipad {
+                ws.settings.tablet_device = "keyboard".into();
+            } else {
+                let (_, value, preset) = crate::onboarding::DEVICES[0];
+                ws.settings.tablet_device = value.into();
+                ws.settings.device = value.into();
+                ws.settings.nav_preset = preset.into();
+            }
+            close = true;
+        }
+        if ok_resp.clicked() {
+            close = true;
+        }
+    });
+    if close {
+        ws.pen_help = false;
+        ws.pen_answered = true;
+        ws.touch_opened = Some(ws.now - PEN_BUBBLE_SECS);
+        ws.pen_nudged = None;
     }
 }
 
