@@ -164,7 +164,9 @@ impl Workspace {
             p.line_segment([c - vec2(0.0, 3.2), c + vec2(0.0, 0.8)], Stroke::new(1.5, Color32::WHITE));
             p.circle_filled(c + vec2(0.0, 3.0), 0.9, Color32::WHITE);
         }
-        for (i, def) in defs.iter().enumerate() {
+        // On a phone with Menu Labels off, the right column is icons only too (#9).
+        let labels = !(crate::tablet::small_screen() && self.settings.menu_labels == "Never");
+        for (i, def) in defs.iter().enumerate().filter(|_| labels) {
             let cy = if i < 2 { top + 1.0 + Tokens::TOOL_PITCH * (i as f32 + 0.5) } else { hist_y + 1.0 + Tokens::TOOL_PITCH / 2.0 };
             // The label is a button too (as in the reference: clicking "Display Modes" opens its popover).
             let chip = toolbar::chip(ui, pos2(x - 6.0, cy), def, true, false);
@@ -228,7 +230,7 @@ impl Workspace {
                 if let Some(k) = toolbar::group_full(ui, pos2(x, y), &defs, &[], &[], &dim, false, &format!("c-group{gi}"), None) {
                     clicked = Some(rows[first + k].2);
                 }
-                for (k, d) in defs.iter().enumerate() {
+                for (k, d) in defs.iter().enumerate().filter(|_| labels) {
                     let cy = y + 1.0 + Tokens::TOOL_PITCH * (k as f32 + 0.5);
                     let r = toolbar::chip(ui, pos2(x - 6.0, cy), d, true, dim[k]);
                     if ui.interact(r, ui.scope_id().with(("constraint", d.label)), Sense::click()).clicked() && !dim[k] {

@@ -84,6 +84,40 @@ fn device_art(p: &egui::Painter, r: Rect, mouse: bool) {
 /// picks which controls are shown, and is the walk-through.
 pub const TABLET_DEVICES: [(&str, &str); 3] = [("Apple Pencil", "pencil"), ("Fingers", "touch"), ("Keyboard and Trackpad", "keyboard")];
 
+/// The same question in the Android app (#10): a stylus, fingers, or a mouse and keyboard.
+pub const ANDROID_DEVICES: [(&str, &str); 3] = [("Stylus", "pencil"), ("Fingers", "touch"), ("Mouse and Keyboard", "mouse")];
+
+/// The touch-screen choices for this copy: the Android app's own, else the tablet page's.
+pub fn touch_devices() -> &'static [(&'static str, &'static str); 3] {
+    if crate::tablet::on_tablet() { &TABLET_DEVICES } else { &ANDROID_DEVICES }
+}
+
+/// What each Android choice does, as (gesture, effect).
+const ANDROID_CONTROLS: [&[(&str, &str)]; 3] = [
+    &[
+        ("Stylus tap", "Pick and press. Hovering lights what a tap picks."),
+        ("Stylus drag", "Draw (a round stroke makes a circle), and drag handles and arrows."),
+        ("Stylus hold, then drag", "Area Selection."),
+        ("Stylus button", "More options, like a right-click."),
+        ("One finger drag", "Turn the view, even while drawing."),
+        ("Two fingers", "Pan, and pinch to zoom."),
+        ("Three-finger swipe", "Left to undo, right to redo."),
+    ],
+    &[
+        ("Fingers", "Move the view and press buttons; a stylus picks and draws."),
+        ("One finger drag", "Turn the view."),
+        ("Two fingers", "Pan, and pinch to zoom."),
+        ("Double tap", "Zoom to the face."),
+        ("Three-finger swipe", "Left to undo, right to redo."),
+    ],
+    &[
+        ("Click", "Pick, draw, and drag handles."),
+        ("Right-click", "More options."),
+        ("Middle drag and wheel", "Turn and zoom the view (next: how it feels)."),
+        ("Keyboard", "Every shortcut, as on the computer."),
+    ],
+];
+
 /// What each tablet choice does, as (gesture, effect).
 const TABLET_CONTROLS: [&[(&str, &str)]; 3] = [
     &[
@@ -119,7 +153,8 @@ pub fn tablet(ui: &mut Ui, choice: &mut Option<usize>) -> Option<usize> {
         let (_, _) = ui.allocate_exact_size(full.size(), Sense::click());
         let p = ui.painter().clone();
         p.rect_filled(full, 0.0, Color32::from_black_alpha(150));
-        let rows = choice.map_or(0, |c| TABLET_CONTROLS[c].len());
+        let android = !crate::tablet::on_tablet();
+        let rows = choice.map_or(0, |c| if android { ANDROID_CONTROLS[c].len() } else { TABLET_CONTROLS[c].len() });
         let card =
             Rect::from_center_size(full.center(), vec2(780.0, 330.0 + if choice.is_some() { rows as f32 * 30.0 + 70.0 } else { 0.0 }));
         p.rect_filled(card.translate(vec2(0.0, 6.0)).expand(2.0), radius(14), Color32::from_black_alpha(90));
@@ -128,18 +163,22 @@ pub fn tablet(ui: &mut Ui, choice: &mut Option<usize>) -> Option<usize> {
         p.text(
             pos2(card.center().x, card.top() + 44.0),
             Align2::CENTER_CENTER,
-            "How do you want to use ShapeCraft on this tablet?",
+            if android { "How do you want to use ShapeCraft on this device?" } else { "How do you want to use ShapeCraft on this tablet?" },
             theme::strong(19.0),
             Tokens::text_strong(),
         );
         p.text(
             pos2(card.center().x, card.top() + 72.0),
             Align2::CENTER_CENTER,
-            "Use any of them any time: the pencil, fingers and a trackpad are told apart by themselves.",
+            if android {
+                "Use any of them any time: a stylus, fingers and a mouse are told apart by themselves."
+            } else {
+                "Use any of them any time: the pencil, fingers and a trackpad are told apart by themselves."
+            },
             theme::body(13.0),
             Tokens::text_dim(),
         );
-        for (i, (name, _)) in TABLET_DEVICES.iter().enumerate() {
+        for (i, (name, _)) in touch_devices().iter().enumerate() {
             let tile = Rect::from_min_size(pos2(card.left() + 40.0 + i as f32 * 240.0, card.top() + 100.0), vec2(220.0, 190.0));
             let resp = ui.interact(tile, ui.scope_id().with(("tablet-device", i)), Sense::click());
             let on = *choice == Some(i);
@@ -165,7 +204,7 @@ pub fn tablet(ui: &mut Ui, choice: &mut Option<usize>) -> Option<usize> {
             match i {
                 0 => pencil_art(&p, art),
                 1 => finger_art(&p, art),
-                _ => device_art(&p, art, false),
+                _ => device_art(&p, art, android),
             }
             p.text(pos2(tile.center().x, tile.bottom() - 26.0), Align2::CENTER_CENTER, *name, theme::strong(14.5), Tokens::text_strong());
             if resp.clicked() {
@@ -174,7 +213,8 @@ pub fn tablet(ui: &mut Ui, choice: &mut Option<usize>) -> Option<usize> {
         }
         if let Some(c) = *choice {
             let mut y = card.top() + 322.0;
-            for (gesture, what) in TABLET_CONTROLS[c] {
+            let controls = if android { ANDROID_CONTROLS[c] } else { TABLET_CONTROLS[c] };
+            for (gesture, what) in controls {
                 p.text(pos2(card.left() + 60.0, y), Align2::LEFT_CENTER, *gesture, theme::strong(14.0), Tokens::text_strong());
                 p.text(pos2(card.left() + 280.0, y), Align2::LEFT_CENTER, *what, theme::body(14.0), Tokens::text_dim());
                 y += 30.0;

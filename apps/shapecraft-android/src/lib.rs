@@ -28,6 +28,8 @@ mod android {
         // Exports land in Android/data/<package>/files, which a computer can read over USB.
         shapecraft_ui::dialogs::set_android_folder(app.external_data_path().unwrap_or_else(|| data.join("Exports")));
         shapecraft_ui::tablet::set_touch_screen(true);
+        // Phones (under 600 dp across) keep their view clear, the same line the manifest's orientation uses.
+        shapecraft_ui::tablet::set_small_screen(app.config().smallest_screen_width_dp() < 600);
         // Android has no Documents folder for the app: projects go in its own storage (…/files/ShapeCraft).
         Options::set_documents(data.clone());
         let opts = Options {

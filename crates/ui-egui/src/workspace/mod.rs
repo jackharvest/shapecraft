@@ -660,7 +660,8 @@ impl Workspace {
             area_filter: 0,
             hover: None,
             cursor: None,
-            show_items: true,
+            // A phone keeps its view clear: Items opens from its button (#9).
+            show_items: !crate::tablet::small_screen(),
             // A tablet opens projects with History hidden, for room to model (the button brings it back).
             show_history: !crate::tablet::touch_ui(),
             tutorial: None,

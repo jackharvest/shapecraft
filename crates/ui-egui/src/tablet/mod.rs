@@ -58,6 +58,20 @@ pub fn set_touch_screen(on: bool) {
     TOUCH_SCREEN.store(on, Ordering::Relaxed);
 }
 
+/// A phone-sized screen: under 600 dp across its narrow side (#9).
+static SMALL_SCREEN: AtomicBool = AtomicBool::new(false);
+
+/// Set by an app that knows its screen is phone-sized (Android: smallest width under 600 dp).
+pub fn set_small_screen(on: bool) {
+    SMALL_SCREEN.store(on, Ordering::Relaxed);
+}
+
+/// A phone-sized touch screen: the Items panel starts folded away and, from the first run, the columns show
+/// icons without labels, to keep the view clear.
+pub fn small_screen() -> bool {
+    touch_ui() && SMALL_SCREEN.load(Ordering::Relaxed)
+}
+
 /// Set when a hardware keyboard comes or goes.
 pub fn set_keyboard(present: bool) {
     KEYBOARD.store(present, Ordering::Relaxed);

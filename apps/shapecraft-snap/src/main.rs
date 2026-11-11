@@ -4,7 +4,7 @@
 //! `shapecraft-snap SCENARIO.jsonl OUT_DIR`, one step per line:
 //! `{"size": [1840, 1324]}` (first line: start size, `"scale": 2` for Retina pixels; later: resize), `{"control": "engine.execute", "params": {...}}`,
 //! `{"hover": [x, y]}`, `{"click": [x, y]}`, `{"right_click": [x, y]}`, `{"double_click": [x, y]}`, `{"right_drag": [[x0, y0], [x1, y1]]}`, `{"drag": [[..], [..]]}`,
-//! `{"key": "R", "mods": "cmd+shift"}`, `{"text": "10"}`, `{"wait": 0.5}`, `{"sleep": 0.5}` (real time, for background threads), `{"shot": "name"}`.
+//! `{"key": "R", "mods": "cmd+shift"}`, `{"text": "10"}`, `{"touch_screen": true}` and `{"small_screen": true}` (as on an Android tablet or phone), `{"wait": 0.5}`, `{"sleep": 0.5}` (real time, for background threads), `{"shot": "name"}`.
 //! A point with three numbers is a model point (mm), placed on screen through the current camera.
 //! `"@face:BODY:x,y,z"` and `"@edge:BODY:x,y,z"` anywhere in a step become the face or edge at that model point.
 //! `{"expect": {...}}` checks the model (see [`expect`]); `{"task": {...}}` names a benchmark task.
@@ -249,6 +249,12 @@ fn steps(h: &mut App<'_>, lines: &[Value], out: Option<&Path>, outcome: &mut Out
         } else if let Some(t) = step.get("text").and_then(Value::as_str) {
             h.event(Event::Text(t.to_string()));
             h.run_steps(2);
+        } else if let Some(on) = step.get("touch_screen").and_then(Value::as_bool) {
+            // As the Android app starts: a touch screen of its own (touch layout, first-run question).
+            shapecraft_ui::tablet::set_touch_screen(on);
+        } else if let Some(on) = step.get("small_screen").and_then(Value::as_bool) {
+            // An Android phone (under 600 dp across).
+            shapecraft_ui::tablet::set_small_screen(on);
         } else if let Some(s) = step.get("wait").and_then(Value::as_f64) {
             h.run_steps(((s * 60.0).ceil() as usize).clamp(1, 600));
         } else if let Some(s) = step.get("sleep").and_then(Value::as_f64) {

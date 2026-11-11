@@ -1713,6 +1713,27 @@ impl ShapeCraftApp {
                 self.tablet_choice = None;
                 self.sync_settings();
             }
+        // Android asks the touch question too (stylus, fingers, or a mouse and keyboard, #10), then carries on as
+        // the desktop does; only a mouse goes on to how the view moves.
+        } else if crate::tablet::touch_ui() && ((self.settings_file.is_some() && self.settings.device.is_empty()) || self.ask_device) {
+            if let Some(i) = crate::onboarding::tablet(ui, &mut self.tablet_choice) {
+                let value = crate::onboarding::ANDROID_DEVICES[i].1;
+                self.settings.tablet_device = value.to_string();
+                self.settings.device = value.to_string();
+                // A phone starts with icons only (Preferences ▸ Menu Labels brings the words back, #9).
+                if crate::tablet::small_screen() {
+                    self.settings.menu_labels = "Never".into();
+                }
+                self.ask_device = false;
+                self.tablet_choice = None;
+                if value == "mouse" {
+                    self.settings.nav_preset = crate::onboarding::DEVICES[0].2.to_string();
+                    self.welcome_nav = Some(self.settings.preset().name);
+                } else {
+                    self.settings.nav_asked = true;
+                }
+                self.sync_settings();
+            }
         // First run: which device the model is worked with (picks the navigation preset).
         } else if ((self.settings_file.is_some() && self.settings.device.is_empty()) || self.ask_device)
             && let Some(i) = crate::onboarding::show(ui)
