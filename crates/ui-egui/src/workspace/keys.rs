@@ -45,12 +45,7 @@ impl Workspace {
                 }
                 egui::Event::Text(text) if self.tool.takes_numbers() || self.dim_edit.is_some() => {
                     for ch in text.chars() {
-                        if ch.is_ascii_digit() || ch == '.' || ch == '-' || ch == ',' {
-                            if std::mem::take(&mut self.numeric_fresh) {
-                                self.numeric = None;
-                            }
-                            self.numeric.get_or_insert_with(String::new).push(if ch == ',' { '.' } else { ch });
-                        }
+                        self.type_numeric(ch);
                     }
                 }
                 egui::Event::Key { key, pressed: true, modifiers, .. } => {
@@ -70,7 +65,18 @@ impl Workspace {
         }
     }
 
-    fn key(&mut self, key: egui::Key, m: egui::Modifiers) {
+    /// One typed character into the value field: digits, a point (a comma counts) and a minus; a value filled from a
+    /// clicked pill is replaced by the first one.
+    pub(super) fn type_numeric(&mut self, ch: char) {
+        if ch.is_ascii_digit() || ch == '.' || ch == '-' || ch == ',' {
+            if std::mem::take(&mut self.numeric_fresh) {
+                self.numeric = None;
+            }
+            self.numeric.get_or_insert_with(String::new).push(if ch == ',' { '.' } else { ch });
+        }
+    }
+
+    pub(super) fn key(&mut self, key: egui::Key, m: egui::Modifiers) {
         use egui::Key;
         // While a box is dragged, Tab cycles its filter and B / F / E pick one, as the banner shows.
         if self.area.is_some() {

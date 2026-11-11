@@ -114,6 +114,11 @@ impl NativeTouch {
         if let Some(ws) = ws {
             ws.touch_drag = self.router.finger;
             ws.finger_nav = self.router.device == Device::Touch;
+            ws.pen_input = self.router.device == Device::Pen;
+            if ws.pen_input {
+                super::mark_pen_seen();
+            }
+            ws.pen_held = self.router.pen_held;
             ws.pick_slop = match self.router.device {
                 Device::Mouse => 1.0,
                 Device::Pen => PEN_REACH,

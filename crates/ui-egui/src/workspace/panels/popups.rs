@@ -40,6 +40,14 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
     };
     // A tutorial's instruction pill takes the banner's place.
     let predicted = if ws.tutorial.is_some() { None } else { predicted };
+    // A touch screen with no keyboard: the pencil's words, and no keys to press (as on iPad).
+    let touch_words: Option<(String, String)> = (!crate::tablet::shows_shortcuts())
+        .then(|| predicted.map(|(t, b)| (t.to_string(), touch_hint(&ws.tool, ws.pending_tool, b))))
+        .flatten();
+    let predicted: Option<(&str, &str)> = match &touch_words {
+        Some((t, b)) => Some((t.as_str(), b.as_str())),
+        None => predicted,
+    };
     // The running tool's options (behind its ≡).
     if ws.options_menu.is_some() && matches!(ws.tool, Tool::Onto(_)) {
         replace_face_card(ws, ui);
@@ -72,10 +80,12 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
         }
     }
     let mut banner_bottom = vp.top();
+    ws.numpad(ui);
     ws.paint_area_banner(ui);
     // A cycled option's bubble takes the banner's place for a moment.
     let bubble = crate::workspace::badges::cycle_bubble(ws, ui);
-    let predicted = if ws.area.is_some() || bubble { None } else { predicted };
+    let held = ws.pen_input && ws.pen_held.is_some() && ws.area_open();
+    let predicted = if ws.area.is_some() || held || bubble { None } else { predicted };
     ws.seen_banner = match (&ws.notice, predicted) {
         (Some((text, _)), _) => text.clone(),
         (None, Some((title, body))) => if body.is_empty() { title } else { body }.to_string(),
@@ -89,7 +99,7 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
         // A one-word notice ("Visualized") is a small pill; a refusal a wider chip.
         let short = !text.contains(' ') && text.len() <= 20;
         let size = if short { vec2(g.size().x + 20.0, g.size().y + 8.0) } else { vec2(g.size().x.max(200.0) + 28.0, g.size().y + 12.0) };
-        let r = Rect::from_center_size(pos2(vp.center().x, vp.top() + if short { 18.0 } else { 28.0 }), size);
+        let r = Rect::from_center_size(pos2(vp.center().x, ws.banner_y() - 8.0 + if short { 18.0 } else { 28.0 }), size);
         banner_bottom = r.bottom();
         p.rect_filled(r, radius(8), theme::c(0x171616));
         p.galley(pos2(r.center().x, r.top() + if short { 4.0 } else { 6.0 }), g, Tokens::text_strong());
@@ -114,7 +124,7 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
         } else {
             (para.size().y + 20.0).max(64.0)
         };
-        let r = Rect::from_min_size(pos2(vp.center().x - w / 2.0, vp.top() + 8.0), vec2(w, h));
+        let r = Rect::from_min_size(pos2(vp.center().x - w / 2.0, ws.banner_y()), vec2(w, h));
         banner_bottom = r.bottom();
         p.rect_filled(r, radius(8), Tokens::banner());
         if plain && !collapsed && body.is_empty() {
@@ -607,4 +617,40 @@ fn warning(p: &egui::Painter, c: Pos2) {
     let red = theme::c(0xff453a);
     p.add(Shape::convex_polygon(vec![c + vec2(0.0, -6.5), c + vec2(7.0, 5.5), c + vec2(-7.0, 5.5)], red, Stroke::NONE));
     p.text(c + vec2(0.0, 1.0), Align2::CENTER_CENTER, "!", theme::strong(9.0), Color32::WHITE);
+}
+
+/// A hint reworded for a touch screen with no keyboard: taps instead of clicks, and the sentences about keys left out.
+/// Line says what the pencil does (a round stroke draws a circle).
+pub(crate) fn touch_hint(tool: &Tool, pending: Option<crate::workspace::toolbar::ToolKind>, body: &str) -> String {
+    use crate::workspace::toolbar::ToolKind;
+    let line = matches!(tool, Tool::Line { .. }) || matches!(tool, Tool::PickPlane { .. }) && pending == Some(ToolKind::Line);
+    if line {
+        return "Draw lines with the pen. A round stroke draws a circle.".to_string();
+    }
+    let keys = ["Return", "Escape", "Esc ", "Tab", "Shift", "⌘", "⌥", "Space", "Press ", "press ", "Delete key", "arrow keys"];
+    let mut kept: Vec<String> = Vec::new();
+    for sentence in body.split_inclusive(['.', ';']) {
+        let s = sentence.trim();
+        if s.is_empty() || keys.iter().any(|k| s.contains(k)) {
+            continue;
+        }
+        let s = s.trim_end_matches(';').to_string();
+        kept.push(if s.ends_with('.') || s.ends_with('!') || s.ends_with('?') { s } else { format!("{s}.") });
+    }
+    let out = if kept.is_empty() { body.to_string() } else { kept.join(" ") };
+    out.replace("Click", "Tap").replace("click", "tap")
+}
+
+#[cfg(test)]
+mod touch_hint_tests {
+    use super::*;
+
+    #[test]
+    fn touch_hints_tap_and_leave_out_keys() {
+        let line = Tool::Line { first: None, last: None };
+        assert_eq!(touch_hint(&line, None, "Click to place the ends."), "Draw lines with the pen. A round stroke draws a circle.");
+        let idle = Tool::Idle;
+        assert_eq!(touch_hint(&idle, None, "Click a face to start. Return finishes; Escape cancels."), "Tap a face to start.");
+        assert_eq!(touch_hint(&idle, None, "Press E to extrude"), "Press E to extrude", "nothing left: the original stays");
+    }
 }

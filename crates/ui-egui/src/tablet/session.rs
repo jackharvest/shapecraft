@@ -239,6 +239,11 @@ pub(super) fn run(shared: &Arc<Shared>, device: &str, inbox: Receiver<ToSession>
             if let Some(ws) = app.workspace() {
                 ws.touch_drag = router.finger;
                 ws.finger_nav = router.device == Device::Touch;
+                ws.pen_input = router.device == Device::Pen;
+                if ws.pen_input {
+                    super::mark_pen_seen();
+                }
+                ws.pen_held = router.pen_held;
                 // Edges, curves and snaps reach about a fingertip for the pencil (and more for a finger).
                 ws.pick_slop = match router.device {
                     Device::Mouse => 1.0,
@@ -276,7 +281,8 @@ pub(super) fn run(shared: &Arc<Shared>, device: &str, inbox: Receiver<ToSession>
                 app.ui(ui, &mut frame);
             });
             let over_view = app.workspace().is_some_and(|ws| ws.viewport_hot);
-            let numbers = app.workspace().is_some_and(|ws| ws.takes_numbers());
+            // The page's number keyboard, unless our own numpad is up.
+            let numbers = app.workspace().is_some_and(|ws| ws.takes_numbers() && !ws.numpad_open());
             router.after_frame(over_view, ctx.dragged_id().is_some());
             if let Some(v) = out.viewport_output.get(&ViewportId::ROOT)
                 && v.repaint_delay < Duration::from_secs(3600)

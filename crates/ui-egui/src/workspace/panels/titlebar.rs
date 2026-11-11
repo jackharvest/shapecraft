@@ -136,6 +136,20 @@ pub(in crate::workspace) fn touch_title(ws: &mut Workspace, ui: &mut Ui, bar: Re
         p.rect_stroke(pill, radius(13), Stroke::new(1.0, theme::c(0x3c3c3e)), egui::StrokeKind::Inside);
         (pill, pos2(pill.left() + 33.0, pill.center().y), pill.left() + 66.0, pos2(pill.right() - 31.0, pill.center().y))
     };
+    ws.pill_bottom = if bar.height() > 0.0 { 0.0 } else { frame.bottom() };
+    if ws.touch_opened.is_none() {
+        ws.touch_opened = Some(ws.now);
+    }
+    if ws.pen_bubble() {
+        // Measured on iPad: a red-tinted capsule 10 pt under the pill, 27.5 tall.
+        let text = "Pen may not be connected";
+        let g = ui.painter().layout_no_wrap(text.into(), theme::body(13.0), theme::c(0xff6961));
+        let r = Rect::from_center_size(pos2(frame.center().x, frame.bottom() + 10.0 + 14.0), vec2(g.size().x + 28.0, 27.5));
+        ui.painter().rect_filled(r, radius(14), theme::c(0x3a1f1f));
+        ui.painter().galley(r.center() - g.size() / 2.0, g, theme::c(0xff6961));
+        // Wake up to take it away even if nothing else moves.
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(500));
+    }
     if home_button(ui, home_c, ink, fill) {
         ws.go_home = true;
     }
@@ -206,54 +220,126 @@ pub(in crate::workspace) fn touch_title(ws: &mut Workspace, ui: &mut Ui, bar: Re
         }
     }
     if ws.title_menu {
-        let rows: [(&str, Icon, Option<crate::menubar::AppAction>, Option<UiAction>); 4] = [
-            ("Import…", Icon::Import, Some(crate::menubar::AppAction::Import), None),
-            ("Export…", Icon::Export, Some(crate::menubar::AppAction::Export), None),
-            ("Help", Icon::Help, None, Some(UiAction::Help)),
-            ("Settings", Icon::Gear, None, Some(UiAction::Preferences)),
-        ];
-        let menu = Rect::from_min_size(pos2(more_c.x - 236.0 + 23.0, below), vec2(252.0, 16.0 + rows.len() as f32 * 44.0 + 9.0));
-        let mut picked: Option<usize> = None;
-        let mut outside = false;
-        egui::Area::new(ui.scope_id().with("title-menu")).fixed_pos(menu.min).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
-            let p = ui.painter();
-            p.rect_filled(menu.translate(vec2(0.0, 6.0)), radius(16), Color32::from_black_alpha(80));
-            p.rect_filled(menu, radius(16), theme::c(0x2c2c2e));
-            for (i, (label, icon, ..)) in rows.iter().enumerate() {
-                // A thin line between the file items and Help / Settings, as on iPad.
-                let extra = if i >= 2 { 9.0 } else { 0.0 };
-                let row = Rect::from_min_size(menu.left_top() + vec2(8.0, 8.0 + i as f32 * 44.0 + extra), vec2(236.0, 44.0));
-                if i == 2 {
+        touch_more_menu(ws, ui, more, more_c, below, ink);
+    } else {
+        ws.title_sub = None;
+    }
+}
+
+/// What a row of the touch ⋯ menu does.
+#[derive(Clone, Copy)]
+enum Pick {
+    App(crate::menubar::AppAction),
+    Ui(UiAction),
+    /// Opens submenu n beside the row.
+    Sub(usize),
+}
+
+/// The touch ⋯ menu, as on iPad: Import › and Export to › open a submenu to the right, then Help and Settings.
+/// (The reference's Sync, Share, Take a Photo and Preview in AR are cloud/camera features we leave out.)
+fn touch_more_menu(ws: &mut Workspace, ui: &mut Ui, more: Rect, more_c: Pos2, below: f32, ink: Color32) {
+    use crate::menubar::AppAction;
+    use crate::workspace::export::Format;
+    const ROW: f32 = 44.0;
+    const W: f32 = 252.0;
+    let main: [(&str, Option<Icon>, Pick); 4] = [
+        ("Import", Some(Icon::Import), Pick::Sub(0)),
+        ("Export to", Some(Icon::Export), Pick::Sub(1)),
+        ("Help", Some(Icon::Help), Pick::Ui(UiAction::Help)),
+        ("Settings", Some(Icon::Gear), Pick::Ui(UiAction::Preferences)),
+    ];
+    let subs: [&[(&str, Option<Icon>, Pick)]; 2] = [
+        &[
+            ("File…", None, Pick::App(AppAction::Import)),
+            ("Project…", None, Pick::App(AppAction::ImportProject)),
+            ("Image…", None, Pick::Ui(UiAction::InsertImage)),
+        ],
+        &[
+            ("Export…", None, Pick::App(AppAction::Export)),
+            ("Export to Slicer…", None, Pick::App(AppAction::ExportAs(Format::Slicer))),
+            ("Quick Export", None, Pick::App(AppAction::QuickExport)),
+            ("Open Screenshot Tool…", None, Pick::Ui(UiAction::Screenshot)),
+            ("Open Visualization…", None, Pick::Ui(UiAction::Visualization)),
+        ],
+    ];
+    let menu = Rect::from_min_size(pos2(more_c.x - 236.0 + 23.0, below), vec2(W, 16.0 + main.len() as f32 * ROW + 9.0));
+    let row_top = |i: usize| menu.top() + 8.0 + i as f32 * ROW + if i >= 2 { 9.0 } else { 0.0 };
+    let mut picked: Option<Pick> = None;
+    let mut rects = vec![menu];
+    let paint_rows =
+        |ui: &mut Ui, frame: Rect, rows: &[(&str, Option<Icon>, Pick)], sep_at: Option<usize>, key: &str, open: Option<usize>| {
+            let p = ui.painter().clone();
+            p.rect_filled(frame.translate(vec2(0.0, 6.0)), radius(16), Color32::from_black_alpha(80));
+            p.rect_filled(frame, radius(16), theme::c(0x2c2c2e));
+            let mut out = None;
+            for (i, (label, icon, pick)) in rows.iter().enumerate() {
+                let extra = if sep_at.is_some_and(|s| i >= s) { 9.0 } else { 0.0 };
+                let row = Rect::from_min_size(frame.left_top() + vec2(8.0, 8.0 + i as f32 * ROW + extra), vec2(frame.width() - 16.0, ROW));
+                if sep_at == Some(i) {
                     p.line_segment(
                         [pos2(row.left() + 12.0, row.top() - 5.0), pos2(row.right() - 12.0, row.top() - 5.0)],
                         Stroke::new(1.0, theme::c(0x48484a)),
                     );
                 }
-                let resp = ui.interact(row, ui.scope_id().with(("title-row", i)), Sense::click());
-                if resp.hovered() {
+                let resp = ui.interact(row, ui.scope_id().with((key, i)), Sense::click());
+                let lit = resp.hovered() || matches!(pick, Pick::Sub(n) if open == Some(*n));
+                if lit {
                     p.rect_filled(row, radius(9), Tokens::button_hover());
                 }
-                icons::paint(p, Rect::from_center_size(row.left_center() + vec2(26.0, 0.0), vec2(20.0, 20.0)), *icon, ink);
-                p.text(row.left_center() + vec2(50.0, 0.0), Align2::LEFT_CENTER, *label, theme::body(16.0), Tokens::text_strong());
+                let text_x = match icon {
+                    Some(ic) => {
+                        icons::paint(&p, Rect::from_center_size(row.left_center() + vec2(26.0, 0.0), vec2(20.0, 20.0)), *ic, ink);
+                        50.0
+                    }
+                    None => 14.0,
+                };
+                p.text(row.left_center() + vec2(text_x, 0.0), Align2::LEFT_CENTER, *label, theme::body(16.0), Tokens::text_strong());
+                if let Pick::Sub(_) = pick {
+                    icons::paint(
+                        &p,
+                        Rect::from_center_size(row.right_center() - vec2(18.0, 0.0), vec2(12.0, 12.0)),
+                        Icon::ChevronRight,
+                        Tokens::text_dim(),
+                    );
+                }
                 if resp.clicked() {
-                    picked = Some(i);
+                    out = Some(*pick);
                 }
             }
-            outside = ui
-                .input(|i| i.pointer.any_pressed() && i.pointer.interact_pos().is_some_and(|at| !menu.contains(at) && !more.contains(at)));
-        });
-        if let Some(i) = picked {
-            ws.title_menu = false;
-            if let Some((_, _, app, uia)) = rows.get(i) {
-                if let Some(a) = app {
-                    ws.app_request = Some(*a);
-                }
-                if let Some(u) = uia {
-                    ws.ui_action(*u);
-                }
-            }
-        } else if outside {
-            ws.title_menu = false;
+            out
+        };
+    let open = ws.title_sub;
+    egui::Area::new(ui.scope_id().with("title-menu")).fixed_pos(menu.min).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
+        if let Some(p) = paint_rows(ui, menu, &main, Some(2), "title-row", open) {
+            picked = Some(p);
         }
+    });
+    if let Some(n) = open
+        && let Some(rows) = subs.get(n)
+    {
+        // Measured on iPad: the submenu opens to the right, overlapping the menu by 10 pt, top aligned with its row.
+        let frame = Rect::from_min_size(pos2(menu.right() - 10.0, row_top(n) - 8.0), vec2(236.0, 16.0 + rows.len() as f32 * ROW));
+        rects.push(frame);
+        egui::Area::new(ui.scope_id().with("title-sub")).fixed_pos(frame.min).order(egui::Order::Tooltip).show(ui.ctx(), |ui| {
+            if let Some(p) = paint_rows(ui, frame, rows, None, "title-sub-row", None) {
+                picked = Some(p);
+            }
+        });
+    }
+    let outside = ui.input(|i| {
+        i.pointer.any_pressed() && i.pointer.interact_pos().is_some_and(|at| !rects.iter().any(|r| r.contains(at)) && !more.contains(at))
+    });
+    match picked {
+        Some(Pick::Sub(n)) => ws.title_sub = if ws.title_sub == Some(n) { None } else { Some(n) },
+        Some(Pick::App(a)) => {
+            ws.title_menu = false;
+            ws.app_request = Some(a);
+        }
+        Some(Pick::Ui(u)) => {
+            ws.title_menu = false;
+            ws.ui_action(u);
+        }
+        None if outside => ws.title_menu = false,
+        None => {}
     }
 }

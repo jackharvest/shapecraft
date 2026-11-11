@@ -632,7 +632,7 @@ pub(super) fn cycle_bubble(ws: &mut Workspace, ui: &mut Ui) -> bool {
     let seg_w = cell.x * rows.len() as f32 + 4.0;
     let name = rows.get(current).map_or("", |r| r.0);
     let text_w = p.layout_no_wrap(name.to_string(), theme::body(11.5), Tokens::text_dim()).size().x.max(40.0);
-    let r = Rect::from_min_size(pos2(vp.center().x - (text_w + seg_w + 40.0) / 2.0, vp.top() + 8.0), vec2(text_w + seg_w + 40.0, 46.0));
+    let r = Rect::from_min_size(pos2(vp.center().x - (text_w + seg_w + 40.0) / 2.0, ws.banner_y()), vec2(text_w + seg_w + 40.0, 46.0));
     p.rect_filled(r, radius(10), Tokens::banner());
     p.text(pos2(r.left() + 14.0, r.top() + 15.0), Align2::LEFT_CENTER, title, theme::strong(13.0), Tokens::text_strong());
     p.text(pos2(r.left() + 14.0, r.top() + 31.0), Align2::LEFT_CENTER, name, theme::body(11.5), Tokens::text_dim());

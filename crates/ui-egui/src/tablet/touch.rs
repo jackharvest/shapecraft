@@ -100,6 +100,10 @@ pub(super) struct Router {
     pen_up: Option<Instant>,
     /// Where and when the pencil touched, until it moves off as a drag.
     pen_press: Option<(Pos2, Instant)>,
+    /// Where and when the pencil touched, while it stays put (a long press starts an Area Selection, as on iPad).
+    pen_hold: Option<(Pos2, Instant)>,
+    /// The pencil was held still long enough: the Area Selection starts here once it moves.
+    pub pen_held: Option<Pos2>,
     /// What moved the pointer last: a pencil or a finger reaches farther for edges than a mouse.
     pub device: Device,
     /// The keyboard's modifiers, from the last key or pointer event.
@@ -122,6 +126,8 @@ impl Default for Router {
             pen_down: false,
             pen_up: None,
             pen_press: None,
+            pen_hold: None,
+            pen_held: None,
             device: Device::Mouse,
             mods: Modifiers::NONE,
             frame: 0,
@@ -196,12 +202,24 @@ impl Router {
                     self.cancel_fingers();
                     self.pen_down = true;
                     self.pen_press = Some((pos, now));
+                    self.pen_hold = Some((pos, now));
+                    self.pen_held = None;
                 }
                 self.finger = false;
                 self.now.push(Event::PointerMoved(pos));
                 self.now.push(self.button(pos, button, true));
             }
             Kind::Move | Kind::Hover => {
+                if let Some((at, since)) = self.pen_hold
+                    && kind == Kind::Move
+                    && self.pen_held.is_none()
+                {
+                    if pos.distance(at) > PEN_SLOP {
+                        self.pen_hold = None;
+                    } else if now.duration_since(since) >= LONG_PRESS {
+                        self.pen_held = Some(at);
+                    }
+                }
                 if let Some((at, since)) = self.pen_press {
                     if kind == Kind::Move && pos.distance(at) < PEN_SLOP && now.duration_since(since) < PEN_TAP {
                         return;
@@ -218,6 +236,8 @@ impl Router {
                 if device == Device::Pen {
                     self.pen_down = false;
                     self.pen_up = Some(now);
+                    self.pen_hold = None;
+                    self.pen_held = None;
                 }
                 if kind == Kind::Cancel {
                     self.after(1, Event::PointerGone);
@@ -431,6 +451,12 @@ impl Router {
 
     /// Time passing with no input: a held finger becomes a long press.
     pub fn tick(&mut self, now: Instant) {
+        if let Some((at, since)) = self.pen_hold
+            && self.pen_held.is_none()
+            && now.duration_since(since) >= LONG_PRESS
+        {
+            self.pen_held = Some(at);
+        }
         if let Mode::Pending { since } = self.mode
             && now.duration_since(since) >= LONG_PRESS
             && let Some(f) = self.fingers.first()
@@ -521,6 +547,27 @@ mod tests {
         assert_eq!(presses(&r.take().0), vec![(PointerButton::Primary, true)]);
         assert_eq!(presses(&r.take().0), vec![(PointerButton::Primary, false)]);
         assert!(r.take().0.contains(&Event::PointerGone));
+    }
+
+    #[test]
+    fn a_held_pencil_marks_an_area_selection_and_a_quick_drag_does_not() {
+        let mut r = Router::default();
+        let t = Instant::now();
+        r.pointer(Kind::Down, Device::Pen, 1, pos2(100.0, 100.0), 0, t);
+        r.tick(t + Duration::from_millis(200));
+        assert_eq!(r.pen_held, None);
+        r.pointer(Kind::Move, Device::Pen, 1, pos2(103.0, 101.0), 0, t + Duration::from_millis(400));
+        r.tick(t + Duration::from_millis(600));
+        assert_eq!(r.pen_held, Some(pos2(100.0, 100.0)), "held still past the long press");
+        r.pointer(Kind::Move, Device::Pen, 1, pos2(200.0, 150.0), 0, t + Duration::from_millis(700));
+        assert_eq!(r.pen_held, Some(pos2(100.0, 100.0)), "stays while the box is dragged");
+        r.pointer(Kind::Up, Device::Pen, 1, pos2(200.0, 150.0), 0, t + Duration::from_millis(800));
+        assert_eq!(r.pen_held, None);
+        // A drag that moves off at once is no long press.
+        r.pointer(Kind::Down, Device::Pen, 1, pos2(100.0, 100.0), 0, t + Duration::from_secs(2));
+        r.pointer(Kind::Move, Device::Pen, 1, pos2(140.0, 100.0), 0, t + Duration::from_millis(2100));
+        r.tick(t + Duration::from_secs(3));
+        assert_eq!(r.pen_held, None);
     }
 
     #[test]

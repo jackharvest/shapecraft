@@ -54,9 +54,10 @@ impl Workspace {
         if self.area.is_none()
             && self.area_open()
             && !self.touch_drag
+            && (!self.pen_input || self.pen_held.is_some())
             && resp.drag_started_by(egui::PointerButton::Primary)
             && !self.dragging_handle()
-            && let Some(p) = ui.input(|i| i.pointer.press_origin())
+            && let Some(p) = self.pen_held.filter(|_| self.pen_input).or_else(|| ui.input(|i| i.pointer.press_origin()))
         {
             self.area = Some(AreaSel { start: p, end: p });
         }
@@ -204,8 +205,61 @@ impl Workspace {
         }
     }
 
+    /// On a touch screen (owner's iPad screenshot): the banner shows from the pencil's long press, two lines with a
+    /// small icon each and no Tab line, and a dot half purple, half cyan marks the press until the drag says which.
+    fn paint_area_banner_touch(&self, ui: &Ui) {
+        let held = self.pen_input && self.area_open() && self.pen_held.is_some();
+        if self.area.is_none() && !held {
+            return;
+        }
+        let vp = self.viewport_rect;
+        let p = ui.painter();
+        let r = Rect::from_min_size(pos2(vp.center().x - 155.0, self.banner_y()), vec2(310.0, 92.0));
+        p.rect_filled(r.translate(vec2(0.0, 4.0)), radius(14), Color32::from_black_alpha(60));
+        p.rect_filled(r, radius(14), Tokens::banner());
+        p.text(r.left_top() + vec2(12.0, 21.0), Align2::LEFT_CENTER, "Area Selection", theme::strong(16.0), Tokens::text_strong());
+        let fmt = |font: FontId, color: Color32| TextFormat { font_id: font, color, ..Default::default() };
+        for (i, (word, col)) in [("fully included", cyan()), ("crossing", purple())].into_iter().enumerate() {
+            let y = r.top() + 45.0 + i as f32 * 24.0;
+            let icon = Rect::from_center_size(pos2(r.left() + 20.0, y), vec2(14.0, 14.0));
+            if i == 0 {
+                p.rect_stroke(icon, 1.0, Stroke::new(1.2, col), StrokeKind::Inside);
+            } else {
+                let c = [icon.left_top(), icon.right_top(), icon.right_bottom(), icon.left_bottom(), icon.left_top()];
+                p.add(egui::Shape::dashed_line(&c, Stroke::new(1.2, col), 3.0, 2.0));
+            }
+            let mut job = LayoutJob::default();
+            let (lead, _) = if i == 0 { ("Drag right to select ", ()) } else { ("Drag left to select ", ()) };
+            job.append(lead, 0.0, fmt(theme::body(14.0), Tokens::text()));
+            job.append(word, 0.0, fmt(theme::strong(14.0), col));
+            job.append(" items", 0.0, fmt(theme::body(14.0), Tokens::text()));
+            let g = ui.fonts_mut(|f| f.layout_job(job));
+            p.galley(pos2(r.left() + 34.0, y - g.size().y / 2.0), g, Tokens::text());
+        }
+        if self.area.is_none()
+            && let Some(at) = self.pen_held
+        {
+            let painter = ui.painter_at(self.view_rect);
+            let rad = 13.0;
+            let half = |sign: f32| -> Vec<Pos2> {
+                let mut pts = vec![at];
+                for k in 0..=16 {
+                    let a = std::f32::consts::FRAC_PI_2 + sign * std::f32::consts::PI * k as f32 / 16.0;
+                    pts.push(at + vec2(a.cos(), -a.sin()) * rad);
+                }
+                pts
+            };
+            painter.add(egui::Shape::convex_polygon(half(1.0), purple(), Stroke::NONE));
+            painter.add(egui::Shape::convex_polygon(half(-1.0), cyan().gamma_multiply(0.6), Stroke::NONE));
+        }
+    }
+
     /// The banner while a box is being dragged, in place of the tool's.
     pub(super) fn paint_area_banner(&self, ui: &Ui) {
+        if crate::tablet::touch_ui() {
+            self.paint_area_banner_touch(ui);
+            return;
+        }
         if self.area.is_none() {
             return;
         }

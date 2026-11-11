@@ -23,35 +23,76 @@ fn icon_button(ui: &mut Ui, r: Rect, icon: Icon, id: &str) -> bool {
 pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     panel(ui, r, ws.glass());
     let p = ui.painter().clone();
-    // Measured (L02): grey title 17 px in; the filter bar 10 px in, 44 down, 24 tall.
-    p.text(pos2(r.left() + 17.0, r.top() + 20.5), Align2::LEFT_CENTER, crate::i18n::tr("Items"), theme::strong(14.5), theme::c(0x9f9e9f));
-    let filter = Rect::from_min_size(pos2(r.left() + 10.0, r.top() + 44.0), vec2(r.width() - 20.0, 24.0));
-    let filter_resp = ui.interact(filter, ui.scope_id().with("items-filter"), Sense::click());
-    p.rect_filled(filter, radius(5), if filter_resp.hovered() { Tokens::button_hover() } else { theme::c(0x302f2f) });
-    let (filter_label, filter_icon) = ITEM_FILTERS[ws.items_filter.min(ITEM_FILTERS.len() - 1)];
-    // Measured (s22-002): the icon centred 13 px in, the label from 26 px.
-    icons::paint(
-        &p,
-        Rect::from_center_size(pos2(filter.left() + 13.5, filter.center().y), vec2(12.0, 12.0)),
-        filter_icon,
-        Tokens::text_dim(),
-    );
-    p.text(pos2(filter.left() + 26.5, filter.center().y), Align2::LEFT_CENTER, filter_label, theme::strong(11.0), theme::c(0xa2a1a1));
-    let chev = pos2(filter.right() - 10.0, filter.center().y);
-    icons::paint(&p, Rect::from_center_size(chev - vec2(0.0, 3.0), vec2(8.0, 8.0)), Icon::ChevronUp, Tokens::text_dim());
-    icons::paint(&p, Rect::from_center_size(chev + vec2(0.0, 3.0), vec2(8.0, 8.0)), Icon::ChevronDown, Tokens::text_dim());
+    let touch = crate::tablet::touch_ui();
+    // Rows: 44 pt on a touch screen (iPad, measured), as tall as a finger needs.
+    let row_h = if touch { TOUCH_ROW_H } else { Tokens::ROW_H };
+    let name_px = if touch { 17.0 } else { 14.0 };
+    let rows_top = r.top() + if touch { 48.0 } else { 74.0 };
+    let (filter, filter_resp) = if touch {
+        // iPad: the filter is the header itself, "All Items ⌃⌄" centred (New Folder at the right, below).
+        let (label, _) = ITEM_FILTERS[ws.items_filter.min(ITEM_FILTERS.len() - 1)];
+        let g = p.layout_no_wrap(label.to_string(), theme::strong(17.0), Tokens::text_strong());
+        let c = pos2(r.center().x - 8.0, r.top() + 24.0);
+        let hit = Rect::from_center_size(c + vec2(8.0, 0.0), vec2(g.size().x + 34.0, 36.0));
+        let resp = ui.interact(hit, ui.scope_id().with("items-filter"), Sense::click());
+        p.galley(c - g.size() / 2.0, g.clone(), Tokens::text_strong());
+        let chev = pos2(c.x + g.size().x / 2.0 + 10.0, c.y);
+        icons::paint(&p, Rect::from_center_size(chev - vec2(0.0, 3.5), vec2(9.0, 9.0)), Icon::ChevronUp, Tokens::text_strong());
+        icons::paint(&p, Rect::from_center_size(chev + vec2(0.0, 3.5), vec2(9.0, 9.0)), Icon::ChevronDown, Tokens::text_strong());
+        (Rect::from_min_size(pos2(r.left() + 10.0, hit.bottom() - 24.0), vec2(r.width() - 20.0, 24.0)), resp)
+    } else {
+        // Measured (L02): grey title 17 px in; the filter bar 10 px in, 44 down, 24 tall.
+        p.text(
+            pos2(r.left() + 17.0, r.top() + 20.5),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr("Items"),
+            theme::strong(14.5),
+            theme::c(0x9f9e9f),
+        );
+        let filter = Rect::from_min_size(pos2(r.left() + 10.0, r.top() + 44.0), vec2(r.width() - 20.0, 24.0));
+        let filter_resp = ui.interact(filter, ui.scope_id().with("items-filter"), Sense::click());
+        (filter, filter_resp)
+    };
+    if !touch {
+        p.rect_filled(filter, radius(5), if filter_resp.hovered() { Tokens::button_hover() } else { theme::c(0x302f2f) });
+        let (filter_label, filter_icon) = ITEM_FILTERS[ws.items_filter.min(ITEM_FILTERS.len() - 1)];
+        // Measured (s22-002): the icon centred 13 px in, the label from 26 px.
+        icons::paint(
+            &p,
+            Rect::from_center_size(pos2(filter.left() + 13.5, filter.center().y), vec2(12.0, 12.0)),
+            filter_icon,
+            Tokens::text_dim(),
+        );
+        p.text(pos2(filter.left() + 26.5, filter.center().y), Align2::LEFT_CENTER, filter_label, theme::strong(11.0), theme::c(0xa2a1a1));
+        let chev = pos2(filter.right() - 10.0, filter.center().y);
+        icons::paint(&p, Rect::from_center_size(chev - vec2(0.0, 3.0), vec2(8.0, 8.0)), Icon::ChevronUp, Tokens::text_dim());
+        icons::paint(&p, Rect::from_center_size(chev + vec2(0.0, 3.0), vec2(8.0, 8.0)), Icon::ChevronDown, Tokens::text_dim());
+    }
 
     let footer_y = r.bottom() - 30.0;
     p.line_segment([pos2(r.left(), footer_y - 26.0 + 0.5), pos2(r.right(), footer_y - 26.0 + 0.5)], Stroke::new(1.0, Tokens::divider()));
-    let new_folder = Rect::from_center_size(pos2(r.left() + 20.0, footer_y), vec2(20.0, 20.0));
-    if icon_button(ui, new_folder, Icon::NewFolder, "items-folder") {
-        // With a folder picked (its row), the new one goes inside it (s24-021).
-        let parent = picked_folder(ws);
-        let _ = ws.run("new_folder", json!({ "parent": parent.map(|f| f.0) }));
+    if crate::tablet::touch_ui() {
+        // On a touch screen (as on iPad): New Folder sits in the header, and the footer acts on the selection.
+        let new_folder = Rect::from_center_size(pos2(r.right() - 28.0, r.top() + 24.0), vec2(30.0, 30.0));
+        if icon_button(ui, new_folder, Icon::NewFolder, "items-folder") {
+            let parent = picked_folder(ws);
+            let _ = ws.run("new_folder", json!({ "parent": parent.map(|f| f.0) }));
+        }
+        touch_footer(ws, ui, r, footer_y);
+    } else {
+        let new_folder = Rect::from_center_size(pos2(r.left() + 20.0, footer_y), vec2(20.0, 20.0));
+        if icon_button(ui, new_folder, Icon::NewFolder, "items-folder") {
+            // With a folder picked (its row), the new one goes inside it (s24-021).
+            let parent = picked_folder(ws);
+            let _ = ws.run("new_folder", json!({ "parent": parent.map(|f| f.0) }));
+        }
+        let more = Rect::from_center_size(pos2(r.right() - 20.0, footer_y), vec2(20.0, 20.0));
+        let more_clicked = icon_button(ui, more, Icon::Ellipsis, "items-more");
+        items_menus(ws, ui, filter, filter_resp.clicked(), more, more_clicked);
     }
-    let more = Rect::from_center_size(pos2(r.right() - 20.0, footer_y), vec2(20.0, 20.0));
-    let more_clicked = icon_button(ui, more, Icon::Ellipsis, "items-more");
-    items_menus(ws, ui, filter, filter_resp.clicked(), more, more_clicked);
+    if crate::tablet::touch_ui() {
+        items_menus(ws, ui, filter, filter_resp.clicked(), Rect::NOTHING, false);
+    }
 
     // As observed, a sketch with nothing drawn in it isn't listed yet.
     let doc = &ws.session.doc;
@@ -115,19 +156,21 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         rows.into_iter().map(|r| (r.0, r.1, r.2, r.3, 0)).collect()
     };
     // Where a dragged row would land, from the pointer over the (evenly spaced) rows.
-    let top = r.top() + 74.0;
-    let drop =
-        ws.items_dragging.zip(pointer.filter(|q| r.contains(*q))).and_then(|(item, q)| drop_at(&ws.session.doc, &rows, item, top, q.y));
-    let mut y = r.top() + 74.0;
+    let top = rows_top;
+    let drop = ws
+        .items_dragging
+        .zip(pointer.filter(|q| r.contains(*q)))
+        .and_then(|(item, q)| drop_at(&ws.session.doc, &rows, item, top, q.y, row_h));
+    let mut y = rows_top;
     let mut row_hover = None;
     let waiting = tool_mode(ws).is_some();
     let mut dragged_row: Option<(String, Icon)> = None;
     for (id, name, visible, kind, depth) in rows {
-        if y > footer_y - 40.0 {
+        if y + row_h > footer_y - 26.0 {
             break;
         }
         let indent = 13.0 * depth as f32;
-        let row = Rect::from_min_size(pos2(r.left() + 9.0, y), vec2(r.width() - 18.0, Tokens::ROW_H - 2.0));
+        let row = Rect::from_min_size(pos2(r.left() + 9.0, y), vec2(r.width() - 18.0, row_h - 2.0));
         let resp = ui.interact(row, ui.scope_id().with(("item", id.0)), Sense::click_and_drag());
         // Dragging a row onto another lights it up blue (a folder takes it in, an item makes a folder with it);
         // between rows a blue line shows where it goes (s24-022, s24-025).
@@ -237,16 +280,24 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         } else {
             // Long names end in "…" before the eye, as in the reference (s36), instead of running into the viewport.
             let x = r.left() + 66.0 + indent;
-            let shown = theme::elide(&p, &name, theme::body(14.0), row.right() - 32.0 - x);
-            p.text(pos2(x, row.center().y), Align2::LEFT_CENTER, shown, theme::body(14.0), color);
+            let eye_room = if touch { 52.0 } else { 32.0 };
+            let shown = theme::elide(&p, &name, theme::body(name_px), row.right() - eye_room - x);
+            p.text(pos2(x, row.center().y), Align2::LEFT_CENTER, shown, theme::body(name_px), color);
         }
         if resp.secondary_clicked() {
             ws.item_menu = resp.interact_pointer_pos().map(|pos| (id, pos));
             ws.popup_opened_at = ws.now;
         }
-        let eye = Rect::from_center_size(pos2(row.right() - 17.0, row.center().y), vec2(20.0, 20.0));
-        let eye_resp = ui.interact(eye, ui.scope_id().with(("eye", id.0)), Sense::click());
-        if !visible || resp.hovered() || eye_resp.hovered() {
+        // On a touch screen the eye is always shown (no hover), with a 44 pt target (iPad, measured).
+        let (eye, eye_hit) = if touch {
+            let e = Rect::from_center_size(pos2(row.right() - 30.0, row.center().y), vec2(24.0, 24.0));
+            (e, e.expand(10.0))
+        } else {
+            let e = Rect::from_center_size(pos2(row.right() - 17.0, row.center().y), vec2(20.0, 20.0));
+            (e, e)
+        };
+        let eye_resp = ui.interact(eye_hit, ui.scope_id().with(("eye", id.0)), Sense::click());
+        if touch || !visible || resp.hovered() || eye_resp.hovered() {
             // A hidden row's eye stays dim, as in the reference (s20-030).
             let tint = if visible || eye_resp.hovered() { Tokens::text_dim() } else { egui::Color32::from_rgb(0x3e, 0x3d, 0x3d) };
             icons::paint(&p, eye, if visible { Icon::Eye } else { Icon::EyeOff }, tint);
@@ -301,14 +352,13 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         if resp.double_clicked() {
             ws.renaming = Some((Some(id), name.clone(), true));
         }
-        y += Tokens::ROW_H;
+        y += row_h;
     }
     // The dragged row follows the pointer, see-through; letting go puts it in the folder under it, or takes it out of
     // its folder anywhere else in the list.
     if let Some(item) = ws.items_dragging {
         if let (Some((name, icon)), Some(q)) = (dragged_row, pointer) {
-            let ghost =
-                Rect::from_min_size(pos2(r.left() + 9.0, q.y - (Tokens::ROW_H - 2.0) / 2.0), vec2(r.width() - 18.0, Tokens::ROW_H - 2.0));
+            let ghost = Rect::from_min_size(pos2(r.left() + 9.0, q.y - (row_h - 2.0) / 2.0), vec2(r.width() - 18.0, row_h - 2.0));
             let fg = ui.ctx().layer_painter(egui::LayerId::new(egui::Order::Tooltip, ui.scope_id().with("items-ghost")));
             icons::paint(
                 &fg,
@@ -442,8 +492,7 @@ enum Drop {
 
 /// The middle half of a row is "onto" it, the edges "between"; between rows it goes in at the level of the row above
 /// (inside that row when it's an open folder), as observed (s24-025/026).
-fn drop_at(doc: &shapecraft_doc::Document, rows: &[Row], item: shapecraft_doc::ItemId, top: f32, y: f32) -> Option<Drop> {
-    let h = Tokens::ROW_H;
+fn drop_at(doc: &shapecraft_doc::Document, rows: &[Row], item: shapecraft_doc::ItemId, top: f32, y: f32, h: f32) -> Option<Drop> {
     let f = (y - top) / h;
     if f < -0.5 || rows.is_empty() {
         return None;
@@ -491,4 +540,119 @@ enum ItemKind {
     Axis,
     Image,
     Folder,
+}
+
+/// Items rows on a touch screen (iPad, measured: 44 pt pitch).
+const TOUCH_ROW_H: f32 = 44.0;
+
+/// The touch footer (iPad, measured): blue text buttons Rename | Delete | More... along the panel's bottom edge, 44 pt
+/// tall. Rename and Delete act on the selection and grey out without one or while a tool runs; More... opens the
+/// grouped menu above it.
+fn touch_footer(ws: &mut Workspace, ui: &mut Ui, r: Rect, footer_y: f32) {
+    let picked = ws.session.selection.iter().any(|p| p.item().is_some());
+    let idle = tool_mode(ws).is_none();
+    let blue = Tokens::icon_blue();
+    let grey = Tokens::text_ghost();
+    let slots: [(&str, Align2, bool); 3] = [
+        ("Rename", Align2::LEFT_CENTER, picked && idle),
+        ("Delete", Align2::CENTER_CENTER, picked && idle),
+        ("More...", Align2::RIGHT_CENTER, true),
+    ];
+    let font = theme::body(15.0);
+    let mut more_rect = Rect::NOTHING;
+    for (i, (label, align, on)) in slots.iter().enumerate() {
+        let w = ui.painter().layout_no_wrap(label.to_string(), font.clone(), blue).size().x + 16.0;
+        let x = match i {
+            0 => r.left() + 4.0,
+            1 => r.center().x - w / 2.0,
+            _ => r.right() - 4.0 - w,
+        };
+        let hit = Rect::from_min_size(pos2(x, footer_y - 22.0), vec2(w, 44.0));
+        let resp = ui.interact(hit, ui.scope_id().with(("items-touch-footer", i)), Sense::click());
+        let at = match i {
+            0 => hit.left_center() + vec2(8.0, 0.0),
+            1 => hit.center(),
+            _ => hit.right_center() - vec2(8.0, 0.0),
+        };
+        let open = i == 2 && ws.items_menu == Some("touch-more");
+        ui.painter().text(at, *align, *label, font.clone(), if *on && !open { blue } else { grey });
+        if i == 2 {
+            more_rect = hit;
+        }
+        if !*on || !resp.clicked() {
+            continue;
+        }
+        match i {
+            0 => ws.ui_action(crate::workspace::toolbar::UiAction::Rename),
+            1 => ws.delete_selection(),
+            _ => ws.items_menu = if open { None } else { Some("touch-more") },
+        }
+    }
+    if ws.items_menu == Some("touch-more") {
+        touch_more_menu(ws, ui, r, more_rect);
+    }
+}
+
+/// Items ▸ More... on a touch screen, grouped as on iPad.
+const TOUCH_MORE: &[&[&str]] =
+    &[&["Invert Body Visibility", "Show Hidden Bodies"], &["New Drawing..."], &["Reveal Selection", "Zoom to"], &["Isolate", "Show/Hide"]];
+
+fn touch_more_menu(ws: &mut Workspace, ui: &mut Ui, r: Rect, more: Rect) {
+    use crate::workspace::toolbar::UiAction;
+    const ROW: f32 = 38.0;
+    const GAP: f32 = 17.0;
+    let rows: usize = TOUCH_MORE.iter().map(|g| g.len()).sum();
+    let h = 12.0 + rows as f32 * ROW + (TOUCH_MORE.len() - 1) as f32 * GAP + 4.0;
+    let w = 222.0;
+    let menu = Rect::from_min_size(pos2((r.right() - w - 6.0).max(r.left() + 6.0), more.top() - 4.0 - h), vec2(w, h));
+    let has_items = ws.session.selection.iter().any(|p| p.item().is_some());
+    let mut chosen = None;
+    egui::Area::new(ui.scope_id().with("items-touch-more")).fixed_pos(menu.min).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
+        let p = ui.painter();
+        p.rect_filled(menu.translate(vec2(0.0, 6.0)), radius(18), Color32::from_black_alpha(80));
+        p.rect_filled(menu, radius(18), theme::c(0x2f2f31));
+        let mut y = menu.top() + 8.0;
+        for (g, group) in TOUCH_MORE.iter().enumerate() {
+            if g > 0 {
+                p.line_segment(
+                    [pos2(menu.left() + 18.0, y + GAP / 2.0), pos2(menu.right() - 18.0, y + GAP / 2.0)],
+                    Stroke::new(1.0, theme::c(0x48484a)),
+                );
+                y += GAP;
+            }
+            for label in group.iter() {
+                let row = Rect::from_min_size(pos2(menu.left() + 6.0, y), vec2(w - 12.0, ROW));
+                let needs_pick = matches!(*label, "Reveal Selection" | "Isolate" | "Show/Hide");
+                let on = !needs_pick || has_items;
+                let resp = ui.interact(row, ui.scope_id().with(("items-touch-more-row", *label)), Sense::click());
+                if on && resp.hovered() {
+                    p.rect_filled(row, radius(10), Tokens::button_hover());
+                }
+                let ink = if on { Tokens::text_strong() } else { Tokens::text_dim() };
+                p.text(row.left_center() + vec2(12.0, 0.0), Align2::LEFT_CENTER, *label, theme::body(15.0), ink);
+                if on && resp.clicked() {
+                    chosen = Some(*label);
+                }
+                y += ROW;
+            }
+        }
+    });
+    let outside = ui.input(|i| i.pointer.any_click() && i.pointer.interact_pos().is_some_and(|q| !menu.contains(q) && !more.contains(q)));
+    if chosen.is_some() || outside {
+        ws.items_menu = None;
+    }
+    let body = ws.session.selection.iter().find_map(|p| p.body());
+    match chosen {
+        Some("Invert Body Visibility") => ws.invert_body_visibility(),
+        Some("Show Hidden Bodies") => ws.show_hidden_bodies(),
+        Some("New Drawing...") => ws.ui_action(UiAction::CreateDrawing),
+        Some("Reveal Selection") => ws.ui_action(UiAction::RevealInItems),
+        Some("Zoom to") => ws.zoom_to(body),
+        Some("Isolate") => ws.ui_action(UiAction::Isolate),
+        Some("Show/Hide") => {
+            let items: Vec<u64> = ws.session.selection.iter().filter_map(|p| p.item()).map(|i| i.0).collect();
+            let _ = ws.run("show_hide", json!({ "items": items }));
+        }
+        _ => {}
+    }
 }

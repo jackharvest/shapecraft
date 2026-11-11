@@ -35,6 +35,17 @@ pub const DEFAULT_PORT: u16 = 8780;
 
 thread_local! {
     static ON_TABLET: Cell<bool> = const { Cell::new(false) };
+    /// A pen has touched or hovered this copy of the app (each tablet page has its own thread).
+    static PEN_SEEN: Cell<bool> = const { Cell::new(false) };
+}
+
+/// Whether a pen (Apple Pencil, a stylus) has been used here yet.
+pub fn pen_seen() -> bool {
+    PEN_SEEN.with(Cell::get)
+}
+
+pub(crate) fn mark_pen_seen() {
+    PEN_SEEN.with(|c| c.set(true));
 }
 
 /// The app is on a touch screen of its own (Android): see `touch_ui`.

@@ -103,7 +103,9 @@ impl Workspace {
             // while one that already has a sketch keeps the ground grid (s30-105).
             .or(match self.tool {
                 Tool::PickPlane { hovered: Some(i) } => self.plane_tiles().get(i).map(|(p, _)| *p),
-                Tool::PickPlane { hovered: None } if !self.session.doc.sketches.is_empty() => Some(SketchPlane::XY),
+                Tool::PickPlane { hovered: None } if !self.session.doc.sketches.is_empty() || crate::tablet::touch_ui() => {
+                    Some(SketchPlane::XY)
+                }
                 _ => None,
             })
             .or((self.view_opts.grid && !matches!(self.tool, Tool::PickPlane { .. })).then(|| {

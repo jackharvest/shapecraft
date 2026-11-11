@@ -48,6 +48,7 @@ impl Workspace {
                 self.numeric = Some(n);
                 self.numeric_fresh = true;
             }
+            self.numpad_at = Some(c);
             return;
         }
         // Visualization: a click on a decal picks it (not the body under it); anywhere else lets it go.
@@ -347,10 +348,28 @@ impl Workspace {
             self.click_at(origin, false);
             self.cursor = now;
             self.sketch_drag = Some(origin);
+            self.pen_stroke = vec![origin];
             return true;
         }
         let Some(origin) = self.sketch_drag else { return false };
+        // The pencil's Line on a touch screen: a stroke that bends round becomes a circle about where it started
+        // (owner on iPad: Line is the default, a round stroke turns into a circle that grows with the pen).
+        if crate::tablet::touch_ui()
+            && self.pen_input
+            && let Some(at) = ui.input(|i| i.pointer.interact_pos())
+        {
+            if self.pen_stroke.last().is_none_or(|l| l.distance(at) >= 4.0) {
+                self.pen_stroke.push(at);
+            }
+            if let Tool::Line { first: Some(center), last: Some(l) } = self.tool
+                && center.distance(l) < 1e-9
+                && stroke_is_round(&self.pen_stroke)
+            {
+                self.tool = Tool::Circle { center: Some(center) };
+            }
+        }
         if resp.drag_stopped() {
+            self.pen_stroke.clear();
             self.sketch_drag = None;
             if let Some(end) = ui.input(|i| i.pointer.interact_pos())
                 && (end - origin).length() > 6.0
@@ -359,8 +378,10 @@ impl Workspace {
                 self.cursor = Some(end);
                 self.click_at(end, false);
                 self.cursor = now;
-                // A dragged line is one segment, not the start of a chain.
+                // A dragged line is one segment, not the start of a chain; after a pen circle Line is armed again.
                 if let Tool::Line { .. } = self.tool {
+                    self.tool = Tool::Line { first: None, last: None };
+                } else if crate::tablet::touch_ui() && self.pen_input && matches!(self.tool, Tool::Circle { center: None }) {
                     self.tool = Tool::Line { first: None, last: None };
                 }
             }
@@ -1037,4 +1058,54 @@ fn moved_side(base: &[SketchEntity], line: u32, by: DVec2) -> Vec<serde_json::Va
             _ => None,
         })
         .collect()
+}
+
+/// Whether a pencil stroke (screen points, about 4 pt apart) bends round enough to be a circle, not a line: it turns
+/// through at least 80° in all, and strays from its chord by more than a fifth of the chord's length.
+pub(crate) fn stroke_is_round(pts: &[Pos2]) -> bool {
+    if pts.len() < 4 {
+        return false;
+    }
+    let (Some(&a), Some(&b)) = (pts.first(), pts.last()) else { return false };
+    let chord = b - a;
+    let len = chord.length();
+    let far = pts
+        .iter()
+        .map(|p| if len > 1e-3 { ((*p - a).x * chord.y - (*p - a).y * chord.x).abs() / len } else { (*p - a).length() })
+        .fold(0.0, f32::max);
+    if far < 12.0 || len > 1e-3 && far < 0.2 * len {
+        return false;
+    }
+    let mut turned = 0.0;
+    for w in pts.windows(3) {
+        let (u, v) = (w[1] - w[0], w[2] - w[1]);
+        if u.length() < 1e-3 || v.length() < 1e-3 {
+            continue;
+        }
+        turned += (u.x * v.y - u.y * v.x).atan2(u.dot(v)).abs();
+    }
+    turned >= 80f32.to_radians()
+}
+
+#[cfg(test)]
+mod stroke_tests {
+    use super::stroke_is_round;
+    use egui::{Pos2, pos2};
+
+    fn arc(deg: f32, r: f32) -> Vec<Pos2> {
+        (0..=24).map(|k| (k as f32 / 24.0 * deg).to_radians()).map(|a| pos2(100.0 + r * a.cos(), 100.0 + r * a.sin())).collect()
+    }
+
+    #[test]
+    fn straight_and_wobbly_strokes_stay_lines_and_round_ones_become_circles() {
+        let straight: Vec<Pos2> = (0..20).map(|k| pos2(10.0 + 8.0 * k as f32, 50.0 + if k % 2 == 0 { 1.5 } else { -1.5 })).collect();
+        assert!(!stroke_is_round(&straight));
+        assert!(stroke_is_round(&arc(300.0, 60.0)), "most of a circle");
+        assert!(stroke_is_round(&arc(120.0, 60.0)), "a third of one");
+        assert!(!stroke_is_round(&arc(30.0, 60.0)), "a slight bow is still a line");
+        let corner =
+            [pos2(0.0, 0.0), pos2(20.0, 0.0), pos2(40.0, 0.0), pos2(60.0, 0.0), pos2(60.0, 20.0), pos2(60.0, 40.0), pos2(60.0, 60.0)];
+        assert!(stroke_is_round(&corner), "a quick right-angle stroke, as the owner saw");
+        assert!(!stroke_is_round(&[pos2(0.0, 0.0), pos2(5.0, 5.0)]));
+    }
 }

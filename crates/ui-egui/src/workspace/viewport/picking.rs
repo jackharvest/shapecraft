@@ -157,6 +157,8 @@ impl Workspace {
         }
         let hovered = match (self.tool.clone(), self.section_pick) {
             (_, Some(h)) => h,
+            // On a touch screen the pencil draws straight onto the floor grid or a face (iPad): no tiles.
+            (Tool::PickPlane { .. }, _) if crate::tablet::touch_ui() => return Vec::new(),
             (Tool::PickPlane { hovered }, _) => hovered,
             _ => return Vec::new(),
         };

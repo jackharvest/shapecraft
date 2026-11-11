@@ -172,7 +172,9 @@ impl Workspace {
                     self.start_sketch_on(json!({ "construction": plane.0 }));
                 } else {
                     self.session.selection.clear();
-                    self.pending_tool = None;
+                    // On a touch screen Line/Arc is armed at once with no plane yet (iPad): the pencil's first
+                    // stroke picks the floor or the face under it and draws.
+                    self.pending_tool = crate::tablet::touch_ui().then_some(ToolKind::Line);
                     self.enter_plane_pick();
                 }
             }

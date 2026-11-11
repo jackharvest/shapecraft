@@ -20,6 +20,7 @@ pub mod import_prefs;
 pub mod import_project;
 mod keys;
 mod measure;
+mod numpad;
 mod panels;
 mod popover;
 pub(crate) mod prefs;
@@ -292,6 +293,8 @@ pub struct Workspace {
     pub(crate) variant_menu: Option<(&'static str, Pos2)>,
     /// Where a press-drag-release sketch stroke began (screen).
     pub(crate) sketch_drag: Option<Pos2>,
+    /// The pencil's path during a drawing drag (touch): a round one turns Line into a circle.
+    pub(crate) pen_stroke: Vec<Pos2>,
     /// A selected sketch line's ↕ being dragged: (sketch, line, the elements before, press point).
     /// What the last sketch tool drew (selected afterwards, shown blue rather than orange).
     pub(crate) just_drawn: Vec<Pick>,
@@ -347,6 +350,10 @@ pub struct Workspace {
     pub touch_drag: bool,
     /// The pointer is a finger on a touch screen: in the view it only navigates (no picks, no handles).
     pub finger_nav: bool,
+    /// The pencil drives the pointer (tablet): a drag on nothing turns the view unless the pencil was held first.
+    pub pen_input: bool,
+    /// The pencil was held still here: an Area Selection starts once it moves (iPad: long-press, then drag).
+    pub pen_held: Option<egui::Pos2>,
     /// How much wider edges, curves and snaps reach than for a mouse: more for a pencil or a finger (tablet). Above
     /// 1, what is lit up also holds on until the pointer is well away, so a tap picks what the hover showed.
     pub pick_slop: f32,
@@ -371,6 +378,8 @@ pub struct Workspace {
     pub numeric: Option<String>,
     /// `numeric` was filled from a clicked value pill and shows selected: the first key typed replaces it.
     pub numeric_fresh: bool,
+    /// Where the touch numpad opens: beside the value pill the pen tapped.
+    pub numpad_at: Option<egui::Pos2>,
     /// A rectangle's width, typed and fixed with Tab as observed; the next typed value is its height.
     pub(crate) rect_width: Option<f64>,
     /// A line length typed and fixed with Tab: the pointer then only aims the segment (26.200, s11-035/036).
@@ -424,6 +433,12 @@ pub struct Workspace {
     pub go_home: bool,
     /// The touch title's ⋯ menu is open.
     pub title_menu: bool,
+    /// Where banners may start below the touch title pill (0: no pill, the view's top).
+    pub pill_bottom: f32,
+    /// When this project opened on a touch screen (the "pen may not be connected" bubble shows for a while).
+    pub touch_opened: Option<f64>,
+    /// The touch ⋯ menu's open submenu (0 Import, 1 Export to).
+    pub title_sub: Option<usize>,
     /// A file/app action asked for from inside the workspace (the touch screen's ⋯ menu); the app takes it.
     pub app_request: Option<crate::menubar::AppAction>,
     recent_commands: Vec<&'static str>,
@@ -481,6 +496,9 @@ pub(crate) struct Preview {
     computed_at: f64,
     pub doc: Option<shapecraft_doc::Document>,
 }
+
+/// How long the "pen may not be connected" bubble stays.
+const PEN_BUBBLE_SECS: f64 = 6.0;
 
 impl Workspace {
     /// The Distance Type Offset Face uses for this face: a round face's own, else Total or Offset.
@@ -651,6 +669,7 @@ impl Workspace {
             extrude_auto: Default::default(),
             variant_menu: None,
             sketch_drag: None,
+            pen_stroke: Vec::new(),
             side_drag: None,
             just_drawn: Vec::new(),
             defined: None,
@@ -682,6 +701,8 @@ impl Workspace {
             menus_at: Pos2::ZERO,
             touch_drag: false,
             finger_nav: false,
+            pen_input: false,
+            pen_held: None,
             pick_slop: 1.0,
             items_w_here: None,
             viewport_hot: false,
@@ -693,6 +714,7 @@ impl Workspace {
             ppp: 0.0,
             numeric: None,
             numeric_fresh: false,
+            numpad_at: None,
             rect_width: None,
             line_len: None,
             text_drag: None,
@@ -721,6 +743,9 @@ impl Workspace {
             hint_collapsed: false,
             go_home: false,
             title_menu: false,
+            pill_bottom: 0.0,
+            touch_opened: None,
+            title_sub: None,
             app_request: None,
             recent_commands: vec!["extrude", "rectangle"],
             clipboard: (Vec::new(), String::new()),
@@ -876,6 +901,18 @@ impl Workspace {
     }
 
     /// The blurred view for the frosted sidebars and the rect it was rendered for.
+    /// The top of the hint banner and its stand-ins: 8 pt into the view, or 10 pt under the touch title pill (iPad).
+    pub(crate) fn banner_y(&self) -> f32 {
+        let bubble = if self.pen_bubble() { 37.0 } else { 0.0 };
+        (self.viewport_rect.top() + 8.0).max(self.pill_bottom + 10.0 + bubble)
+    }
+
+    /// iPad shows "Apple Pencil may not be connected" under the title on opening a project with no pencil paired:
+    /// here, for the first seconds of a project on a touch screen until a pen is used.
+    pub(crate) fn pen_bubble(&self) -> bool {
+        self.pill_bottom > 0.0 && !crate::tablet::pen_seen() && self.touch_opened.is_some_and(|t| self.now - t < PEN_BUBBLE_SECS)
+    }
+
     pub(super) fn glass(&self) -> Option<(egui::TextureId, Rect)> {
         self.gpu.glass.map(|t| (t, self.view_rect))
     }
