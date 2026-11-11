@@ -336,6 +336,16 @@ const PREFS_MARGIN: f32 = 12.0;
 fn window_in(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings, shortcuts: bool) -> PrefsOut {
     let r = dialog(ui, full, vec2(560.0, PREFS_H), "Preferences");
     let p = ui.painter().clone();
+    // Touch screens: a round ✕ in the top corner closes it, as the reference's iPad Settings sheet does (Done sits at
+    // the bottom, out of reach on a short screen until scrolled to).
+    let closed = crate::tablet::touch_ui() && {
+        let c = pos2(r.right() - 26.0, r.top() + 24.0);
+        let resp = ui.interact(Rect::from_center_size(c, vec2(43.0, 44.0)), ui.scope_id().with("prefs-close"), Sense::click());
+        p.circle_filled(c, 15.0, if resp.hovered() { theme::c(0x4a4a4c) } else { theme::c(0x3a3a3c) });
+        p.line_segment([c + vec2(-5.0, -5.0), c + vec2(5.0, 5.0)], Stroke::new(2.0, theme::c(0xb0b0b4)));
+        p.line_segment([c + vec2(-5.0, 5.0), c + vec2(5.0, -5.0)], Stroke::new(2.0, theme::c(0xb0b0b4)));
+        resp.clicked()
+    };
     let tabs = [
         ("General", Icon::Tools, true),
         ("ShapeCraft", Icon::Gear, true),
@@ -376,7 +386,7 @@ fn window_in(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings, shortcu
     let footer = Rect::from_min_max(pos2(r.left(), r.bottom() - 52.0), r.max);
     p.rect_filled(footer, egui::CornerRadius { nw: 0, ne: 0, sw: 11, se: 11 }, theme::c(0x232325));
     let done = button(ui, Rect::from_min_size(pos2(r.right() - 86.0, r.bottom() - 36.0), vec2(70.0, 20.0)), "Done", true, "pref-done");
-    PrefsOut { done: done || close_on_escape(ui), customize, presets }
+    PrefsOut { done: done || closed || close_on_escape(ui), customize, presets }
 }
 
 /// A radio row: the name, and a line of detail under it. Disabled rows are shown but can't be picked.

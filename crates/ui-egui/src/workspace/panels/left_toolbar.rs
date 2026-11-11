@@ -461,7 +461,10 @@ impl Workspace {
                 flyout: false,
             });
         }
-        let by = vp.bottom() - 9.0 - toolbar::group_height(bottom.len());
+        // Touch screens: Undo and Redo get their own cells at the very bottom, under a line (the reference's iPad column:
+        // two 44 × 40 cells side by side, 10 pt from the bottom).
+        let undo_row = crate::tablet::touch_ui().then(|| vp.bottom() - 10.0 - toolbar::group_height(1));
+        let by = undo_row.map_or(vp.bottom() - 9.0, |u| u - 20.0) - toolbar::group_height(bottom.len());
         // Preferences ▸ Done / Cancel Buttons ▸ Toolbar or Both: the classic ✓ / ✕ cells (each its own container, as
         // 26.142 had them) above the bottom group, standing in for the bottom row's buttons.
         let confirm: Vec<ToolDef> = match self.confirm_seen {
@@ -715,6 +718,15 @@ impl Workspace {
             .collect();
         if let Some(i) = toolbar::group(ui, pos2(x, by), &bottom, &bottom_active, labels, "bottom") {
             clicked = bottom.get(i).copied();
+        }
+        if let Some(top) = undo_row {
+            ui.painter().line_segment([pos2(x + 11.0, top - 10.0), pos2(x + 33.0, top - 10.0)], Stroke::new(2.0, Tokens::tool_separator()));
+            if toolbar::group(ui, pos2(x, top), &[toolbar::UNDO], &[false], false, "undo").is_some() {
+                clicked = Some(toolbar::UNDO);
+            }
+            if toolbar::group(ui, pos2(x + Tokens::TOOL_BUTTON + 4.0, top), &[toolbar::REDO], &[false], false, "redo").is_some() {
+                clicked = Some(toolbar::REDO);
+            }
         }
         for (i, d) in confirm.iter().enumerate() {
             let at = pos2(x, confirm_y + i as f32 * (toolbar::group_height(1) + gap));

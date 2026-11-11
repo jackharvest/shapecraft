@@ -27,11 +27,13 @@ Close the tab or let the iPad sleep and the copy keeps going: open it again and 
 | Input | What it does |
 | --- | --- |
 | Apple Pencil | The pointer: tap, drag, draw. Edges, sketch curves and snap points reach about twice as far as for a mouse, and a small wobble during a tap still counts as a tap. On iPads with Pencil hover, holding the tip above the glass lights up what a tap would pick, and what's lit holds on until the tip moves well away, so the tap picks it. |
-| One finger, tap | Click (pick a face, press a button). |
-| One finger, drag | In the 3D view: turn the view, even with a sketch tool on (the pencil draws). Handles and arrows still drag. Over lists: scroll. |
-| One finger, hold | Right-click (context menu). |
+| Fingers in the 3D view | Move the view only: fingers never pick, draw or drag handles (the Pencil does). |
+| One finger, tap | Press a button. In the 3D view: nothing. |
+| One finger, double tap | In the 3D view: zoom to the face under it. |
+| One finger, drag | In the 3D view: turn the view, even with a sketch tool on. Over lists: scroll. |
+| One finger, hold | Over a panel: right-click (context menu). In the 3D view: nothing. |
 | Two fingers | In the 3D view: pan and pinch to zoom. Over lists: scroll. |
-| Two-finger tap / three-finger tap | Undo / Redo. |
+| Three-finger swipe | Left: undo. Right: redo. The on-screen Undo and Redo buttons sit at the bottom of the tool column. |
 | Palm on the glass while drawing | Ignored. |
 | Magic Keyboard / any keyboard | Every shortcut, ⌘ included. Typing a number while a tool runs works as on the computer. |
 | On-screen keyboard | When ShapeCraft wants text or a number, a keyboard button appears at the bottom right. iOS opens its keyboard only from a tap, so the button is there for that tap. |

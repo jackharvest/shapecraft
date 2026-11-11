@@ -19,9 +19,8 @@ const SLOP: f32 = 9.0;
 const LONG_PRESS: Duration = Duration::from_millis(520);
 /// Fingers that come down this soon after the pencil lifts are taken for the palm.
 const PALM_AFTER_PEN: Duration = Duration::from_millis(350);
-/// A multi-finger tap: this short, this still.
-const TAP_TIME: Duration = Duration::from_millis(320);
-const TAP_MOVE: f32 = 16.0;
+/// How far three fingers go sideways to undo or redo (points).
+const SWIPE: f32 = 50.0;
 /// A pencil tap wobbles on the glass: this little movement this soon is still a tap at the spot it touched.
 const PEN_SLOP: f32 = 7.0;
 const PEN_TAP: Duration = Duration::from_millis(300);
@@ -78,9 +77,15 @@ enum Mode {
         moved: f32,
         most: usize,
         over_view: Option<bool>,
+        /// How far the fingers' middle has gone in all (a three-finger swipe is undo / redo).
+        travel: Vec2,
     },
-    /// A gesture is over; wait for every finger to lift before the next.
-    Spent,
+    /// A finger held still: over the 3D view nothing happens (the reference); over a panel it is a right-click,
+    /// decided once the frame has said what is under it.
+    Hold {
+        at: Pos2,
+        decided: bool,
+    },
 }
 
 pub(super) struct Router {
@@ -267,7 +272,8 @@ impl Router {
                         *centroid = self::centroid(&self.fingers);
                         *spread = self::spread(&self.fingers, *centroid);
                     }
-                    Mode::Spent => {}
+                    // A second finger after a hold: the hold is over, the fingers start a gesture.
+                    Mode::Hold { .. } => self.start_multi(now),
                 }
             }
             Kind::Move => {
@@ -311,12 +317,16 @@ impl Router {
                     self.now.push(Event::PointerMoved(pos));
                 }
             }
-            Mode::Multi { centroid, spread, moved, over_view, .. } => {
+            Mode::Multi { centroid, spread, moved, over_view, travel, most, .. } => {
                 let c = self::centroid(&self.fingers);
                 let s = self::spread(&self.fingers, c);
                 let dc = c - *centroid;
                 *moved += dc.length() + (s - *spread).abs();
+                *travel += dc;
+                // Three fingers are a swipe for undo / redo, never a pan or zoom.
+                let swipe = *most >= 3;
                 match over_view {
+                    _ if swipe => {}
                     Some(true) => {
                         self.nav.push(Nav::Pan(dc));
                         self.nav.push(Nav::Zoom(s / *spread, c));
@@ -363,25 +373,27 @@ impl Router {
                 self.finger_until = self.frame + 1;
                 self.mode = Mode::Idle;
             }
-            Mode::Multi { since, moved, most, over_view, .. } => {
+            Mode::Multi { since, moved, most, over_view, travel, .. } => {
                 if !self.fingers.is_empty() {
                     // Lifting one of several: the rest carry on (a tap's fingers never lift at quite the same time),
                     // measured from where they are so the view doesn't jump.
                     let c = centroid(&self.fingers);
-                    self.mode = Mode::Multi { since, centroid: c, spread: spread(&self.fingers, c), moved, most, over_view };
+                    self.mode = Mode::Multi { since, centroid: c, spread: spread(&self.fingers, c), moved, most, over_view, travel };
                     return;
                 }
-                if !cancelled && now.duration_since(since) < TAP_TIME && moved < TAP_MOVE {
-                    self.undo_tap(most);
+                // A three-finger swipe sideways: left undoes, right redoes (the reference on iPad). Taps do nothing.
+                if !cancelled && most >= 3 && travel.x.abs() >= SWIPE && travel.x.abs() > 1.5 * travel.y.abs() {
+                    self.undo_key(travel.x > 0.0);
                 }
+                let _ = (since, now);
                 if over_view == Some(false) {
                     self.after(1, Event::PointerGone);
                 }
                 self.mode = Mode::Idle;
             }
-            Mode::Spent => {
+            Mode::Hold { .. } => {
                 if self.fingers.is_empty() {
-                    self.now.push(Event::PointerGone);
+                    self.after(1, Event::PointerGone);
                     self.mode = Mode::Idle;
                 }
             }
@@ -395,16 +407,23 @@ impl Router {
             Mode::Pending { since } => since,
             _ => now,
         };
-        self.mode =
-            Mode::Multi { since, centroid: c, spread: spread(&self.fingers, c), moved: 0.0, most: self.fingers.len(), over_view: None };
+        self.mode = Mode::Multi {
+            since,
+            centroid: c,
+            spread: spread(&self.fingers, c),
+            moved: 0.0,
+            most: self.fingers.len(),
+            over_view: None,
+            travel: Vec2::ZERO,
+        };
         // Look at what's under the fingers' middle; `after_frame` reads the answer.
         self.now.push(Event::PointerMoved(c));
     }
 
-    /// Two fingers undo, three redo (⌘Z, ⇧⌘Z).
-    fn undo_tap(&mut self, fingers: usize) {
+    /// Undo (⌘Z), or redo (⇧⌘Z).
+    fn undo_key(&mut self, redo: bool) {
         let mut m = command_mods();
-        m.shift = fingers >= 3;
+        m.shift = redo;
         for pressed in [true, false] {
             self.now.push(Event::Key { key: Key::Z, physical_key: Some(Key::Z), pressed, repeat: false, modifiers: m });
         }
@@ -419,9 +438,7 @@ impl Router {
             let at = f.at;
             self.finger = true;
             self.now.push(Event::PointerMoved(at));
-            self.now.push(self.button(at, PointerButton::Secondary, true));
-            self.after(1, self.button(at, PointerButton::Secondary, false));
-            self.mode = Mode::Spent;
+            self.mode = Mode::Hold { at, decided: false };
         }
     }
 
@@ -443,6 +460,14 @@ impl Router {
             self.finger_until = 0;
         }
         match &mut self.mode {
+            Mode::Hold { at, decided: false } => {
+                let at = *at;
+                if !over_view {
+                    self.now.push(self.button(at, PointerButton::Secondary, true));
+                    self.after(1, self.button(at, PointerButton::Secondary, false));
+                }
+                self.mode = Mode::Hold { at, decided: true };
+            }
             Mode::Multi { over_view: o @ None, .. } => {
                 *o = Some(over_view);
                 if over_view {
@@ -518,15 +543,21 @@ mod tests {
     }
 
     #[test]
-    fn a_held_finger_is_a_right_click() {
-        let mut r = Router::default();
-        let t = Instant::now();
-        r.pointer(Kind::Down, Device::Touch, 1, pos2(10.0, 10.0), 0, t);
-        r.tick(t + Duration::from_millis(600));
-        assert_eq!(presses(&r.take().0), vec![(PointerButton::Secondary, true)]);
-        assert_eq!(presses(&r.take().0), vec![(PointerButton::Secondary, false)]);
-        r.pointer(Kind::Up, Device::Touch, 1, pos2(10.0, 10.0), 0, t + Duration::from_millis(700));
-        assert!(presses(&r.take().0).is_empty(), "lifting after the menu opened doesn't click");
+    fn a_held_finger_does_nothing_in_the_view_and_right_clicks_on_a_panel() {
+        for over_view in [true, false] {
+            let mut r = Router::default();
+            let t = Instant::now();
+            r.pointer(Kind::Down, Device::Touch, 1, pos2(10.0, 10.0), 0, t);
+            r.tick(t + Duration::from_millis(600));
+            assert!(presses(&r.take().0).is_empty(), "nothing until the frame says what's under the finger");
+            r.after_frame(over_view, false);
+            let mut seen = presses(&r.take().0);
+            seen.extend(presses(&r.take().0));
+            let want = if over_view { vec![] } else { vec![(PointerButton::Secondary, true), (PointerButton::Secondary, false)] };
+            assert_eq!(seen, want, "over the view: {over_view}");
+            r.pointer(Kind::Up, Device::Touch, 1, pos2(10.0, 10.0), 0, t + Duration::from_millis(700));
+            assert!(presses(&r.take().0).is_empty(), "lifting after a hold doesn't click");
+        }
     }
 
     #[test]
@@ -561,23 +592,33 @@ mod tests {
     }
 
     #[test]
-    fn quick_two_and_three_finger_taps_undo_and_redo() {
-        for (n, shift) in [(2, false), (3, true)] {
+    fn three_finger_swipes_undo_and_redo_and_taps_do_nothing() {
+        // (fingers, sideways travel, expected: None = nothing, Some(shift) = ⌘Z / ⇧⌘Z)
+        for (n, dx, want) in [(3, -80.0, Some(false)), (3, 80.0, Some(true)), (3, 0.0, None), (2, 0.0, None), (3, 20.0, None)] {
             let mut r = Router::default();
             let t = Instant::now();
             for i in 0..n {
-                r.pointer(Kind::Down, Device::Touch, i, pos2(100.0 + 50.0 * i as f32, 100.0), 0, t);
+                r.pointer(Kind::Down, Device::Touch, i, pos2(300.0 + 50.0 * i as f32, 300.0), 0, t);
             }
+            r.after_frame(true, false);
             r.take();
+            for step in 1..=4 {
+                for i in 0..n {
+                    let at = pos2(300.0 + 50.0 * i as f32 + dx * step as f32 / 4.0, 300.0);
+                    r.pointer(Kind::Move, Device::Touch, i, at, 0, t + Duration::from_millis(30 * step));
+                }
+            }
+            let (_, nav) = r.take();
+            assert!(n < 3 || nav.is_empty(), "three fingers never pan or zoom the view");
             for i in 0..n {
-                r.pointer(Kind::Up, Device::Touch, i, pos2(100.0 + 50.0 * i as f32, 100.0), 0, t + Duration::from_millis(120));
+                r.pointer(Kind::Up, Device::Touch, i, pos2(300.0 + 50.0 * i as f32 + dx, 300.0), 0, t + Duration::from_millis(200));
             }
             let (ev, _) = r.take();
             let z = ev.iter().find_map(|e| match e {
-                Event::Key { key: Key::Z, pressed: true, modifiers, .. } => Some(*modifiers),
+                Event::Key { key: Key::Z, pressed: true, modifiers, .. } => Some(modifiers.shift),
                 _ => None,
             });
-            assert_eq!(z.map(|m| (m.command, m.shift)), Some((true, shift)), "{n} fingers");
+            assert_eq!(z, want, "{n} fingers, {dx} sideways");
         }
     }
 

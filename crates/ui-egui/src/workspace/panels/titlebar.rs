@@ -111,3 +111,149 @@ pub(in crate::workspace) fn titlebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     let (drag_left, drag_right) = if system_menu_bar { (r.left() + 360.0, right - 60.0) } else { (ws.menus_at.x, right - 94.0) };
     window_chrome::drag_area(ui, Rect::from_min_max(pos2(drag_left, r.top()), pos2(drag_right, r.bottom())), "titledrag");
 }
+
+/// The title on a touch screen, as the reference draws it on iPad: no title bar. Sideways, a pill floats at the top
+/// centre of the view (home | project name | ⋯), level with the tool column's first button; upright, a slim bar runs
+/// across the top (`bar` has height then). The name opens a NAME popover to rename the project; ⋯ holds what the menu
+/// bar holds elsewhere: Import, Export, Help, Settings.
+pub(in crate::workspace) fn touch_title(ws: &mut Workspace, ui: &mut Ui, bar: Rect) {
+    let ink = theme::c(0xd6d5d6);
+    let fill = theme::c(0x2b2b2d);
+    let name = ws.session.doc.name.clone();
+    let font = theme::strong(17.0);
+    let name_w = ui.painter().layout_no_wrap(name.clone(), font.clone(), Color32::WHITE).size().x.min(360.0);
+    let (frame, home_c, name_left, more_c) = if bar.height() > 0.0 {
+        ui.painter().rect_filled(bar, 0.0, Tokens::titlebar());
+        (bar, pos2(bar.left() + 33.0, bar.center().y), bar.left() + 62.0, pos2(bar.right() - 31.0, bar.center().y))
+    } else {
+        // Measured on iPad: 44 pt tall; home 50.5 wide, the name, ⋯ 46 wide, 8 pt in from each end.
+        let vp = ws.viewport_rect;
+        let w = 8.0 + 50.0 + 8.0 + name_w + 14.0 + 46.0 + 8.0;
+        let pill = Rect::from_center_size(pos2(vp.center().x, vp.top() + 9.0 + 22.0), vec2(w, 44.0));
+        let p = ui.painter();
+        p.rect_filled(pill.translate(vec2(0.0, 3.0)).expand(1.0), radius(14), Color32::from_black_alpha(60));
+        p.rect_filled(pill, radius(13), fill);
+        p.rect_stroke(pill, radius(13), Stroke::new(1.0, theme::c(0x3c3c3e)), egui::StrokeKind::Inside);
+        (pill, pos2(pill.left() + 33.0, pill.center().y), pill.left() + 66.0, pos2(pill.right() - 31.0, pill.center().y))
+    };
+    if home_button(ui, home_c, ink, fill) {
+        ws.go_home = true;
+    }
+    let name_rect = Rect::from_min_size(pos2(name_left, frame.center().y - 14.0), vec2(name_w, 28.0));
+    ui.painter().with_clip_rect(name_rect.expand(2.0)).text(
+        pos2(name_left, frame.center().y),
+        Align2::LEFT_CENTER,
+        &name,
+        font,
+        Tokens::text_strong(),
+    );
+    if ui.interact(name_rect.expand2(vec2(4.0, 8.0)), ui.scope_id().with("touch-name"), Sense::click()).clicked() {
+        // The reference's field starts empty, the current name showing as its placeholder.
+        ws.renaming = Some((None, String::new(), true));
+        ws.title_menu = false;
+    }
+    let more = Rect::from_center_size(more_c, vec2(46.0, 40.0));
+    let more_resp = ui.interact(more, ui.scope_id().with("touch-more"), Sense::click());
+    ui.painter().circle_stroke(more_c, 11.0, Stroke::new(1.6, ink));
+    for dx in [-5.0, 0.0, 5.0] {
+        ui.painter().circle_filled(more_c + vec2(dx, 0.0), 1.6, ink);
+    }
+    if more_resp.clicked() {
+        ws.title_menu = !ws.title_menu;
+    }
+    let below = frame.bottom() + 8.0;
+    if let Some((None, text, focus)) = &mut ws.renaming {
+        let popover = Rect::from_center_size(pos2(name_rect.center().x, below + 50.0), vec2(375.0, 100.0));
+        let mut done: Option<bool> = None;
+        egui::Area::new(ui.scope_id().with("name-popover")).fixed_pos(popover.min).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
+            let p = ui.painter();
+            p.rect_filled(popover.translate(vec2(0.0, 6.0)), radius(14), Color32::from_black_alpha(80));
+            p.rect_filled(popover, radius(13), theme::c(0x2c2c2e));
+            p.text(popover.left_top() + vec2(32.0, 30.0), Align2::LEFT_CENTER, "NAME", theme::body(13.0), Tokens::text_dim());
+            let field = Rect::from_min_size(popover.left_top() + vec2(16.0, 50.0), vec2(343.0, 36.0));
+            ui.painter().rect_filled(field, radius(9), theme::c(0x3a3a3c));
+            let edit_id = ui.scope_id().with("rename-project-touch");
+            let edit = egui::TextEdit::singleline(text)
+                .id(edit_id)
+                .hint_text(&name)
+                .font(theme::body(16.0))
+                .frame(egui::Frame::NONE)
+                .desired_width(field.width() - 24.0);
+            let resp = ui.put(field.shrink2(vec2(12.0, 7.0)), edit);
+            if *focus {
+                resp.request_focus();
+                *focus = false;
+            }
+            let (enter, esc) = ui.input_mut(|i| {
+                (i.consume_key(egui::Modifiers::NONE, egui::Key::Enter), i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+            });
+            if enter || resp.lost_focus() && !esc {
+                done = Some(true);
+            } else if esc {
+                done = Some(false);
+            }
+        });
+        match done {
+            Some(true) => {
+                let new = text.trim().to_string();
+                ws.renaming = None;
+                if !new.is_empty() && new != name {
+                    let _ = ws.run("rename_project", json!({ "name": new }));
+                }
+            }
+            Some(false) => ws.renaming = None,
+            None => {}
+        }
+    }
+    if ws.title_menu {
+        let rows: [(&str, Icon, Option<crate::menubar::AppAction>, Option<UiAction>); 4] = [
+            ("Import…", Icon::Import, Some(crate::menubar::AppAction::Import), None),
+            ("Export…", Icon::Export, Some(crate::menubar::AppAction::Export), None),
+            ("Help", Icon::Help, None, Some(UiAction::Help)),
+            ("Settings", Icon::Gear, None, Some(UiAction::Preferences)),
+        ];
+        let menu = Rect::from_min_size(pos2(more_c.x - 236.0 + 23.0, below), vec2(252.0, 16.0 + rows.len() as f32 * 44.0 + 9.0));
+        let mut picked: Option<usize> = None;
+        let mut outside = false;
+        egui::Area::new(ui.scope_id().with("title-menu")).fixed_pos(menu.min).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
+            let p = ui.painter();
+            p.rect_filled(menu.translate(vec2(0.0, 6.0)), radius(16), Color32::from_black_alpha(80));
+            p.rect_filled(menu, radius(16), theme::c(0x2c2c2e));
+            for (i, (label, icon, ..)) in rows.iter().enumerate() {
+                // A thin line between the file items and Help / Settings, as on iPad.
+                let extra = if i >= 2 { 9.0 } else { 0.0 };
+                let row = Rect::from_min_size(menu.left_top() + vec2(8.0, 8.0 + i as f32 * 44.0 + extra), vec2(236.0, 44.0));
+                if i == 2 {
+                    p.line_segment(
+                        [pos2(row.left() + 12.0, row.top() - 5.0), pos2(row.right() - 12.0, row.top() - 5.0)],
+                        Stroke::new(1.0, theme::c(0x48484a)),
+                    );
+                }
+                let resp = ui.interact(row, ui.scope_id().with(("title-row", i)), Sense::click());
+                if resp.hovered() {
+                    p.rect_filled(row, radius(9), Tokens::button_hover());
+                }
+                icons::paint(p, Rect::from_center_size(row.left_center() + vec2(26.0, 0.0), vec2(20.0, 20.0)), *icon, ink);
+                p.text(row.left_center() + vec2(50.0, 0.0), Align2::LEFT_CENTER, *label, theme::body(16.0), Tokens::text_strong());
+                if resp.clicked() {
+                    picked = Some(i);
+                }
+            }
+            outside = ui
+                .input(|i| i.pointer.any_pressed() && i.pointer.interact_pos().is_some_and(|at| !menu.contains(at) && !more.contains(at)));
+        });
+        if let Some(i) = picked {
+            ws.title_menu = false;
+            if let Some((_, _, app, uia)) = rows.get(i) {
+                if let Some(a) = app {
+                    ws.app_request = Some(*a);
+                }
+                if let Some(u) = uia {
+                    ws.ui_action(*u);
+                }
+            }
+        } else if outside {
+            ws.title_menu = false;
+        }
+    }
+}

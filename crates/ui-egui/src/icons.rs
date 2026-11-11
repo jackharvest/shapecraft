@@ -177,6 +177,9 @@ pub enum Icon {
     ChevronRight,
     /// A turning arrow (a tutorial's Retry / Redo).
     Retry,
+    /// Touch screens' on-screen Undo / Redo: a U-turn arrow in a thin circle (as on the reference's iPad column).
+    Undo,
+    Redo,
     ChevronDown,
     ChevronUp,
     Filter,
@@ -1536,6 +1539,24 @@ fn paint_dark(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
         Retry => {
             pen.arc(12.0, 12.5, 6.5, -60.0, 230.0);
             pen.line(&[(4.6, 5.6), (7.9, 7.6), (9.3, 4.0)]);
+        }
+        Undo | Redo => {
+            // Thin and grey, as on the reference's iPad column.
+            let (_, grey) = two_tone(color);
+            let pen = Pen { p: painter, o, s: pen.s, stroke: Stroke::new(1.4 * pen.s, grey) };
+            pen.circle(12.0, 12.0, 9.5);
+            // Drawn for Undo (head at the left); Redo is its mirror image.
+            let m = |pts: &[(f32, f32)]| -> Vec<(f32, f32)> {
+                pts.iter().map(|&(x, y)| if matches!(icon, Redo) { (24.0 - x, y) } else { (x, y) }).collect()
+            };
+            pen.line(&m(&[(10.2, 7.4), (7.6, 10.0), (10.2, 12.6)]));
+            pen.line(&m(&[(7.9, 10.0), (12.6, 10.0)]));
+            if matches!(icon, Redo) {
+                pen.arc(11.4, 12.9, 2.9, 90.0, 270.0);
+            } else {
+                pen.arc(12.6, 12.9, 2.9, -90.0, 90.0);
+            }
+            pen.line(&m(&[(12.6, 15.8), (10.6, 15.8)]));
         }
         Folder => pen.closed(&[(3.0, 7.0), (9.0, 7.0), (11.0, 9.0), (21.0, 9.0), (21.0, 19.0), (3.0, 19.0)]),
         NewFolder => {

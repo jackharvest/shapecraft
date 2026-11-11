@@ -139,6 +139,8 @@ impl Default for ViewOptions {
 
 /// The Items sidebar's width limits (measured, L07).
 const ITEMS_MIN_W: f32 = 200.0;
+/// The Items column on a touch screen, as wide as the reference's on iPad.
+const ITEMS_TOUCH_W: f32 = 276.0;
 const ITEMS_MAX_W: f32 = 500.0;
 
 /// Keyboard Shortcuts being customised: the keys changed so far (label, keys) and the row taking a key.
@@ -343,6 +345,8 @@ pub struct Workspace {
     /// A finger, not the pencil or a mouse, has the pointer (tablet): a drag on nothing in the view turns it even with
     /// a sketch tool on, and never draws a selection box.
     pub touch_drag: bool,
+    /// The pointer is a finger on a touch screen: in the view it only navigates (no picks, no handles).
+    pub finger_nav: bool,
     /// How much wider edges, curves and snaps reach than for a mouse: more for a pencil or a finger (tablet). Above
     /// 1, what is lit up also holds on until the pointer is well away, so a tap picks what the hover showed.
     pub pick_slop: f32,
@@ -418,6 +422,10 @@ pub struct Workspace {
     hint_collapsed: bool,
     /// Set when the user asked to go back to the projects screen.
     pub go_home: bool,
+    /// The touch title's ⋯ menu is open.
+    pub title_menu: bool,
+    /// A file/app action asked for from inside the workspace (the touch screen's ⋯ menu); the app takes it.
+    pub app_request: Option<crate::menubar::AppAction>,
     recent_commands: Vec<&'static str>,
     /// Edit ▸ Copy: the bodies and planes copied, and the tag put on the system clipboard with them.
     pub(super) clipboard: (Vec<ItemId>, String),
@@ -673,6 +681,7 @@ impl Workspace {
             prefs_open: false,
             menus_at: Pos2::ZERO,
             touch_drag: false,
+            finger_nav: false,
             pick_slop: 1.0,
             items_w_here: None,
             viewport_hot: false,
@@ -711,6 +720,8 @@ impl Workspace {
             pinned: Vec::new(),
             hint_collapsed: false,
             go_home: false,
+            title_menu: false,
+            app_request: None,
             recent_commands: vec!["extrude", "rectangle"],
             clipboard: (Vec::new(), String::new()),
             clip_out: None,
@@ -891,12 +902,20 @@ impl Workspace {
 
         let full = ui.max_rect();
         ui.painter().rect_filled(full, 0.0, Tokens::window());
-        let title = Rect::from_min_size(full.min, vec2(full.width(), Tokens::TITLEBAR_H));
+        // A touch screen has no title bar: sideways the title floats over the view; upright a slim bar takes 44 pt.
+        let touch = crate::tablet::touch_ui();
+        let title_h = match (touch, full.height() > full.width()) {
+            (false, _) => Tokens::TITLEBAR_H,
+            (true, true) => 44.0,
+            (true, false) => 0.0,
+        };
+        let title = Rect::from_min_size(full.min, vec2(full.width(), title_h));
         let body_top = title.bottom();
         let gap = Tokens::GAP;
         // The Drawings workspace hides the Items sidebar (as observed).
         // A tablet keeps the Items column at its narrowest for room to model; a drag there stays on the tablet.
-        let saved = if crate::tablet::on_tablet() { self.items_w_here.unwrap_or(ITEMS_MIN_W) } else { self.settings.items_width };
+        // A touch screen starts the Items column as wide as the reference's on iPad (276 pt); a drag there stays here.
+        let saved = if crate::tablet::touch_ui() { self.items_w_here.unwrap_or(ITEMS_TOUCH_W) } else { self.settings.items_width };
         let items_w = self.items_drag.unwrap_or(saved);
         let items_w = if items_w.is_finite() { items_w.clamp(ITEMS_MIN_W, ITEMS_MAX_W) } else { Tokens::SIDEBAR_W };
         let teaching = self.tutorial.is_some();
@@ -929,7 +948,11 @@ impl Workspace {
         } else {
             self.floating_controls(ui);
         }
-        panels::titlebar(self, ui, title);
+        if touch {
+            panels::touch_title(self, ui, title);
+        } else {
+            panels::titlebar(self, ui, title);
+        }
         if let Some(r) = items_rect {
             panels::items_sidebar(self, ui, r);
             // Its right edge resizes it.
@@ -946,7 +969,7 @@ impl Workspace {
             if resp.drag_stopped()
                 && let Some(w) = self.items_drag.take()
             {
-                if crate::tablet::on_tablet() {
+                if crate::tablet::touch_ui() {
                     self.items_w_here = Some(w.round());
                 } else {
                     self.settings.items_width = w.round();

@@ -72,12 +72,24 @@ impl Workspace {
         let pointer = ui.input(|i| i.pointer.hover_pos());
         self.cursor = pointer.filter(|p| rect.contains(*p) && resp.hovered() || resp.dragged());
         self.viewport_hot = resp.hovered() || resp.dragged();
-        self.update_hover();
-        self.handle_clicks(ui, &resp);
-        self.handle_drags(ui, &resp);
-        self.area_drags(ui, &resp);
-        // After the handles: a drag that just grabbed one mustn't also turn the view on its first frame.
-        self.navigate(ui, &resp);
+        if self.finger_nav {
+            // A finger on a touch screen only moves the view, as on the reference's iPad: no picking, no hover, no
+            // handles (the pen does those). A double tap zooms to the face under it.
+            self.hover = None;
+            if resp.double_clicked()
+                && let Some(c) = self.cursor
+            {
+                self.zoom_to_face(c);
+            }
+            self.navigate(ui, &resp);
+        } else {
+            self.update_hover();
+            self.handle_clicks(ui, &resp);
+            self.handle_drags(ui, &resp);
+            self.area_drags(ui, &resp);
+            // After the handles: a drag that just grabbed one mustn't also turn the view on its first frame.
+            self.navigate(ui, &resp);
+        }
 
         let ppp = ui.ctx().pixels_per_point();
         self.ppp = ppp;

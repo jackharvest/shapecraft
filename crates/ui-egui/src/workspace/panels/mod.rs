@@ -27,7 +27,7 @@ pub(super) use command_search::run_command_id;
 pub(crate) use command_search::select_all;
 pub(super) use items::items_sidebar;
 pub(super) use popups::popups;
-pub(super) use titlebar::titlebar;
+pub(super) use titlebar::{titlebar, touch_title};
 
 /// How much of the blurred view shows through a sidebar; the rest is the tint. Measured: over the empty view a
 /// sidebar is PANEL, over a light grey body it brightens by about a third of the difference.

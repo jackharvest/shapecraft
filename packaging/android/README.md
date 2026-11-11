@@ -48,13 +48,13 @@ Add `x86_64` after each command for the emulator's own architecture.
 
 Install the APK (`adb install ShapeCraft-….apk`, or open it on the device and allow installs from that source).
 
-- **Stylus first**: the pen draws and edits like a precise mouse (it hovers; its barrel button is a right-click).
-  Fingers move the view: drag on the background to turn it (a drag on a handle moves the handle), two fingers pan
-  and pinch, a tap picks, a long press is a right-click, a two-finger tap undoes and three fingers redo. Drawing
-  with a finger works by taps but is awkward; without a pen, a mouse and keyboard are the way to model.
+- **Stylus first**, as the reference works on iPad: the pen picks, draws and drags handles (it hovers; its barrel
+  button is a right-click). Fingers only move the view: one finger turns it, two pan and pinch, a double tap zooms
+  to a face, a three-finger swipe left or right undoes or redoes; they press buttons but never pick or draw in the
+  3D view. Without a pen, a mouse and keyboard are the way to model.
 - **Mouse**: all buttons and the wheel work, as on the desktop.
-- **Screen**: the interface is scaled so it has at least 1000 × 640 points, and up to 20% bigger where there's
-  room. On a phone, sideways works best. Shortcuts show only while a hardware keyboard is attached.
+- **Screen**: one point is drawn 1.21 dp, the size of an iPad point, so a tablet shows the interface at the size the
+  reference has on iPad; small screens shrink it to keep at least 1000 × 640 points. On a phone, sideways works best. Shortcuts show only while a hardware keyboard is attached.
 - **Pointers**: winit 0.30 reports every Android pointer as a plain touch, so `third_party/winit` adds the tool type,
   hover and mouse buttons (see its `PATCH.md`).
 - **Keyboard**: the on-screen keyboard opens when a text field has the focus. To type a number into a tool

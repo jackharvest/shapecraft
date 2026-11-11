@@ -33,9 +33,10 @@ pub(crate) enum ToSession {
 
 /// The smallest the desktop layout is drawn at (points); smaller screens see it scaled down to fit.
 pub(super) const MIN_SIZE: [f32; 2] = [1000.0, 640.0];
-/// Touch screens draw everything this much bigger when there's room (fingers need bigger targets than a mouse),
-/// never leaving less than `MIN_SIZE`.
-pub(super) const TOUCH_ZOOM: f32 = 1.2;
+/// Android draws everything this much bigger when there's room, never leaving less than `MIN_SIZE`: one point
+/// becomes 1.21 dp, the size of an iPad point (132 per inch against Android's 160), so a tablet shows the interface
+/// at the size the reference has on iPad. The tablet page needs nothing: a CSS pixel on an iPad is already one point.
+pub(super) const TOUCH_ZOOM: f32 = 1.21;
 /// How far edges and curves reach for the pencil and a finger, against a mouse's (6 points for edges).
 pub(super) const PEN_REACH: f32 = 2.0;
 pub(super) const FINGER_REACH: f32 = 2.6;
@@ -66,7 +67,7 @@ impl Client {
 
     /// Points per CSS pixel: 1, or more on a screen too small for the layout.
     fn scale(&self) -> f32 {
-        self.size.map_or(1.0, |(w, h, _)| (MIN_SIZE[0] / w.max(1.0)).max(MIN_SIZE[1] / h.max(1.0)).max(1.0 / TOUCH_ZOOM))
+        self.size.map_or(1.0, |(w, h, _)| (MIN_SIZE[0] / w.max(1.0)).max(MIN_SIZE[1] / h.max(1.0)).max(1.0))
     }
 }
 
@@ -237,6 +238,7 @@ pub(super) fn run(shared: &Arc<Shared>, device: &str, inbox: Receiver<ToSession>
             let (events, nav) = router.take();
             if let Some(ws) = app.workspace() {
                 ws.touch_drag = router.finger;
+                ws.finger_nav = router.device == Device::Touch;
                 // Edges, curves and snaps reach about a fingertip for the pencil (and more for a finger).
                 ws.pick_slop = match router.device {
                     Device::Mouse => 1.0,

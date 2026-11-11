@@ -489,6 +489,9 @@ pub const SHOT_TRANSPARENCY: ToolDef = t(Icon::ShotChecker, "Transparency", "", 
 pub const SHOT_EDGES: ToolDef = t(Icon::Body, "Body Edges", "", U(UiAction::ShotEdges));
 pub const SHOT_RESOLUTION: ToolDef = ToolDef { flyout: true, ..tv(Icon::ShotResolution, "Resolution", "Actual", "", Soon) };
 pub const SHOT_CAPTURE: ToolDef = t(Icon::Screenshot, "Capture", "", U(UiAction::ShotCapture));
+/// Touch screens' on-screen Undo / Redo at the bottom of the left column.
+pub const UNDO: ToolDef = t(Icon::Undo, "Undo", "", Action::Command("undo"));
+pub const REDO: ToolDef = t(Icon::Redo, "Redo", "", Action::Command("redo"));
 pub const EXIT_MEASURE: ToolDef = t(Icon::Close, "Exit Measure", "", U(UiAction::Measure));
 pub const MEASURE_MODE: ToolDef = ToolDef { flyout: true, ..tv(Icon::Measure, "Measure mode", "Object Measurements", "", Soon) };
 
@@ -733,8 +736,10 @@ pub fn chip_full(ui: &Ui, anchor: Pos2, def: &ToolDef, sub_text: Option<&str>, l
     // An empty label shows the run-time text as the label itself (the sketch name row).
     let (title, sub_text) = if def.label.is_empty() { (sub_text.unwrap_or(""), None) } else { (def.label, sub_text) };
     let tr = crate::i18n::tr;
-    let label = painter.layout_no_wrap(tr(title).to_string(), theme::strong(13.5), Tokens::text_strong());
-    let sub = sub_text.map(|s| painter.layout_no_wrap(tr(s).to_string(), theme::body(9.5), Tokens::text_dim()));
+    // Touch screens: labels about 1.15× bigger ("Sketch" 49.5 pt wide on the reference's iPad, 41 on its desktop).
+    let (label_px, sub_px, half) = if crate::tablet::touch_ui() { (15.5, 11.0, 7.0) } else { (13.5, 9.5, 6.0) };
+    let label = painter.layout_no_wrap(tr(title).to_string(), theme::strong(label_px), Tokens::text_strong());
+    let sub = sub_text.map(|s| painter.layout_no_wrap(tr(s).to_string(), theme::body(sub_px), Tokens::text_dim()));
     let caps_w: f32 = theme::key_caps(def.keys)
         .into_iter()
         .map(|c| painter.layout_no_wrap(c, theme::body(9.5), Tokens::text_dim()).size().x.max(7.0) + 10.0)
@@ -751,12 +756,12 @@ pub fn chip_full(ui: &Ui, anchor: Pos2, def: &ToolDef, sub_text: Option<&str>, l
     painter.rect_filled(rect, radius(Tokens::CHIP_RADIUS), if hot { Tokens::chip_hover() } else { Tokens::chip() });
     painter.rect_stroke(rect, radius(Tokens::CHIP_RADIUS), Stroke::new(1.0, Tokens::chip_edge()), StrokeKind::Inside);
     let text_color = if dim { Tokens::text_ghost() } else { Tokens::text_strong() };
-    let (label_y, sub_y) = if sub.is_some() { (rect.center().y - 6.0, rect.center().y + 7.0) } else { (rect.center().y, 0.0) };
+    let (label_y, sub_y) = if sub.is_some() { (rect.center().y - half, rect.center().y + half + 1.0) } else { (rect.center().y, 0.0) };
     // A chip left of its button (right column, constraints) mirrors: key caps first, text right-aligned (L05, 12).
     let (text_x, align) = if left_side { (rect.right() - 8.0, Align2::RIGHT_CENTER) } else { (rect.left() + 8.0, Align2::LEFT_CENTER) };
-    painter.text(pos2(text_x, label_y), align, tr(title), theme::strong(13.5), text_color);
+    painter.text(pos2(text_x, label_y), align, tr(title), theme::strong(label_px), text_color);
     if let Some(s) = sub_text {
-        painter.text(pos2(text_x, sub_y), align, tr(s), theme::body(9.5), Tokens::text_dim());
+        painter.text(pos2(text_x, sub_y), align, tr(s), theme::body(sub_px), Tokens::text_dim());
     }
     if !def.keys.is_empty() {
         let x =

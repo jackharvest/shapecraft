@@ -2,7 +2,7 @@
 
 use glam::{DVec2, DVec3};
 use serde_json::json;
-use shapecraft_doc::{ItemId, SketchPlane};
+use shapecraft_doc::{ItemId, Pick, SketchPlane};
 use shapecraft_render::{Camera, StandardView};
 
 use super::{Anim, Workspace};
@@ -177,6 +177,39 @@ impl Workspace {
         };
         cam.target = plane.origin + plane.x * mid.x + plane.y * mid.y;
         cam.distance = (half_h / (cam.fov_y / 2.0).tan()).max(1e-3);
+    }
+
+    /// A finger's double tap on a touch screen (the reference on iPad): turns to look straight at the face under the
+    /// point and frames it. A flat face is exact; a curved one is faced along its average normal.
+    pub(crate) fn zoom_to_face(&mut self, at: egui::Pos2) -> bool {
+        let Some((Pick::Face { body, face }, _)) = self.pick_at(at) else { return false };
+        let Some(b) = self.session.doc.body(body) else { return false };
+        let m = &b.mesh;
+        let (mut weighted, mut sum, mut area) = (DVec3::ZERO, DVec3::ZERO, 0.0);
+        for (t, f) in m.triangle_faces.iter().enumerate() {
+            if *f != face {
+                continue;
+            }
+            let corner = |k: usize| {
+                m.indices
+                    .get(t * 3 + k)
+                    .and_then(|i| m.positions.get(*i as usize))
+                    .map(|p| DVec3::new(p[0] as f64, p[1] as f64, p[2] as f64))
+            };
+            let (Some(a), Some(b), Some(c)) = (corner(0), corner(1), corner(2)) else { continue };
+            let n = (b - a).cross(c - a);
+            let w = n.length() / 2.0;
+            weighted += n;
+            sum += (a + b + c) / 3.0 * w;
+            area += w;
+        }
+        if area.is_nan() || area <= 0.0 || !weighted.is_finite() {
+            return false;
+        }
+        let Some(plane) = SketchPlane::from_normal(sum / area, weighted.normalize()) else { return false };
+        self.animate_to(Camera::facing(plane.normal(), plane.y, sum / area, self.camera.distance));
+        self.frame_face(plane, body, face);
+        true
     }
 
     /// Looks straight at a sketch plane, the way picking a plane does in the reference app.

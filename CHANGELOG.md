@@ -2,17 +2,21 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.7.1-alpha
+## 0.7.2-alpha
 **ShapeCraft runs on Android: a first test build of the app, and the command-line tools with the full modelling kernel.**
 ### New
-- **Touch screens (Android, and the tablet page)**: everything is drawn up to 20% bigger where the screen has room,
-  History starts closed, a tap on the project name renames it, and keyboard shortcuts stay out of sight until a
-  keyboard is attached.
+- **Touch screens (Android, and the tablet page) work like the reference on iPad.** The Pencil picks, draws and drags
+  handles; fingers only move the view: one finger turns it, two pan and pinch, a double tap zooms to a face, and a
+  three-finger swipe left or right undoes or redoes. Undo and Redo also sit at the bottom of the tool column. There
+  is no title bar: the project name floats over the view (a bar across the top when the screen is upright), a tap on
+  it renames the project, and its ⋯ menu holds Import, Export, Help and Settings. Settings closes from its corner,
+  History starts closed, the Items column starts at the reference's width, labels are a little bigger, and keyboard
+  shortcuts stay out of sight until a keyboard is attached. On Android everything is drawn at the size it has on an
+  iPad.
 - **ShapeCraft for Android (test build).** The whole app, the same interface as on the desktop, as an APK for
   arm64 phones and tablets (and x86_64 for emulators) on Android 8.0 or later. A stylus draws and edits like a
-  precise mouse, hovering included, and fingers move the view as on the tablet page: drag on the background to
-  turn it, two fingers to pan and pinch, tap to pick, long press for the context menu, two- and three-finger taps
-  to undo and redo. A mouse works with all its buttons and the scroll wheel. The interface scales to fit small
+  precise mouse, hovering included; fingers move the view, as on the tablet page. A mouse works with all its buttons
+  and the scroll wheel. The interface scales to fit small
   screens (sideways works best on a phone), the on-screen keyboard opens for text fields, and a hardware keyboard
   types numbers into tools. The launcher icon is an adaptive icon: the blue tile fills the device's icon shape.
   Projects live in the app's own storage; exports go to its folder under Android/data, which a computer can read

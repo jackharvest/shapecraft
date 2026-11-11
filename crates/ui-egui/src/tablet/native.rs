@@ -113,6 +113,7 @@ impl NativeTouch {
         raw.events = rest;
         if let Some(ws) = ws {
             ws.touch_drag = self.router.finger;
+            ws.finger_nav = self.router.device == Device::Touch;
             ws.pick_slop = match self.router.device {
                 Device::Mouse => 1.0,
                 Device::Pen => PEN_REACH,
@@ -168,7 +169,7 @@ mod tests {
 
     #[test]
     fn big_screens_keep_their_size_and_phones_shrink_to_fit() {
-        // A Galaxy Tab sideways (1280 × 800 dp): 20% bigger, still 1066 × 666 points.
+        // A Galaxy Tab sideways (1280 × 800 dp): an iPad point is 1.21 dp, still 1058 × 661 points.
         assert!((fit(1280.0, 800.0) - TOUCH_ZOOM).abs() < 1e-6);
         // Just over the minimum: only as much bigger as still leaves 1000 points.
         assert!((1100.0 / fit(1100.0, 900.0) - 1000.0).abs() < 1e-3);

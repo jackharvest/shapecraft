@@ -1685,7 +1685,11 @@ impl ShapeCraftApp {
         }
         // On top of the bar the screen just drew; the workspace and the home screen both fill the window.
         let menus_at = self.ws.as_deref().map_or(crate::landing::MENUS_AT, |ws| ws.menus_at);
-        if let Some(bar) = self.menubar.as_mut() {
+        // A touch screen has no menu row: the ⋯ menu by the project name and the home screen's own buttons stand in,
+        // as on the reference's iPad. Shortcuts from a hardware keyboard still go through the bar (take_shortcuts).
+        if let Some(bar) = self.menubar.as_mut()
+            && !crate::tablet::touch_ui()
+        {
             bar.show(ui, menus_at);
         }
         crate::window_chrome::show(ui);
@@ -1839,7 +1843,41 @@ impl ShapeCraftApp {
         }
     }
 
+    /// File/app actions from a menu, or from the workspace (the ⋯ menu on a touch screen).
+    fn app_action(&mut self, a: AppAction, ctx: &egui::Context) {
+        match a {
+            AppAction::NewProject => self.new_project(),
+            AppAction::CloseProject | AppAction::GoHome => self.close_project(),
+            AppAction::Save => {
+                self.save();
+                crate::backup::backups().now();
+            }
+            AppAction::Import => self.import_dialog(),
+            AppAction::ImportProject => self.import_project_sheet(),
+            AppAction::Export => self.export_dialog(None),
+            AppAction::ExportAs(f) => self.export_dialog(Some(f)),
+            AppAction::QuickExport => self.quick_export(),
+            AppAction::Quit => {
+                if self.ws.as_ref().is_some_and(|w| w.session.dirty) {
+                    self.save();
+                }
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
+            AppAction::CheckUpdates => shapecraft_update::Updater::global().check_now(),
+            AppAction::GetStarted | AppAction::Tutorials => {
+                self.close_project();
+                self.landing.section =
+                    if a == AppAction::Tutorials { crate::landing::Section::Tutorials } else { crate::landing::Section::GetStarted };
+            }
+            AppAction::OpenPage(url) if self.hosted => self.egui.open_url(egui::OpenUrl::new_tab(url)),
+            AppAction::OpenPage(url) => open_page(url),
+        }
+    }
+
     fn handle_menu(&mut self, ctx: &egui::Context) {
+        if let Some(a) = self.ws.as_mut().and_then(|ws| ws.app_request.take()) {
+            self.app_action(a, ctx);
+        }
         let Some(bar) = self.menubar.as_mut() else { return };
         let state = match self.ws.as_deref() {
             None => MenuState::default(),
@@ -1878,36 +1916,7 @@ impl ShapeCraftApp {
                 continue;
             }
             match action {
-                MenuAction::App(a) => match a {
-                    AppAction::NewProject => self.new_project(),
-                    AppAction::CloseProject | AppAction::GoHome => self.close_project(),
-                    AppAction::Save => {
-                        self.save();
-                        crate::backup::backups().now();
-                    }
-                    AppAction::Import => self.import_dialog(),
-                    AppAction::ImportProject => self.import_project_sheet(),
-                    AppAction::Export => self.export_dialog(None),
-                    AppAction::ExportAs(f) => self.export_dialog(Some(f)),
-                    AppAction::QuickExport => self.quick_export(),
-                    AppAction::Quit => {
-                        if self.ws.as_ref().is_some_and(|w| w.session.dirty) {
-                            self.save();
-                        }
-                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-                    }
-                    AppAction::CheckUpdates => shapecraft_update::Updater::global().check_now(),
-                    AppAction::GetStarted | AppAction::Tutorials => {
-                        self.close_project();
-                        self.landing.section = if a == AppAction::Tutorials {
-                            crate::landing::Section::Tutorials
-                        } else {
-                            crate::landing::Section::GetStarted
-                        };
-                    }
-                    AppAction::OpenPage(url) if self.hosted => self.egui.open_url(egui::OpenUrl::new_tab(url)),
-                    AppAction::OpenPage(url) => open_page(url),
-                },
+                MenuAction::App(a) => self.app_action(a, ctx),
                 MenuAction::Home(cmd) => {
                     if self.ws.is_none() {
                         let now = ctx.input(|i| i.time);
