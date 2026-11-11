@@ -546,7 +546,7 @@ pub fn apk_run(rest: &[String]) -> Result<()> {
     }
     run("adb", &["install", "-r", s(&apk)])?;
     run("adb", &["logcat", "-c"])?;
-    run("adb", &["shell", &format!("am start -W -n {PACKAGE}/android.app.NativeActivity")])?;
+    run("adb", &["shell", &format!("am start -W -n {PACKAGE}/.ShapeCraftActivity")])?;
     std::thread::sleep(std::time::Duration::from_secs(8));
     let pid = output("adb", &["shell", &format!("pidof {PACKAGE}")])?;
     let log = output("adb", &["logcat", "-d", "-s", "ShapeCraft:*", "RustPanic:*", "AndroidRuntime:E", "DEBUG:*"])?;
