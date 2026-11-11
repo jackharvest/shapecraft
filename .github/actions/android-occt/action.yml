@@ -34,5 +34,8 @@ runs:
     - name: SDK build-tools and platform
       shell: bash
       run: |
+        # `yes` ends on a broken pipe once the licenses are taken; composite steps run with pipefail.
+        set +o pipefail
         yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null
+        set -o pipefail
         $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;35.0.1" "platforms;android-35" > /dev/null
