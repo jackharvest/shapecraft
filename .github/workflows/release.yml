@@ -108,18 +108,27 @@ jobs:
       run:
         shell: bash
     steps:
+      # No key yet (cargo xtask android-release-key makes one): the release has no APK and nothing else runs.
+      - name: Release key present?
+        id: key
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KEYSTORE_B64" ]; then echo "present=1" >> "$GITHUB_OUTPUT"; else echo "::notice::No ANDROID_KEYSTORE_B64 secret: the release has no APK"; fi
       - uses: actions/checkout@v4
+        if: steps.key.outputs.present
       - uses: dtolnay/rust-toolchain@stable
+        if: steps.key.outputs.present
         with:
           targets: aarch64-linux-android
       - uses: ./.github/actions/android-occt
+        if: steps.key.outputs.present
       - name: ShapeCraft APK (release-signed)
+        if: steps.key.outputs.present
         env:
           KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
           SHAPECRAFT_APK_KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
         run: |
-          # No key yet (cargo xtask android-release-key makes one): no APK in this release, nothing fails.
-          if [ -z "$KEYSTORE_B64" ]; then echo "::notice::No ANDROID_KEYSTORE_B64 secret: the release has no APK"; exit 0; fi
           export SHAPECRAFT_APK_KEYSTORE="$RUNNER_TEMP/release.jks"
           echo "$KEYSTORE_B64" | base64 -d > "$SHAPECRAFT_APK_KEYSTORE"
           cargo xtask android-apk arm64
@@ -127,7 +136,8 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           mkdir -p dist && cp target/android/ShapeCraft-*-arm64-v8a.apk "dist/shapecraft-${version}-android-arm64.apk"
       - uses: actions/upload-artifact@v4
-        with: { name: android, path: dist/*.apk, if-no-files-found: ignore }
+        if: steps.key.outputs.present
+        with: { name: android, path: dist/*.apk, if-no-files-found: error }
 
   publish:
     # The desktop downloads must all be there; the APK joins them when it built (it never holds the release back).
