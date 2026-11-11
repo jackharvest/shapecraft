@@ -207,9 +207,13 @@ pub fn apk(rest: &[String]) -> Result<()> {
     let sdk = PathBuf::from(
         std::env::var_os("ANDROID_HOME").or_else(|| std::env::var_os("ANDROID_SDK_ROOT")).context("set ANDROID_HOME to the Android SDK")?,
     );
-    let tools = newest(&sdk.join("build-tools"), |_| true).context("no build-tools in the SDK (sdkmanager \"build-tools;35.0.1\")")?;
-    let platform = newest(&sdk.join("platforms"), |n| n.starts_with("android-"))
-        .context("no platform in the SDK (sdkmanager \"platforms;android-35\")")?;
+    // Release versions only: an APK built against a preview platform refuses to install on any released Android
+    // ("Requires development platform …"), and CI images carry previews (android-37.2 beta on GitHub's runner).
+    let tools =
+        newest(&sdk.join("build-tools"), |n| !n.contains('-')).context("no build-tools in the SDK (sdkmanager \"build-tools;35.0.1\")")?;
+    let platforms = sdk.join("platforms");
+    let platform = newest(&platforms, |n| released_platform(&platforms, n))
+        .context("no released platform in the SDK (sdkmanager \"platforms;android-35\")")?;
     let target_sdk = platform.file_name().and_then(|n| n.to_str()).and_then(|n| n.strip_prefix("android-")).unwrap_or("35").to_string();
     let version = crate::util::version()?;
     let code = version_code(&version)?;
@@ -275,6 +279,16 @@ pub fn apk(rest: &[String]) -> Result<()> {
     run(s(&tools.join("apksigner")), &["verify", s(&apk)])?;
     println!("{} ({}; {PACKAGE} {version}, code {code}, API {API}-{target_sdk})", apk.display(), mb(&apk));
     Ok(())
+}
+
+/// `android-35` style folders (a whole API level) whose source.properties names no preview codename.
+fn released_platform(dir: &Path, name: &str) -> bool {
+    let level = name.strip_prefix("android-").unwrap_or("");
+    if level.is_empty() || !level.chars().all(|c| c.is_ascii_digit()) {
+        return false;
+    }
+    let props = std::fs::read_to_string(dir.join(name).join("source.properties")).unwrap_or_default();
+    !props.lines().any(|l| l.trim().strip_prefix("AndroidVersion.CodeName=").is_some_and(|v| !v.trim().is_empty() && v.trim() != "REL"))
 }
 
 /// The subfolder of `dir` with the highest version-like name that passes `keep` (35.0.1 over 34.0.0, android-35 over android-9).
@@ -437,6 +451,24 @@ pub fn smoke(rest: &[String]) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn previews_are_never_the_platform() {
+        let dir = std::env::temp_dir().join(format!("sc-platforms-{}", std::process::id()));
+        for (name, props) in [
+            ("android-35", "AndroidVersion.ApiLevel=35\n"),
+            ("android-36", "AndroidVersion.ApiLevel=36\nAndroidVersion.CodeName=Baklava\n"),
+            ("android-37.2", "AndroidVersion.ApiLevel=37\n"),
+            ("android-34", "AndroidVersion.ApiLevel=34\nAndroidVersion.CodeName=REL\n"),
+        ] {
+            let d = dir.join(name);
+            std::fs::create_dir_all(&d).ok();
+            std::fs::write(d.join("source.properties"), props).ok();
+        }
+        let picked = super::newest(&dir, |n| super::released_platform(&dir, n));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(picked.and_then(|p| p.file_name().map(|n| n.to_string_lossy().into_owned())).as_deref(), Some("android-35"));
+    }
+
     #[test]
     fn version_codes_grow_with_versions() {
         assert_eq!(super::version_code("0.6.10").ok(), Some(6010));
