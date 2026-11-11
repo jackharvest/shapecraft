@@ -32,13 +32,64 @@ impl Workspace {
             return;
         }
         let Some(c) = self.cursor else { return };
+        // The value box's insert-variable button lists the project's variables (#11); the callout's Create makes
+        // the one it didn't know (#12).
+        // The real pointer: over the field the drawing's aim (`cursor`) is held where it was.
+        let at = ui.input(|i| i.pointer.interact_pos()).unwrap_or(c);
+        if self.numeric.is_some() {
+            if let Some(r) = super::paint::var_button_rect(ui.ctx()).filter(|r| r.contains(at)) {
+                self.var_menu = if self.var_menu.is_some() { None } else { Some(r.right_center()) };
+                self.popup_opened_at = self.now;
+                return;
+            }
+            let doc = &self.session.doc;
+            if let Some(r) = super::paint::var_create_rect(ui.ctx()).filter(|r| r.contains(at))
+                && let Some(name) = self
+                    .numeric
+                    .as_deref()
+                    .and_then(|t| shapecraft_doc::expr::missing_variable(t, &doc.variables, self.typed_kind(), doc.units.scale()))
+            {
+                let kind = self.typed_kind();
+                self.var_create = Some(crate::workspace::VarCreate {
+                    name,
+                    value: String::new(),
+                    kind,
+                    at: r.left_bottom(),
+                    error: None,
+                    focused: false,
+                });
+                self.popup_opened_at = self.now;
+                return;
+            }
+        }
         self.numeric_fresh = false;
         // A running tool's badges open their menus.
         if self.badge_click(ui, c) {
             return;
         }
+        // A pattern's Quantity pill opens its own field with the count, selected (#6).
+        if matches!(self.tool, Tool::Pattern(_))
+            && let Some(qr) = ui.ctx().data(|d| d.get_temp::<Rect>(ui.scope_id().with("pattern-count-pill")))
+            && qr.expand(3.0).contains(c)
+        {
+            self.open_pattern_count();
+            self.numpad_at = Some(c);
+            return;
+        }
         // A tool's value pill ("19 mm", "R 2mm", "45°"): the value field opens with that value, selected, as if
         // it had been typed; the next key replaces it.
+        if self.tool.takes_numbers()
+            && let Some((_, text)) = super::paint::value_pills(ui.ctx()).into_iter().find(|(r, _)| r.expand(3.0).contains(c))
+            && self.take_pattern_count()
+        {
+            // Back from Quantity to the spacing: the count is kept, the spacing opens.
+            if let Some(n) = super::paint::pill_number(&text) {
+                self.numeric = Some(n);
+                self.numeric_fresh = true;
+            }
+            self.numpad_at = Some(c);
+            return;
+        }
         if self.tool.takes_numbers()
             && let Some((_, text)) = super::paint::value_pills(ui.ctx()).into_iter().find(|(r, _)| r.expand(3.0).contains(c))
         {

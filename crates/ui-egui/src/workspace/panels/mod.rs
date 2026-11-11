@@ -22,6 +22,7 @@ mod popups;
 mod right_column;
 mod right_popover;
 mod titlebar;
+mod variables;
 
 pub(super) use command_search::run_command_id;
 pub(crate) use command_search::select_all;

@@ -72,6 +72,19 @@ pub struct Toast {
     pub until: f64,
 }
 
+/// The small prompt that makes a variable the value box used before it existed: its name, the value typed for
+/// it, its type, where it opens, and why the value didn't work.
+#[derive(Clone, Debug)]
+pub struct VarCreate {
+    pub name: String,
+    pub value: String,
+    pub kind: shapecraft_doc::VarKind,
+    pub at: Pos2,
+    pub error: Option<String>,
+    /// The value field has had the keyboard handed to it once.
+    pub focused: bool,
+}
+
 pub struct Search {
     pub query: String,
     pub at: Pos2,
@@ -279,6 +292,10 @@ pub struct Workspace {
     pub(crate) last_hit: Option<DVec3>,
     /// The Offset Face "Distance Type" menu, open at this point.
     pub(crate) distance_menu: Option<Pos2>,
+    /// The value box's variable list (its insert-variable button), open at this point (#11).
+    pub(crate) var_menu: Option<Pos2>,
+    /// Creating a variable the value box named before it existed (#12).
+    pub(crate) var_create: Option<VarCreate>,
     /// The running tool's badge whose menu is open, and where it points.
     pub(crate) badge_menu: Option<(badges::Badge, Pos2)>,
     /// A running tool's key pressed again cycled an option: which badge, and when (the bubble shows for a while).
@@ -664,6 +681,8 @@ impl Workspace {
             pattern_total: false,
             last_hit: None,
             distance_menu: None,
+            var_menu: None,
+            var_create: None,
             badge_menu: None,
             cycled: None,
             variants: settings.tool_variants.iter().map(|(k, v)| (k.clone(), *v)).collect(),

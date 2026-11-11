@@ -279,8 +279,12 @@ impl Workspace {
             UiAction::ImportMaterial => self.wants_material = true,
             UiAction::ImportDecal => self.wants_decal = true,
             UiAction::Variables => {
-                let mut rows: Vec<(String, String, Option<String>, shapecraft_doc::VarKind)> =
-                    self.session.doc.variables.iter().map(|v| (v.name.clone(), v.expr.clone(), Some(v.name.clone()), v.kind)).collect();
+                let doc = &self.session.doc;
+                let mut rows: Vec<(String, String, Option<String>, shapecraft_doc::VarKind)> = doc
+                    .variables
+                    .iter()
+                    .map(|v| (v.name.clone(), super::prefs::shown_expr(doc, v), Some(v.name.clone()), v.kind))
+                    .collect();
                 if rows.is_empty() {
                     rows.push(("var1".into(), "10 mm".into(), None, shapecraft_doc::VarKind::Length));
                 }
@@ -392,6 +396,12 @@ impl Workspace {
         // A typed value (or a length fixed with Tab) goes first, keeping the segment (s11-015) or the running tool
         // (26.202, s39-of-esc1: Offset Face's field closes, the tool stays).
         if self.line_len.take().is_some() | self.numeric.take().is_some() {
+            // A pattern's Quantity field closes with it: the next digits go to the spacing again.
+            match &mut self.tool {
+                Tool::Pattern(t) => t.count_field = false,
+                Tool::CircularPattern(t) => t.count_field = false,
+                _ => {}
+            }
             return;
         }
         // An open context menu closes first (as observed).

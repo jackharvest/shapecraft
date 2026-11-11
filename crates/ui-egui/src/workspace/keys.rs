@@ -22,6 +22,8 @@ impl Workspace {
             || self.search.is_some()
             || self.renaming.is_some()
             || self.variables_dialog.is_some()
+            || self.var_menu.is_some()
+            || self.var_create.is_some()
             || self.prefs_open
             || self.nav_presets.is_some()
             || self.help_open
@@ -83,6 +85,31 @@ impl Workspace {
             }
             self.numeric_error = None;
         }
+    }
+
+    /// The variable picked in the value box's list goes in where the typing is (a value filled from a pill is
+    /// replaced) (#11).
+    pub(super) fn insert_variable(&mut self, name: &str) {
+        if std::mem::take(&mut self.numeric_fresh) {
+            self.numeric = None;
+        }
+        let t = self.numeric.get_or_insert_with(String::new);
+        if t.len() + name.len() <= 256 {
+            t.push_str(name);
+        }
+        self.numeric_error = None;
+    }
+
+    /// Makes the variable the value box named before it existed, its value read like a value box's (a bare
+    /// length in the project's unit), then applies the box as Return would (#12).
+    pub(super) fn create_variable(&mut self, name: &str, value: &str, kind: shapecraft_doc::VarKind) -> Result<(), String> {
+        let doc = &self.session.doc;
+        let stored = shapecraft_doc::expr::with_units(value, &doc.variables, kind, doc.units.scale(), doc.units.suffix())?;
+        let k = kind.label().to_lowercase();
+        self.session.execute("set_variable", &json!({ "name": name, "value": stored, "kind": k })).map_err(|e| e.to_string())?;
+        self.numeric_error = None;
+        self.key(egui::Key::Enter, egui::Modifiers::NONE);
+        Ok(())
     }
 
     pub(super) fn key(&mut self, key: egui::Key, m: egui::Modifiers) {
@@ -201,6 +228,8 @@ impl Workspace {
             // A result already applied and nothing typed: Return is Done (the button's ↵; 26.202, s40-004).
             Key::Enter if !typing && self.numeric.is_none() && self.is_live() && !matches!(self.tool, Tool::Idle) => self.finish_live(),
             Key::Enter => {
+                // A pattern's Quantity takes the typed count, then Return applies the pattern as it stands.
+                self.take_pattern_count();
                 if matches!(self.tool, Tool::Revolve(_) | Tool::RotateAxis(_) | Tool::CircularPattern(_))
                     || matches!(&self.tool, Tool::EdgePlane(t) if t.through)
                     || matches!(&self.tool, Tool::Move(t) if matches!(t.handle, tools::Handle::Ring(_)))
@@ -394,7 +423,7 @@ impl Workspace {
             Key::Minus | Key::Plus | Key::Equals
                 if matches!(self.tool, Tool::Pattern(_) | Tool::CircularPattern(_)) && self.numeric.is_none() =>
             {
-                let step = |c: u32| if key == Key::Minus { c.saturating_sub(1).max(2) } else { (c + 1).min(100) };
+                let step = |c: u32| if key == Key::Minus { c.saturating_sub(1).max(2) } else { (c + 1).min(tools::PATTERN_MAX_COUNT) };
                 match &mut self.tool {
                     Tool::Pattern(t) => t.count = step(t.count),
                     Tool::CircularPattern(t) => t.count = step(t.count),
@@ -492,5 +521,108 @@ mod tests {
         assert!((ws.eval_angle("90 / 2").unwrap() - 45.0).abs() < 1e-9);
         assert!((ws.eval_field("1.5 * 2", VarKind::Number).unwrap() - 3.0).abs() < 1e-9);
         assert_eq!(ws.typed_kind(), VarKind::Length);
+    }
+
+    /// A workspace with one 10 × 10 × 5 box, picked, and Linear Pattern running on it.
+    fn patterning() -> Workspace {
+        let mut ws = workspace();
+        let s = &mut ws.session;
+        s.execute("sketch", &serde_json::json!({"plane": "xy"})).unwrap();
+        s.execute("rectangle", &serde_json::json!({"corner": [0, 0], "opposite": [10, 10]})).unwrap();
+        s.execute("extrude", &serde_json::json!({"sketch": s.active_sketch.unwrap().0, "region": 0, "distance": 5})).unwrap();
+        s.active_sketch = None;
+        let body = s.doc.bodies[0].id;
+        s.selection = vec![Pick::Body { body }];
+        ws.start_tool(super::super::toolbar::ToolKind::Pattern);
+        assert!(matches!(ws.tool, Tool::Pattern(_)));
+        ws
+    }
+
+    /// #6: Tab goes from the spacing to Quantity instead of finishing; Return applies both.
+    #[test]
+    fn tab_moves_a_pattern_from_spacing_to_quantity() {
+        let mut ws = patterning();
+        type_text(&mut ws, "20");
+        ws.key(egui::Key::Tab, egui::Modifiers::NONE);
+        let Tool::Pattern(t) = &ws.tool else { panic!("Tab finished the pattern: {:?}", ws.tool) };
+        assert!(t.count_field);
+        assert!((t.spacing - 20.0).abs() < 1e-9, "the typed spacing is kept");
+        assert_eq!(ws.numeric.as_deref(), Some("3"), "Quantity opens with the count");
+        assert_eq!(ws.typed_kind(), VarKind::Number);
+        type_text(&mut ws, "5");
+        assert_eq!(ws.numeric.as_deref(), Some("5"), "the first key replaces the count");
+        ws.key(egui::Key::Enter, egui::Modifiers::NONE);
+        assert!(matches!(ws.tool, Tool::Idle), "Return applied the pattern");
+        assert_eq!(ws.session.doc.bodies.len(), 5, "five copies, the original included");
+    }
+
+    /// #6: Tab again goes back to the spacing, keeping the count; Escape closes Quantity.
+    #[test]
+    fn tab_cycles_back_to_the_spacing_and_escape_closes_quantity() {
+        let mut ws = patterning();
+        type_text(&mut ws, "15");
+        ws.key(egui::Key::Tab, egui::Modifiers::NONE);
+        type_text(&mut ws, "4");
+        ws.key(egui::Key::Tab, egui::Modifiers::NONE);
+        let Tool::Pattern(t) = &ws.tool else { panic!() };
+        assert!(!t.count_field);
+        assert_eq!(t.count, 4);
+        assert_eq!(ws.typed_kind(), VarKind::Length);
+        ws.key(egui::Key::Tab, egui::Modifiers::NONE);
+        ws.key(egui::Key::Escape, egui::Modifiers::NONE);
+        let Tool::Pattern(t) = &ws.tool else { panic!("Escape on the field keeps the tool") };
+        assert!(!t.count_field, "digits typed next go to the spacing");
+        assert_eq!(t.count, 4);
+    }
+
+    /// #6: a quantity must be a whole number of 2 to 500; a bad one keeps the box open with the reason.
+    #[test]
+    fn a_bad_quantity_keeps_the_box_open() {
+        let mut ws = patterning();
+        ws.open_pattern_count();
+        for bad in ["1", "2.5", "501"] {
+            ws.numeric = Some(bad.into());
+            ws.key(egui::Key::Enter, egui::Modifiers::NONE);
+            assert_eq!(ws.numeric.as_deref(), Some(bad), "{bad} was taken");
+            assert!(ws.numeric_error.as_deref().unwrap().contains("quantity"));
+        }
+        ws.session.doc.variables.push(Variable { name: "n".into(), expr: "3".into(), kind: VarKind::Number });
+        ws.numeric = Some("n * 2".into());
+        ws.key(egui::Key::Tab, egui::Modifiers::NONE);
+        let Tool::Pattern(t) = &ws.tool else { panic!() };
+        assert_eq!(t.count, 6, "a variable works in Quantity too");
+    }
+
+    /// #11: a variable picked from the box's list goes in after what's typed, or replaces a value taken from a pill.
+    #[test]
+    fn a_picked_variable_goes_into_the_value_box() {
+        let mut ws = workspace();
+        type_text(&mut ws, "20+");
+        ws.insert_variable("wall");
+        assert_eq!(ws.numeric.as_deref(), Some("20+wall"));
+        ws.numeric = Some("15".into());
+        ws.numeric_fresh = true;
+        ws.insert_variable("wall");
+        assert_eq!(ws.numeric.as_deref(), Some("wall"), "a value filled from a pill is replaced");
+    }
+
+    /// #12: a name that isn't a variable yet is offered for creating; creating it applies the box.
+    #[test]
+    fn a_missing_variable_is_created_from_the_box_and_the_value_applies() {
+        let mut ws = patterning();
+        ws.session.doc.units = Units::Inch;
+        type_text(&mut ws, "2*w");
+        ws.key(egui::Key::Enter, egui::Modifiers::NONE);
+        assert_eq!(ws.numeric.as_deref(), Some("2*w"), "the box stays open");
+        let doc = &ws.session.doc;
+        let missing = shapecraft_doc::expr::missing_variable("2*w", &doc.variables, ws.typed_kind(), doc.units.scale());
+        assert_eq!(missing.as_deref(), Some("w"));
+        assert!(ws.create_variable("w", "x", VarKind::Length).is_err(), "a value that doesn't work is refused");
+        assert!(ws.session.doc.variables.is_empty());
+        ws.create_variable("w", "1", VarKind::Length).unwrap();
+        let w = &ws.session.doc.variables[0];
+        assert!((shapecraft_doc::expr::eval(&w.expr, &[]).unwrap() - 25.4).abs() < 1e-9, "a bare 1 is an inch: {}", w.expr);
+        assert!(matches!(ws.tool, Tool::Idle), "the pattern applied");
+        assert_eq!(ws.session.doc.bodies.len(), 3);
     }
 }

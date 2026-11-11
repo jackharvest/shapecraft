@@ -404,7 +404,70 @@ impl Workspace {
         }
     }
 
+    /// Opens a pattern's Quantity field with its count, selected (the next key replaces it). A spacing or angle
+    /// typed so far goes in first, as Tab fixes a rectangle's width.
+    pub(in crate::workspace) fn open_pattern_count(&mut self) {
+        if self.pattern_count_field() {
+            return;
+        }
+        let typed = self.numeric.take().filter(|t| !t.trim().is_empty());
+        let length = typed.as_deref().and_then(|t| self.eval_typed(t));
+        let angle = typed.as_deref().and_then(|t| self.eval_angle(t));
+        let count = match &mut self.tool {
+            Tool::Pattern(t) => {
+                if let Some(v) = length {
+                    t.spacing = v;
+                }
+                t.count_field = true;
+                t.count
+            }
+            Tool::CircularPattern(t) => {
+                if let Some(a) = angle {
+                    t.angle = a;
+                }
+                t.count_field = true;
+                t.count
+            }
+            _ => return,
+        };
+        self.numeric = Some(count.to_string());
+        self.numeric_fresh = true;
+        self.numeric_error = None;
+        self.preview = None;
+    }
+
+    /// Closes a pattern's Quantity field, taking the typed count. False when it wasn't open.
+    pub(in crate::workspace) fn take_pattern_count(&mut self) -> bool {
+        if !self.pattern_count_field() {
+            return false;
+        }
+        let count = self.numeric.take().and_then(|t| self.eval_field(&t, VarKind::Number).ok()).and_then(|v| pattern_count(v).ok());
+        match &mut self.tool {
+            Tool::Pattern(t) => {
+                t.count_field = false;
+                t.count = count.unwrap_or(t.count);
+            }
+            Tool::CircularPattern(t) => {
+                t.count_field = false;
+                t.count = count.unwrap_or(t.count);
+            }
+            _ => {}
+        }
+        self.numeric_fresh = false;
+        self.preview = None;
+        true
+    }
+
     pub(in crate::workspace) fn next_numeric_field(&mut self) {
+        // A pattern has two fields, the spacing (or angle) and Quantity: Tab goes from one to the other.
+        if matches!(self.tool, Tool::Pattern(_) | Tool::CircularPattern(_)) {
+            if self.take_pattern_count() {
+                self.numeric = Some(String::new());
+            } else {
+                self.open_pattern_count();
+            }
+            return;
+        }
         // A rectangle has two fields, as observed: Tab fixes the typed width and opens the height.
         if matches!(self.tool, Tool::Rectangle { first: Some(_) })
             && self.rect_width.is_none()

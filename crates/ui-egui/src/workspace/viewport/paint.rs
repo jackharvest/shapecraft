@@ -219,6 +219,7 @@ pub(super) fn value_field(painter: &egui::Painter, center: Pos2, typed: &str) {
     let warn = if state.invalid { 24.0 } else { 0.0 };
     let panel = Rect::from_min_size(center + vec2(13.0 - 107.0, -17.0), vec2(214.0 + warn, 34.0));
     painter.rect_filled(panel, radius(9), alpha(theme::c(0x30323d), 165));
+    note_field(painter, panel.expand(4.0));
     let field = Rect::from_min_size(panel.min + vec2(4.0, 4.0), vec2(176.0, 26.0));
     painter.rect_filled(field, radius(7), alpha(theme::c(0x5f6a86), 51));
     painter.rect_stroke(field, radius(7), Stroke::new(2.0, theme::c(0x2f4793)), StrokeKind::Inside);
@@ -238,11 +239,10 @@ pub(super) fn value_field(painter: &egui::Painter, center: Pos2, typed: &str) {
         painter.line_segment([pos2(cx, field.top() + 6.0), pos2(cx, field.bottom() - 6.0)], Stroke::new(1.5, Tokens::accent()));
     }
     let ink = theme::c(0xd8d8d8);
-    let x = pos2(field.right() - 15.0, field.center().y);
-    painter.text(x, Align2::CENTER_CENTER, "x", egui::FontId::new(15.0, egui::FontFamily::Proportional), ink);
-    painter.circle_filled(x + vec2(5.0, 4.0), 4.0, ink);
-    painter.line_segment([x + vec2(3.0, 4.0), x + vec2(7.0, 4.0)], Stroke::new(1.2, theme::c(0x3a3c48)));
-    painter.line_segment([x + vec2(5.0, 2.0), x + vec2(5.0, 6.0)], Stroke::new(1.2, theme::c(0x3a3c48)));
+    // Out of the way until the project has a variable to insert.
+    if state.vars {
+        var_button(painter, pos2(field.right() - 15.0, field.center().y), ink, theme::c(0x3a3c48));
+    }
     let key = Rect::from_center_size(pos2(panel.right() - 16.0, panel.center().y), vec2(18.0, 13.0));
     painter.rect_stroke(key, radius(2), Stroke::new(1.0, ink), StrokeKind::Inside);
     painter.text(key.center(), Align2::CENTER_CENTER, "123", egui::FontId::new(6.5, egui::FontFamily::Proportional), ink);
@@ -250,7 +250,7 @@ pub(super) fn value_field(painter: &egui::Painter, center: Pos2, typed: &str) {
         warning_sign(painter, pos2(field.right() + 14.0, field.center().y), 15.0);
     }
     if let Some(e) = state.error.as_deref().filter(|_| state.invalid) {
-        error_callout(painter, panel.left_bottom(), e);
+        error_callout(painter, panel.left_bottom(), e, state.missing.as_deref());
     }
 }
 
@@ -269,12 +269,54 @@ pub(in crate::workspace) struct FieldState {
     pub invalid: bool,
     /// Return was pressed on it: why, in a callout under the box.
     pub error: Option<String>,
+    /// The project has variables: the field shows its insert-variable button (#11).
+    pub vars: bool,
+    /// The name the text uses that isn't a variable yet: the callout offers to create it (#12).
+    pub missing: Option<String>,
+}
+
+/// Where this frame's insert-variable button and the callout's Create were drawn (screen rects).
+const VAR_BUTTON: &str = "sc-var-button";
+const VAR_CREATE: &str = "sc-var-create";
+/// The open value field with its buttons and callout: the pointer over it doesn't move what's being drawn.
+const FIELD_RECT: &str = "sc-field-rect";
+
+pub(in crate::workspace) fn field_rect(ctx: &egui::Context) -> Option<Rect> {
+    ctx.data(|d| d.get_temp::<Option<Rect>>(egui::Id::unique(FIELD_RECT))).flatten()
+}
+
+fn note_field(painter: &egui::Painter, r: Rect) {
+    painter.ctx().data_mut(|d| {
+        let all = d.get_temp_mut_or_default::<Option<Rect>>(egui::Id::unique(FIELD_RECT));
+        *all = Some(all.map_or(r, |a| a.union(r)));
+    });
+}
+
+pub(in crate::workspace) fn var_button_rect(ctx: &egui::Context) -> Option<Rect> {
+    ctx.data(|d| d.get_temp::<Option<Rect>>(egui::Id::unique(VAR_BUTTON))).flatten()
+}
+
+pub(in crate::workspace) fn var_create_rect(ctx: &egui::Context) -> Option<Rect> {
+    ctx.data(|d| d.get_temp::<Option<Rect>>(egui::Id::unique(VAR_CREATE))).flatten()
+}
+
+/// The insert-variable button: an "x" with a small ⊕ (as in the field of 26.200), its hit area noted.
+fn var_button(painter: &egui::Painter, x: Pos2, ink: Color32, back: Color32) {
+    painter.text(x, Align2::CENTER_CENTER, "x", egui::FontId::new(15.0, egui::FontFamily::Proportional), ink);
+    painter.circle_filled(x + vec2(5.0, 4.0), 4.0, ink);
+    painter.line_segment([x + vec2(3.0, 4.0), x + vec2(7.0, 4.0)], Stroke::new(1.2, back));
+    painter.line_segment([x + vec2(5.0, 2.0), x + vec2(5.0, 6.0)], Stroke::new(1.2, back));
+    let r = Rect::from_center_size(x + vec2(2.0, 1.0), vec2(22.0, 22.0));
+    painter.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(VAR_BUTTON), Some(r)));
 }
 
 pub(super) fn clear_value_pills(ctx: &egui::Context, state: FieldState) {
     ctx.data_mut(|d| {
         d.insert_temp(egui::Id::unique("sc-value-pills"), Vec::<(Rect, String)>::new());
         d.insert_temp(egui::Id::unique("sc-field-state"), state);
+        d.insert_temp(egui::Id::unique(VAR_BUTTON), Option::<Rect>::None);
+        d.insert_temp(egui::Id::unique(VAR_CREATE), Option::<Rect>::None);
+        d.insert_temp(egui::Id::unique(FIELD_RECT), Option::<Rect>::None);
     });
 }
 
@@ -295,14 +337,25 @@ fn warning_sign(painter: &egui::Painter, c: Pos2, size: f32) {
 }
 
 /// Why the typed value didn't work, in a yellow-tinted callout under the box (`below` is the box's bottom left).
-fn error_callout(painter: &egui::Painter, below: Pos2, text: &str) {
+/// A name that isn't a variable yet gets a "Create" line under the reason (#12).
+fn error_callout(painter: &egui::Painter, below: Pos2, text: &str, missing: Option<&str>) {
     let mut chars = text.chars();
     let msg = chars.next().map(|f| f.to_uppercase().collect::<String>() + chars.as_str()).unwrap_or_default();
     let g = painter.layout(msg, theme::body(12.0), Tokens::text_strong(), 200.0);
-    let r = Rect::from_min_size(below + vec2(40.0, 8.0), g.size() + vec2(42.0, 18.0));
+    let create = missing.map(|n| painter.layout_no_wrap(format!("Create {n}…"), theme::strong(12.0), Tokens::icon_blue()));
+    let extra = create.as_ref().map_or(egui::Vec2::ZERO, |c| vec2((c.size().x - g.size().x).max(0.0), c.size().y + 8.0));
+    let r = Rect::from_min_size(below + vec2(40.0, 8.0), g.size() + extra + vec2(42.0, 18.0));
     painter.rect_filled(r, radius(8), theme::c(0x4a4524));
+    note_field(painter, r);
     warning_sign(painter, pos2(r.left() + 16.0, r.top() + 9.0 + 7.0), 13.0);
-    painter.galley(pos2(r.left() + 32.0, r.top() + 9.0), g, Tokens::text_strong());
+    let at = pos2(r.left() + 32.0, r.top() + 9.0);
+    let line_h = g.size().y;
+    painter.galley(at, g, Tokens::text_strong());
+    if let Some(c) = create {
+        let cr = Rect::from_min_size(at + vec2(0.0, line_h + 8.0), c.size());
+        painter.galley(cr.min, c, Tokens::icon_blue());
+        painter.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(VAR_CREATE), Some(cr.expand(4.0))));
+    }
 }
 
 /// A blue-rimmed pill holding a number is a value the running tool takes.
@@ -324,6 +377,11 @@ pub(in crate::workspace) fn pill_number(text: &str) -> Option<String> {
 /// The value label. While typing it becomes the editable box with a blue border.
 /// A white value pill whose text runs along `dir` (screen space), kept upright. Returns its bounds.
 pub(super) fn axis_pill(painter: &egui::Painter, center: Pos2, dir: egui::Vec2, text: &str, blue_edge: bool) -> Rect {
+    axis_pill_ex(painter, center, dir, text, blue_edge, blue_edge)
+}
+
+/// [`axis_pill`], saying whether a click on it opens the tool's value field (`value`) apart from its blue edge.
+pub(super) fn axis_pill_ex(painter: &egui::Painter, center: Pos2, dir: egui::Vec2, text: &str, blue_edge: bool, value: bool) -> Rect {
     // Keep text upright; near-vertical text reads upwards, as in the reference.
     let mut angle = dir.y.atan2(dir.x);
     let q = std::f32::consts::FRAC_PI_2;
@@ -356,7 +414,7 @@ pub(super) fn axis_pill(painter: &egui::Painter, center: Pos2, dir: egui::Vec2, 
     let top_left = center - ax * (size.x / 2.0) - ay * (size.y / 2.0);
     painter.add(egui::epaint::TextShape::new(top_left, galley, ink).with_angle(angle));
     let r = Rect::from_points(&corners);
-    if blue_edge {
+    if value {
         note_value_pill(painter, r, text);
     }
     r
@@ -486,23 +544,21 @@ pub(super) fn value_box(painter: &egui::Painter, center: Pos2, text: &str, typed
     let r = Rect::from_min_size(r.min, vec2(r.width() + 18.0, r.height()));
     painter.rect_filled(r, radius(4), theme::c(0x1b1f2b));
     let border = Stroke::new(1.5, Tokens::accent());
-    // Calculator glyph at the right end of the field.
-    let calc = Rect::from_center_size(pos2(r.right() - 11.0, r.center().y), vec2(10.0, 12.0));
-    painter.rect_stroke(calc, radius(2), Stroke::new(1.0, Tokens::text_dim()), StrokeKind::Inside);
-    for (dx, dy) in [(-2.0, 1.0), (2.0, 1.0), (-2.0, 4.0), (2.0, 4.0)] {
-        painter.circle_filled(calc.center() + vec2(dx, dy), 0.8, Tokens::text_dim());
+    let state = field_state(painter.ctx());
+    note_field(painter, r.expand2(vec2(4.0 + if state.invalid { 24.0 } else { 0.0 }, 4.0)));
+    // The insert-variable button at the right end of the field, once there are variables.
+    if state.vars {
+        var_button(painter, pos2(r.right() - 12.0, r.center().y), Tokens::text_dim(), theme::c(0x1b1f2b));
     }
-    painter.line_segment([calc.center() + vec2(-3.0, -3.0), calc.center() + vec2(3.0, -3.0)], Stroke::new(1.0, Tokens::text_dim()));
     painter.rect_stroke(r, radius(4), border, StrokeKind::Inside);
     let anchor = if editing { Align2::LEFT_CENTER } else { Align2::CENTER_CENTER };
     let pos = if editing { pos2(r.left() + 6.0, r.center().y) } else { r.center() };
     painter.text(pos, anchor, shown, theme::mono(11.5), Tokens::text_strong());
-    let state = field_state(painter.ctx());
     if state.invalid {
         warning_sign(painter, pos2(r.right() + 12.0, r.center().y), 14.0);
     }
     if let Some(e) = state.error.as_deref().filter(|_| state.invalid) {
-        error_callout(painter, r.left_bottom() - vec2(40.0, 0.0), e);
+        error_callout(painter, r.left_bottom() - vec2(40.0, 0.0), e, state.missing.as_deref());
     }
 }
 

@@ -971,10 +971,22 @@ impl PatternTool {
                 dragging: None,
                 total: false,
                 result: "new",
+                count_field: false,
             }),
             None => {
                 let (frame, pivot, _) = selected_curves_center(s)?;
-                Some(Self { items: Vec::new(), frame, pivot, axis: 0, spacing: 0.0, count: 3, dragging: None, total: false, result: "new" })
+                Some(Self {
+                    items: Vec::new(),
+                    frame,
+                    pivot,
+                    axis: 0,
+                    spacing: 0.0,
+                    count: 3,
+                    dragging: None,
+                    total: false,
+                    result: "new",
+                    count_field: false,
+                })
             }
         }
     }

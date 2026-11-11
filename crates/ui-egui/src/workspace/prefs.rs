@@ -10,7 +10,23 @@ use crate::icons::{self, Icon};
 use crate::settings::{Button, Mods, NavAction, PRESETS, Settings};
 use crate::theme::{self, Tokens, radius};
 
-/// The Variables dialog: named values with their expressions and what they come to.
+/// A saved variable's text as the Variables window shows it. Saved bare lengths are millimeters; in a project
+/// whose unit isn't, they get "mm" written after them so they keep their meaning where a bare number now means
+/// the project's unit (#13).
+pub(super) fn shown_expr(doc: &shapecraft_doc::Document, v: &shapecraft_doc::Variable) -> String {
+    if doc.units.scale() == 1.0 {
+        return v.expr.clone();
+    }
+    shapecraft_doc::expr::spell_units(&v.expr, &doc.variables, v.kind, 1.0, "mm").unwrap_or_else(|_| v.expr.clone())
+}
+
+/// What a row's text means saved: bare lengths in the project's unit become millimeters.
+fn stored_expr(doc: &shapecraft_doc::Document, text: &str, rows: &[shapecraft_doc::Variable], kind: shapecraft_doc::VarKind) -> String {
+    shapecraft_doc::expr::with_units(text, rows, kind, doc.units.scale(), doc.units.suffix()).unwrap_or_else(|_| text.to_string())
+}
+
+/// The Variables dialog: named values with their expressions and what they come to. Rows read like a value box:
+/// a bare length is in the project's unit.
 fn variables(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     let Some(mut rows) = ws.variables_dialog.take() else { return };
     let h = 150.0 + rows.len() as f32 * 34.0;
@@ -22,10 +38,14 @@ fn variables(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
         p.text(pos2(x, y), Align2::LEFT_CENTER, t, theme::body(11.0), Tokens::text_dim());
     }
     y += 22.0;
-    // What the rows come to, with every row's current text.
-    let vars: Vec<shapecraft_doc::Variable> = rows
+    // What the rows come to, with every row's current text, as it would be saved (another row is used as saved).
+    let typed: Vec<shapecraft_doc::Variable> = rows
         .iter()
         .map(|(n, e, _, k)| shapecraft_doc::Variable { name: n.trim().to_string(), expr: e.trim().to_string(), kind: *k })
+        .collect();
+    let vars: Vec<shapecraft_doc::Variable> = typed
+        .iter()
+        .map(|v| shapecraft_doc::Variable { expr: stored_expr(&ws.session.doc, &v.expr, &typed, v.kind), ..v.clone() })
         .collect();
     let mut remove = None;
     for (i, (name, expr, _, kind)) in rows.iter_mut().enumerate() {
@@ -50,7 +70,7 @@ fn variables(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
             Rect::from_min_size(pos2(cv, y - 11.0), vec2(cr - cv - 50.0, 22.0)),
             egui::TextEdit::singleline(expr).hint_text("10 mm").font(theme::body(12.5)),
         );
-        let result = shapecraft_doc::expr::eval(expr, &vars);
+        let result = shapecraft_doc::expr::eval_as(expr, &vars, *kind, ws.session.doc.units.scale());
         let (text, col) = match result {
             Ok(v) => (
                 match kind {
@@ -111,27 +131,27 @@ fn variables(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
                 break;
             }
             let (name, expr) = (name.trim(), expr.trim());
-            let current =
-                orig.as_ref().and_then(|o| ws.session.doc.variables.iter().find(|v| v.name == *o)).map(|v| (v.expr.clone(), v.kind));
+            let doc = &ws.session.doc;
+            let current = orig.as_ref().and_then(|o| doc.variables.iter().find(|v| v.name == *o)).map(|v| (shown_expr(doc, v), v.kind));
             let k = kind.label().to_lowercase();
+            let value = stored_expr(doc, expr, &vars, *kind);
             match orig {
                 Some(o) if o == name && current == Some((expr.to_string(), *kind)) => {}
                 Some(o) => {
-                    ok &= ws.run("set_variable", serde_json::json!({ "name": o, "value": expr, "rename": name, "kind": k })).is_some()
+                    ok &= ws.run("set_variable", serde_json::json!({ "name": o, "value": value, "rename": name, "kind": k })).is_some()
                 }
-                None => ok &= ws.run("set_variable", serde_json::json!({ "name": name, "value": expr, "kind": k })).is_some(),
+                None => ok &= ws.run("set_variable", serde_json::json!({ "name": name, "value": value, "kind": k })).is_some(),
             }
         }
         if ok {
             return;
         }
         // Keep the dialog open, now matching what was applied.
-        rows = ws
-            .session
-            .doc
+        let doc = &ws.session.doc;
+        rows = doc
             .variables
             .iter()
-            .map(|v| (v.name.clone(), v.expr.clone(), Some(v.name.clone()), v.kind))
+            .map(|v| (v.name.clone(), shown_expr(doc, v), Some(v.name.clone()), v.kind))
             .chain(rows.into_iter().filter(|(n, ..)| !ws.session.doc.variables.iter().any(|v| v.name == n.trim())))
             .collect();
     }
@@ -1288,5 +1308,33 @@ pub(crate) fn presets_window(ui: &mut Ui, full: Rect, nav: &mut Option<&'static 
         *nav = None;
     } else if cancel || close_on_escape(ui) {
         *nav = None;
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use shapecraft_doc::{Document, Units, VarKind, Variable, expr};
+
+    /// #13: in an inch project the window reads a bare number as inches, and a saved bare length (mm) shows
+    /// with its "mm" so it keeps its meaning.
+    #[test]
+    fn the_variables_window_reads_bare_numbers_in_the_project_unit() {
+        let mut doc = Document::default();
+        doc.units = Units::Inch;
+        doc.variables.push(Variable { name: "old".into(), expr: "2".into(), kind: VarKind::Length });
+        doc.variables.push(Variable { name: "n".into(), expr: "4".into(), kind: VarKind::Number });
+        assert_eq!(shown_expr(&doc, &doc.variables[0]), "2 mm");
+        assert_eq!(shown_expr(&doc, &doc.variables[1]), "4");
+        let rows = vec![Variable { name: "w".into(), expr: "2".into(), kind: VarKind::Length }];
+        let saved = stored_expr(&doc, "2", &rows, VarKind::Length);
+        assert!((expr::eval(&saved, &[]).unwrap() - 50.8).abs() < 1e-9, "{saved} is 2 in");
+        let saved_rows = vec![Variable { expr: saved, ..rows[0].clone() }];
+        let twice = stored_expr(&doc, "w * 2", &saved_rows, VarKind::Length);
+        assert_eq!(twice, "w * 2", "a variable carries its own unit");
+        assert!((expr::eval_as(&twice, &saved_rows, VarKind::Length, 25.4).unwrap() - 101.6).abs() < 1e-9);
+        doc.units = Units::Millimeter;
+        assert_eq!(shown_expr(&doc, &doc.variables[0]), "2", "millimeter projects show what's saved");
     }
 }

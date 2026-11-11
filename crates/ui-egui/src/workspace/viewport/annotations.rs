@@ -6,8 +6,8 @@ use shapecraft_doc::{Pick, SketchEntity, SketchPlane, format_length};
 
 use super::handles::SECTION_FLIP;
 use super::paint::{
-    DASHED_RADIUS, DIAMETER, PILL_INK, RADIAL, axis_pill, copy_pill, dashed_radius, diameter_dim, double_arrow, face_arrow, lead_drop,
-    leader_dim, link_pill, padlock, pill, radius_dim, screen_dim, sketch_dimension, target_badge, value_box, value_field,
+    DASHED_RADIUS, DIAMETER, PILL_INK, RADIAL, axis_pill, axis_pill_ex, copy_pill, dashed_radius, diameter_dim, double_arrow, face_arrow,
+    lead_drop, leader_dim, link_pill, padlock, pill, radius_dim, screen_dim, sketch_dimension, target_badge, value_box, value_field,
 };
 use super::snap::ellipse_minor;
 use crate::theme::{self, Tokens, radius};
@@ -18,10 +18,18 @@ impl Workspace {
     /// Dimension labels, handles and the value box, drawn in screen space over the 3D view.
     pub(super) fn draw_annotations(&self, ui: &Ui) {
         let painter = ui.painter_at(self.view_rect);
-        let state = self.numeric.as_deref().map(|t| super::paint::FieldState {
-            fresh: self.numeric_fresh,
-            invalid: !t.trim().is_empty() && self.eval_field(t, self.typed_kind()).is_err(),
-            error: self.numeric_error.clone(),
+        let state = self.numeric.as_deref().map(|t| {
+            let doc = &self.session.doc;
+            super::paint::FieldState {
+                fresh: self.numeric_fresh,
+                invalid: !t.trim().is_empty() && self.check_typed(t).is_err(),
+                error: self.numeric_error.clone(),
+                vars: !doc.variables.is_empty(),
+                missing: self
+                    .numeric_error
+                    .as_ref()
+                    .and_then(|_| shapecraft_doc::expr::missing_variable(t, &doc.variables, self.typed_kind(), doc.units.scale())),
+            }
         });
         super::paint::clear_value_pills(ui.ctx(), state.unwrap_or_default());
         let units = self.session.doc.units;
@@ -646,6 +654,8 @@ impl Workspace {
             // As observed (324–326): plain white arrows (no rings or tabs). Pulling one moves it out to the spacing,
             // blue, with a dashed dimension back to the start, and the pills run on along the axis.
             let rim = theme::c(0x6e6e73);
+            // Typed text belongs to the spacing, or to Quantity once Tab (or a click on it) moved there.
+            let (typed, typed_count) = if t.count_field { (None, typed) } else { (typed, None) };
             let spacing = typed.and_then(|t| self.eval_typed(t)).unwrap_or(t.spacing);
             let pulled = spacing.abs() > 1e-9 || t.dragging.is_some();
             let hover = self.cursor.and_then(|c| self.gizmo_hit(t.pivot, t.frame, c));
@@ -680,7 +690,11 @@ impl Workspace {
                 painter.circle_filled(c, 7.0, theme::c(0xf4f4f6));
                 painter.circle_stroke(c, 7.0, Stroke::new(1.0, rim));
                 painter.circle_filled(c, 2.5, Tokens::accent());
-                let quantity = format!("Quantity  {}×", t.count);
+                let quantity = match typed_count {
+                    Some(n) => format!("Quantity  {n}"),
+                    None => format!("Quantity  {}×", t.count),
+                };
+                let count_pill = ui.scope_id().with("pattern-count-pill");
                 let kind = if t.total { "Total ⌄" } else { "Spacing ⌄" };
                 let value = typed.map(str::to_string).unwrap_or_else(|| format_length(spacing.abs(), units));
                 match tip_dir {
@@ -703,9 +717,16 @@ impl Workspace {
                         {
                             let half = text.chars().count() as f32 * 3.0 + 8.0;
                             at += dir * half;
-                            let r = axis_pill(&painter, at, dir, text, blue);
+                            // The blue edge marks the field being typed into; the spacing stays clickable.
+                            let r = match i {
+                                2 => axis_pill_ex(&painter, at, dir, text, t.count_field, false),
+                                _ => axis_pill_ex(&painter, at, dir, text, blue && !t.count_field, blue),
+                            };
                             if i == 0 {
                                 ui.ctx().data_mut(|d| d.insert_temp(ui.scope_id().with("pattern-kind-pill"), r));
+                            }
+                            if i == 2 {
+                                ui.ctx().data_mut(|d| d.insert_temp(count_pill, r));
                             }
                             at += dir * (half + 6.0);
                         }
@@ -715,7 +736,9 @@ impl Workspace {
                         let y = c.y + 70.0;
                         let r = axis_pill(&painter, pos2(c.x - 40.0, y), vec2(1.0, 0.0), kind, false);
                         ui.ctx().data_mut(|d| d.insert_temp(ui.scope_id().with("pattern-kind-pill"), r));
-                        axis_pill(&painter, pos2(c.x + 40.0, y), vec2(1.0, 0.0), &quantity, true);
+                        // Its own field (Tab or a click), not a spacing value.
+                        let r = axis_pill_ex(&painter, pos2(c.x + 40.0, y), vec2(1.0, 0.0), &quantity, true, false);
+                        ui.ctx().data_mut(|d| d.insert_temp(count_pill, r));
                     }
                 }
             }
@@ -743,10 +766,13 @@ impl Workspace {
         if let Some(angle) = angle_box {
             let c = self.viewport_rect.center();
             let mut shown = typed.map(str::to_string).unwrap_or_else(|| format!("{angle}°"));
+            let mut field = typed.map(str::to_string);
             if let Tool::CircularPattern(t) = &self.tool {
-                shown = format!("{} × {shown}", t.count);
+                shown = format!("{} × {angle}°", t.count);
+                // Tab moves the box between the angle and Quantity; it says which one it holds.
+                field = typed.map(|n| if t.count_field { format!("Quantity  {n}") } else { n.to_string() });
             }
-            value_box(&painter, pos2(c.x, self.viewport_rect.top() + 90.0), &shown, typed);
+            value_box(&painter, pos2(c.x, self.viewport_rect.top() + 90.0), &shown, field.as_deref());
             if matches!(self.tool, Tool::CircularPattern(_)) {
                 // The pattern control badges follow the value (wide enough for "6 × 360°" or a typed field).
                 let half = shown.chars().count() as f32 * 4.0 + 30.0;

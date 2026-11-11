@@ -381,6 +381,12 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
     if let Some(at) = ws.distance_menu {
         distance_menu(ws, ui, at);
     }
+    if let Some(at) = ws.var_menu {
+        super::variables::variable_menu(ws, ui, at);
+    }
+    if ws.var_create.is_some() {
+        super::variables::create_variable(ws, ui);
+    }
     if let Some((b, at)) = ws.badge_menu {
         crate::workspace::badges::menu(ws, ui, b, at);
     }

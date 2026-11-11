@@ -657,6 +657,22 @@ pub struct PatternTool {
     pub total: bool,
     /// The Result badge's choice for bodies: "new", "union", "subtract" or "intersect".
     pub result: &'static str,
+    /// The value box is on Quantity (Tab or a click on its pill), not on the spacing.
+    pub count_field: bool,
+}
+
+/// The most copies a pattern takes (the original counts), as the pattern commands allow.
+pub const PATTERN_MAX_COUNT: u32 = 500;
+
+/// A typed quantity: a whole number of 2 to [`PATTERN_MAX_COUNT`], the original included.
+pub fn pattern_count(v: f64) -> Result<u32, String> {
+    if !v.is_finite() || (v - v.round()).abs() > 1e-9 {
+        return Err("the quantity must be a whole number".into());
+    }
+    if v < 2.0 || v > f64::from(PATTERN_MAX_COUNT) {
+        return Err(format!("the quantity must be 2 to {PATTERN_MAX_COUNT}"));
+    }
+    Ok(v as u32)
 }
 
 /// A gizmo handle: an axis arrow (move) or a quarter ring (rotate), for axis 0 = X, 1 = Y, 2 = Z.
@@ -894,6 +910,8 @@ pub struct CircularPatternTool {
     pub spacing: bool,
     /// The Result badge's choice for bodies: "new", "union", "subtract" or "intersect".
     pub result: &'static str,
+    /// The value box is on Quantity (Tab), not on the angle.
+    pub count_field: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -920,6 +938,7 @@ impl CircularPatternTool {
             uniform: false,
             spacing: false,
             result: "new",
+            count_field: false,
         })
     }
 
@@ -1313,16 +1332,16 @@ impl Tool {
             Tool::CircularPattern(t) if t.about.is_none() => {
                 ("Pattern - Circular", "Click an edge or round face (or a sketch circle) to repeat around")
             }
-            Tool::CircularPattern(_) => ("Pattern - Circular", "− / + for the count, type an angle. Return applies"),
+            Tool::CircularPattern(_) => ("Pattern - Circular", "Type an angle, then Tab for the quantity (or − / +). Return applies"),
             Tool::Move(_) => ("Move/Rotate (M)", "Pick what to move or turn, then use the gizmo."),
             Tool::Mirror(t) if t.split => ("Split Body", "Select a body to split, then a face, plane or sketch line to split it with."),
             Tool::Mirror(_) => ("Mirror", "Pick what to mirror, then a line, plane or flat face to mirror it across."),
             Tool::OffsetFace(_) => ("Offset Face", "Pick faces to push them in or pull them out."),
             Tool::Scale(_) => ("Scale (S)", "Pull a handle or type a factor. Drag the center to scale from somewhere else"),
             Tool::Pattern(t) if t.spacing.abs() > 1e-9 => {
-                ("Linear Pattern", "Set the spacing and how many; − / + change the count. Done applies")
+                ("Linear Pattern", "Type the spacing, then Tab (or click Quantity) for how many. Done applies")
             }
-            Tool::Pattern(_) => ("Linear Pattern", "Pull an arrow to repeat along it"),
+            Tool::Pattern(_) => ("Linear Pattern", "Pull an arrow to repeat along it. Click Quantity for how many"),
             Tool::Loft(_) => ("Loft", "Pick two or more profiles or faces, in order, to blend a solid through them."),
             Tool::Sweep(_) => ("Sweep (W)", "Pick a profile, then the path to sweep it along."),
             Tool::SketchFillet { .. } => ("Fillet", "Drag the arrow to set the radius; click corners to add or take them away."),
@@ -1392,6 +1411,9 @@ impl Workspace {
         }
         match &self.tool {
             Tool::Scale(_) => VarKind::Number,
+            Tool::Pattern(PatternTool { count_field: true, .. }) | Tool::CircularPattern(CircularPatternTool { count_field: true, .. }) => {
+                VarKind::Number
+            }
             Tool::Arc { .. } | Tool::CircularPattern(_) | Tool::RotateAxis(_) => VarKind::Angle,
             Tool::Revolve(t) if !t.height_typed => VarKind::Angle,
             Tool::EdgePlane(t) if t.through => VarKind::Angle,
@@ -1400,10 +1422,24 @@ impl Workspace {
         }
     }
 
+    /// What the open value box's text comes to, or why it doesn't work (a pattern's Quantity must be a whole count).
+    pub fn check_typed(&self, text: &str) -> Result<f64, String> {
+        let v = self.eval_field(text, self.typed_kind())?;
+        if self.pattern_count_field() { pattern_count(v).map(f64::from) } else { Ok(v) }
+    }
+
+    /// The open value box is a pattern's Quantity.
+    pub fn pattern_count_field(&self) -> bool {
+        matches!(
+            self.tool,
+            Tool::Pattern(PatternTool { count_field: true, .. }) | Tool::CircularPattern(CircularPatternTool { count_field: true, .. })
+        )
+    }
+
     /// Return on the value box: false (and the box stays open with the reason) when the text doesn't work.
     pub fn typed_ok(&mut self) -> bool {
         let Some(t) = self.numeric.as_deref().filter(|t| !t.trim().is_empty()) else { return true };
-        match self.eval_field(t, self.typed_kind()) {
+        match self.check_typed(t) {
             Ok(_) => true,
             Err(e) => {
                 self.numeric_fresh = false;

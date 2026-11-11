@@ -97,6 +97,16 @@ pub fn valid_name(name: &str) -> bool {
         && name != "pi"
 }
 
+/// How an unknown name is reported; [`missing_variable`] reads it back.
+const NO_VARIABLE: &str = "there's no variable ";
+
+/// The name the text uses that isn't a variable (yet), if that is why it doesn't evaluate: "20+w" → "w".
+pub fn missing_variable(text: &str, vars: &[Variable], want: VarKind, unit: f64) -> Option<String> {
+    let e = eval_as(text, vars, want, unit).err()?;
+    let name = e.strip_prefix(NO_VARIABLE)?.trim_matches('\'');
+    valid_name(name).then(|| name.to_string())
+}
+
 /// Whether text is more than a plain number (so it should be kept as an expression).
 pub fn is_expression(text: &str) -> bool {
     text.trim().parse::<f64>().is_err()
@@ -127,13 +137,21 @@ pub fn eval_as(text: &str, vars: &[Variable], want: VarKind, unit: f64) -> Resul
 /// workspace unit, every bare number that was taken as a length gets the unit written after it
 /// ("width + 2" → "width + 2 in"). Errors as [`eval_as`] does.
 pub fn with_units(text: &str, vars: &[Variable], want: VarKind, unit: f64, suffix: &str) -> Result<String, String> {
+    if (unit - 1.0).abs() < 1e-12 {
+        let t = normalize(text);
+        finish(Parser::new(&t, vars, unit, 0)?.whole(&t)?, want, unit)?;
+        return Ok(text.trim().to_string());
+    }
+    spell_units(text, vars, want, unit, suffix)
+}
+
+/// [`with_units`] even in millimeters: every bare number taken as a length gets `suffix` written after it. A
+/// stored "2" (mm) shown in an inch project reads "2 mm", so it keeps its meaning where a bare number means inches.
+pub fn spell_units(text: &str, vars: &[Variable], want: VarKind, unit: f64, suffix: &str) -> Result<String, String> {
     let t = normalize(text);
     let mut p = Parser::new(&t, vars, unit, 0)?;
     let r = p.whole(&t)?;
     finish(r, want, unit)?;
-    if (unit - 1.0).abs() < 1e-12 {
-        return Ok(text.trim().to_string());
-    }
     let mut out: Vec<char> = t.chars().collect();
     let mut spans = p.promoted;
     // The whole result is a plain number taken as a length.
@@ -627,7 +645,7 @@ impl<'a> Parser<'a> {
                 if call && (function1(&name).is_some() || function2(&name).is_some()) {
                     return Err(format!("{name} needs ( )"));
                 }
-                Err(format!("there's no variable '{name}'"))
+                Err(format!("{NO_VARIABLE}'{name}'"))
             }
             Tok::Op(c) => Err(format!("'{c}' needs a value before it")),
         }
@@ -860,5 +878,27 @@ mod tests {
         let avg = [var("avg", "3")];
         assert_eq!(eval("avg * 2", &avg).unwrap(), 6.0);
         assert!(valid_name("avg") && valid_name("sec"));
+    }
+
+    /// #13: saved bare lengths spelled out in mm for a window that reads bare numbers in another unit.
+    #[test]
+    fn spell_units_writes_mm_on_saved_bare_lengths() {
+        let vars = [Variable { name: "w".into(), expr: "10".into(), kind: VarKind::Length }];
+        assert_eq!(spell_units("2", &vars, VarKind::Length, 1.0, "mm").unwrap(), "2 mm");
+        let t = spell_units("w + 2", &vars, VarKind::Length, 1.0, "mm").unwrap();
+        assert!((eval_as(&t, &vars, VarKind::Length, 25.4).unwrap() - 12.0).abs() < 1e-9, "{t} still means 12 mm");
+        assert_eq!(spell_units("5 cm", &vars, VarKind::Length, 1.0, "mm").unwrap(), "5 cm");
+        assert_eq!(spell_units("3", &vars, VarKind::Number, 1.0, "mm").unwrap(), "3");
+        assert_eq!(spell_units("45", &vars, VarKind::Angle, 1.0, "mm").unwrap(), "45");
+    }
+
+    /// #12: the unknown name a value box can offer to create.
+    #[test]
+    fn missing_variable_names_the_unknown_name() {
+        let vars = [Variable { name: "w".into(), expr: "10".into(), kind: VarKind::Length }];
+        assert_eq!(missing_variable("20+h", &vars, VarKind::Length, 1.0).as_deref(), Some("h"));
+        assert_eq!(missing_variable("20+w", &vars, VarKind::Length, 1.0), None, "it works");
+        assert_eq!(missing_variable("20+", &vars, VarKind::Length, 1.0), None, "another reason");
+        assert_eq!(missing_variable("sqrt 4", &vars, VarKind::Length, 1.0), None);
     }
 }

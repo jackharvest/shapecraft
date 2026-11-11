@@ -70,7 +70,15 @@ impl Workspace {
         let rect = self.view_rect;
         let resp = ui.interact(rect, ui.scope_id().with("viewport"), Sense::click_and_drag());
         let pointer = ui.input(|i| i.pointer.hover_pos());
-        self.cursor = pointer.filter(|p| rect.contains(*p) && resp.hovered() || resp.dragged());
+        let cursor = pointer.filter(|p| rect.contains(*p) && resp.hovered() || resp.dragged());
+        // Over the open value field (to reach its buttons) the drawing stays where it was aimed, so the field it
+        // rides on doesn't slide away.
+        let over_field = self.numeric.is_some()
+            && self.cursor.is_some()
+            && cursor.is_some_and(|p| paint::field_rect(ui.ctx()).is_some_and(|r| r.contains(p)));
+        if !over_field {
+            self.cursor = cursor;
+        }
         self.viewport_hot = resp.hovered() || resp.dragged();
         if self.finger_nav {
             // A finger on a touch screen only moves the view, as on iPad: no picking, no hover, no
