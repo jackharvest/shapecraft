@@ -378,6 +378,8 @@ pub struct Workspace {
     pub numeric: Option<String>,
     /// `numeric` was filled from a clicked value pill and shows selected: the first key typed replaces it.
     pub numeric_fresh: bool,
+    /// Why the typed value didn't work, shown under the value box after Return (it stays open to fix).
+    pub numeric_error: Option<String>,
     /// Where the touch numpad opens: beside the value pill the pen tapped.
     pub numpad_at: Option<egui::Pos2>,
     /// A rectangle's width, typed and fixed with Tab as observed; the next typed value is its height.
@@ -714,6 +716,7 @@ impl Workspace {
             ppp: 0.0,
             numeric: None,
             numeric_fresh: false,
+            numeric_error: None,
             numpad_at: None,
             rect_width: None,
             line_len: None,

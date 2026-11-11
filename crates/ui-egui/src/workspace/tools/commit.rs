@@ -78,7 +78,8 @@ impl Workspace {
 
     /// Return: commits whatever the tool has.
     pub(in crate::workspace) fn commit_tool(&mut self) {
-        let typed = self.numeric.take().and_then(|t| self.eval_typed(&t));
+        let kind = self.typed_kind();
+        let typed = self.numeric.take().and_then(|t| self.eval_field(&t, kind).ok());
         match self.tool.clone() {
             Tool::Extrude(mut t) => {
                 if let Some(v) = typed {
@@ -424,11 +425,11 @@ impl Workspace {
             return;
         }
         // Revolve: Tab fixes the typed angle and opens the height (a helix rises as it turns).
+        let typed_angle = self.numeric.as_deref().and_then(|n| self.eval_angle(n)).filter(|a| a.abs() > 1e-9);
         if let Tool::Revolve(t) = &mut self.tool
             && !t.height_typed
         {
-            if let Some(a) = self.numeric.as_deref().and_then(|n| n.trim().parse::<f64>().ok()).filter(|a| a.is_finite() && a.abs() > 1e-9)
-            {
+            if let Some(a) = typed_angle {
                 t.angle = a.clamp(-360.0 * 200.0, 360.0 * 200.0);
             }
             t.height_typed = true;

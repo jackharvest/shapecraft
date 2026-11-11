@@ -70,7 +70,7 @@ impl Workspace {
                 // As the engine decides it: on a body, pulling out adds and pushing in cuts; elsewhere a new body.
                 let side = self.extrude_auto_side(t);
                 // A typed depth counts before Return, so the cut shows while the value is typed.
-                let d = self.numeric.as_deref().and_then(crate::workspace::tools::parse_length).unwrap_or(t.distance);
+                let d = self.numeric.as_deref().and_then(|t| self.eval_typed(t)).unwrap_or(t.distance);
                 let auto = match side {
                     None => 0,
                     Some(side) if d * side > 0.0 => 3,
@@ -274,7 +274,7 @@ impl Workspace {
 
     /// What's being typed, as a length.
     fn numeric_len(&self) -> Option<f64> {
-        self.numeric.as_deref().and_then(crate::workspace::tools::parse_length)
+        self.numeric.as_deref().and_then(|t| self.eval_typed(t))
     }
 
     /// Which row of a badge's menu is checked.

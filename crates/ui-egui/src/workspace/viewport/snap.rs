@@ -191,11 +191,7 @@ impl Workspace {
     /// the typed sweep (45° until one is typed), bulging so its center is on the left of start→pointer on screen;
     /// with both ends placed it passes through the pointer, or takes the typed sweep on the pointer's side.
     pub(in crate::workspace) fn arc_preview(&self, a: DVec2, b: Option<DVec2>, cursor: DVec2) -> Option<(DVec2, DVec2, DVec2)> {
-        let typed = self
-            .numeric
-            .as_deref()
-            .and_then(|t| t.trim().parse::<f64>().ok())
-            .filter(|v| v.is_finite() && v.abs() > 1e-6 && v.abs() < 360.0);
+        let typed = self.numeric.as_deref().and_then(|t| self.eval_angle(t)).filter(|v| v.abs() > 1e-6 && v.abs() < 360.0);
         let (end, bulge_sign) = match b {
             None => {
                 let pl = self.sketch_plane()?;

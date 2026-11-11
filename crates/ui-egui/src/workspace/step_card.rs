@@ -9,7 +9,7 @@ use shapecraft_doc::format_length;
 use shapecraft_engine::history::{self, FieldKind};
 
 use super::Workspace;
-use super::tools::{ExtrudeTool, FilletTool, Tool, parse_length};
+use super::tools::{ExtrudeTool, FilletTool, Tool};
 use crate::i18n::tr;
 use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens, radius};
@@ -266,7 +266,7 @@ fn tool_extrude(ws: &Workspace, t: &ExtrudeTool) -> Extrude {
         draft: t.draft,
         result: t.result.to_string(),
         side,
-        typed: ws.numeric.as_deref().and_then(crate::workspace::tools::parse_length),
+        typed: ws.numeric.as_deref().and_then(|t| ws.eval_typed(t)),
         exprs: [None, None],
     }
 }
@@ -344,18 +344,6 @@ fn show_value(kind: FieldKind, v: f64, units: shapecraft_doc::Units) -> String {
         FieldKind::Angle => format!("{}°", format_length(v, shapecraft_doc::Units::Millimeter).trim_end_matches(" mm")),
         FieldKind::Count => format!("{}", v.round() as i64),
         FieldKind::Factor => format_length(v, shapecraft_doc::Units::Millimeter).trim_end_matches(" mm").to_string(),
-    }
-}
-
-fn parse(kind: FieldKind, text: &str, units: shapecraft_doc::Units) -> Option<f64> {
-    let t = text.trim().trim_end_matches('°').trim_start_matches('×');
-    match kind {
-        FieldKind::Length => {
-            let suffix = t.ends_with("mm") || t.ends_with("cm") || t.ends_with("in");
-            parse_length(t).map(|v| if suffix { v } else { v * units.scale() })
-        }
-        FieldKind::Count => t.parse::<f64>().ok().filter(|v| *v >= 1.0).map(f64::round),
-        _ => t.parse::<f64>().ok().filter(|v| v.is_finite()),
     }
 }
 
@@ -607,8 +595,8 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
                             if esc {
                                 ws.card.editing = None;
                             } else if enter || resp.lost_focus() {
-                                if let Some(v) = parse(*kind, text, units) {
-                                    change = Some((key, json!(v)));
+                                if let Some(v) = super::history::parse_value(*kind, text, units, &ws.session.doc.variables) {
+                                    change = Some((key, v));
                                 }
                                 ws.card.editing = None;
                             }

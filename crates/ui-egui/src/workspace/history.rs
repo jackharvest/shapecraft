@@ -9,7 +9,6 @@ use shapecraft_doc::{HistoryStep, format_length};
 use shapecraft_engine::history::{self, BREAKPOINT, FieldKind};
 
 use super::Workspace;
-use super::tools::parse_length;
 use crate::icons::{self, Icon};
 use crate::theme::{self, Tokens, radius};
 
@@ -157,22 +156,30 @@ fn show_value(kind: FieldKind, v: f64, units: shapecraft_doc::Units) -> String {
     }
 }
 
-fn parse_value(kind: FieldKind, text: &str, units: shapecraft_doc::Units, vars: &[shapecraft_doc::Variable]) -> Option<serde_json::Value> {
-    let t = text.trim().trim_end_matches('°').trim_start_matches('×');
-    // Anything using a variable stays an expression, so the step follows the variable.
-    if t.chars().any(|c| c.is_ascii_alphabetic() && !matches!(c, 'm' | 'c' | 'i' | 'n')) || vars.iter().any(|v| t.contains(v.name.as_str()))
-    {
-        return shapecraft_doc::expr::eval(t, vars).ok().map(|_| json!(t));
+/// What a step's field gets from typed text: a number (lengths in mm), or the expression itself when it uses a
+/// variable, so the step follows the variable. A length without a unit is in the project's unit; stored expressions
+/// get that unit written in, so they mean the same however the project's unit changes later.
+pub(super) fn parse_value(
+    kind: FieldKind,
+    text: &str,
+    units: shapecraft_doc::Units,
+    vars: &[shapecraft_doc::Variable],
+) -> Option<serde_json::Value> {
+    use shapecraft_doc::{VarKind, expr};
+    let t = text.trim().trim_start_matches('×');
+    let want = match kind {
+        FieldKind::Length => VarKind::Length,
+        FieldKind::Angle => VarKind::Angle,
+        FieldKind::Count | FieldKind::Factor => VarKind::Number,
+    };
+    let v = expr::eval_as(t, vars, want, units.scale()).ok()?;
+    if matches!(kind, FieldKind::Count) && v < 1.0 {
+        return None;
     }
-    match kind {
-        FieldKind::Length => {
-            let has_suffix = t.ends_with("mm") || t.ends_with("cm") || t.ends_with("in");
-            let v = parse_length(t)?;
-            Some(json!(if has_suffix { v } else { v * units.scale() }))
-        }
-        FieldKind::Angle | FieldKind::Factor => t.parse::<f64>().ok().filter(|v| v.is_finite()).map(|v| json!(v)),
-        FieldKind::Count => t.parse::<f64>().ok().filter(|v| *v >= 1.0).map(|v| json!(v.round() as i64)),
+    if expr::uses_variables(t, vars) {
+        return expr::with_units(t, vars, want, units.scale(), units.suffix()).ok().map(|s| json!(s));
     }
+    Some(if matches!(kind, FieldKind::Count) { json!(v.round() as i64) } else { json!(v) })
 }
 
 /// A read-only choice, drawn like the reference's pop-up buttons (text on a gray pill, blue stepper square).
@@ -825,4 +832,28 @@ fn step_bounds(ws: &Workspace, step: usize) -> Option<(glam::DVec3, glam::DVec3)
         }
     }
     lo.x.is_finite().then_some((lo, hi))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod typed_tests {
+    use super::*;
+    use shapecraft_doc::{Units, VarKind, Variable};
+
+    /// The History and step-card fields take the same text as the value box (#5).
+    #[test]
+    fn fields_store_numbers_or_expressions_that_keep_their_unit() {
+        let vars = [Variable { name: "depth".into(), expr: "10".into(), kind: VarKind::Length }];
+        let mm = Units::Millimeter;
+        assert_eq!(parse_value(FieldKind::Length, "depth / 2", mm, &vars).unwrap(), json!("depth / 2"));
+        assert_eq!(parse_value(FieldKind::Length, "(50 + 10) / 2", mm, &vars).unwrap(), json!(30.0));
+        assert!((parse_value(FieldKind::Length, "1 1/2\"", mm, &vars).unwrap().as_f64().unwrap() - 38.1).abs() < 1e-9);
+        assert_eq!(parse_value(FieldKind::Length, "depth + 2", Units::Inch, &vars).unwrap(), json!("depth + 2 in"));
+        assert_eq!(parse_value(FieldKind::Length, "2", Units::Inch, &vars).unwrap(), json!(50.8));
+        assert_eq!(parse_value(FieldKind::Angle, "90 / 4", Units::Inch, &vars).unwrap(), json!(22.5));
+        assert_eq!(parse_value(FieldKind::Count, "2 * 3", mm, &vars).unwrap(), json!(6));
+        assert_eq!(parse_value(FieldKind::Count, "0", mm, &vars), None);
+        assert_eq!(parse_value(FieldKind::Length, "depth +", mm, &vars), None);
+        assert_eq!(parse_value(FieldKind::Angle, "5 mm", mm, &vars), None);
+    }
 }

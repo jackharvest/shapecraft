@@ -245,7 +245,7 @@ impl Workspace {
         let Tool::SketchFillet { radius, corners, .. } = &self.tool else { return };
         let (radius, any) = (*radius, !corners.is_empty());
         if let (Some((p, bis, k)), Some(pl)) = (self.fillet_frame(), self.sketch_plane()) {
-            let r = self.numeric.as_deref().and_then(crate::workspace::tools::parse_length).map(f64::abs).unwrap_or(radius);
+            let r = self.numeric.as_deref().and_then(|t| self.eval_typed(t)).map(f64::abs).unwrap_or(radius);
             let mid = p + bis * r * k;
             if let (Some(sm), Some(sc)) = (self.to_screen(pl.to_world(mid)), self.to_screen(pl.to_world(mid + bis * r))) {
                 let painter = ui.painter().clone();

@@ -187,7 +187,7 @@ impl Workspace {
     fn doc_as_shown(&self, show_uncut: bool) -> std::borrow::Cow<'_, shapecraft_doc::Document> {
         // Sketch Fillet shows the rounded sketch in place of the original (s11-095).
         if let (Tool::SketchFillet { corners, radius, .. }, Some(id)) = (&self.tool, self.session.active_sketch) {
-            let r = self.numeric.as_deref().and_then(tools::parse_length).map(f64::abs).unwrap_or(*radius);
+            let r = self.numeric.as_deref().and_then(|t| self.eval_typed(t)).map(f64::abs).unwrap_or(*radius);
             let mut d = self.session.doc.clone();
             if let Some(sk) = d.sketch_mut(id)
                 && let Ok(list) = shapecraft_doc::sketch_ops::fillet_corners(&sk.entities, corners, r)

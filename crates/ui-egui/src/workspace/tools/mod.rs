@@ -6,7 +6,7 @@
 
 use glam::{DVec2, DVec3};
 use serde_json::json;
-use shapecraft_doc::{ItemId, Pick};
+use shapecraft_doc::{ItemId, Pick, VarKind};
 use shapecraft_engine::Session;
 
 use super::Workspace;
@@ -1368,26 +1368,50 @@ impl Tool {
 }
 
 impl Workspace {
-    /// A typed value: a length ("12", "3 cm") or an expression using the project's variables.
-    pub fn eval_typed(&self, text: &str) -> Option<f64> {
-        parse_length(text).or_else(|| shapecraft_doc::expr::eval(text, &self.session.doc.variables).ok())
+    /// What the typed text means for a field that wants `want`: a number, an expression, units, the project's
+    /// variables. A length without a unit is in the project's unit; lengths come back in mm, angles in degrees.
+    pub fn eval_field(&self, text: &str, want: VarKind) -> Result<f64, String> {
+        shapecraft_doc::expr::eval_as(text, &self.session.doc.variables, want, self.session.doc.units.scale())
     }
-}
 
-/// Parses what the user typed. Units are millimeters unless a suffix says otherwise.
-pub fn parse_length(text: &str) -> Option<f64> {
-    let t = text.trim();
-    let (num, scale) = if let Some(n) = t.strip_suffix("mm") {
-        (n, 1.0)
-    } else if let Some(n) = t.strip_suffix("cm") {
-        (n, 10.0)
-    } else if let Some(n) = t.strip_suffix("in") {
-        (n, 25.4)
-    } else {
-        (t, 1.0)
-    };
-    let v: f64 = num.trim().parse().ok()?;
-    (v.is_finite()).then_some(v * scale)
+    /// A typed length ("12", "3 cm", "width / 2").
+    pub fn eval_typed(&self, text: &str) -> Option<f64> {
+        self.eval_field(text, VarKind::Length).ok()
+    }
+
+    /// A typed angle in degrees ("45", "90 / 4", "atan(3 / 4)").
+    pub fn eval_angle(&self, text: &str) -> Option<f64> {
+        self.eval_field(text, VarKind::Angle).ok()
+    }
+
+    /// What the open value box takes for the running tool: an angle for turns and arcs, a factor for Scale, else a
+    /// length.
+    pub fn typed_kind(&self) -> VarKind {
+        if let Some(edit) = &self.dim_edit {
+            return if edit.kind == super::viewport::DimKind::Angle { VarKind::Angle } else { VarKind::Length };
+        }
+        match &self.tool {
+            Tool::Scale(_) => VarKind::Number,
+            Tool::Arc { .. } | Tool::CircularPattern(_) | Tool::RotateAxis(_) => VarKind::Angle,
+            Tool::Revolve(t) if !t.height_typed => VarKind::Angle,
+            Tool::EdgePlane(t) if t.through => VarKind::Angle,
+            Tool::Move(t) if matches!(t.handle, Handle::Ring(_)) => VarKind::Angle,
+            _ => VarKind::Length,
+        }
+    }
+
+    /// Return on the value box: false (and the box stays open with the reason) when the text doesn't work.
+    pub fn typed_ok(&mut self) -> bool {
+        let Some(t) = self.numeric.as_deref().filter(|t| !t.trim().is_empty()) else { return true };
+        match self.eval_field(t, self.typed_kind()) {
+            Ok(_) => true,
+            Err(e) => {
+                self.numeric_fresh = false;
+                self.numeric_error = Some(e);
+                false
+            }
+        }
+    }
 }
 
 /// The command a Chamfer/Fillet tool runs for a given size.

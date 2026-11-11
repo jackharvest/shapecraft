@@ -359,7 +359,7 @@ impl Workspace {
         // Sketch Fillet: the rounded result (changed lines green, new arcs blue) and the corners as rings, orange
         // when picked (s11-095).
         if let (Tool::SketchFillet { all, corners, radius }, Some(sk)) = (&self.tool, self.session.active_sketch()) {
-            let r = self.numeric.as_deref().and_then(crate::workspace::tools::parse_length).map(f64::abs).unwrap_or(*radius);
+            let r = self.numeric.as_deref().and_then(|t| self.eval_typed(t)).map(f64::abs).unwrap_or(*radius);
             if let Ok(list) = shapecraft_doc::sketch_ops::fillet_corners(&sk.entities, corners, r) {
                 for (i, e) in list.iter().enumerate() {
                     if sk.entities.get(i) == Some(e) {

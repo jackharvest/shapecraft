@@ -214,7 +214,10 @@ pub(super) fn value_field(painter: &egui::Painter, center: Pos2, typed: &str) {
     // See-through: the panel #30323d at 64 % (about #282931 over the dark view), the field a light veil over it, so
     // a face behind tints it.
     let alpha = |c: Color32, a: u8| Color32::from_rgba_unmultiplied(c.r(), c.g(), c.b(), a);
-    let panel = Rect::from_center_size(center + vec2(13.0, 0.0), vec2(214.0, 34.0));
+    let state = field_state(painter.ctx());
+    // Room for the warning sign between the field and the keypad key while the text doesn't work.
+    let warn = if state.invalid { 24.0 } else { 0.0 };
+    let panel = Rect::from_min_size(center + vec2(13.0 - 107.0, -17.0), vec2(214.0 + warn, 34.0));
     painter.rect_filled(panel, radius(9), alpha(theme::c(0x30323d), 165));
     let field = Rect::from_min_size(panel.min + vec2(4.0, 4.0), vec2(176.0, 26.0));
     painter.rect_filled(field, radius(7), alpha(theme::c(0x5f6a86), 51));
@@ -223,7 +226,7 @@ pub(super) fn value_field(painter: &egui::Painter, center: Pos2, typed: &str) {
     let tw = g.size().x;
     let text_at = pos2(field.left() + 8.0, field.center().y - g.size().y / 2.0);
     // Filled from a clicked pill: the text shows selected (the next key replaces it), no caret.
-    let fresh = painter.ctx().data(|d| d.get_temp::<bool>(egui::Id::unique("sc-numeric-fresh"))).unwrap_or(false);
+    let fresh = state.fresh;
     if fresh && tw > 0.0 {
         let sel = Rect::from_min_size(text_at - vec2(1.0, 1.0), g.size() + vec2(2.0, 2.0));
         painter.rect_filled(sel, radius(2), Tokens::accent().gamma_multiply(0.55));
@@ -243,6 +246,12 @@ pub(super) fn value_field(painter: &egui::Painter, center: Pos2, typed: &str) {
     let key = Rect::from_center_size(pos2(panel.right() - 16.0, panel.center().y), vec2(18.0, 13.0));
     painter.rect_stroke(key, radius(2), Stroke::new(1.0, ink), StrokeKind::Inside);
     painter.text(key.center(), Align2::CENTER_CENTER, "123", egui::FontId::new(6.5, egui::FontFamily::Proportional), ink);
+    if state.invalid {
+        warning_sign(painter, pos2(field.right() + 14.0, field.center().y), 15.0);
+    }
+    if let Some(e) = state.error.as_deref().filter(|_| state.invalid) {
+        error_callout(painter, panel.left_bottom(), e);
+    }
 }
 
 /// Where this frame's value pills were drawn, with their text: a click on one opens the value field with that
@@ -251,11 +260,49 @@ pub(in crate::workspace) fn value_pills(ctx: &egui::Context) -> Vec<(Rect, Strin
     ctx.data(|d| d.get_temp::<Vec<(Rect, String)>>(egui::Id::unique("sc-value-pills"))).unwrap_or_default()
 }
 
-pub(super) fn clear_value_pills(ctx: &egui::Context, fresh: bool) {
+/// How the value box shows this frame.
+#[derive(Clone, Debug, Default)]
+pub(in crate::workspace) struct FieldState {
+    /// Filled from a clicked pill: the text shows selected and the next key replaces it.
+    pub fresh: bool,
+    /// The text doesn't make a value (yet): a yellow warning sign beside the box.
+    pub invalid: bool,
+    /// Return was pressed on it: why, in a callout under the box.
+    pub error: Option<String>,
+}
+
+pub(super) fn clear_value_pills(ctx: &egui::Context, state: FieldState) {
     ctx.data_mut(|d| {
         d.insert_temp(egui::Id::unique("sc-value-pills"), Vec::<(Rect, String)>::new());
-        d.insert_temp(egui::Id::unique("sc-numeric-fresh"), fresh);
+        d.insert_temp(egui::Id::unique("sc-field-state"), state);
     });
+}
+
+fn field_state(ctx: &egui::Context) -> FieldState {
+    ctx.data(|d| d.get_temp::<FieldState>(egui::Id::unique("sc-field-state"))).unwrap_or_default()
+}
+
+const WARN: Color32 = Color32::from_rgb(0xf5, 0xc5, 0x18);
+
+/// The yellow warning triangle with its "!" (the value box's "this doesn't work").
+fn warning_sign(painter: &egui::Painter, c: Pos2, size: f32) {
+    let h = size * 0.9;
+    let tri = vec![c + vec2(0.0, -h / 2.0), c + vec2(size / 2.0, h / 2.0), c + vec2(-size / 2.0, h / 2.0)];
+    painter.add(egui::Shape::convex_polygon(tri, WARN, Stroke::new(1.5, WARN)));
+    let ink = Stroke::new(1.6, theme::c(0x1b1b1b));
+    painter.line_segment([c + vec2(0.0, -h * 0.16), c + vec2(0.0, h * 0.16)], ink);
+    painter.circle_filled(c + vec2(0.0, h * 0.32), 0.95, theme::c(0x1b1b1b));
+}
+
+/// Why the typed value didn't work, in a yellow-tinted callout under the box (`below` is the box's bottom left).
+fn error_callout(painter: &egui::Painter, below: Pos2, text: &str) {
+    let mut chars = text.chars();
+    let msg = chars.next().map(|f| f.to_uppercase().collect::<String>() + chars.as_str()).unwrap_or_default();
+    let g = painter.layout(msg, theme::body(12.0), Tokens::text_strong(), 200.0);
+    let r = Rect::from_min_size(below + vec2(40.0, 8.0), g.size() + vec2(42.0, 18.0));
+    painter.rect_filled(r, radius(8), theme::c(0x4a4524));
+    warning_sign(painter, pos2(r.left() + 16.0, r.top() + 9.0 + 7.0), 13.0);
+    painter.galley(pos2(r.left() + 32.0, r.top() + 9.0), g, Tokens::text_strong());
 }
 
 /// A blue-rimmed pill holding a number is a value the running tool takes.
@@ -450,6 +497,13 @@ pub(super) fn value_box(painter: &egui::Painter, center: Pos2, text: &str, typed
     let anchor = if editing { Align2::LEFT_CENTER } else { Align2::CENTER_CENTER };
     let pos = if editing { pos2(r.left() + 6.0, r.center().y) } else { r.center() };
     painter.text(pos, anchor, shown, theme::mono(11.5), Tokens::text_strong());
+    let state = field_state(painter.ctx());
+    if state.invalid {
+        warning_sign(painter, pos2(r.right() + 12.0, r.center().y), 14.0);
+    }
+    if let Some(e) = state.error.as_deref().filter(|_| state.invalid) {
+        error_callout(painter, r.left_bottom() - vec2(40.0, 0.0), e);
+    }
 }
 
 /// A tool's target badge (Replace Face, Project as Edge, Split Body): white, a purple ring, a crosshair.

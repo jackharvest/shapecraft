@@ -18,7 +18,12 @@ impl Workspace {
     /// Dimension labels, handles and the value box, drawn in screen space over the 3D view.
     pub(super) fn draw_annotations(&self, ui: &Ui) {
         let painter = ui.painter_at(self.view_rect);
-        super::paint::clear_value_pills(ui.ctx(), self.numeric_fresh && self.numeric.is_some());
+        let state = self.numeric.as_deref().map(|t| super::paint::FieldState {
+            fresh: self.numeric_fresh,
+            invalid: !t.trim().is_empty() && self.eval_field(t, self.typed_kind()).is_err(),
+            error: self.numeric_error.clone(),
+        });
+        super::paint::clear_value_pills(ui.ctx(), state.unwrap_or_default());
         let units = self.session.doc.units;
         let typed = self.numeric.as_deref();
         let plane = self.sketch_plane();
@@ -275,7 +280,7 @@ impl Workspace {
             // As observed (340–342): the axis as a long purple line, a dashed radius from it to the handle, and
             // once turned a dashed arc from the start (white dot) round to the handle; the angle capsule and Copy
             // run outward from the axis through the handle.
-            let shown = typed.and_then(|n| n.trim().parse::<f64>().ok()).filter(|a| a.is_finite()).unwrap_or(t.angle);
+            let shown = typed.and_then(|n| self.eval_angle(n)).unwrap_or(t.angle);
             // Long, but not so long an end falls behind the camera.
             let wpp = self.camera.world_per_pixel(self.size().y);
             let ends = |k: f64| self.to_screen(f + dir * wpp * k);
@@ -335,7 +340,7 @@ impl Workspace {
         if let Tool::BodyEdgeOffset(t) = &self.tool {
             // As observed (347–349): the edge orange, a ↔ into each face beside it (the active one blue), and once
             // pulled the copy as a blue line on the face, a dashed line back to the edge and the distance capsule.
-            let d = typed.and_then(crate::workspace::tools::parse_length).unwrap_or(t.distance);
+            let d = typed.and_then(|t| self.eval_typed(t)).unwrap_or(t.distance);
             let orange = theme::c(0xf0a030);
             let line: Vec<Pos2> = t.line.iter().filter_map(|p| self.to_screen(*p)).collect();
             painter.add(egui::Shape::line(line, Stroke::new(2.0, orange)));
@@ -518,7 +523,7 @@ impl Workspace {
         }
         if let Tool::Scale(t) = &self.tool {
             let hover = self.cursor.and_then(|c| self.scale_hit(t, c));
-            let typed_f = typed.and_then(|n| n.trim().parse::<f64>().ok());
+            let typed_f = typed.and_then(|n| self.eval_field(n, shapecraft_doc::VarKind::Number).ok());
             // The value, Copy and the badge run out through the active handle from the start ("1.00×").
             let active = true;
             let rim = theme::c(0x6e6e73);
@@ -641,7 +646,7 @@ impl Workspace {
             // As observed (324–326): plain white arrows (no rings or tabs). Pulling one moves it out to the spacing,
             // blue, with a dashed dimension back to the start, and the pills run on along the axis.
             let rim = theme::c(0x6e6e73);
-            let spacing = typed.and_then(crate::workspace::tools::parse_length).unwrap_or(t.spacing);
+            let spacing = typed.and_then(|t| self.eval_typed(t)).unwrap_or(t.spacing);
             let pulled = spacing.abs() > 1e-9 || t.dragging.is_some();
             let hover = self.cursor.and_then(|c| self.gizmo_hit(t.pivot, t.frame, c));
             let shift = |a: usize| -> egui::Vec2 {
@@ -990,7 +995,7 @@ impl Workspace {
             let shown = match &self.tool {
                 Tool::OffsetFace(t) if t.fillet.is_some() => {
                     let k = self.offset_kind(t);
-                    let d = typed.and_then(crate::workspace::tools::parse_length).map(|v| {
+                    let d = typed.and_then(|t| self.eval_typed(t)).map(|v| {
                         let mut c = t.clone();
                         c.set_shown(k, v);
                         c.shown(k)

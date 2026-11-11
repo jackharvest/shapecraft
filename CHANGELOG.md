@@ -2,12 +2,25 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.7.4-alpha
-**Phones are landscape only.**
+## 0.7.5-alpha
+**Value boxes take variables, expressions and units. Phones are landscape only.**
+### New
+- **Type variables and expressions into any value.** Once a tool's value box is open, letters go into it instead of
+  running shortcuts, so `box_width * 2` or `wall + 3 mm` works wherever a number does: tool values, sketch
+  dimensions, the step card and History. Use `+ - * / ^` and brackets, and functions such as `sqrt`, `round`,
+  `floor`, `ceil`, `abs`, `min`, `max`, `avg`, `mod`, `sin`, `cos`, `tan`, `asin`, `atan2`, `radians` and `pi()`.
+  Mix units freely: `5 mm + 2 cm`, `1' 6"`, `1 1/2"`, `2 ft + 3 in`, `30 deg` (`mm`, `cm`, `m`, `in`/`"`,
+  `ft`/`'`, `deg` and their long names). A number without a unit is in the project's unit, and a value that uses a
+  variable follows it when the variable changes. Thanks [@kiroandyor-create](https://github.com/kiroandyor-create) (#5).
 ### Changed
 - **Phones run ShapeCraft sideways.** The Android app stays in landscape (either way round) on screens under 600 dp
   across, and the tablet page in a phone's browser asks you to turn the phone when it's upright. Tablets and opened
   foldables still turn freely.
+- **A value that doesn't work says why.** A yellow warning sign shows beside the value box while what you've typed
+  doesn't make a value; Return then keeps the box open with the reason under it, instead of using the dragged value.
+### Fixed
+- **Typed lengths in inch, foot, centimeter and meter projects.** A plain number typed while drawing or pulling was
+  read as millimeters; it now uses the project's unit, as the step card and History already did.
 
 ## 0.7.3-alpha
 **ShapeCraft runs on Android: a first test build of the app, and the command-line tools with the full modelling kernel.

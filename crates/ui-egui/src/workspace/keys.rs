@@ -65,14 +65,23 @@ impl Workspace {
         }
     }
 
-    /// One typed character into the value field: digits, a point (a comma counts) and a minus; a value filled from a
-    /// clicked pill is replaced by the first one.
+    /// One typed character into the value field. A digit, point, minus or "(" opens it (a letter alone doesn't, as
+    /// observed: letters are shortcuts); once open it takes anything an expression holds: variable names, units,
+    /// operators, brackets, feet ' and inches ". A value filled from a clicked pill is replaced by the first key.
     pub(super) fn type_numeric(&mut self, ch: char) {
-        if ch.is_ascii_digit() || ch == '.' || ch == '-' || ch == ',' {
+        let opens = ch.is_ascii_digit() || matches!(ch, '.' | '-' | ',' | '(');
+        let open = self.numeric.is_some();
+        let more = open && (ch.is_ascii_alphanumeric() || " +-*/^()_.,'\"°×÷−".contains(ch));
+        if opens || more {
             if std::mem::take(&mut self.numeric_fresh) {
                 self.numeric = None;
             }
-            self.numeric.get_or_insert_with(String::new).push(if ch == ',' { '.' } else { ch });
+            let t = self.numeric.get_or_insert_with(String::new);
+            // A leading space does nothing; a field is capped like any typed text.
+            if !(ch == ' ' && t.is_empty()) && t.len() < 256 {
+                t.push(ch);
+            }
+            self.numeric_error = None;
         }
     }
 
@@ -91,6 +100,9 @@ impl Workspace {
         }
         let cmd = m.command;
         let typing = self.numeric.is_some();
+        if !typing {
+            self.numeric_error = None;
+        }
         // The Drawings sheet takes no modeling keys: Escape (or ⇧⌘\) goes back, ⌘ shortcuts still work.
         if let Some(d) = &mut self.drawings
             && !cmd
@@ -166,8 +178,11 @@ impl Workspace {
                 self.dim_edit = None;
                 self.numeric = None;
             }
+            // A value that doesn't work keeps the box open with the reason under it.
+            Key::Enter | Key::Tab if typing && !self.typed_ok() => {}
             Key::Enter if self.dim_edit.is_some() => {
-                if let (Some(edit), Some(v)) = (self.dim_edit.take(), self.numeric.take().and_then(|t| self.eval_typed(&t))) {
+                let kind = self.typed_kind();
+                if let (Some(edit), Some(v)) = (self.dim_edit.take(), self.numeric.take().and_then(|t| self.eval_field(&t, kind).ok())) {
                     self.apply_dim(edit, v);
                 }
             }
@@ -190,7 +205,7 @@ impl Workspace {
                     || matches!(&self.tool, Tool::EdgePlane(t) if t.through)
                     || matches!(&self.tool, Tool::Move(t) if matches!(t.handle, tools::Handle::Ring(_)))
                 {
-                    self.numeric_angle = self.numeric.as_deref().and_then(|n| n.trim().parse::<f64>().ok()).filter(|a| a.is_finite());
+                    self.numeric_angle = self.numeric.as_deref().and_then(|n| self.eval_angle(n));
                 }
                 self.commit_tool();
             }
@@ -290,6 +305,8 @@ impl Workspace {
             }
             Key::V if m.alt && !cmd => self.toggle_visualized(),
             _ if cmd || m.alt || m.ctrl => {}
+            // While a value is typed, letters and Space go into it (as observed), not to their shortcuts.
+            _ if typing => {}
             // Space starts a sketch on the face (or construction plane) under the pointer, else on the ground plane,
             // even while a tool the pick started on its own (Offset Face, Move) waits to be pulled (s24-011/012).
             Key::Space
@@ -415,5 +432,65 @@ impl Workspace {
             Tool::Spline { points, .. } => points.is_empty(),
             _ => false,
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use shapecraft_doc::{Units, VarKind, Variable};
+    use std::sync::Arc;
+
+    fn workspace() -> Workspace {
+        let session = shapecraft_engine::Session::new(Arc::new(shapecraft_kernel_occt::OcctKernel::new()), "Typed values");
+        Workspace::new(session, crate::settings::Settings::default())
+    }
+
+    fn type_text(ws: &mut Workspace, text: &str) {
+        for ch in text.chars() {
+            ws.type_numeric(ch);
+        }
+    }
+
+    /// #5: once the value box is open it takes a variable name and operators, and their letters don't run
+    /// shortcuts; a letter alone doesn't open it.
+    #[test]
+    fn the_value_box_takes_variables_and_letters_stay_out_of_shortcuts() {
+        let mut ws = workspace();
+        ws.session.doc.variables.push(Variable { name: "box_width".into(), expr: "50 mm".into(), kind: VarKind::Length });
+        type_text(&mut ws, "w");
+        assert_eq!(ws.numeric, None, "a letter alone is a shortcut, not a value");
+        type_text(&mut ws, "2*box_width + 1' 6\"");
+        assert_eq!(ws.numeric.as_deref(), Some("2*box_width + 1' 6\""));
+        let tool = format!("{:?}", ws.tool);
+        ws.key(egui::Key::L, egui::Modifiers::NONE);
+        ws.key(egui::Key::Space, egui::Modifiers::NONE);
+        assert_eq!(format!("{:?}", ws.tool), tool, "L and Space went into the value, not to Line or Sketch");
+        assert!((ws.eval_typed(ws.numeric.as_deref().unwrap()).unwrap() - (100.0 + 457.2)).abs() < 1e-9);
+    }
+
+    #[test]
+    fn a_value_that_doesnt_work_keeps_the_box_open_with_the_reason() {
+        let mut ws = workspace();
+        type_text(&mut ws, "20+w");
+        assert!(!ws.typed_ok());
+        assert_eq!(ws.numeric.as_deref(), Some("20+w"));
+        assert!(ws.numeric_error.as_deref().unwrap().contains("'w'"));
+        ws.key(egui::Key::Backspace, egui::Modifiers::NONE);
+        type_text(&mut ws, "5");
+        assert_eq!(ws.numeric_error, None, "typing again clears the reason");
+        assert!(ws.typed_ok());
+    }
+
+    #[test]
+    fn a_bare_length_takes_the_project_unit_but_angles_and_factors_dont() {
+        let mut ws = workspace();
+        ws.session.doc.units = Units::Inch;
+        assert!((ws.eval_typed("2").unwrap() - 50.8).abs() < 1e-9);
+        assert!((ws.eval_typed("2 + 1 cm").unwrap() - 60.8).abs() < 1e-9);
+        assert!((ws.eval_angle("90 / 2").unwrap() - 45.0).abs() < 1e-9);
+        assert!((ws.eval_field("1.5 * 2", VarKind::Number).unwrap() - 3.0).abs() < 1e-9);
+        assert_eq!(ws.typed_kind(), VarKind::Length);
     }
 }
