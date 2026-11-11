@@ -306,14 +306,26 @@ impl Workspace {
         let total: f32 = items.iter().map(|i| i.2).sum::<f32>() + 8.0 * (items.len() as f32 - 1.0);
         let mut x = vp.center().x - total / 2.0;
         let mut hit = None;
+        // A touch screen with no keyboard: no keycaps, and buttons tall enough for a fingertip.
+        let caps = crate::tablet::shows_shortcuts();
+        let h = if caps { 24.0 } else { 34.0 };
+        let total = if caps { total } else { items.iter().map(|i| i.2 - 22.0).sum::<f32>() + 8.0 * (items.len() as f32 - 1.0) };
+        x = if caps { x } else { vp.center().x - total / 2.0 };
         for &(label, key, w) in items {
-            let r = Rect::from_min_size(pos2(x, y - 12.0), vec2(w, 24.0));
+            let w = if caps { w } else { w - 22.0 };
+            let r = Rect::from_min_size(pos2(x, y + 12.0 - h), vec2(w, h));
             let over = self.cursor.is_some_and(|c| r.contains(c));
             p.rect_filled(r, radius(6), if over { Tokens::chip_hover() } else { Tokens::chip() });
-            p.text(pos2(r.left() + 8.0, r.center().y), Align2::LEFT_CENTER, label, theme::body(13.0), Tokens::text_strong());
+            if caps {
+                p.text(pos2(r.left() + 8.0, r.center().y), Align2::LEFT_CENTER, label, theme::body(13.0), Tokens::text_strong());
+            } else {
+                p.text(r.center(), Align2::CENTER_CENTER, label, theme::body(14.0), Tokens::text_strong());
+            }
             let cap = Rect::from_min_size(pos2(r.right() - 24.0, r.top() + 4.0), vec2(18.0, 16.0));
-            p.rect_filled(cap, radius(3), theme::c(0x48474a));
-            if key == "↩" {
+            if !caps {
+                // No keycap: the label alone.
+            } else if key == "↩" {
+                p.rect_filled(cap, radius(3), theme::c(0x48474a));
                 // Drawn: the font may not have the return glyph.
                 let c = cap.center();
                 let st = Stroke::new(1.0, Tokens::text_dim());
@@ -325,6 +337,7 @@ impl Workspace {
                     Stroke::NONE,
                 ));
             } else {
+                p.rect_filled(cap, radius(3), theme::c(0x48474a));
                 p.text(cap.center(), Align2::CENTER_CENTER, key, theme::body(9.0), Tokens::text_dim());
             }
             if ui.interact(r, ui.scope_id().with(("bottom-action", label)), Sense::click()).clicked() {

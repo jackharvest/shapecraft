@@ -73,8 +73,14 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
     p.line_segment([pos2(r.left(), footer_y - 26.0 + 0.5), pos2(r.right(), footer_y - 26.0 + 0.5)], Stroke::new(1.0, Tokens::divider()));
     if crate::tablet::touch_ui() {
         // On a touch screen (as on iPad): New Folder sits in the header, and the footer acts on the selection.
+        // iPad: the panel is outlined in blue while it holds the selection; New Folder is a blue icon.
+        if ws.items_focus && ws.session.selection.iter().any(|p| p.item().is_some()) {
+            p.rect_stroke(r, radius(Tokens::PANEL_RADIUS), Stroke::new(1.5, Tokens::icon_blue()), StrokeKind::Inside);
+        }
         let new_folder = Rect::from_center_size(pos2(r.right() - 28.0, r.top() + 24.0), vec2(30.0, 30.0));
-        if icon_button(ui, new_folder, Icon::NewFolder, "items-folder") {
+        let resp = ui.interact(new_folder.expand(7.0), ui.scope_id().with("items-folder"), Sense::click());
+        icons::paint(&p, new_folder.shrink(3.0), Icon::NewFolder, Tokens::icon_blue());
+        if resp.clicked() {
             let parent = picked_folder(ws);
             let _ = ws.run("new_folder", json!({ "parent": parent.map(|f| f.0) }));
         }

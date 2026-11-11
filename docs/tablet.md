@@ -27,6 +27,10 @@ Close the tab or let the iPad sleep and the copy keeps going: open it again and 
 | Input | What it does |
 | --- | --- |
 | Apple Pencil | The pointer: tap, drag, draw. Edges, sketch curves and snap points reach about twice as far as for a mouse, and a small wobble during a tap still counts as a tap. On iPads with Pencil hover, holding the tip above the glass lights up what a tap would pick, and what's lit holds on until the tip moves well away, so the tap picks it. |
+| Pencil, drag on nothing | Turns the view. |
+| Pencil, hold, then drag | Area Selection: drag right for what's fully inside the box, left for what it crosses. |
+| Pencil in a sketch | **Sketch** arms Line at once: draw straight onto the floor grid or a face. A stroke that bends round becomes a circle around where it started. |
+| Pencil on a value pill | Opens a number pad beside it (digits, minus, backspace, ✓). |
 | Fingers in the 3D view | Move the view only: fingers never pick, draw or drag handles (the Pencil does). |
 | One finger, tap | Press a button. In the 3D view: nothing. |
 | One finger, double tap | In the 3D view: zoom to the face under it. |
@@ -36,7 +40,7 @@ Close the tab or let the iPad sleep and the copy keeps going: open it again and 
 | Three-finger swipe | Left: undo. Right: redo. The on-screen Undo and Redo buttons sit at the bottom of the tool column. |
 | Palm on the glass while drawing | Ignored. |
 | Magic Keyboard / any keyboard | Every shortcut, ⌘ included. Typing a number while a tool runs works as on the computer. |
-| On-screen keyboard | When ShapeCraft wants text or a number, a keyboard button appears at the bottom right. iOS opens its keyboard only from a tap, so the button is there for that tap. |
+| On-screen keyboard | When ShapeCraft wants text, a keyboard button appears at the bottom right. iOS opens its keyboard only from a tap, so the button is there for that tap. |
 | Trackpad | Two-finger scroll turns the view, pinch zooms, as on a Mac trackpad. |
 
 ## Files
@@ -75,5 +79,7 @@ built into the app, with no web framework and no app download.
   own copy over the other.
 - The first time, the tablet asks how you'll work (Apple Pencil, fingers, or keyboard and trackpad) and shows the
   controls for it. Projects open with History hidden and the Items column at its narrowest, for room to model.
+- The project title is a pill at the top with a ⋯ menu (Import, Export to, Help, Settings). The Items list has
+  finger-sized rows, and Rename, Delete and More… along its bottom act on what's selected. One tap opens a project.
 - The layout is the desktop's. An iPad shows it at full size. Smaller screens (an iPad in portrait, a phone) see it
   scaled down to fit.

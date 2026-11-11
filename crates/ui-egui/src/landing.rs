@@ -712,8 +712,9 @@ impl Landing {
         }
         // As observed (L12): as many columns as fit at 195 px or more, the cards stretched to fill the row (200 px
         // at 1840 wide, 215 at 1000), 21 px apart, pictures 0.74 as tall as wide.
-        // A tablet gets bigger cards, easier to tap (three across an iPad in landscape).
-        let pitch = if crate::tablet::on_tablet() { 300.0 } else { 216.0 };
+        // A touch screen gets bigger cards, easier to tap: three across an iPad in landscape (measured there: cards
+        // 245.5 wide, 20 apart).
+        let pitch = if crate::tablet::touch_ui() { 265.0 } else { 216.0 };
         let avail = content.width() - 65.0;
         let cols = ((avail + 21.0) / pitch).floor().max(1.0) as usize;
         let card_w = ((avail - 21.0 * (cols as f32 - 1.0)) / cols as f32).max(120.0);
@@ -811,7 +812,8 @@ impl Landing {
             if resp.secondary_clicked() {
                 self.menu = resp.interact_pointer_pos().map(|pos| (t.clone(), pos, now));
                 self.sort_menu = None;
-            } else if resp.double_clicked() && !editing {
+            } else if (resp.double_clicked() || resp.clicked() && crate::tablet::touch_ui()) && !editing {
+                // On a touch screen one tap opens it, as on iPad (Select picks cards there).
                 match t {
                     Tile::Folder(d) => self.go_to(d.clone()),
                     Tile::Project(d) => action = self.open_tile(d.clone(), now),

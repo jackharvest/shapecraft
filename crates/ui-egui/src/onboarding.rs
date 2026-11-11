@@ -88,7 +88,8 @@ pub const TABLET_DEVICES: [(&str, &str); 3] = [("Apple Pencil", "pencil"), ("Fin
 const TABLET_CONTROLS: [&[(&str, &str)]; 3] = [
     &[
         ("Pencil tap", "Pick and press. Hovering lights what a tap picks."),
-        ("Pencil drag", "Draw, and drag handles and arrows."),
+        ("Pencil drag", "Draw (a round stroke makes a circle), and drag handles and arrows."),
+        ("Pencil hold, then drag", "Area Selection."),
         ("One finger drag", "Turn the view, even while drawing."),
         ("Two fingers", "Pan, and pinch to zoom."),
         ("Finger double tap", "Zoom to the face."),
