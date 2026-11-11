@@ -140,7 +140,7 @@ impl Default for ViewOptions {
 
 /// The Items sidebar's width limits (measured, L07).
 const ITEMS_MIN_W: f32 = 200.0;
-/// The Items column on a touch screen, as wide as the reference's on iPad.
+/// The Items column on a touch screen, 276 pt wide.
 const ITEMS_TOUCH_W: f32 = 276.0;
 const ITEMS_MAX_W: f32 = 500.0;
 
@@ -951,7 +951,7 @@ impl Workspace {
         let gap = Tokens::GAP;
         // The Drawings workspace hides the Items sidebar (as observed).
         // A tablet keeps the Items column at its narrowest for room to model; a drag there stays on the tablet.
-        // A touch screen starts the Items column as wide as the reference's on iPad (276 pt); a drag there stays here.
+        // A touch screen starts the Items column 276 pt wide; a drag there stays here.
         let saved = if crate::tablet::touch_ui() { self.items_w_here.unwrap_or(ITEMS_TOUCH_W) } else { self.settings.items_width };
         let items_w = self.items_drag.unwrap_or(saved);
         let items_w = if items_w.is_finite() { items_w.clamp(ITEMS_MIN_W, ITEMS_MAX_W) } else { Tokens::SIDEBAR_W };

@@ -1686,7 +1686,7 @@ impl ShapeCraftApp {
         // On top of the bar the screen just drew; the workspace and the home screen both fill the window.
         let menus_at = self.ws.as_deref().map_or(crate::landing::MENUS_AT, |ws| ws.menus_at);
         // A touch screen has no menu row: the ⋯ menu by the project name and the home screen's own buttons stand in,
-        // as on the reference's iPad. Shortcuts from a hardware keyboard still go through the bar (take_shortcuts).
+        // as on iPad. Shortcuts from a hardware keyboard still go through the bar (take_shortcuts).
         if let Some(bar) = self.menubar.as_mut()
             && !crate::tablet::touch_ui()
         {

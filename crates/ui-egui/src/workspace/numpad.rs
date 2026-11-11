@@ -1,6 +1,5 @@
-//! The floating numpad on a touch screen with no keyboard. On iPad the reference opens its own number pad when the
-//! pencil taps a value pill (owner, 2026-11-10: digits, backspace, a lock and a check mark). Ours opens the same way,
-//! beside the pill, and types into the value field exactly as keys would.
+//! The floating numpad on a touch screen with no keyboard. It opens when the pencil taps a
+//! value pill, beside the pill, and types into the value field exactly as keys would.
 
 use egui::{Align2, Color32, Pos2, Rect, Sense, Stroke, Ui, pos2, vec2};
 

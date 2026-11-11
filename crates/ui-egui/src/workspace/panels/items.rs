@@ -56,7 +56,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
     if !touch {
         p.rect_filled(filter, radius(5), if filter_resp.hovered() { Tokens::button_hover() } else { theme::c(0x302f2f) });
         let (filter_label, filter_icon) = ITEM_FILTERS[ws.items_filter.min(ITEM_FILTERS.len() - 1)];
-        // Measured (s22-002): the icon centred 13 px in, the label from 26 px.
+        // Measured: the icon centred 13 px in, the label from 26 px.
         icons::paint(
             &p,
             Rect::from_center_size(pos2(filter.left() + 13.5, filter.center().y), vec2(12.0, 12.0)),
@@ -88,7 +88,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
     } else {
         let new_folder = Rect::from_center_size(pos2(r.left() + 20.0, footer_y), vec2(20.0, 20.0));
         if icon_button(ui, new_folder, Icon::NewFolder, "items-folder") {
-            // With a folder picked (its row), the new one goes inside it (s24-021).
+            // With a folder picked (its row), the new one goes inside it.
             let parent = picked_folder(ws);
             let _ = ws.run("new_folder", json!({ "parent": parent.map(|f| f.0) }));
         }

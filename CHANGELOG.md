@@ -2,15 +2,26 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.7.2-alpha
-**ShapeCraft runs on Android: a first test build of the app, and the command-line tools with the full modelling kernel.**
+## 0.7.3-alpha
+**ShapeCraft runs on Android: a first test build of the app, and the command-line tools with the full modelling kernel.
+Touch screens get the Pencil's own gestures.**
 ### New
-- **Touch screens (Android, and the tablet page) work like the reference on iPad.** The Pencil picks, draws and drags
+- **The Pencil on touch screens.** Hold it still, then drag, for an Area Selection (right for what's fully inside,
+  left for what it crosses); a plain drag on nothing turns the view. **Sketch** has Line ready at once with no
+  plane to pick: the first stroke draws straight onto the floor grid or a face, and a stroke that bends round
+  becomes a circle around where it started. A tap on a tool's value opens a number pad beside it (digits, minus,
+  backspace, ✓) when no keyboard is attached. A note under the title says when no pen has been used yet.
+- **Items on touch screens.** Finger-sized rows with the eye always shown, the filter as the panel's title, and
+  **Rename**, **Delete** and **More…** along the bottom acting on what's selected (More… holds Invert Body
+  Visibility, Show Hidden Bodies, New Drawing…, Reveal Selection, Zoom to, Isolate and Show/Hide).
+- **The ⋯ menu** on touch screens has **Import ›** (File…, Project…, Image…) and **Export to ›** (Export…, Export to
+  Slicer…, Quick Export, Open Screenshot Tool…, Open Visualization…).
+- **Touch screens (Android, and the tablet page) work like a CAD app on iPad.** The Pencil picks, draws and drags
   handles; fingers only move the view: one finger turns it, two pan and pinch, a double tap zooms to a face, and a
   three-finger swipe left or right undoes or redoes. Undo and Redo also sit at the bottom of the tool column. There
   is no title bar: the project name floats over the view (a bar across the top when the screen is upright), a tap on
   it renames the project, and its ⋯ menu holds Import, Export, Help and Settings. Settings closes from its corner,
-  History starts closed, the Items column starts at the reference's width, labels are a little bigger, and keyboard
+  History starts closed, the Items column starts at its iPad width, labels are a little bigger, and keyboard
   shortcuts stay out of sight until a keyboard is attached. On Android everything is drawn at the size it has on an
   iPad.
 - **ShapeCraft for Android (test build).** The whole app, the same interface as on the desktop, as an APK for
@@ -29,6 +40,9 @@ How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest fi
   fillet, boolean, STEP out and back in. The volumes must match the geometry, and they match the desktop exactly.
   A weekly CI job builds it and runs the test on an Android 15 emulator. Thanks
   [@joravarsinghing](https://github.com/joravarsinghing) (#3).
+### Changed
+- **Hints on a touch screen** say tap, not click, and leave out the keys; Cancel and Done lose their keycaps and grow
+  to fingertip size. On the projects screen one tap opens a project, with three cards across an iPad.
 ### Fixed
 - **Renaming with Return** (the project name, or an item in the Items panel) no longer opens Search Commands as well.
 - **Preferences on a short screen** scrolls, so every setting and Done can be reached.

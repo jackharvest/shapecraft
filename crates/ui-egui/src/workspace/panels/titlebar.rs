@@ -112,7 +112,7 @@ pub(in crate::workspace) fn titlebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     window_chrome::drag_area(ui, Rect::from_min_max(pos2(drag_left, r.top()), pos2(drag_right, r.bottom())), "titledrag");
 }
 
-/// The title on a touch screen, as the reference draws it on iPad: no title bar. Sideways, a pill floats at the top
+/// The title on a touch screen, as on iPad: no title bar. Sideways, a pill floats at the top
 /// centre of the view (home | project name | ⋯), level with the tool column's first button; upright, a slim bar runs
 /// across the top (`bar` has height then). The name opens a NAME popover to rename the project; ⋯ holds what the menu
 /// bar holds elsewhere: Import, Export, Help, Settings.
@@ -162,7 +162,7 @@ pub(in crate::workspace) fn touch_title(ws: &mut Workspace, ui: &mut Ui, bar: Re
         Tokens::text_strong(),
     );
     if ui.interact(name_rect.expand2(vec2(4.0, 8.0)), ui.scope_id().with("touch-name"), Sense::click()).clicked() {
-        // The reference's field starts empty, the current name showing as its placeholder.
+        // The field starts empty, the current name showing as its placeholder.
         ws.renaming = Some((None, String::new(), true));
         ws.title_menu = false;
     }
@@ -236,7 +236,7 @@ enum Pick {
 }
 
 /// The touch ⋯ menu, as on iPad: Import › and Export to › open a submenu to the right, then Help and Settings.
-/// (The reference's Sync, Share, Take a Photo and Preview in AR are cloud/camera features we leave out.)
+/// (No Sync, Share, Take a Photo or Preview in AR: cloud and camera features we leave out.)
 fn touch_more_menu(ws: &mut Workspace, ui: &mut Ui, more: Rect, more_c: Pos2, below: f32, ink: Color32) {
     use crate::menubar::AppAction;
     use crate::workspace::export::Format;

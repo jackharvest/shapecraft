@@ -35,7 +35,7 @@ pub(crate) enum ToSession {
 pub(super) const MIN_SIZE: [f32; 2] = [1000.0, 640.0];
 /// Android draws everything this much bigger when there's room, never leaving less than `MIN_SIZE`: one point
 /// becomes 1.21 dp, the size of an iPad point (132 per inch against Android's 160), so a tablet shows the interface
-/// at the size the reference has on iPad. The tablet page needs nothing: a CSS pixel on an iPad is already one point.
+/// at the size it has on an iPad. The tablet page needs nothing: a CSS pixel on an iPad is already one point.
 pub(super) const TOUCH_ZOOM: f32 = 1.21;
 /// How far edges and curves reach for the pencil and a finger, against a mouse's (6 points for edges).
 pub(super) const PEN_REACH: f32 = 2.0;

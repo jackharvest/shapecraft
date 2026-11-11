@@ -80,7 +80,7 @@ enum Mode {
         /// How far the fingers' middle has gone in all (a three-finger swipe is undo / redo).
         travel: Vec2,
     },
-    /// A finger held still: over the 3D view nothing happens (the reference); over a panel it is a right-click,
+    /// A finger held still: over the 3D view nothing happens; over a panel it is a right-click,
     /// decided once the frame has said what is under it.
     Hold {
         at: Pos2,
@@ -401,7 +401,7 @@ impl Router {
                     self.mode = Mode::Multi { since, centroid: c, spread: spread(&self.fingers, c), moved, most, over_view, travel };
                     return;
                 }
-                // A three-finger swipe sideways: left undoes, right redoes (the reference on iPad). Taps do nothing.
+                // A three-finger swipe sideways: left undoes, right redoes Taps do nothing.
                 if !cancelled && most >= 3 && travel.x.abs() >= SWIPE && travel.x.abs() > 1.5 * travel.y.abs() {
                     self.undo_key(travel.x > 0.0);
                 }

@@ -336,7 +336,7 @@ const PREFS_MARGIN: f32 = 12.0;
 fn window_in(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings, shortcuts: bool) -> PrefsOut {
     let r = dialog(ui, full, vec2(560.0, PREFS_H), "Preferences");
     let p = ui.painter().clone();
-    // Touch screens: a round ✕ in the top corner closes it, as the reference's iPad Settings sheet does (Done sits at
+    // Touch screens: a round ✕ in the top corner closes it, as on iPad (Done sits at
     // the bottom, out of reach on a short screen until scrolled to).
     let closed = crate::tablet::touch_ui() && {
         let c = pos2(r.right() - 26.0, r.top() + 24.0);

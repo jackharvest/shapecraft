@@ -461,8 +461,8 @@ impl Workspace {
                 flyout: false,
             });
         }
-        // Touch screens: Undo and Redo get their own cells at the very bottom, under a line (the reference's iPad column:
-        // two 44 × 40 cells side by side, 10 pt from the bottom).
+        // Touch screens: Undo and Redo get their own cells at the very bottom, under a line
+        // (two 44 × 40 cells side by side, 10 pt from the bottom).
         let undo_row = crate::tablet::touch_ui().then(|| vp.bottom() - 10.0 - toolbar::group_height(1));
         let by = undo_row.map_or(vp.bottom() - 9.0, |u| u - 20.0) - toolbar::group_height(bottom.len());
         // Preferences ▸ Done / Cancel Buttons ▸ Toolbar or Both: the classic ✓ / ✕ cells (each its own container, as

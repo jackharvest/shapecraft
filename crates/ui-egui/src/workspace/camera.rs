@@ -179,7 +179,7 @@ impl Workspace {
         cam.distance = (half_h / (cam.fov_y / 2.0).tan()).max(1e-3);
     }
 
-    /// A finger's double tap on a touch screen (the reference on iPad): turns to look straight at the face under the
+    /// A finger's double tap on a touch screen: turns to look straight at the face under the
     /// point and frames it. A flat face is exact; a curved one is faced along its average normal.
     pub(crate) fn zoom_to_face(&mut self, at: egui::Pos2) -> bool {
         let Some((Pick::Face { body, face }, _)) = self.pick_at(at) else { return false };

@@ -177,7 +177,7 @@ pub enum Icon {
     ChevronRight,
     /// A turning arrow (a tutorial's Retry / Redo).
     Retry,
-    /// Touch screens' on-screen Undo / Redo: a U-turn arrow in a thin circle (as on the reference's iPad column).
+    /// Touch screens' on-screen Undo / Redo: a U-turn arrow in a thin circle.
     Undo,
     Redo,
     ChevronDown,
@@ -1541,7 +1541,7 @@ fn paint_dark(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
             pen.line(&[(4.6, 5.6), (7.9, 7.6), (9.3, 4.0)]);
         }
         Undo | Redo => {
-            // Thin and grey, as on the reference's iPad column.
+            // Thin and grey.
             let (_, grey) = two_tone(color);
             let pen = Pen { p: painter, o, s: pen.s, stroke: Stroke::new(1.4 * pen.s, grey) };
             pen.circle(12.0, 12.0, 9.5);

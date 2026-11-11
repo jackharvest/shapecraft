@@ -73,7 +73,7 @@ impl Workspace {
         self.cursor = pointer.filter(|p| rect.contains(*p) && resp.hovered() || resp.dragged());
         self.viewport_hot = resp.hovered() || resp.dragged();
         if self.finger_nav {
-            // A finger on a touch screen only moves the view, as on the reference's iPad: no picking, no hover, no
+            // A finger on a touch screen only moves the view, as on iPad: no picking, no hover, no
             // handles (the pen does those). A double tap zooms to the face under it.
             self.hover = None;
             if resp.double_clicked()

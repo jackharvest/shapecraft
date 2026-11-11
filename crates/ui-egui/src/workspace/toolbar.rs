@@ -736,7 +736,7 @@ pub fn chip_full(ui: &Ui, anchor: Pos2, def: &ToolDef, sub_text: Option<&str>, l
     // An empty label shows the run-time text as the label itself (the sketch name row).
     let (title, sub_text) = if def.label.is_empty() { (sub_text.unwrap_or(""), None) } else { (def.label, sub_text) };
     let tr = crate::i18n::tr;
-    // Touch screens: labels about 1.15× bigger ("Sketch" 49.5 pt wide on the reference's iPad, 41 on its desktop).
+    // Touch screens: labels about 1.15× bigger ("Sketch" 49.5 pt wide on iPad, 41 on a desktop).
     let (label_px, sub_px, half) = if crate::tablet::touch_ui() { (15.5, 11.0, 7.0) } else { (13.5, 9.5, 6.0) };
     let label = painter.layout_no_wrap(tr(title).to_string(), theme::strong(label_px), Tokens::text_strong());
     let sub = sub_text.map(|s| painter.layout_no_wrap(tr(s).to_string(), theme::body(sub_px), Tokens::text_dim()));
