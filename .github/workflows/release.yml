@@ -1,5 +1,6 @@
 # Pushing a tag like v0.4.0-alpha builds every download and publishes them as a GitHub release:
-#   macOS DMGs (Apple silicon, Intel), a Windows installer and portable zip, a Linux AppImage and tar.gz, SHA256SUMS.txt.
+#   macOS DMGs (Apple silicon, Intel), a Windows installer and portable zip, a Linux AppImage and tar.gz, an Android APK
+#   (arm64, signed with the release key from the repository's secrets), SHA256SUMS.txt.
 # File names follow the Craft App Suite's (shapecraft-<version>-<os>-<arch>[-portable].<ext>); the app's updater and
 # the website pick their files by those names. OCCT comes from conda-forge on every platform and goes inside each
 # download. Builds are unsigned for now. SHAPECRAFT_RELEASE=1 marks these builds as releases, which check for updates.
@@ -98,8 +99,40 @@ jobs:
       - uses: actions/upload-artifact@v4
         with: { name: linux, path: "target/*.tar.gz\ntarget/*.AppImage", if-no-files-found: error }
 
+  android:
+    # Release-signed (#8): the same key every time, so each APK installs over the last one. OCCT for Android comes
+    # from the cache android.yml fills on main (a cold build takes about 40 minutes).
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+      - uses: ./.github/actions/android-occt
+      - name: ShapeCraft APK (release-signed)
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          SHAPECRAFT_APK_KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+        run: |
+          # No key yet (cargo xtask android-release-key makes one): no APK in this release, nothing fails.
+          if [ -z "$KEYSTORE_B64" ]; then echo "::notice::No ANDROID_KEYSTORE_B64 secret: the release has no APK"; exit 0; fi
+          export SHAPECRAFT_APK_KEYSTORE="$RUNNER_TEMP/release.jks"
+          echo "$KEYSTORE_B64" | base64 -d > "$SHAPECRAFT_APK_KEYSTORE"
+          cargo xtask android-apk arm64
+          rm -f "$SHAPECRAFT_APK_KEYSTORE"
+          version="${GITHUB_REF_NAME#v}"
+          mkdir -p dist && cp target/android/ShapeCraft-*-arm64-v8a.apk "dist/shapecraft-${version}-android-arm64.apk"
+      - uses: actions/upload-artifact@v4
+        with: { name: android, path: dist/*.apk, if-no-files-found: ignore }
+
   publish:
-    needs: [macos, windows, linux]
+    # The desktop downloads must all be there; the APK joins them when it built (it never holds the release back).
+    needs: [macos, windows, linux, android]
+    if: always() && needs.macos.result == 'success' && needs.windows.result == 'success' && needs.linux.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -127,6 +160,8 @@ jobs:
             echo
             echo "**First launch:** macOS asks once: System Settings ▸ Privacy & Security ▸ Open Anyway."
             echo "Windows SmartScreen: More info ▸ Run anyway. Linux: make the AppImage executable, then double-click it."
+            echo "Android (test build, arm64, Android 8.0+): open the APK on the device and allow installs from that app."
+            echo "A copy installed from an earlier test build (debug-signed) has to be uninstalled once first."
             echo
             echo "Check a download against SHA256SUMS.txt: \`shasum -a 256 FILE\` (macOS, Linux) or \`Get-FileHash FILE\` (Windows)."
           } >> notes.md

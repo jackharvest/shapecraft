@@ -2,6 +2,32 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.7.6-alpha
+**Patterns take a typed quantity, value boxes insert and create variables, and Android opens and saves files anywhere.**
+### New
+- **Type a pattern's quantity.** In Linear and Circular Pattern, Tab moves the value box from the spacing (or angle)
+  to Quantity and back, and a click on the Quantity pill opens it. Whole counts from 2 to 500; variables work too.
+  Thanks [@leo-smi](https://github.com/leo-smi) (#6).
+- **Insert a variable from the value box.** The x+ button at the end of the box lists the project's variables with
+  their values; pick one to put its name in. It shows once the project has variables. Follow-up to
+  [@kiroandyor-create](https://github.com/kiroandyor-create)'s #5 (#11).
+- **Create a missing variable from the box.** Typing a name that isn't a variable yet (`20 + w`) and pressing Return
+  offers **Create w…** under the reason: give it a value and a type, and the box applies at once (#12).
+- **Android: open, import and export through the system's file picker.** Files, Drive, Dropbox, USB storage and any
+  other place Android offers, and ShapeCraft's projects folder shows up in Files and every file picker as
+  "ShapeCraft". Follow-up to [@joravarsinghing](https://github.com/joravarsinghing)'s #3 (#7).
+- **Android: the first run asks Stylus, Fingers or Mouse and Keyboard**, then shows that one's controls; a mouse
+  goes on to how the view moves (#10).
+### Changed
+- **Android phones keep the view clear.** On screens under 600 dp across, Items starts folded away (its button opens
+  it) and the tool columns show icons only; Preferences ▸ Menu Labels brings the words back (#9).
+- **The Variables window reads a bare length in the project's unit**, as value boxes do. Saved projects keep their
+  meaning: a value saved as a plain number shows with "mm" after it in an inch project (#13).
+- **Hints for the pattern tools** say how to set the quantity.
+### Fixed
+- **A click on the pattern's Quantity pill** put its count into the spacing (#6).
+- **The drawing holds still while the pointer is over the value box**, so its buttons can be reached while drawing.
+
 ## 0.7.5-alpha
 **Value boxes take variables, expressions and units. Phones are landscape only.**
 ### New

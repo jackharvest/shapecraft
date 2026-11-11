@@ -40,9 +40,15 @@ Add `x86_64` after each command for the emulator's own architecture.
 - `android-cli` checks that every loadable segment of the result is aligned for 16 KB pages.
 
 - `android-apk` builds `libshapecraft.so`, links the manifest (`AndroidManifest.xml`) and icon with `aapt2`, stores
-  the library uncompressed on a 16 KB boundary so Android maps it straight from the APK, and signs it with the
-  debug key (`~/.android/debug.keystore`, made if missing). APKs signed with different debug keys can't update
-  each other: uninstall first if Android refuses the install.
+  the library uncompressed on a 16 KB boundary so Android maps it straight from the APK, compiles the Java in
+  `packaging/android/java` (javac + d8, so a JDK is needed), and signs it. Without a release key that's the debug
+  key (`~/.android/debug.keystore`, made if missing); APKs signed with different keys can't update each other, so
+  uninstall first if Android refuses the install.
+- Releases: `cargo xtask android-release-key --upload` makes the release key once
+  (`~/.android/shapecraft-release.jks` and `.pass`; back both up, a lost key means no later APK can update the
+  installed app) and stores it as the repository secrets `ANDROID_KEYSTORE_B64` / `ANDROID_KEYSTORE_PASS`.
+  `release.yml` then signs with it (`SHAPECRAFT_APK_KEYSTORE`, `SHAPECRAFT_APK_KEYSTORE_PASS`) and attaches
+  `shapecraft-<version>-android-arm64.apk` to the release. Without the secrets the release just has no APK.
 
 ## The app
 
@@ -59,9 +65,12 @@ Install the APK (`adb install ShapeCraft-….apk`, or open it on the device and 
   hover and mouse buttons (see its `PATCH.md`).
 - **Keyboard**: the on-screen keyboard opens when a text field has the focus. To type a number into a tool
   (Extrude 10 ↵), a hardware or Bluetooth keyboard works today.
-- **Files**: projects are kept in the app's own storage. Saves and exports go to
-  `Android/data/com.jackharvest.shapecraft/files`, which a computer reads over USB. Opening a file from elsewhere
-  on the device needs a system file picker, which isn't wired up yet.
+- **Files**: projects are kept in the app's own storage. Open, Import and Export use the system's file picker (Files,
+  Drive, Dropbox, USB storage…), and the projects folder shows up in Files and every picker as "ShapeCraft"
+  (`packaging/android/java`: `ShapeCraftActivity` adds the picker to the NativeActivity, `ProjectsProvider` is a
+  DocumentsProvider). The app and the activity talk through small request and answer files in `files/.mailbox`, so
+  the Rust side needs no JNI. The Work Folder and backup folder picks still go to
+  `Android/data/com.jackharvest.shapecraft/files`.
 - **Graphics**: Vulkan first, then OpenGL ES 3. `adb logcat -s ShapeCraft` shows which one started, and any error.
 
 ## Smoke test

@@ -197,7 +197,9 @@ pub const PACKAGE: &str = "com.jackharvest.shapecraft";
 
 /// The app as an installable APK: apps/shapecraft-android built as libshapecraft.so, the manifest and icon linked by
 /// aapt2 against the newest platform in the SDK, the library stored uncompressed on a 16 KB boundary (so Android maps
-/// it straight from the APK), then aligned and signed with the debug key (~/.android/debug.keystore, made if missing).
+/// it straight from the APK), then aligned and signed: with the release key when SHAPECRAFT_APK_KEYSTORE names one
+/// (its password in SHAPECRAFT_APK_KEYSTORE_PASS, the key's alias in SHAPECRAFT_APK_KEY_ALIAS, default "shapecraft"),
+/// else with the debug key (~/.android/debug.keystore, made if missing).
 /// Needs ANDROID_HOME (or ANDROID_SDK_ROOT) with build-tools and a platform, and a JDK for keytool and apksigner.
 pub fn apk(rest: &[String]) -> Result<()> {
     let abi = abi(rest)?;
@@ -280,14 +282,50 @@ pub fn apk(rest: &[String]) -> Result<()> {
         ],
     )?;
     add_library(&linked, &format!("lib/{}/libshapecraft.so", abi.ndk), &so)?;
+    // The activity's file picker and the Files app's view of the projects folder (#7): packaging/android/java,
+    // compiled against the platform and turned into classes.dex by d8.
+    let dex = java_dex(&work, &tools, &platform.join("android.jar"))?;
+    add_file(&linked, "classes.dex", &dex)?;
     let aligned = work.join("aligned.apk");
     run(s(&tools.join("zipalign")), &["-P", "16", "-f", "4", s(&linked), s(&aligned)])?;
-    let key = debug_key()?;
     let apk = target().join(format!("android/ShapeCraft-{version}-{}.apk", abi.ndk));
-    run(
-        s(&tools.join("apksigner")),
-        &["sign", "--ks", s(&key), "--ks-pass", "pass:android", "--key-pass", "pass:android", "--out", s(&apk), s(&aligned)],
-    )?;
+    let signer = s(&tools.join("apksigner")).to_string();
+    match std::env::var_os("SHAPECRAFT_APK_KEYSTORE").filter(|k| !k.is_empty()) {
+        // The release key: the password stays in the environment (apksigner reads it from there, not the command line).
+        Some(ks) => {
+            if std::env::var_os("SHAPECRAFT_APK_KEYSTORE_PASS").is_none_or(|p| p.is_empty()) {
+                bail!("SHAPECRAFT_APK_KEYSTORE is set but SHAPECRAFT_APK_KEYSTORE_PASS isn't");
+            }
+            let alias = std::env::var("SHAPECRAFT_APK_KEY_ALIAS").ok().filter(|a| !a.is_empty()).unwrap_or_else(|| "shapecraft".into());
+            let ks = PathBuf::from(ks);
+            run(
+                &signer,
+                &[
+                    "sign",
+                    "--ks",
+                    s(&ks),
+                    "--ks-key-alias",
+                    &alias,
+                    "--ks-pass",
+                    "env:SHAPECRAFT_APK_KEYSTORE_PASS",
+                    "--key-pass",
+                    "env:SHAPECRAFT_APK_KEYSTORE_PASS",
+                    "--out",
+                    s(&apk),
+                    s(&aligned),
+                ],
+            )?;
+            println!("signed with the release key ({alias})");
+        }
+        None => {
+            let key = debug_key()?;
+            run(
+                &signer,
+                &["sign", "--ks", s(&key), "--ks-pass", "pass:android", "--key-pass", "pass:android", "--out", s(&apk), s(&aligned)],
+            )?;
+            println!("signed with the debug key");
+        }
+    }
     run(s(&tools.join("apksigner")), &["verify", s(&apk)])?;
     println!("{} ({}; {PACKAGE} {version}, code {code}, API {API}-{target_sdk})", apk.display(), mb(&apk));
     Ok(())
@@ -325,6 +363,60 @@ fn version_code(version: &str) -> Result<u32> {
     }
 }
 
+/// packaging/android/java compiled (javac, Java 11 bytecode against the platform's android.jar) and dexed (d8) into
+/// `work/dex/classes.dex`. Needs a JDK's javac on the PATH.
+fn java_dex(work: &Path, tools: &Path, android_jar: &Path) -> Result<PathBuf> {
+    let sources: Vec<PathBuf> =
+        walk(&root().join("packaging/android/java"))?.into_iter().filter(|p| p.extension().is_some_and(|e| e == "java")).collect();
+    if sources.is_empty() {
+        bail!("no Java sources in packaging/android/java");
+    }
+    let classes = work.join("classes");
+    let out = work.join("dex");
+    clear(&classes)?;
+    clear(&out)?;
+    std::fs::create_dir_all(&out)?;
+    let mut args: Vec<&str> =
+        vec!["-source", "11", "-target", "11", "-Xlint:-options", "-encoding", "UTF-8", "-classpath", s(android_jar), "-d", s(&classes)];
+    args.extend(sources.iter().map(|p| s(p)));
+    run("javac", &args).context("javac (a JDK) is needed for the app's Java parts")?;
+    let compiled: Vec<PathBuf> = walk(&classes)?.into_iter().filter(|p| p.extension().is_some_and(|e| e == "class")).collect();
+    let api = API.to_string();
+    let mut args: Vec<&str> = vec!["--release", "--min-api", &api, "--lib", s(android_jar), "--output", s(&out)];
+    args.extend(compiled.iter().map(|p| s(p)));
+    run(s(&tools.join("d8")), &args)?;
+    Ok(out.join("classes.dex"))
+}
+
+/// Every file under `dir`, in a stable order.
+fn walk(dir: &Path) -> Result<Vec<PathBuf>> {
+    let mut out = Vec::new();
+    let mut todo = vec![dir.to_path_buf()];
+    while let Some(d) = todo.pop() {
+        for e in std::fs::read_dir(&d).with_context(|| format!("can't read {}", d.display()))? {
+            let p = e?.path();
+            if p.is_dir() {
+                todo.push(p);
+            } else {
+                out.push(p);
+            }
+        }
+    }
+    out.sort();
+    Ok(out)
+}
+
+/// Adds a file to the APK (compressed).
+fn add_file(apk: &Path, name: &str, from: &Path) -> Result<()> {
+    use std::io::Write;
+    let file = std::fs::OpenOptions::new().read(true).write(true).open(apk)?;
+    let mut zip = zip::ZipWriter::new_append(file)?;
+    zip.start_file(name, zip::write::SimpleFileOptions::default())?;
+    zip.write_all(&std::fs::read(from)?)?;
+    zip.finish()?;
+    Ok(())
+}
+
 /// Adds the library to the APK uncompressed, its data starting on a 16 KB boundary (zipalign -P 16 keeps it there).
 fn add_library(apk: &Path, name: &str, so: &Path) -> Result<()> {
     use std::io::Write;
@@ -334,6 +426,79 @@ fn add_library(apk: &Path, name: &str, so: &Path) -> Result<()> {
     zip.start_file(name, options)?;
     zip.write_all(&std::fs::read(so)?)?;
     zip.finish()?;
+    Ok(())
+}
+
+/// Makes the key release APKs are signed with, once: ~/.android/shapecraft-release.jks (PKCS12, RSA 4096, 100 years)
+/// and its password in ~/.android/shapecraft-release.pass, both readable by this user only. Every later APK must be
+/// signed with this same key or Android won't install it over the last one, so it never overwrites them: back both
+/// files up. `--upload` also stores them as the repository's ANDROID_KEYSTORE_B64 / ANDROID_KEYSTORE_PASS secrets
+/// (with `gh`), which release.yml signs with.
+pub fn release_key(rest: &[String]) -> Result<()> {
+    use base64::Engine;
+    use std::io::{Read, Write};
+    let home = PathBuf::from(std::env::var_os("HOME").context("no HOME")?).join(".android");
+    let (ks, pass_file) = (home.join("shapecraft-release.jks"), home.join("shapecraft-release.pass"));
+    if ks.exists() {
+        println!("{} already exists; keeping it (a release key is never replaced)", ks.display());
+    } else {
+        std::fs::create_dir_all(&home)?;
+        let mut bytes = [0u8; 24];
+        std::fs::File::open("/dev/urandom")?.read_exact(&mut bytes)?;
+        let pass: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        write_private(&pass_file, pass.as_bytes())?;
+        // keytool reads the password from the environment, so it never shows in a process list.
+        let status = std::process::Command::new("keytool")
+            .env("SC_KS_PASS", &pass)
+            .args(["-genkeypair", "-keystore", s(&ks), "-storetype", "PKCS12", "-storepass:env", "SC_KS_PASS", "-keypass:env"])
+            .args(["SC_KS_PASS", "-alias", "shapecraft", "-keyalg", "RSA", "-keysize", "4096", "-validity", "36500"])
+            .args(["-dname", "CN=ShapeCraft, O=ShapeCraft"])
+            .status()
+            .context("couldn't start keytool (a JDK is needed)")?;
+        if !status.success() {
+            bail!("keytool failed ({status})");
+        }
+        set_private(&ks)?;
+        println!(
+            "made {} and {}: BACK BOTH UP (lose them and no later APK can update the installed app)",
+            ks.display(),
+            pass_file.display()
+        );
+    }
+    if rest.iter().any(|a| a == "--upload") {
+        let pass = std::fs::read_to_string(&pass_file).with_context(|| format!("no {}", pass_file.display()))?;
+        let b64 = base64::engine::general_purpose::STANDARD.encode(std::fs::read(&ks)?);
+        for (name, value) in [("ANDROID_KEYSTORE_B64", b64), ("ANDROID_KEYSTORE_PASS", pass.trim().to_string())] {
+            // Through stdin, not the command line.
+            let mut child = std::process::Command::new("gh")
+                .args(["secret", "set", name])
+                .stdin(std::process::Stdio::piped())
+                .spawn()
+                .context("couldn't start gh")?;
+            child.stdin.take().context("no stdin for gh")?.write_all(value.as_bytes())?;
+            if !child.wait()?.success() {
+                bail!("gh secret set {name} failed");
+            }
+        }
+        println!("stored as the repository secrets ANDROID_KEYSTORE_B64 and ANDROID_KEYSTORE_PASS");
+    }
+    Ok(())
+}
+
+fn write_private(path: &Path, bytes: &[u8]) -> Result<()> {
+    std::fs::write(path, bytes)?;
+    set_private(path)
+}
+
+#[cfg(unix)]
+fn set_private(path: &Path) -> Result<()> {
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))?;
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn set_private(_path: &Path) -> Result<()> {
     Ok(())
 }
 

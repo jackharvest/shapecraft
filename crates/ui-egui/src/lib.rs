@@ -27,4 +27,4 @@ pub mod whats_new;
 pub mod window_chrome;
 pub mod workspace;
 
-pub use app::{Options, ShapeCraftApp, write_color_image, write_rgba};
+pub use app::{Options, ShapeCraftApp, TabletRequest, write_color_image, write_rgba};

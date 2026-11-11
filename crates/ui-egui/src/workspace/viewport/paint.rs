@@ -300,7 +300,7 @@ pub(in crate::workspace) fn var_create_rect(ctx: &egui::Context) -> Option<Rect>
     ctx.data(|d| d.get_temp::<Option<Rect>>(egui::Id::unique(VAR_CREATE))).flatten()
 }
 
-/// The insert-variable button: an "x" with a small ⊕ (as in the field of 26.200), its hit area noted.
+/// The insert-variable button: an "x" with a small ⊕, its hit area noted.
 fn var_button(painter: &egui::Painter, x: Pos2, ink: Color32, back: Color32) {
     painter.text(x, Align2::CENTER_CENTER, "x", egui::FontId::new(15.0, egui::FontFamily::Proportional), ink);
     painter.circle_filled(x + vec2(5.0, 4.0), 4.0, ink);

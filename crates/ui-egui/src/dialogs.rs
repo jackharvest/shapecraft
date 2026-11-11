@@ -1,7 +1,8 @@
 //! The system's file and message dialogs. Desktops get `rfd`. Android has no dialog `rfd` can open from a native
-//! activity, so there saves and folder picks go to one shared folder (`set_android_folder`, the app's folder under
-//! Android/data, reachable from a computer over USB), opening a file waits for a real picker, and messages go to the
-//! system log (`adb logcat -s ShapeCraft`).
+//! activity: opening, importing and exporting go through the system's picker instead, asked for by the Android app
+//! (see `TabletRequest`); the folder picks left here (Work Folder, backups) go to one shared folder
+//! (`set_android_folder`, the app's folder under Android/data, reachable from a computer over USB), and messages go
+//! to the system log (`adb logcat -s ShapeCraft`).
 
 #[cfg(not(target_os = "android"))]
 pub use rfd::{FileDialog, MessageDialog, MessageLevel};

@@ -9,6 +9,7 @@
 //!   cargo xtask android-smoke [ABI] kernel smoke test on the adb device
 //!   cargo xtask android-apk [ABI]   the app as an APK (ANDROID_HOME with build-tools and a platform)
 //!   cargo xtask android-run [ABI]   installs the APK on the adb device, starts it, takes a screenshot
+//!   cargo xtask android-release-key [--upload]  makes the APK release key once (--upload: as GitHub secrets)
 //!   cargo xtask bench-tasks         writes bench/tasks/*.jsonl, the task benchmark
 //!   cargo xtask icons OUT_DIR       the app icon: SVG variants and PNG renders
 //!   cargo xtask home-art SCRATCH    the home screen's pictures (assets/home/*.png), from our own models
@@ -41,6 +42,7 @@ fn main() -> std::process::ExitCode {
         Some("android-smoke") => android::smoke(rest),
         Some("android-apk") => android::apk(rest),
         Some("android-run") => android::apk_run(rest),
+        Some("android-release-key") => android::release_key(rest),
         Some("bench-tasks") => bench::write(rest),
         Some("icons") => icons::write(rest),
         Some("home-art") => site::home_art(rest),

@@ -1,19 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- ShapeCraft for Android: one NativeActivity running libshapecraft.so (apps/shapecraft-android), no Java code.
-     `cargo xtask android-apk` fills in PACKAGE and links this with aapt2; versions and SDK levels come from there.
-     @integer/orientation is written there too: sensorLandscape on phones, free from 600 dp (tablets, foldables). -->
+<!-- ShapeCraft for Android: a NativeActivity running libshapecraft.so (apps/shapecraft-android). The little Java
+     there is (packaging/android/java) adds the system file picker to that activity and shows the projects folder in
+     the Files app (#7). `cargo xtask android-apk` fills in PACKAGE, compiles the Java and links this with aapt2;
+     versions and SDK levels come from there. @integer/orientation is written there too: sensorLandscape on phones,
+     free from 600 dp (tablets, foldables). -->
 <manifest xmlns:android="http://schemas.android.com/apk/res/android" package="PACKAGE">
     <uses-feature android:glEsVersion="0x00030000" android:required="true" />
     <application
         android:label="ShapeCraft"
         android:icon="@mipmap/ic_launcher"
-        android:hasCode="false"
+        android:hasCode="true"
         android:extractNativeLibs="false"
         android:allowBackup="false"
         android:appCategory="productivity"
         android:theme="@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen">
         <activity
-            android:name="android.app.NativeActivity"
+            android:name="PACKAGE.ShapeCraftActivity"
             android:exported="true"
             android:launchMode="singleTask"
             android:resizeableActivity="true"
@@ -26,5 +28,16 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- The projects folder as a place in Files and every file picker; only the system's picker can bind it. -->
+        <provider
+            android:name="PACKAGE.ProjectsProvider"
+            android:authorities="PACKAGE.documents"
+            android:grantUriPermissions="true"
+            android:exported="true"
+            android:permission="android.permission.MANAGE_DOCUMENTS">
+            <intent-filter>
+                <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
+            </intent-filter>
+        </provider>
     </application>
 </manifest>

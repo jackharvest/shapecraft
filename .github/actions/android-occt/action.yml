@@ -1,0 +1,38 @@
+# The Android NDK and OpenCASCADE built with it (pinned downloads, checksums checked; the build is cached), and the
+# SDK parts the APK needs. Used by android.yml and release.yml. See packaging/android/README.md.
+name: Android NDK and OCCT
+description: NDK r28c, OCCT 7.9.3 built for arm64 Android (cached), SDK build-tools and platform
+runs:
+  using: composite
+  steps:
+    - name: NDK and OCCT source (pinned, checksums checked)
+      shell: bash
+      env:
+        NDK_ZIP: android-ndk-r28c-linux.zip
+        NDK_SHA1: a7b54a5de87fecd125a17d54f73c446199e72a64
+        OCCT_TAG: V7_9_3
+        OCCT_SHA256: 5ecf094ec6b12d5413dfb851d8c3590c354058aee556e32e408bdfbf8c357d57
+      run: |
+        sudo apt-get update && sudo apt-get install -y ninja-build
+        mkdir -p ~/android && cd ~/android
+        curl -sfLO "https://dl.google.com/android/repository/$NDK_ZIP"
+        echo "$NDK_SHA1  $NDK_ZIP" | sha1sum -c
+        unzip -q "$NDK_ZIP" && rm "$NDK_ZIP"
+        curl -sfL -o occt.tar.gz "https://github.com/Open-Cascade-SAS/OCCT/archive/refs/tags/$OCCT_TAG.tar.gz"
+        echo "$OCCT_SHA256  occt.tar.gz" | sha256sum -c
+        tar xzf occt.tar.gz && rm occt.tar.gz
+        echo "ANDROID_NDK_HOME=$HOME/android/android-ndk-r28c" >> "$GITHUB_ENV"
+        echo "OCCT_SRC=$HOME/android/OCCT-${OCCT_TAG#V}" >> "$GITHUB_ENV"
+    - uses: actions/cache@v4
+      with:
+        path: target/android/occt-arm64-v8a
+        key: occt-android-arm64-V7_9_3-r28c-${{ hashFiles('crates/kernel-occt/build.rs', 'xtask/src/android.rs') }}
+        restore-keys: occt-android-arm64-V7_9_3-r28c-
+    - name: OCCT for Android
+      shell: bash
+      run: test -f target/android/occt-arm64-v8a/lib/libTKernel.a || cargo xtask android-occt arm64
+    - name: SDK build-tools and platform
+      shell: bash
+      run: |
+        yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null
+        $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;35.0.1" "platforms;android-35" > /dev/null

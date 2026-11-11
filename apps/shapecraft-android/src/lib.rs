@@ -1,14 +1,16 @@
-//! ShapeCraft for Android: the same app as the desktop, in a `NativeActivity` (no Java code). Projects and
-//! preferences live in the app's own storage. Built and packed into an APK by `cargo xtask android-apk`.
+//! ShapeCraft for Android: the same app as the desktop, in a `NativeActivity`. Projects and preferences live in the
+//! app's own storage; files come and go through the system's picker (a little Java beside the activity, reached
+//! through a mailbox of files, see `Mailbox`). Built and packed into an APK by `cargo xtask android-apk`.
 
 #[cfg(target_os = "android")]
 mod android {
+    use std::path::{Path, PathBuf};
     use std::sync::Arc;
 
     use shapecraft_kernel_occt::OcctKernel;
     use shapecraft_ui::settings::Settings;
     use shapecraft_ui::tablet::{NativeTouch, Pointer, PointerPhase, PointerTool};
-    use shapecraft_ui::{Options, ShapeCraftApp, crash_log, graphics};
+    use shapecraft_ui::{Options, ShapeCraftApp, TabletRequest, crash_log, graphics};
     use winit::platform::android::activity::AndroidApp;
     use winit::platform::android::pointers::{self, Phase, Record, Tool};
 
@@ -29,9 +31,12 @@ mod android {
         shapecraft_ui::dialogs::set_android_folder(app.external_data_path().unwrap_or_else(|| data.join("Exports")));
         shapecraft_ui::tablet::set_touch_screen(true);
         // Phones (under 600 dp across) keep their view clear, the same line the manifest's orientation uses.
-        shapecraft_ui::tablet::set_small_screen(app.config().smallest_screen_width_dp() < 600);
+        shapecraft_ui::tablet::set_small_screen(app.config().smallest_screen_width_dp().is_some_and(|w| w < 600));
         // Android has no Documents folder for the app: projects go in its own storage (…/files/ShapeCraft).
         Options::set_documents(data.clone());
+        // Saves waiting for the picker in a run that ended are gone with it.
+        let _ = std::fs::remove_dir_all(data.join(".outbox"));
+        let mailbox = Mailbox::new(&data);
         let opts = Options {
             projects_root: Options::default_root(),
             control_port: None,
@@ -58,7 +63,7 @@ mod android {
                 // frames take: a slow GPU, or a heavy model, must not turn taps into nothing.
                 cc.egui_ctx.options_mut(|o| o.input_options.max_click_duration = 10.0);
                 let inner = ShapeCraftApp::new(Arc::new(OcctKernel::new()), opts, &cc.egui_ctx);
-                Ok(Box::new(Phone { inner, touch: NativeTouch::default(), android, keyboard: false, pen_button: 0 }))
+                Ok(Box::new(Phone { inner, touch: NativeTouch::default(), android, keyboard: false, pen_button: 0, mailbox }))
             }),
         );
         match result {
@@ -75,6 +80,95 @@ mod android {
         android: AndroidApp,
         keyboard: bool,
         pen_button: u8,
+        mailbox: Mailbox,
+    }
+
+    /// The way to the system's file picker (#7). The app writes a request file into files/.mailbox/to-android;
+    /// ShapeCraftActivity (packaging/android/java) shows the picker and answers in files/.mailbox/to-app. Files
+    /// rather than calls into Java keep this side free of JNI.
+    struct Mailbox {
+        to_android: PathBuf,
+        to_app: PathBuf,
+        seq: u64,
+        /// Requests still waiting for their answer: the app keeps looking for it.
+        waiting: usize,
+    }
+
+    /// An answer from the picker.
+    enum Answer {
+        Picked(u64, PathBuf),
+        Saved(String),
+        Failed(String),
+        Cancelled,
+    }
+
+    impl Mailbox {
+        fn new(files: &Path) -> Self {
+            let (to_android, to_app) = (files.join(".mailbox/to-android"), files.join(".mailbox/to-app"));
+            // What an earlier run asked or was told is stale now.
+            for d in [&to_android, &to_app] {
+                let _ = std::fs::remove_dir_all(d);
+                let _ = std::fs::create_dir_all(d);
+            }
+            Self { to_android, to_app, seq: 0, waiting: 0 }
+        }
+
+        /// One request, written whole before the activity can see it (a temporary name, then renamed).
+        fn send(&mut self, lines: &[&str]) {
+            self.seq += 1;
+            let stem = format!("{:020}", self.seq);
+            let tmp = self.to_android.join(format!("{stem}.tmp"));
+            let ok = std::fs::write(&tmp, lines.join("\n")).is_ok()
+                && std::fs::rename(&tmp, self.to_android.join(format!("{stem}.req"))).is_ok();
+            if ok {
+                self.waiting += 1;
+            } else {
+                log::error!("couldn't ask for the file picker in {}", self.to_android.display());
+            }
+        }
+
+        /// The answers that have come in, oldest first.
+        fn receive(&mut self) -> Vec<Answer> {
+            let Ok(dir) = std::fs::read_dir(&self.to_app) else { return Vec::new() };
+            let mut files: Vec<PathBuf> = dir.flatten().map(|e| e.path()).filter(|p| p.extension().is_some_and(|e| e == "res")).collect();
+            files.sort();
+            let mut out = Vec::new();
+            for f in files {
+                let text = std::fs::read_to_string(&f).unwrap_or_default();
+                let _ = std::fs::remove_file(&f);
+                self.waiting = self.waiting.saturating_sub(1);
+                let lines: Vec<&str> = text.split('\n').collect();
+                out.push(match lines.as_slice() {
+                    ["picked", id, path, ..] => match id.parse() {
+                        Ok(id) => Answer::Picked(id, PathBuf::from(path)),
+                        Err(_) => Answer::Cancelled,
+                    },
+                    ["saved", name, ..] => Answer::Saved((*name).to_string()),
+                    ["failed", why, ..] => Answer::Failed((*why).to_string()),
+                    _ => Answer::Cancelled,
+                });
+            }
+            out
+        }
+
+        /// What the app asked of the file picker this frame: a file to open, or files it wrote to save somewhere.
+        fn ask(&mut self, requests: Vec<TabletRequest>) {
+            for r in requests {
+                match r {
+                    TabletRequest::Pick { id, label, .. } => self.send(&["open", &id.to_string(), &label]),
+                    TabletRequest::Saved(dir) => {
+                        let mut files: Vec<PathBuf> = std::fs::read_dir(&dir)
+                            .map(|d| d.flatten().map(|e| e.path()).filter(|p| p.is_file()).collect())
+                            .unwrap_or_default();
+                        files.sort();
+                        for path in files {
+                            let name = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                            self.send(&["save", &path.to_string_lossy(), &name]);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     impl eframe::App for Phone {
@@ -102,11 +196,25 @@ mod android {
             {
                 ctx.set_zoom_factor(zoom);
             }
+            for answer in self.mailbox.receive() {
+                match answer {
+                    Answer::Picked(id, path) => self.inner.tablet_file_arrived(id, path),
+                    Answer::Saved(name) => self.inner.toast(format!("Saved {name}")),
+                    Answer::Failed(why) => self.inner.toast(why),
+                    Answer::Cancelled => {}
+                }
+            }
+            if self.mailbox.waiting > 0 {
+                ctx.request_repaint_after(std::time::Duration::from_millis(250));
+            }
             self.inner.logic(ctx, frame);
         }
 
         fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
             self.inner.ui(ui, frame);
+            // Files written this frame are on disk now: hand them (and any pick) to the picker.
+            let requests = self.inner.take_tablet_requests();
+            self.mailbox.ask(requests);
             let over_view = self.inner.workspace().is_some_and(|ws| ws.viewport_hot);
             self.touch.after_frame(ui.ctx(), over_view);
             let wants = ui.ctx().egui_wants_keyboard_input();

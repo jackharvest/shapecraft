@@ -75,8 +75,8 @@ static GPU_LOST: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::
 /// Tells the app started by `restart_without_gpu` why it was.
 const RESTARTED_ENV: &str = "SHAPECRAFT_GPU_RESTARTED";
 
-/// What the tablet's copy of the app asks of the page (see `tablet`).
-pub(crate) enum TabletRequest {
+/// What the tablet's copy of the app asks of the page (see `tablet`), or the Android app of the system's file picker.
+pub enum TabletRequest {
     /// Show a file picker; the file comes back through [`ShapeCraftApp::tablet_file_arrived`] with this id.
     Pick { id: u64, label: String, accept: Vec<String> },
     /// Files written into this folder go to the page to download.
@@ -217,11 +217,18 @@ pub struct ShapeCraftApp {
 impl ShapeCraftApp {
     pub fn new(kernel: Arc<dyn Kernel>, opts: Options, ctx: &egui::Context) -> Self {
         let tablet_opts = (opts.native_menu && !opts.hosted).then(|| opts.clone());
-        let tablet_files = opts.hosted.then(|| TabletFiles {
+        // Android goes through the system's file picker the same way (#7): a pick asked for now, the file later; a
+        // save written to a scratch folder in the app's own storage, then copied where the picker says.
+        let android = cfg!(target_os = "android");
+        let tablet_files = (opts.hosted || android).then(|| TabletFiles {
             requests: Vec::new(),
             picks: Vec::new(),
             next: 0,
-            dir: std::env::temp_dir().join(format!("shapecraft-tablet-files-{}", std::process::id())),
+            dir: if android {
+                Options::documents().join(".outbox")
+            } else {
+                std::env::temp_dir().join(format!("shapecraft-tablet-files-{}", std::process::id()))
+            },
         });
         let settings = opts.settings_file.as_deref().map(crate::settings::Settings::load).unwrap_or_default();
         // Preferences ▸ Sync ▸ Work Folder, unless this run was given its own ($SHAPECRAFT_PROJECTS, tests).
@@ -323,13 +330,13 @@ impl ShapeCraftApp {
         app
     }
 
-    /// What the tablet's copy asks of its page since the last call (pickers, downloads).
-    pub(crate) fn take_tablet_requests(&mut self) -> Vec<TabletRequest> {
+    /// What the tablet's copy asks of its page (or the Android app of its file picker) since the last call.
+    pub fn take_tablet_requests(&mut self) -> Vec<TabletRequest> {
         self.tablet_files.as_mut().map(|t| std::mem::take(&mut t.requests)).unwrap_or_default()
     }
 
-    /// A file the tablet's page sent for picker `id`: carries on with what asked for it.
-    pub(crate) fn tablet_file_arrived(&mut self, id: u64, path: PathBuf) {
+    /// A file the tablet's page (or Android's picker) sent for picker `id`: carries on with what asked for it.
+    pub fn tablet_file_arrived(&mut self, id: u64, path: PathBuf) {
         let Some(t) = self.tablet_files.as_mut() else { return };
         let Some(i) = t.picks.iter().position(|(p, _)| *p == id) else { return };
         let (_, wanted) = t.picks.remove(i);
@@ -956,7 +963,9 @@ impl ShapeCraftApp {
             let shown = d.slicer.clone();
             ws.settings.slicer = shown.clone();
             let opened = made && !on_tablet && crate::workspace::slicers::open(&shown, &path);
-            ws.toast(if made && on_tablet {
+            ws.toast(if made && on_tablet && cfg!(target_os = "android") {
+                format!("Choose where to save {name}.3mf for {shown}")
+            } else if made && on_tablet {
                 format!("{name}.3mf is ready to download for {shown}")
             } else if opened {
                 format!("Opened {name} in {shown}")
@@ -2058,7 +2067,8 @@ impl ShapeCraftApp {
         }
     }
 
-    fn toast(&mut self, text: String) {
+    /// A short message over the workspace or the projects screen.
+    pub fn toast(&mut self, text: String) {
         match self.ws.as_deref_mut() {
             Some(ws) => ws.toast(text),
             None => self.landing.toast = Some((text, f64::MAX)),

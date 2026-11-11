@@ -1,6 +1,6 @@
 # Android (#3): OCCT built with the NDK; shapecraft-cli cross-compiled for arm64 with the kernel smoke test run on an
 # emulator (x86_64 image; it runs the arm64 build through Android's ARM translation); the app as a debug-signed APK,
-# started on the same emulator.
+# started on the same emulator. The NDK/OCCT setup is shared with release.yml (.github/actions/android-occt).
 # Manual or weekly: the OCCT build is long, so it doesn't run on every push. See packaging/android/README.md.
 name: android
 on:
@@ -9,11 +9,6 @@ on:
     - cron: "17 6 * * 1"
 permissions:
   contents: read
-env:
-  NDK_ZIP: android-ndk-r28c-linux.zip
-  NDK_SHA1: a7b54a5de87fecd125a17d54f73c446199e72a64
-  OCCT_TAG: V7_9_3
-  OCCT_SHA256: 5ecf094ec6b12d5413dfb851d8c3590c354058aee556e32e408bdfbf8c357d57
 jobs:
   cli:
     runs-on: ubuntu-latest
@@ -23,31 +18,11 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-linux-android
-      - name: NDK and OCCT source (pinned, checksums checked)
-        run: |
-          sudo apt-get update && sudo apt-get install -y ninja-build
-          mkdir -p ~/android && cd ~/android
-          curl -sfLO "https://dl.google.com/android/repository/$NDK_ZIP"
-          echo "$NDK_SHA1  $NDK_ZIP" | sha1sum -c
-          unzip -q "$NDK_ZIP" && rm "$NDK_ZIP"
-          curl -sfL -o occt.tar.gz "https://github.com/Open-Cascade-SAS/OCCT/archive/refs/tags/$OCCT_TAG.tar.gz"
-          echo "$OCCT_SHA256  occt.tar.gz" | sha256sum -c
-          tar xzf occt.tar.gz && rm occt.tar.gz
-          echo "ANDROID_NDK_HOME=$HOME/android/android-ndk-r28c" >> "$GITHUB_ENV"
-          echo "OCCT_SRC=$HOME/android/OCCT-${OCCT_TAG#V}" >> "$GITHUB_ENV"
-      - uses: actions/cache@v4
-        with:
-          path: target/android/occt-arm64-v8a
-          key: occt-android-arm64-${{ env.OCCT_TAG }}-r28c-${{ hashFiles('crates/kernel-occt/build.rs', 'xtask/src/android.rs') }}
-      - name: OCCT for Android
-        run: test -f target/android/occt-arm64-v8a/lib/libTKernel.a || cargo xtask android-occt arm64
+      - uses: ./.github/actions/android-occt
       - name: shapecraft-cli for Android (16 KB pages checked)
         run: cargo xtask android-cli arm64
-      - name: ShapeCraft APK (debug-signed)
-        run: |
-          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null
-          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;35.0.1" "platforms;android-35" > /dev/null
-          cargo xtask android-apk arm64
+      - name: ShapeCraft APK (debug-signed; releases are signed in release.yml)
+        run: cargo xtask android-apk arm64
       # The downloads go up first, so a failing emulator never costs the build.
       - uses: actions/upload-artifact@v4
         with:
