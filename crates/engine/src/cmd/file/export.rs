@@ -5,7 +5,7 @@ use std::io::BufWriter;
 use std::sync::Arc;
 
 use serde_json::{Value, json};
-use shapecraft_doc::{Body, Pick, project};
+use shapecraft_doc::{Body, ItemId, Pick, SketchEntity, project};
 use shapecraft_kernel::Mesh;
 
 use super::path_param;
@@ -126,8 +126,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             label: "DXF from Sketch…",
             menu: "File/Export to/DXF from Sketch…",
             shortcut: None,
-            help: "Export a sketch's elements as a DXF (or, for a .dwg path, a DWG) in its plane; a .svg path writes every visible sketch as an SVG image",
-            params: r#"{"path": "/out.dxf" | "/out.dwg" | "/out.svg", "sketch": id? (DXF/DWG default: the active, selected or first visible sketch; SVG default: every visible sketch), "hidden": false (SVG: hidden sketches too), "join": true (SVG: connected curves as polylines; false: one line, arc or circle each), "dpi": 96 (SVG pixels per inch), "resolution": 100 (SVG curve smoothness, 0..100)}"#,
+            help: "Export a sketch's elements as a DXF (or, for a .dwg path, a DWG) in its plane; a .svg path writes each visible sketch as an SVG image in its own plane (several: one SVG each in a .zip of the same name)",
+            params: r#"{"path": "/out.dxf" | "/out.dwg" | "/out.svg", "sketch": id? (DXF/DWG default: the active, selected or first visible sketch; SVG default: every visible sketch), "faces": [{"body": id, "face": n}]? (SVG: flat faces' outlines), "selected": false (SVG: the selected sketches, curves, regions and flat faces when there are any), "hidden": false (SVG: hidden sketches too), "join": true (SVG: connected curves as one shape; false: one line, arc or circle each), "curves": true (SVG: arcs, circles, ellipses and splines as true curves; false: short lines at the resolution), "dpi": 96 (SVG pixels per inch), "resolution": 100 (SVG smoothness of flattened curves, 0..100)}"#,
             modifies: false,
             enabled: |s| s.doc.sketches.iter().any(|k| !k.entities.is_empty()),
             run: export_sketch,
@@ -235,34 +235,138 @@ fn export_sketch(s: &mut Session, p: &Params) -> Result<Value> {
 /// SVG from sketches: the given sketch, else every visible one (and the hidden ones with `hidden`), drawn in the
 /// first one's plane.
 fn export_sketch_svg(s: &mut Session, p: &Params, path: &std::path::Path) -> Result<Value> {
-    let hidden = p.bool_or("hidden", false);
-    let sketches: Vec<_> = match p.opt_id("sketch") {
-        Some(id) => vec![s.doc.sketch(id).ok_or_else(|| EngineError::BadParams("no such sketch".into()))?],
-        None => s.doc.sketches.iter().filter(|k| (k.visible || hidden) && !k.entities.is_empty()).collect(),
+    let opts = formats::SvgOptions {
+        dpi: p.f64_or("dpi", 96.0)?,
+        resolution: p.f64_or("resolution", 100.0)?,
+        join: p.bool_or("join", true),
+        curves: p.bool_or("curves", true),
     };
-    let Some(base) = sketches.first().map(|k| k.plane) else {
-        return Err(EngineError::NotAvailable("there's no sketch to export".into()));
-    };
-    let opts =
-        formats::SvgOptions { dpi: p.f64_or("dpi", 96.0)?, resolution: p.f64_or("resolution", 100.0)?, join: p.bool_or("join", true) };
     if !(opts.dpi.is_finite() && opts.dpi > 0.0 && opts.dpi <= 10_000.0) {
         return Err(EngineError::BadParams("dpi must be between 0 and 10000".into()));
     }
     if !(opts.resolution.is_finite() && (0.0..=100.0).contains(&opts.resolution)) {
         return Err(EngineError::BadParams("resolution must be between 0 and 100".into()));
     }
-    let mut ents = Vec::new();
-    for k in &sketches {
-        let frame = formats::plane_to_plane(&k.plane, &base);
-        for (i, e) in k.entities.iter().enumerate() {
-            if !k.construction.contains(&(i as u32)) {
-                ents.extend(formats::entity_in_frame(e, &frame).into_iter().map(|e| (e, false)));
+    let drawings = svg_drawings(s, p)?;
+    // Each drawing in its own plane, so a sketch on any plane comes out face on.
+    let mut files: Vec<(String, String)> = Vec::new();
+    for (name, ents) in &drawings {
+        if let Some(svg) = formats::write_svg(ents, &opts) {
+            let base = name.replace(['/', '\\', ':'], "-");
+            let mut file = format!("{base}.svg");
+            let mut n = 2;
+            while files.iter().any(|(f, _)| f.eq_ignore_ascii_case(&file)) {
+                file = format!("{base} ({n}).svg");
+                n += 1;
             }
+            files.push((file, svg));
         }
     }
-    let svg = formats::write_svg(&ents, &opts).ok_or_else(|| EngineError::NotAvailable("the sketches have nothing to draw".into()))?;
-    write_file(path, svg.as_bytes())?;
-    Ok(json!({ "path": path, "sketches": sketches.len(), "elements": ents.len() }))
+    let path = match files.len() {
+        0 => return Err(EngineError::NotAvailable("there's nothing to draw".into())),
+        1 => {
+            write_file(path, files[0].1.as_bytes())?;
+            path.to_path_buf()
+        }
+        // Several drawings: one SVG each, packed in a zip beside the asked name.
+        _ => {
+            let zip_path = path.with_extension("zip");
+            let entries: Vec<(&str, Vec<u8>)> = files.iter().map(|(f, svg)| (f.as_str(), svg.as_bytes().to_vec())).collect();
+            let bytes = formats::zip_store(&entries).ok_or_else(|| EngineError::BadParams("too much to fit in a zip".into()))?;
+            write_file(&zip_path, &bytes)?;
+            zip_path
+        }
+    };
+    // One drawing is the file itself; several are the zip's entries.
+    let names: Vec<String> = match files.len() {
+        1 => vec![path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default()],
+        _ => files.iter().map(|(f, _)| f.clone()).collect(),
+    };
+    let elements: usize = drawings.iter().map(|(_, e)| e.iter().filter(|(_, c)| !c).count()).sum();
+    Ok(json!({ "path": path, "files": names, "sketches": drawings.len(), "elements": elements }))
+}
+
+/// A named drawing: its curves, each with whether it's construction geometry.
+type Drawing = (String, Vec<(SketchEntity, bool)>);
+
+/// What an SVG export draws, each a name and its curves (with whether each is construction) in its own plane:
+/// the given sketch or faces, else the selected sketches, curves, regions and flat faces when `selected`, else every
+/// visible sketch (hidden ones too with `hidden`).
+fn svg_drawings(s: &Session, p: &Params) -> Result<Vec<Drawing>> {
+    let of_sketch = |k: &shapecraft_doc::Sketch| {
+        (k.name.clone(), k.entities.iter().enumerate().map(|(i, e)| (e.clone(), k.construction.contains(&(i as u32)))).collect())
+    };
+    if let Some(id) = p.opt_id("sketch") {
+        return Ok(vec![of_sketch(s.doc.sketch(id).ok_or_else(|| EngineError::BadParams("no such sketch".into()))?)]);
+    }
+    let mut picks: Vec<Pick> = Vec::new();
+    if let Some(faces) = p.raw("faces").and_then(Value::as_array) {
+        for f in faces {
+            let (Some(body), Some(face)) = (f.get("body").and_then(Value::as_u64), f.get("face").and_then(Value::as_u64)) else {
+                return Err(EngineError::BadParams("faces: [{\"body\": id, \"face\": n}]".into()));
+            };
+            picks.push(Pick::Face { body: ItemId(body), face: face as u32 });
+        }
+    } else if p.bool_or("selected", false) {
+        picks = s.selection.clone();
+    }
+    let mut out = Vec::new();
+    let (mut whole, mut curves): (Vec<ItemId>, Vec<(ItemId, Vec<u32>)>) = (Vec::new(), Vec::new());
+    for pick in picks {
+        match pick {
+            Pick::Sketch { sketch } => {
+                if !whole.contains(&sketch)
+                    && let Some(k) = s.doc.sketch(sketch)
+                {
+                    whole.push(sketch);
+                    out.push(of_sketch(k));
+                }
+            }
+            // Picked curves: just those, one drawing per sketch.
+            Pick::SketchEntity { sketch, entity } => match curves.iter_mut().find(|(k, _)| *k == sketch) {
+                Some((_, list)) => list.push(entity),
+                None => curves.push((sketch, vec![entity])),
+            },
+            Pick::Face { body, face } => {
+                let on_face = json!({ "body": body.0, "face": face });
+                let b = s.doc.body(body).ok_or_else(|| EngineError::BadParams(format!("no body {}", body.0)))?;
+                let Some((plane, _)) = super::super::sketch::plane_from(s, &Params::new(&on_face))? else {
+                    return Err(EngineError::NotAvailable(format!("face {} of {} isn't flat", face + 1, b.name)));
+                };
+                let shape = s.kernel.face(&b.shape, face)?;
+                let n = s.kernel.edge_count(&shape)?;
+                let ents = (0..n.min(10_000))
+                    .filter_map(|i| s.kernel.edge_curve(&shape, i).ok().and_then(|c| super::super::sketch::edge_entity(&plane, c)))
+                    .map(|e| (e, false))
+                    .collect();
+                out.push((format!("{} Face {}", b.name, face + 1), ents));
+            }
+            Pick::Region { sketch, region } => {
+                let Some(k) = s.doc.sketch(sketch) else { continue };
+                let Some(r) = k.region(region) else { continue };
+                let n = s.kernel.edge_count(&r.face)?;
+                let ents = (0..n.min(10_000))
+                    .filter_map(|i| s.kernel.edge_curve(&r.face, i).ok().and_then(|c| super::super::sketch::edge_entity(&k.plane, c)))
+                    .map(|e| (e, false))
+                    .collect();
+                out.push((format!("{} Region {}", k.name, region + 1), ents));
+            }
+            _ => {}
+        }
+    }
+    for (sketch, list) in curves {
+        let Some(k) = s.doc.sketch(sketch).filter(|_| !whole.contains(&sketch)) else { continue };
+        let ents = list.iter().filter_map(|&i| k.entities.get(i as usize).map(|e| (e.clone(), k.construction.contains(&i)))).collect();
+        out.push((k.name.clone(), ents));
+    }
+    if out.is_empty() {
+        let hidden = p.bool_or("hidden", false);
+        out = s.doc.sketches.iter().filter(|k| (k.visible || hidden) && !k.entities.is_empty()).map(of_sketch).collect();
+    }
+    if out.is_empty() {
+        return Err(EngineError::NotAvailable("there's no sketch to export".into()));
+    }
+    Ok(out)
 }
 
 fn export_iges(s: &mut Session, p: &Params) -> Result<Value> {

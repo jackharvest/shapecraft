@@ -2,17 +2,23 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.7.8-alpha
-**SVG export now writes your sketches, with settings for line joining, DPI and curve smoothness.**
+## 0.7.9-alpha
+**SVG export now writes your sketches as clean, true-size outlines for laser cutters, CNC and vector apps.**
 ### Changed
-- **File ▸ Export to ▸ SVG… exports sketches, not the drawing sheet.** Every visible sketch (hidden ones too with
-  Include Hidden Items) goes into one SVG, sized in real millimetres at the chosen DPI, as a thin black outline for
-  laser cutters, CNC routers and vector apps. The menu item saves straight away with your last SVG settings; the
-  Export dialog's SVG row shows them:
-  - **Join Segments** (on): connected curves become one polyline or closed polygon, so an outline cuts in one pass.
-    Off: each line, arc and circle stays its own shape (arcs and circles as true curves).
-  - **DPI** (96): pixels per inch. Set it to what the receiving app assumes (some use 72).
-  - **Resolution** (0–100, default 100): how finely curves are split into points when joined.
+- **File ▸ Export to ▸ SVG… exports sketches, not the drawing sheet.** Each visible sketch (hidden ones too with
+  Include Hidden Items) is drawn face on, whatever plane it's on, as a thin black outline. Several sketches give
+  one SVG each, named after them, in a .zip. The menu item saves straight away with your last SVG settings; the
+  Export dialog's SVG row shows them and says what will be drawn.
+- **True size in any app.** The file gives its width and height in millimetres, so Inkscape, Illustrator, Shaper
+  Origin and laser software open it at real size, whatever DPI they assume. DPI (96) still sets the pixel grid.
+- **Curves stay curves.** With Keep Curves (on), arcs, circles and ellipses are written as arcs and splines as exact
+  Bézier curves, instead of hundreds of short lines. Off, they're split into points at the Resolution you choose
+  (0–100).
+- **Join Segments** (on): connected lines and curves become one shape, closed when they meet, so an outline cuts in
+  one pass. Off: each line, arc and circle is its own shape.
+- **Export what you pick.** Select sketches, sketch curves, regions or flat faces of a body before exporting and
+  only those are drawn (a face as its outline). With nothing picked, every visible sketch is.
+- **Text is exported as its letters' outlines**, ready to cut or engrave.
 
   A drawing sheet still exports as SVG from the Drawings workspace's Export.
 

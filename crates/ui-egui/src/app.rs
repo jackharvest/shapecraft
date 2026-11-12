@@ -921,7 +921,7 @@ impl ShapeCraftApp {
         let Some(ws) = self.ws.as_deref_mut() else { return };
         let mut d = ExportDialog::new(&ws.session.doc.name, preset);
         d.slicer = crate::workspace::slicers::pick(&ws.settings.slicer);
-        svg_from_settings(&mut d, &ws.settings);
+        svg_from_settings(&mut d, &ws.settings, &ws.session);
         ws.export = Some(d);
     }
 
@@ -929,7 +929,7 @@ impl ShapeCraftApp {
     fn export_svg_now(&mut self) {
         let Some(ws) = self.ws.as_deref_mut() else { return };
         let mut d = ExportDialog::new(&ws.session.doc.name, Some(crate::workspace::export::Format::Svg));
-        svg_from_settings(&mut d, &ws.settings);
+        svg_from_settings(&mut d, &ws.settings, &ws.session);
         ws.wants_export = Some(d);
         self.run_export();
     }
@@ -944,7 +944,7 @@ impl ShapeCraftApp {
         match dir {
             Some(dir) if !formats.is_empty() => {
                 let mut d = ExportDialog::new(&ws.session.doc.name, None);
-                svg_from_settings(&mut d, &ws.settings);
+                svg_from_settings(&mut d, &ws.settings, &ws.session);
                 d.chosen = formats;
                 d.quick = Some(dir);
                 ws.wants_export = Some(d);
@@ -1035,18 +1035,21 @@ impl ShapeCraftApp {
                         {
                             params["drawing"] = json!(id);
                         }
-                        ws.run(cmd, params).is_some()
+                        // (an SVG of several drawings comes back as a .zip beside the asked name)
+                        ws.run(cmd, params).map(|v| v["path"].as_str().map_or(path.clone(), std::path::PathBuf::from))
                     }
-                    None => ws.capture_png(&path).is_ok(),
+                    None => ws.capture_png(&path).is_ok().then(|| path.clone()),
                 };
-                let shown = path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                let shown = ok.as_ref().unwrap_or(&path).file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                let ok = ok.is_some();
                 if ok { written.push(shown) } else { failed.push(shown) }
             }
         }
         // Remembered for Quick Export to Favorite Formats (and the SVG settings for the next SVG export).
         if d.chosen.contains(&Format::Svg) {
             let (dpi, res) = d.svg_numbers();
-            (ws.settings.svg_join, ws.settings.svg_dpi, ws.settings.svg_resolution) = (d.svg_join, dpi, res);
+            (ws.settings.svg_join, ws.settings.svg_curves, ws.settings.svg_dpi, ws.settings.svg_resolution) =
+                (d.svg_join, d.svg_curves, dpi, res);
         }
         if !written.is_empty() {
             ws.settings.favorite_formats = d.chosen.iter().map(|f| f.label().to_string()).collect();
@@ -1354,6 +1357,7 @@ impl ShapeCraftApp {
                 // Opens the Export dialog with the given formats picked (file extensions, e.g. ["3mf", "stl"]).
                 let ws = self.ws.as_deref_mut().ok_or("no project open")?;
                 let mut d = ExportDialog::new(&ws.session.doc.name, None);
+                svg_from_settings(&mut d, &ws.settings, &ws.session);
                 if let Some(list) = params.get("formats").and_then(Value::as_array) {
                     d.chosen = list.iter().filter_map(Value::as_str).filter_map(Format::from_extension).collect();
                 }
@@ -2353,9 +2357,28 @@ fn open_page(url: &str) {
     let _ = std::process::Command::new(opener).arg(url).spawn();
 }
 
-/// The Export dialog's SVG settings from the last SVG export.
-fn svg_from_settings(d: &mut ExportDialog, s: &crate::settings::Settings) {
+/// The Export dialog's SVG settings from the last SVG export, and what an SVG would draw now.
+fn svg_from_settings(d: &mut ExportDialog, s: &crate::settings::Settings, session: &shapecraft_engine::Session) {
+    use shapecraft_doc::Pick;
     d.svg_join = s.svg_join;
+    d.svg_curves = s.svg_curves;
+    let mut curves_of: Vec<shapecraft_doc::ItemId> = Vec::new();
+    d.svg_picked = session
+        .selection
+        .iter()
+        .filter_map(|p| match p {
+            Pick::Sketch { .. } => Some("sketch"),
+            Pick::SketchEntity { sketch, .. } if !curves_of.contains(sketch) => {
+                curves_of.push(*sketch);
+                Some("sketch")
+            }
+            Pick::Region { .. } => Some("region"),
+            Pick::Face { .. } => Some("face"),
+            _ => None,
+        })
+        .collect();
+    let sketches = session.doc.sketches.iter().filter(|k| !k.entities.is_empty());
+    d.svg_sketches = sketches.fold((0, 0), |(v, h), k| if k.visible { (v + 1, h) } else { (v, h + 1) });
     let n = |v: f64| if v.fract() == 0.0 { format!("{v:.0}") } else { v.to_string() };
     d.svg_dpi = n(s.svg_dpi);
     d.svg_res = n(s.svg_resolution);

@@ -128,18 +128,20 @@ pub fn write_dwg(entities: &[(SketchEntity, bool)]) -> std::result::Result<Vec<u
     dwg::write(&d).map_err(|e| e.to_string())
 }
 
-/// SVG sketch export settings: pixels per inch, curve resolution 0 (coarsest) to 100 (finest), and whether
-/// connected curves are joined into polylines (on) or written one shape each as lines, arcs and circles (off).
+/// SVG sketch export settings: pixels per inch, curve resolution 0 (coarsest) to 100 (finest), whether connected
+/// curves are joined into one shape (on) or written one shape each (off), and whether arcs, circles, ellipses and
+/// splines stay true curves (on) or become short straight lines at the resolution (off).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct SvgOptions {
     pub dpi: f64,
     pub resolution: f64,
     pub join: bool,
+    pub curves: bool,
 }
 
 impl Default for SvgOptions {
     fn default() -> Self {
-        SvgOptions { dpi: 96.0, resolution: 100.0, join: true }
+        SvgOptions { dpi: 96.0, resolution: 100.0, join: true, curves: true }
     }
 }
 
@@ -227,50 +229,240 @@ fn flatten(e: &SketchEntity, step: f64) -> Vec<Flat> {
         }
         SketchEntity::Spline { points } => open(thin(&spline_points(points, 256), step)),
         SketchEntity::ControlSpline { poles } => open(thin(&bspline_points(poles, 256), step)),
-        SketchEntity::Text { .. } => Vec::new(),
+        // Text as its letters' outlines, one closed shape per contour (cut or engraved like any other shape).
+        SketchEntity::Text { .. } => e
+            .outlines()
+            .into_iter()
+            .filter_map(|mut pts| {
+                if pts.len() > 1 && pts[0].distance(pts[pts.len() - 1]) < 1e-9 {
+                    pts.pop();
+                }
+                (pts.len() > 2).then_some(Flat { pts, closed: true })
+            })
+            .collect(),
     }
 }
 
-/// Joins open pieces end to end (either way round) into chains; a chain that comes back to its start is closed.
-fn join(pieces: Vec<Flat>) -> Vec<Flat> {
-    const TOL: f64 = 1e-6;
-    let (mut done, mut open): (Vec<Flat>, Vec<Vec<DVec2>>) = (Vec::new(), Vec::new());
-    for f in pieces {
-        if f.closed { done.push(f) } else { open.push(f.pts) }
+/// One stretch of a shape, ending at its last point (millimetres, y up).
+#[derive(Clone, Copy, Debug)]
+enum Seg {
+    Line(DVec2),
+    /// An elliptical arc: radii, the x radius' turn (radians, counter-clockwise), the long way round, and which way.
+    Arc {
+        rx: f64,
+        ry: f64,
+        turn: f64,
+        large: bool,
+        ccw: bool,
+        to: DVec2,
+    },
+    Quad(DVec2, DVec2),
+    Cubic(DVec2, DVec2, DVec2),
+}
+
+impl Seg {
+    fn to(&self) -> DVec2 {
+        match *self {
+            Seg::Line(p) | Seg::Arc { to: p, .. } | Seg::Quad(_, p) | Seg::Cubic(_, _, p) => p,
+        }
     }
+
+    fn set_to(&mut self, q: DVec2) {
+        match self {
+            Seg::Line(p) | Seg::Arc { to: p, .. } | Seg::Quad(_, p) | Seg::Cubic(_, _, p) => *p = q,
+        }
+    }
+}
+
+/// Connected segments from `start`; a closed piece's last segment comes back to `start`. `order` is the first
+/// sketch element it came from, so shapes are written in drawing order.
+#[derive(Clone, Debug)]
+struct Piece {
+    start: DVec2,
+    segs: Vec<Seg>,
+    closed: bool,
+    order: usize,
+}
+
+impl Piece {
+    fn from_flat(f: Flat, order: usize) -> Piece {
+        let mut segs: Vec<Seg> = f.pts.iter().skip(1).map(|p| Seg::Line(*p)).collect();
+        if f.closed {
+            segs.push(Seg::Line(f.pts[0]));
+        }
+        Piece { start: f.pts[0], segs, closed: f.closed, order }
+    }
+
+    fn end(&self) -> DVec2 {
+        self.segs.last().map_or(self.start, Seg::to)
+    }
+
+    fn reversed(&self) -> Piece {
+        let mut pts = vec![self.start];
+        pts.extend(self.segs.iter().map(Seg::to));
+        let segs = self
+            .segs
+            .iter()
+            .enumerate()
+            .rev()
+            .map(|(i, s)| {
+                let to = pts[i];
+                match *s {
+                    Seg::Line(_) => Seg::Line(to),
+                    Seg::Arc { rx, ry, turn, large, ccw, .. } => Seg::Arc { rx, ry, turn, large, ccw: !ccw, to },
+                    Seg::Quad(c, _) => Seg::Quad(c, to),
+                    Seg::Cubic(a, b, _) => Seg::Cubic(b, a, to),
+                }
+            })
+            .collect();
+        Piece { start: self.end(), segs, closed: self.closed, order: self.order }
+    }
+}
+
+/// Inserts knot `u` once into a clamped B-spline (Boehm).
+fn insert_knot(deg: usize, poles: &mut Vec<DVec2>, knots: &mut Vec<f64>, u: f64) {
+    let Some(s) = knots.iter().rposition(|&k| k <= u) else { return };
+    let mut out = Vec::with_capacity(poles.len() + 1);
+    for i in 0..=poles.len() {
+        if i + deg <= s {
+            out.push(poles[i]);
+        } else if i > s {
+            out.push(poles[i - 1]);
+        } else {
+            let span = knots[i + deg] - knots[i];
+            let a = if span > 1e-15 { (u - knots[i]) / span } else { 0.0 };
+            out.push(poles[i - 1] * (1.0 - a) + poles[i] * a);
+        }
+    }
+    *poles = out;
+    knots.insert(s + 1, u);
+}
+
+/// A clamped B-spline (its end knots repeated `deg + 1` times) as segments from its first pole: lines, quadratic or
+/// cubic Béziers, exactly the same curve.
+fn bspline_segs(deg: usize, poles: &[DVec2], knots: &[f64]) -> Option<Vec<Seg>> {
+    if !(1..=3).contains(&deg) || poles.len() <= deg || knots.len() != poles.len() + deg + 1 {
+        return None;
+    }
+    let (mut p, mut k) = (poles.to_vec(), knots.to_vec());
+    let (lo, hi) = (k[deg], k[k.len() - deg - 1]);
+    let mut inner: Vec<f64> = k.iter().copied().filter(|&u| u > lo + 1e-12 && u < hi - 1e-12).collect();
+    inner.dedup_by(|a, b| (*a - *b).abs() < 1e-12);
+    for u in inner {
+        let have = k.iter().filter(|&&x| (x - u).abs() < 1e-12).count();
+        for _ in have..deg {
+            insert_knot(deg, &mut p, &mut k, u);
+        }
+    }
+    if (p.len() - 1) % deg != 0 {
+        return None;
+    }
+    Some(
+        p[1..]
+            .chunks(deg)
+            .map(|c| match deg {
+                1 => Seg::Line(c[0]),
+                2 => Seg::Quad(c[0], c[1]),
+                _ => Seg::Cubic(c[0], c[1], c[2]),
+            })
+            .collect(),
+    )
+}
+
+/// A spline element as exact Bézier segments; `None` when it can't be built.
+fn spline_piece(e: &SketchEntity, order: usize) -> Option<Piece> {
+    let (deg, poles, knots) = match e {
+        SketchEntity::Spline { points } => {
+            let flat: Vec<glam::DVec3> = points.iter().map(|p| p.extend(0.0)).collect();
+            let f = shapecraft_kernel::spline::fit(&flat)?;
+            (f.degree, f.poles.iter().map(|p| p.truncate()).collect::<Vec<_>>(), f.knots)
+        }
+        SketchEntity::ControlSpline { poles } => {
+            let n = poles.len();
+            if n < 2 {
+                return None;
+            }
+            let deg = (n - 1).min(3);
+            let spans = n - deg;
+            let knots = (0..n + deg + 1).map(|i| (i as f64 - deg as f64).clamp(0.0, spans as f64)).collect();
+            (deg, poles.clone(), knots)
+        }
+        _ => return None,
+    };
+    let segs = bspline_segs(deg, &poles, &knots)?;
+    Some(Piece { start: poles[0], segs, closed: false, order })
+}
+
+/// An element as pieces: with `curves`, arcs, circles and ellipses as elliptical arcs and splines as Béziers;
+/// otherwise (and for everything else) short straight lines at `step`.
+fn pieces(e: &SketchEntity, step: f64, curves: bool, order: usize) -> Vec<Piece> {
+    if curves {
+        let arc = |rx: f64, ry: f64, turn: f64, large: bool, ccw: bool, to: DVec2| Seg::Arc { rx, ry, turn, large, ccw, to };
+        let ring = |c: DVec2, rx: f64, ry: f64, turn: f64| {
+            let u = DVec2::from_angle(turn) * rx;
+            let (a, b) = (c + u, c - u);
+            Piece { start: a, segs: vec![arc(rx, ry, turn, false, true, b), arc(rx, ry, turn, false, true, a)], closed: true, order }
+        };
+        match e {
+            SketchEntity::Circle { center, radius } => return vec![ring(*center, *radius, *radius, 0.0)],
+            SketchEntity::Ellipse { center, rx, ry, angle } => return vec![ring(*center, *rx, *ry, *angle)],
+            SketchEntity::Arc { a, mid, b } => {
+                if let Some((_, r, _, sweep)) = arc_parts(*a, *mid, *b) {
+                    let large = sweep.abs() > std::f64::consts::PI + 1e-9;
+                    return vec![Piece { start: *a, segs: vec![arc(r, r, 0.0, large, sweep > 0.0, *b)], closed: false, order }];
+                }
+            }
+            SketchEntity::Spline { .. } | SketchEntity::ControlSpline { .. } => {
+                if let Some(p) = spline_piece(e, order) {
+                    return vec![p];
+                }
+            }
+            _ => {}
+        }
+    }
+    flatten(e, step).into_iter().filter(|f| !f.pts.is_empty()).map(|f| Piece::from_flat(f, order)).collect()
+}
+
+/// Joins open pieces end to end (either way round) into chains; a chain that comes back to its start is closed.
+/// The result is in drawing order.
+fn join(all: Vec<Piece>) -> Vec<Piece> {
+    const TOL: f64 = 1e-6;
+    let (mut done, mut open): (Vec<Piece>, Vec<Piece>) = all.into_iter().partition(|p| p.closed);
     while let Some(mut chain) = open.pop() {
-        while let (Some(&s), Some(&e)) = (chain.first(), chain.last()) {
-            if chain.len() > 2 && s.distance(e) < TOL {
+        loop {
+            let (s, e) = (chain.start, chain.end());
+            if chain.segs.len() > 1 && s.distance(e) < TOL {
                 break;
             }
             let Some(i) = open.iter().position(|p| {
-                let (ps, pe) = (p[0], p[p.len() - 1]);
+                let (ps, pe) = (p.start, p.end());
                 ps.distance(e) < TOL || pe.distance(e) < TOL || ps.distance(s) < TOL || pe.distance(s) < TOL
             }) else {
                 break;
             };
-            let mut p = open.swap_remove(i);
-            let (ps, pe) = (p[0], p[p.len() - 1]);
-            if ps.distance(e) < TOL {
-                chain.extend(p.drain(1..));
-            } else if pe.distance(e) < TOL {
-                p.reverse();
-                chain.extend(p.drain(1..));
+            let p = open.swap_remove(i);
+            let order = chain.order.min(p.order);
+            if p.start.distance(e) < TOL {
+                chain.segs.extend(p.segs);
+            } else if p.end().distance(e) < TOL {
+                chain.segs.extend(p.reversed().segs);
             } else {
-                if ps.distance(s) < TOL {
-                    p.reverse();
-                }
-                p.pop();
-                p.append(&mut chain);
-                chain = p;
+                let mut q = if p.end().distance(s) < TOL { p } else { p.reversed() };
+                q.segs.append(&mut chain.segs);
+                chain = q;
+            }
+            chain.order = order;
+        }
+        chain.closed = chain.segs.len() > 1 && chain.start.distance(chain.end()) < TOL;
+        if chain.closed {
+            let start = chain.start;
+            if let Some(last) = chain.segs.last_mut() {
+                last.set_to(start);
             }
         }
-        let closed = chain.len() > 2 && chain[0].distance(chain[chain.len() - 1]) < TOL;
-        if closed {
-            chain.pop();
-        }
-        done.push(Flat { pts: chain, closed });
+        done.push(chain);
     }
+    done.sort_by_key(|p| p.order);
     done
 }
 
@@ -285,20 +477,21 @@ fn num(v: f64) -> String {
     if s == "-0" { "0".into() } else { s.to_string() }
 }
 
-/// Sketch curves (already in one shared plane's x/y, millimetres) as an SVG image: user units are pixels at
-/// `dpi`, y points down, a black hairline with no fill, and the drawing centred in a view box 10% larger than
-/// it. Construction curves and text are left out. `None` when there's nothing to draw.
+/// Sketch curves (in one plane's x/y, millimetres) as an SVG image: user units are pixels at `dpi`, y points down,
+/// the drawing centred in a view box 10% larger than it, a thin black line (1/800 of the view box) and no fill. The
+/// width and height are also given in millimetres so other apps open it at its true size whatever DPI they assume.
+/// Construction curves are left out; text is its letters' outlines. `None` when there's nothing to draw.
 pub fn write_svg(entities: &[(SketchEntity, bool)], o: &SvgOptions) -> Option<String> {
     let step = o.step();
     let dpi = if o.dpi.is_finite() && o.dpi > 0.0 { o.dpi.min(10_000.0) } else { 96.0 };
     let k = dpi / 25.4;
-    let curves: Vec<&SketchEntity> =
-        entities.iter().filter(|(e, c)| !c && !matches!(e, SketchEntity::Text { .. })).map(|(e, _)| e).collect();
-    let flats: Vec<Flat> = curves.iter().flat_map(|e| flatten(e, step)).collect();
+    let curves: Vec<(usize, &SketchEntity)> = entities.iter().enumerate().filter(|(_, (_, c))| !c).map(|(i, (e, _))| (i, e)).collect();
     let (mut lo, mut hi) = (DVec2::splat(f64::INFINITY), DVec2::splat(f64::NEG_INFINITY));
-    for p in flats.iter().flat_map(|f| f.pts.iter()) {
-        lo = lo.min(*p);
-        hi = hi.max(*p);
+    for (_, e) in &curves {
+        for p in flatten(e, step).iter().flat_map(|f| f.pts.iter()) {
+            lo = lo.min(*p);
+            hi = hi.max(*p);
+        }
     }
     if !(lo.is_finite() && hi.is_finite()) {
         return None;
@@ -311,26 +504,56 @@ pub fn write_svg(entities: &[(SketchEntity, bool)], o: &SvgOptions) -> Option<St
         let q = px(p);
         format!("{},{}", num(q.x), num(q.y))
     };
+    let mm = |v: f64| num(v / dpi * 25.4);
     let mut out = format!(
-        "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"no\"?>\n<svg viewBox=\"0 0 {} {}\" version=\"1.1\" \
-         xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" stroke-linecap=\"round\" \
+        "<?xml version=\"1.0\" encoding=\"utf-8\" standalone=\"no\"?>\n<svg viewBox=\"0 0 {} {}\" width=\"{}mm\" height=\"{}mm\" \
+         version=\"1.1\" xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" stroke-linecap=\"round\" \
          stroke-linejoin=\"round\" fill-rule=\"evenodd\" xml:space=\"preserve\" >\n<g fill=\"none\" stroke=\"rgb(0,0,0)\" stroke-width=\"{}\" >\n",
         num(w),
         num(h),
-        num(0.37 * dpi / 96.0)
+        mm(w),
+        mm(h),
+        num(0.00125 * w.max(h))
     );
-    let poly = |out: &mut String, f: &Flat| {
-        let tag = if f.closed { "polygon" } else { "polyline" };
-        let pts: String = f.pts.iter().map(|p| pt(*p) + " ").collect();
-        let _ = writeln!(out, "<{tag} points=\"{pts}\" />");
+    let write = |out: &mut String, p: &Piece| {
+        if p.segs.iter().all(|s| matches!(s, Seg::Line(_))) {
+            let tag = if p.closed { "polygon" } else { "polyline" };
+            let ends = if p.closed { p.segs.len().saturating_sub(1) } else { p.segs.len() };
+            let pts: String = std::iter::once(p.start).chain(p.segs[..ends].iter().map(Seg::to)).map(|q| pt(q) + " ").collect();
+            let _ = writeln!(out, "<{tag} points=\"{pts}\" />");
+            return;
+        }
+        let mut d = format!("M{}", pt(p.start));
+        for s in &p.segs {
+            let _ = match *s {
+                Seg::Line(q) => write!(d, " L{}", pt(q)),
+                Seg::Arc { rx, ry, turn, large, ccw, to } => write!(
+                    d,
+                    " A{},{} {} {},{} {}",
+                    num(rx * k),
+                    num(ry * k),
+                    // Turned and swept the other way once y points down.
+                    num(-turn.to_degrees()),
+                    u8::from(large),
+                    u8::from(!ccw),
+                    pt(to)
+                ),
+                Seg::Quad(c, q) => write!(d, " Q{} {}", pt(c), pt(q)),
+                Seg::Cubic(a, b, q) => write!(d, " C{} {} {}", pt(a), pt(b), pt(q)),
+            };
+        }
+        if p.closed {
+            d.push_str(" Z");
+        }
+        let _ = writeln!(out, "<path d=\"{d}\" />");
     };
     if o.join {
-        for f in &join(flats) {
-            poly(&mut out, f);
+        for p in &join(curves.iter().flat_map(|(i, e)| pieces(e, step, o.curves, *i)).collect()) {
+            write(&mut out, p);
         }
     } else {
         // One shape per curve: lines as two-point polylines, arcs as paths, circles and ellipses as themselves.
-        for e in curves {
+        for (i, e) in curves {
             match e {
                 SketchEntity::Circle { center, radius } => {
                     let c = px(*center);
@@ -355,14 +578,14 @@ pub fn write_svg(entities: &[(SketchEntity, bool)], o: &SvgOptions) -> Option<St
                 SketchEntity::Rectangle { .. } | SketchEntity::Polygon { .. } => {
                     for f in flatten(e, step) {
                         let n = f.pts.len();
-                        for i in 0..n {
-                            poly(&mut out, &Flat { pts: vec![f.pts[i], f.pts[(i + 1) % n]], closed: false });
+                        for j in 0..n {
+                            write(&mut out, &Piece::from_flat(Flat { pts: vec![f.pts[j], f.pts[(j + 1) % n]], closed: false }, i));
                         }
                     }
                 }
                 _ => {
-                    for f in flatten(e, step) {
-                        poly(&mut out, &f);
+                    for p in pieces(e, step, o.curves, i) {
+                        write(&mut out, &p);
                     }
                 }
             }
@@ -453,12 +676,12 @@ mod tests {
 
     #[test]
     fn joined_polylines_at_96_dpi() {
-        let svg = write_svg(&sample(), &SvgOptions::default()).unwrap();
-        assert!(svg.contains("viewBox=\"0 0 296 129\""), "{svg}");
+        let svg = write_svg(&sample(), &SvgOptions { curves: false, ..SvgOptions::default() }).unwrap();
+        assert!(svg.contains("viewBox=\"0 0 296 129\" width=\"78.3167mm\" height=\"34.1313mm\""), "{svg}");
         assert!(svg.contains("stroke-width=\"0.37\""));
-        let mut c = counts(&svg);
-        c.sort();
-        let want = [("polygon", 4), ("polygon", 629), ("polygon", 629), ("polyline", 316)];
+        // In drawing order: the rectangle, the circle, the arc, the small circle.
+        let c = counts(&svg);
+        let want = [("polygon", 4), ("polygon", 629), ("polyline", 316), ("polygon", 629)];
         assert_eq!(c, want.iter().map(|(t, n)| (t.to_string(), *n)).collect::<Vec<_>>());
         // The rectangle's corners, in pixels from the view box's top left (the last digit can differ by one).
         for corner in ["17.6063,5.9173", "17.6063,119.303", "168.787,119.303", "168.787,5.9173"] {
@@ -468,7 +691,7 @@ mod tests {
 
     #[test]
     fn dpi_and_resolution() {
-        let svg = write_svg(&sample(), &SvgOptions { dpi: 72.0, resolution: 10.0, join: true }).unwrap();
+        let svg = write_svg(&sample(), &SvgOptions { dpi: 72.0, resolution: 10.0, join: true, curves: false }).unwrap();
         assert!(svg.contains("viewBox=\"0 0 222 97\""));
         assert!(svg.contains("stroke-width=\"0.2775\""));
         let mut n: Vec<usize> = counts(&svg).into_iter().map(|c| c.1).collect();
@@ -478,11 +701,77 @@ mod tests {
 
     #[test]
     fn unjoined_shapes() {
-        let svg = write_svg(&sample(), &SvgOptions { join: false, ..SvgOptions::default() }).unwrap();
+        let svg = write_svg(&sample(), &SvgOptions { join: false, curves: false, ..SvgOptions::default() }).unwrap();
         assert!(svg.contains("<polyline points=\"17.6063,119.303 168.787,119.303 \" />"), "{svg}");
         assert!(svg.contains("<path d=\"M282.173,62.6102  A37.7953,37.7953 0 0,0 206.583,62.6102 \" />"));
         assert!(svg.contains("<circle cx=\"93.196") && svg.contains("cy=\"62.6102\" r=\"30.2362\" />"), "{svg}");
         assert!(svg.contains("<circle cx=\"17.6063\" cy=\"119.303\" r=\"3.77953\" />"));
+    }
+
+    #[test]
+    fn stroke_follows_the_longer_side() {
+        let tall = [(SketchEntity::Line { a: DVec2::ZERO, b: DVec2::new(0.0, 100.0) }, false)];
+        let svg = write_svg(&tall, &SvgOptions::default()).unwrap();
+        // 100 mm = 377.953 px, 10% more = 416 px tall; a hairline 1/800 of that.
+        assert!(svg.contains("viewBox=\"0 0 1 416\"") && svg.contains("stroke-width=\"0.52\""), "{svg}");
+    }
+
+    #[test]
+    fn joined_curves_stay_curves() {
+        let svg = write_svg(&sample(), &SvgOptions::default()).unwrap();
+        // The same view box as the flattened file; circles as two half arcs, the arc as one, the rectangle unchanged.
+        assert!(svg.contains("viewBox=\"0 0 296 129\""));
+        assert_eq!(counts(&svg), [("polygon".to_string(), 4)]);
+        assert!(
+            svg.contains("<path d=\"M123.433,62.6102 A30.2362,30.2362 0 0,0 62.9606,62.6102 A30.2362,30.2362 0 0,0 123.433,62.6102 Z\" />"),
+            "{svg}"
+        );
+        assert!(svg.contains("<path d=\"M282.173,62.6102 A37.7953,37.7953 0 0,0 206.583,62.6102\" />"), "{svg}");
+        // An arc and a line meeting end to end become one path.
+        let v = DVec2::new;
+        let hook = [
+            (SketchEntity::Line { a: v(0.0, 0.0), b: v(10.0, 0.0) }, false),
+            (SketchEntity::Arc { a: v(10.0, 0.0), mid: v(15.0, 5.0), b: v(10.0, 10.0) }, false),
+        ];
+        let svg = write_svg(&hook, &SvgOptions::default()).unwrap();
+        assert_eq!(svg.matches("<path").count(), 1, "{svg}");
+        assert!(svg.contains(" L") && svg.contains(" A18.8976,18.8976 0 0,0 "), "{svg}");
+    }
+
+    #[test]
+    fn splines_become_exact_beziers() {
+        let v = DVec2::new;
+        let points = vec![v(0.0, 0.0), v(5.0, 10.0), v(10.0, 2.0), v(15.0, 12.0), v(20.0, 4.0)];
+        // The fit spline: each Bézier matches the curve at its ends, a third and two thirds of its knot span.
+        let flat: Vec<glam::DVec3> = points.iter().map(|p| p.extend(0.0)).collect();
+        let fit = shapecraft_kernel::spline::fit(&flat).unwrap();
+        let mut spans: Vec<f64> = fit.knots.clone();
+        spans.dedup();
+        let p = spline_piece(&SketchEntity::Spline { points: points.clone() }, 0).unwrap();
+        assert_eq!(p.segs.len(), spans.len() - 1);
+        let mut from = p.start;
+        for (s, w) in p.segs.iter().zip(spans.windows(2)) {
+            let Seg::Cubic(a, b, to) = *s else { panic!("{s:?}") };
+            for t in [0.0, 1.0 / 3.0, 2.0 / 3.0, 1.0] {
+                let mt = 1.0 - t;
+                let bez = from * mt * mt * mt + a * 3.0 * mt * mt * t + b * 3.0 * mt * t * t + to * t * t * t;
+                let on = fit.point(w[0] + (w[1] - w[0]) * t).truncate();
+                assert!(bez.distance(on) < 1e-9, "{t}: {bez} vs {on}");
+            }
+            from = to;
+        }
+        // The control-point spline: its ends are the first and last poles, and it passes the sketch's own samples.
+        let p = spline_piece(&SketchEntity::ControlSpline { poles: points.clone() }, 0).unwrap();
+        let dense = bspline_points(&points, 1);
+        let mut from = p.start;
+        for (s, want) in p.segs.iter().zip(dense.iter().skip(1)) {
+            let Seg::Cubic(_, _, to) = *s else { panic!("{s:?}") };
+            assert!(to.distance(*want) < 1e-9, "{to} vs {want}");
+            from = to;
+        }
+        assert!(from.distance(points[4]) < 1e-9);
+        let svg = write_svg(&[(SketchEntity::Spline { points }, false)], &SvgOptions::default()).unwrap();
+        assert!(svg.contains("<path d=\"M") && svg.contains(" C"), "{svg}");
     }
 
     #[test]

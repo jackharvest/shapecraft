@@ -144,8 +144,13 @@ pub struct ExportDialog {
     pub step_ap: usize,
     /// The slicer the Slicer row opens (a name from `slicers::choices`).
     pub slicer: String,
-    /// SVG: join connected curves into polylines; pixels per inch and curve resolution as typed.
+    /// SVG: join connected curves into one shape, keep arcs and splines as true curves; pixels per inch and curve
+    /// resolution as typed; what is picked that it would draw (sketches, regions, faces: one drawing each) and the
+    /// visible and hidden sketches.
     pub svg_join: bool,
+    pub svg_curves: bool,
+    pub svg_picked: Vec<&'static str>,
+    pub svg_sketches: (usize, usize),
     pub svg_dpi: String,
     pub svg_res: String,
     /// Quick Export: straight into this folder, no save dialog.
@@ -175,6 +180,9 @@ impl ExportDialog {
             step_ap: 0,
             slicer: super::slicers::pick(""),
             svg_join: true,
+            svg_curves: true,
+            svg_picked: Vec::new(),
+            svg_sketches: (0, 0),
             svg_dpi: "96".into(),
             svg_res: "100".into(),
             quick: None,
@@ -198,6 +206,29 @@ impl ExportDialog {
         (dpi, res)
     }
 
+    /// What an SVG export will draw, in words.
+    pub fn svg_scope(&self) -> String {
+        let n = self.svg_picked.len();
+        let zipped = |n: usize| if n > 1 { ", one SVG each in a .zip" } else { "" };
+        if n > 0 {
+            let mut kinds: Vec<String> = Vec::new();
+            for (kind, plural) in [("sketch", "sketches"), ("region", "regions"), ("face", "faces")] {
+                let k = self.svg_picked.iter().filter(|p| **p == kind).count();
+                if k > 0 {
+                    kinds.push(format!("{k} {}", if k == 1 { kind } else { plural }));
+                }
+            }
+            return format!("Draws the selection ({}){}", kinds.join(", "), zipped(n));
+        }
+        let (visible, hidden) = self.svg_sketches;
+        let k = visible + if self.hidden { hidden } else { 0 };
+        match k {
+            0 => "There's no sketch to draw: add one, or pick flat faces".to_string(),
+            1 => "Draws the sketch, face on; select faces to draw their outlines".to_string(),
+            _ => format!("Draws {k} sketches, each face on{}", zipped(k)),
+        }
+    }
+
     /// "Save Each 1st-Level Item Separately" applies (an SVG alone has only Include Hidden Items).
     pub fn shows_separately(&self) -> bool {
         self.chosen.iter().any(|f| *f != Format::Svg)
@@ -216,6 +247,8 @@ impl ExportDialog {
         if f == Format::Svg {
             let (dpi, res) = self.svg_numbers();
             p["join"] = serde_json::json!(self.svg_join);
+            p["curves"] = serde_json::json!(self.svg_curves);
+            p["selected"] = serde_json::json!(true);
             p["dpi"] = serde_json::json!(dpi);
             p["resolution"] = serde_json::json!(res);
         }
@@ -372,18 +405,26 @@ fn settings(d: &mut ExportDialog, ui: &mut Ui, p: &egui::Painter, f: Format, k: 
         }
     }
     if f == Format::Svg {
-        let r = row(&mut y, CARD_H);
+        // Joining and curves: one card, two rows with switches.
+        let r = row(&mut y, 100.0);
         if paint {
             card(p, r);
-            label(p, r.left() + 10.0, r.center().y, "Join Segments", Some("Connected curves are written as one polyline"));
-            switch(ui, p, r.right() - 10.0, r.center().y, ("exp-svg-join", k), &mut d.svg_join);
+            let (top, bottom) = (r.top() + 25.0, r.top() + 75.0);
+            label(p, r.left() + 10.0, top, "Join Segments", Some("Connected curves are written as one shape"));
+            switch(ui, p, r.right() - 10.0, top, ("exp-svg-join", k), &mut d.svg_join);
+            label(p, r.left() + 10.0, bottom, "Keep Curves", Some("Arcs, circles and splines stay curves, not short lines"));
+            switch(ui, p, r.right() - 10.0, bottom, ("exp-svg-curves", k), &mut d.svg_curves);
+            p.line_segment(
+                [pos2(r.left() + 10.0, r.center().y), pos2(r.right() - 10.0, r.center().y)],
+                Stroke::new(1.0, theme::c(0x2c2c2c)),
+            );
         }
         // Pixels per inch and resolution: one card, two rows with typed numbers.
         let r = row(&mut y, 100.0);
         if paint {
             card(p, r);
             let rows = [
-                ("DPI", "Pixels per inch; other apps may assume another value", 0),
+                ("DPI", "Pixels per inch; the size is also saved in millimetres", 0),
                 ("Resolution", "From 0 (coarsest curves) to 100 (smoothest)", 1),
             ];
             for (text, sub, i) in rows {
@@ -407,6 +448,10 @@ fn settings(d: &mut ExportDialog, ui: &mut Ui, p: &egui::Painter, f: Format, k: 
                 [pos2(r.left() + 10.0, r.center().y), pos2(r.right() - 10.0, r.center().y)],
                 Stroke::new(1.0, theme::c(0x2c2c2c)),
             );
+        }
+        let r = row(&mut y, 22.0);
+        if paint {
+            p.text(pos2(r.left() + 10.0, r.center().y), Align2::LEFT_CENTER, d.svg_scope(), theme::body(11.5), Tokens::text_dim());
         }
     }
     if f == Format::Step {

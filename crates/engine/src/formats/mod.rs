@@ -11,6 +11,7 @@ pub use mesh_in::{read_obj, read_stl};
 pub use mesh_out::{ExportBody, write_3mf, write_glb, write_obj, write_stl_ascii, write_usdz};
 pub use sketch_in::{read_dxf, read_svg};
 pub use sketch_out::{SvgOptions, entity_in_frame, plane_to_plane, write_dwg, write_dxf, write_svg};
+pub use zip::store as zip_store;
 
 use std::collections::HashMap;
 

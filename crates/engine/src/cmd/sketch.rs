@@ -1046,7 +1046,7 @@ fn offset_body_edge(s: &mut Session, p: &Params) -> Result<Value> {
 }
 
 /// An edge flattened onto a sketch plane: exact when it lies in the plane, else a line or spline.
-fn edge_entity(plane: &SketchPlane, curve: EdgeCurve) -> Option<SketchEntity> {
+pub(super) fn edge_entity(plane: &SketchPlane, curve: EdgeCurve) -> Option<SketchEntity> {
     let n = plane.normal();
     let flat = |v: DVec3| v.cross(n).length() < 1e-6 * v.length().max(1e-12);
     let local = |q: DVec3| plane.to_local(q);

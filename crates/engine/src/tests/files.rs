@@ -54,11 +54,37 @@ fn mesh_and_iges_exports_round_trip() {
     let f = shapecraft_dwg::inspect(&std::fs::read(dir.join("plate.dwg")).unwrap()).unwrap();
     let drawn = f.entities().filter(|o| !matches!(o.kind.as_str(), "BLOCK" | "ENDBLK")).count();
     assert_eq!(drawn, 5);
-    // And as an SVG of every visible sketch, which reads back in at the same size (96 px per inch).
-    let svg = s.execute("export_sketch", &json!({"path": path("plate.svg"), "join": false})).unwrap().value;
-    assert!(svg["sketches"].as_u64().unwrap() >= 1);
-    let back = crate::formats::read_svg(&std::fs::read_to_string(dir.join("plate.svg")).unwrap()).unwrap();
+    // And as an SVG: one sketch is a plain SVG, sized in millimetres too, which reads back in.
+    let svg = s.execute("export_sketch", &json!({"path": path("plate.svg"), "sketch": out["sketch"], "join": false})).unwrap().value;
+    assert_eq!(svg["files"], json!(["plate.svg"]));
+    let text = std::fs::read_to_string(dir.join("plate.svg")).unwrap();
+    assert!(text.contains("width=\"44.") && text.contains("mm\""), "{text}");
+    let back = crate::formats::read_svg(&text).unwrap();
     assert!(!back.is_empty());
+    // Several sketches, one on a side plane: one SVG each, face on, packed in a zip named like the file.
+    s.execute("sketch", &json!({"plane": "yz"})).unwrap();
+    s.execute("circle", &json!({"center": [5, 5], "radius": 3})).unwrap();
+    let side = s.doc.sketches.last().unwrap().name.clone();
+    let all = s.execute("export_sketch", &json!({"path": path("all.svg")})).unwrap().value;
+    assert!(all["path"].as_str().unwrap().ends_with("all.zip"), "{all}");
+    let names: Vec<&str> = all["files"].as_array().unwrap().iter().filter_map(|n| n.as_str()).collect();
+    assert!(names.contains(&"plate.svg") && names.contains(&format!("{side}.svg").as_str()), "{names:?}");
+    let z = std::fs::read(dir.join("all.zip")).unwrap();
+    assert!(z.starts_with(b"PK\x03\x04") && z.windows(9).any(|w| w == b"plate.svg"));
+    // A circle on the side plane is a circle, not an edge-on line.
+    let one = s.execute("export_sketch", &json!({"path": path("side.svg"), "sketch": s.doc.sketches.last().unwrap().id.0})).unwrap().value;
+    assert_eq!(one["files"], json!(["side.svg"]));
+    assert!(std::fs::read_to_string(dir.join("side.svg")).unwrap().contains(" A11.3386,11.3386 0 0,0 "));
+    // The selection: just the picked sketch; nothing usable picked means every sketch.
+    s.selection = vec![shapecraft_doc::Pick::Sketch { sketch: shapecraft_doc::ItemId(out["sketch"].as_u64().unwrap()) }];
+    let picked = s.execute("export_sketch", &json!({"path": path("picked.svg"), "selected": true})).unwrap().value;
+    assert_eq!((picked["files"].clone(), picked["sketches"].clone()), (json!(["picked.svg"]), json!(1)));
+    // A flat face of the box: its outline alone, closed.
+    let body = s.doc.bodies[0].id.0;
+    let face = s.execute("export_sketch", &json!({"path": path("face.svg"), "faces": [{"body": body, "face": 0}]})).unwrap().value;
+    assert_eq!(face["files"].as_array().unwrap().len(), 1, "{face}");
+    let text = std::fs::read_to_string(dir.join("face.svg")).unwrap();
+    assert_eq!(text.matches("<polygon").count(), 1, "{text}");
     assert!(s.execute("export_sketch", &json!({"path": path("bad.svg"), "resolution": 101})).is_err());
     assert!(s.execute("export_sketch", &json!({"path": path("bad.svg"), "dpi": 0})).is_err());
     // Options: ASCII STL in inches, low resolution, hidden bodies.
