@@ -9,6 +9,9 @@ How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest fi
   version is signed with the same release key, so a new one updates the installed app and keeps your projects. A copy
   from an earlier test build (debug-signed) has to be uninstalled once first. Follow-up to
   [@joravarsinghing](https://github.com/joravarsinghing)'s #3 (#8).
+- **Ready for Google Play later.** When ShapeCraft comes to the Play Store, it will use the same app ID and the same
+  signing key as these APKs, so the copy you install from here should be able to take its updates from Play
+  without uninstalling, if you'd rather update that way.
 ### Changed
 - **The first run on a tablet offers two choices, not three:** Apple Pencil or Mouse or Trackpad on an iPad, Stylus
   or Mouse and Keyboard on Android. Fingers always move the view, so their gestures are in the pencil's list instead
