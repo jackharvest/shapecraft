@@ -1,6 +1,9 @@
 # Blank issues stay on so the app's future "Report an Issue" can open a pre-filled issue.
 blank_issues_enabled: true
 contact_links:
+  - name: Questions and chat (Discord)
+    url: https://discord.gg/qHW22aC8Rn
+    about: Ask how to do something, share tips, or show off a part. Bugs and feature ideas go in an issue here.
   - name: Security problem
     url: https://github.com/jackharvest/shapecraft/security/advisories/new
     about: Please report vulnerabilities privately, not in a public issue.

@@ -14,6 +14,7 @@
   <a href="https://github.com/jackharvest/shapecraft/releases/latest"><b>⬇️ Download</b></a> ·
   <a href="https://jackharvest.com/shapecraft">🌐 Website</a> ·
   <a href="https://github.com/jackharvest/shapecraft/issues/new/choose">🐛 Report an issue</a> ·
+  <a href="https://discord.gg/qHW22aC8Rn">💬 Discord</a> ·
   <a href="https://www.buymeacoffee.com/jackharvest">☕ Prove my wife wrong</a>
 </p>
 
@@ -72,6 +73,8 @@ It's an **alpha**, so keep backups of anything precious, and tell us when someth
 
 - 🐛 Something broke or felt wrong? [Open an issue](https://github.com/jackharvest/shapecraft/issues/new/choose) with
   the steps, and the project folder if you can. Every report makes the next version better.
+- 💬 Questions, tips, or a part to show off? Come say hi on [Discord](https://discord.gg/qHW22aC8Rn). Bugs still go to GitHub Issues so
+  nothing gets lost.
 - ☕ Want to help keep it going? [Buy a coffee](https://www.buymeacoffee.com/jackharvest). It pays for tools and
   hardware, and proves a point at home.
 - ⭐ Like it? A star helps other makers find it.
