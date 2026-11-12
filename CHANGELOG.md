@@ -2,6 +2,20 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.7.8-alpha
+**SVG export now writes your sketches, with settings for line joining, DPI and curve smoothness.**
+### Changed
+- **File ▸ Export to ▸ SVG… exports sketches, not the drawing sheet.** Every visible sketch (hidden ones too with
+  Include Hidden Items) goes into one SVG, sized in real millimetres at the chosen DPI, as a thin black outline for
+  laser cutters, CNC routers and vector apps. The menu item saves straight away with your last SVG settings; the
+  Export dialog's SVG row shows them:
+  - **Join Segments** (on): connected curves become one polyline or closed polygon, so an outline cuts in one pass.
+    Off: each line, arc and circle stays its own shape (arcs and circles as true curves).
+  - **DPI** (96): pixels per inch. Set it to what the receiving app assumes (some use 72).
+  - **Resolution** (0–100, default 100): how finely curves are split into points when joined.
+
+  A drawing sheet still exports as SVG from the Drawings workspace's Export.
+
 ## 0.7.7-alpha
 **ShapeCraft for Android comes with each release, signed so later versions install over it, and a simpler first run on touch screens.**
 ### New

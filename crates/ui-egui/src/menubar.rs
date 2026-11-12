@@ -221,7 +221,7 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                         item("OBJ…", None, App(ExportAs(Format::Obj)), Bodies),
                         item("DWG from Sketch…", None, App(ExportAs(Format::DwgSketch)), InProject),
                         item("DWG from Drawing…", None, App(ExportAs(Format::DwgDrawing)), Bodies),
-                        item("SVG…", None, App(ExportAs(Format::Svg)), Bodies),
+                        item("SVG…", None, App(ExportAs(Format::Svg)), InProject),
                         item("PDF…", None, App(ExportAs(Format::Pdf)), Bodies),
                     ],
                 },

@@ -126,8 +126,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             label: "DXF from Sketch…",
             menu: "File/Export to/DXF from Sketch…",
             shortcut: None,
-            help: "Export a sketch's elements as a DXF (or, for a .dwg path, a DWG) in its plane",
-            params: r#"{"path": "/out.dxf" | "/out.dwg", "sketch": id? (default: the active, selected or first visible sketch)}"#,
+            help: "Export a sketch's elements as a DXF (or, for a .dwg path, a DWG) in its plane; a .svg path writes every visible sketch as an SVG image",
+            params: r#"{"path": "/out.dxf" | "/out.dwg" | "/out.svg", "sketch": id? (DXF/DWG default: the active, selected or first visible sketch; SVG default: every visible sketch), "hidden": false (SVG: hidden sketches too), "join": true (SVG: connected curves as polylines; false: one line, arc or circle each), "dpi": 96 (SVG pixels per inch), "resolution": 100 (SVG curve smoothness, 0..100)}"#,
             modifies: false,
             enabled: |s| s.doc.sketches.iter().any(|k| !k.entities.is_empty()),
             run: export_sketch,
@@ -208,6 +208,9 @@ fn export_stl(s: &mut Session, p: &Params) -> Result<Value> {
 /// DXF of its elements in the sketch plane.
 fn export_sketch(s: &mut Session, p: &Params) -> Result<Value> {
     let path = path_param(p, "path")?;
+    if path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("svg")) {
+        return export_sketch_svg(s, p, &path);
+    }
     let picked = s.selection.iter().find_map(|pk| match *pk {
         Pick::SketchEntity { sketch, .. } | Pick::Region { sketch, .. } => Some(sketch),
         _ => None,
@@ -227,6 +230,39 @@ fn export_sketch(s: &mut Session, p: &Params) -> Result<Value> {
         write_file(&path, formats::write_dxf(&ents).as_bytes())?;
     }
     Ok(json!({ "path": path, "sketch": sk.id.0, "elements": ents.len() }))
+}
+
+/// SVG from sketches: the given sketch, else every visible one (and the hidden ones with `hidden`), drawn in the
+/// first one's plane.
+fn export_sketch_svg(s: &mut Session, p: &Params, path: &std::path::Path) -> Result<Value> {
+    let hidden = p.bool_or("hidden", false);
+    let sketches: Vec<_> = match p.opt_id("sketch") {
+        Some(id) => vec![s.doc.sketch(id).ok_or_else(|| EngineError::BadParams("no such sketch".into()))?],
+        None => s.doc.sketches.iter().filter(|k| (k.visible || hidden) && !k.entities.is_empty()).collect(),
+    };
+    let Some(base) = sketches.first().map(|k| k.plane) else {
+        return Err(EngineError::NotAvailable("there's no sketch to export".into()));
+    };
+    let opts =
+        formats::SvgOptions { dpi: p.f64_or("dpi", 96.0)?, resolution: p.f64_or("resolution", 100.0)?, join: p.bool_or("join", true) };
+    if !(opts.dpi.is_finite() && opts.dpi > 0.0 && opts.dpi <= 10_000.0) {
+        return Err(EngineError::BadParams("dpi must be between 0 and 10000".into()));
+    }
+    if !(opts.resolution.is_finite() && (0.0..=100.0).contains(&opts.resolution)) {
+        return Err(EngineError::BadParams("resolution must be between 0 and 100".into()));
+    }
+    let mut ents = Vec::new();
+    for k in &sketches {
+        let frame = formats::plane_to_plane(&k.plane, &base);
+        for (i, e) in k.entities.iter().enumerate() {
+            if !k.construction.contains(&(i as u32)) {
+                ents.extend(formats::entity_in_frame(e, &frame).into_iter().map(|e| (e, false)));
+            }
+        }
+    }
+    let svg = formats::write_svg(&ents, &opts).ok_or_else(|| EngineError::NotAvailable("the sketches have nothing to draw".into()))?;
+    write_file(path, svg.as_bytes())?;
+    Ok(json!({ "path": path, "sketches": sketches.len(), "elements": ents.len() }))
 }
 
 fn export_iges(s: &mut Session, p: &Params) -> Result<Value> {

@@ -921,7 +921,17 @@ impl ShapeCraftApp {
         let Some(ws) = self.ws.as_deref_mut() else { return };
         let mut d = ExportDialog::new(&ws.session.doc.name, preset);
         d.slicer = crate::workspace::slicers::pick(&ws.settings.slicer);
+        svg_from_settings(&mut d, &ws.settings);
         ws.export = Some(d);
+    }
+
+    /// File ▸ Export to ▸ SVG…: straight to the save dialog with the last SVG settings.
+    fn export_svg_now(&mut self) {
+        let Some(ws) = self.ws.as_deref_mut() else { return };
+        let mut d = ExportDialog::new(&ws.session.doc.name, Some(crate::workspace::export::Format::Svg));
+        svg_from_settings(&mut d, &ws.settings);
+        ws.wants_export = Some(d);
+        self.run_export();
     }
 
     /// Quick Export to Favorite Formats: the last export's formats, written again into its folder without asking;
@@ -934,6 +944,7 @@ impl ShapeCraftApp {
         match dir {
             Some(dir) if !formats.is_empty() => {
                 let mut d = ExportDialog::new(&ws.session.doc.name, None);
+                svg_from_settings(&mut d, &ws.settings);
                 d.chosen = formats;
                 d.quick = Some(dir);
                 ws.wants_export = Some(d);
@@ -1032,7 +1043,11 @@ impl ShapeCraftApp {
                 if ok { written.push(shown) } else { failed.push(shown) }
             }
         }
-        // Remembered for Quick Export to Favorite Formats.
+        // Remembered for Quick Export to Favorite Formats (and the SVG settings for the next SVG export).
+        if d.chosen.contains(&Format::Svg) {
+            let (dpi, res) = d.svg_numbers();
+            (ws.settings.svg_join, ws.settings.svg_dpi, ws.settings.svg_resolution) = (d.svg_join, dpi, res);
+        }
         if !written.is_empty() {
             ws.settings.favorite_formats = d.chosen.iter().map(|f| f.label().to_string()).collect();
             ws.settings.last_export_dir = Some(dir.to_string_lossy().into_owned());
@@ -1885,6 +1900,7 @@ impl ShapeCraftApp {
             AppAction::Import => self.import_dialog(),
             AppAction::ImportProject => self.import_project_sheet(),
             AppAction::Export => self.export_dialog(None),
+            AppAction::ExportAs(crate::workspace::export::Format::Svg) => self.export_svg_now(),
             AppAction::ExportAs(f) => self.export_dialog(Some(f)),
             AppAction::QuickExport => self.quick_export(),
             AppAction::Quit => {
@@ -2335,4 +2351,12 @@ fn open_page(url: &str) {
         "xdg-open"
     };
     let _ = std::process::Command::new(opener).arg(url).spawn();
+}
+
+/// The Export dialog's SVG settings from the last SVG export.
+fn svg_from_settings(d: &mut ExportDialog, s: &crate::settings::Settings) {
+    d.svg_join = s.svg_join;
+    let n = |v: f64| if v.fract() == 0.0 { format!("{v:.0}") } else { v.to_string() };
+    d.svg_dpi = n(s.svg_dpi);
+    d.svg_res = n(s.svg_resolution);
 }

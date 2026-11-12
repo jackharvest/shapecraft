@@ -54,6 +54,13 @@ fn mesh_and_iges_exports_round_trip() {
     let f = shapecraft_dwg::inspect(&std::fs::read(dir.join("plate.dwg")).unwrap()).unwrap();
     let drawn = f.entities().filter(|o| !matches!(o.kind.as_str(), "BLOCK" | "ENDBLK")).count();
     assert_eq!(drawn, 5);
+    // And as an SVG of every visible sketch, which reads back in at the same size (96 px per inch).
+    let svg = s.execute("export_sketch", &json!({"path": path("plate.svg"), "join": false})).unwrap().value;
+    assert!(svg["sketches"].as_u64().unwrap() >= 1);
+    let back = crate::formats::read_svg(&std::fs::read_to_string(dir.join("plate.svg")).unwrap()).unwrap();
+    assert!(!back.is_empty());
+    assert!(s.execute("export_sketch", &json!({"path": path("bad.svg"), "resolution": 101})).is_err());
+    assert!(s.execute("export_sketch", &json!({"path": path("bad.svg"), "dpi": 0})).is_err());
     // Options: ASCII STL in inches, low resolution, hidden bodies.
     s.execute("export_stl", &json!({"path": path("a.stl"), "ascii": true, "units": "in", "resolution": "low", "hidden": true})).unwrap();
     let text = std::fs::read_to_string(dir.join("a.stl")).unwrap();

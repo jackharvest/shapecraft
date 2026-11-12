@@ -57,7 +57,7 @@ const FORMATS: &[(Format, &str, &str, &str, &str)] = &[
     (Format::Usdz, "USDZ", "USDZ", "Universal Scene Description", "Meshes with their materials for AR Quick Look and USD viewers."),
     (Format::DwgSketch, "DWG from Sketch", "DWG", "DWG from Sketch", "A sketch's curves, flat in its plane, as an AutoCAD drawing."),
     (Format::DwgDrawing, "DWG from Drawing", "DWG", "DWG from Drawing", "The drawing sheet's views and annotations as an AutoCAD drawing."),
-    (Format::Svg, "SVG", "SVG", "SVG from Drawing", "The drawing sheet as a vector image."),
+    (Format::Svg, "SVG", "SVG", "Scalable Vector Graphics", "Sketches as a vector image for laser cutters, CNC and drawing apps."),
     (Format::Pdf, "PDF", "PDF", "PDF from Drawing", "The drawing sheet, ready to print."),
     (Format::Image, "Image", "PNG", "Image", "The current view as a PNG picture."),
 ];
@@ -86,7 +86,7 @@ impl Format {
             Format::Stl => ("stl", Some("export_stl")),
             Format::Glb => ("glb", Some("export_glb")),
             Format::Obj => ("obj", Some("export_obj")),
-            Format::Svg => ("svg", Some("export_drawing")),
+            Format::Svg => ("svg", Some("export_sketch")),
             Format::Pdf => ("pdf", Some("export_drawing")),
             Format::Image => ("png", None),
         }
@@ -144,6 +144,10 @@ pub struct ExportDialog {
     pub step_ap: usize,
     /// The slicer the Slicer row opens (a name from `slicers::choices`).
     pub slicer: String,
+    /// SVG: join connected curves into polylines; pixels per inch and curve resolution as typed.
+    pub svg_join: bool,
+    pub svg_dpi: String,
+    pub svg_res: String,
     /// Quick Export: straight into this folder, no save dialog.
     pub quick: Option<std::path::PathBuf>,
     /// An "Open in …" row was clicked: export now, into that slicer.
@@ -170,6 +174,9 @@ impl ExportDialog {
             stl_units: 0,
             step_ap: 0,
             slicer: super::slicers::pick(""),
+            svg_join: true,
+            svg_dpi: "96".into(),
+            svg_res: "100".into(),
             quick: None,
             go: false,
             scroll: 0.0,
@@ -184,6 +191,18 @@ impl ExportDialog {
         n.replace(['/', '\\', ':'], "-")
     }
 
+    /// The SVG pixels per inch (1–10000, else 96) and resolution (clamped to 0–100, else 100) as typed.
+    pub fn svg_numbers(&self) -> (f64, f64) {
+        let dpi = self.svg_dpi.trim().parse::<f64>().ok().filter(|v| v.is_finite() && *v > 0.0 && *v <= 10_000.0).unwrap_or(96.0);
+        let res = self.svg_res.trim().parse::<f64>().ok().filter(|v| v.is_finite()).map_or(100.0, |v| v.clamp(0.0, 100.0));
+        (dpi, res)
+    }
+
+    /// "Save Each 1st-Level Item Separately" applies (an SVG alone has only Include Hidden Items).
+    pub fn shows_separately(&self) -> bool {
+        self.chosen.iter().any(|f| *f != Format::Svg)
+    }
+
     /// The engine parameters every chosen format shares (the path and items are added per file).
     pub fn params(&self, f: Format) -> serde_json::Value {
         let mut p = serde_json::json!({ "hidden": self.hidden });
@@ -193,6 +212,12 @@ impl ExportDialog {
         }
         if f == Format::Step {
             p["protocol"] = serde_json::json!(STEP_APS[self.step_ap.min(STEP_APS.len() - 1)]);
+        }
+        if f == Format::Svg {
+            let (dpi, res) = self.svg_numbers();
+            p["join"] = serde_json::json!(self.svg_join);
+            p["dpi"] = serde_json::json!(dpi);
+            p["resolution"] = serde_json::json!(res);
         }
         if f == Format::Stl {
             p["ascii"] = serde_json::json!(self.stl_ascii);
@@ -344,6 +369,44 @@ fn settings(d: &mut ExportDialog, ui: &mut Ui, p: &egui::Painter, f: Format, k: 
                 label(p, r.left() + 10.0, r.center().y, text, sub);
                 switch(ui, p, r.right() - 10.0, r.center().y, ("exp-colors", k), &mut d.colors);
             }
+        }
+    }
+    if f == Format::Svg {
+        let r = row(&mut y, CARD_H);
+        if paint {
+            card(p, r);
+            label(p, r.left() + 10.0, r.center().y, "Join Segments", Some("Connected curves are written as one polyline"));
+            switch(ui, p, r.right() - 10.0, r.center().y, ("exp-svg-join", k), &mut d.svg_join);
+        }
+        // Pixels per inch and resolution: one card, two rows with typed numbers.
+        let r = row(&mut y, 100.0);
+        if paint {
+            card(p, r);
+            let rows = [
+                ("DPI", "Pixels per inch; other apps may assume another value", 0),
+                ("Resolution", "From 0 (coarsest curves) to 100 (smoothest)", 1),
+            ];
+            for (text, sub, i) in rows {
+                let cy = r.top() + 25.0 + 50.0 * i as f32;
+                label(p, r.left() + 10.0, cy, text, Some(sub));
+                let field = Rect::from_min_max(pos2(r.right() - 136.0, cy - 9.0), pos2(r.right() - 10.0, cy + 9.0));
+                p.rect_filled(field, radius(4), theme::c(0x2a2a2c));
+                p.rect_stroke(field, radius(4), Stroke::new(1.0, theme::c(0x3a3a3c)), StrokeKind::Inside);
+                let text = if i == 0 { &mut d.svg_dpi } else { &mut d.svg_res };
+                let _ = ui.put(
+                    field.shrink2(vec2(6.0, 1.0)),
+                    egui::TextEdit::singleline(text)
+                        .id(ui.scope_id().with(("exp-svg-num", k, i)))
+                        .char_limit(8)
+                        .frame(egui::Frame::NONE)
+                        .font(theme::body(13.0))
+                        .text_color(Tokens::text_strong()),
+                );
+            }
+            p.line_segment(
+                [pos2(r.left() + 10.0, r.center().y), pos2(r.right() - 10.0, r.center().y)],
+                Stroke::new(1.0, theme::c(0x2c2c2c)),
+            );
         }
     }
     if f == Format::Step {
@@ -500,7 +563,8 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     // The chosen formats' settings, scrolled with the wheel when they don't fit.
     let right = Rect::from_min_max(pos2(list.right() + 1.0, r.top()), r.max);
     let (x0, x1) = (right.left() + 18.0, right.right() - 18.0);
-    let footer_top = r.bottom() - 230.0;
+    // An SVG alone has no "Save Each 1st-Level Item Separately" row; the footer sits one row lower.
+    let footer_top = r.bottom() - if d.shows_separately() { 230.0 } else { 230.0 - CARD_H - 2.0 };
     let pane = Rect::from_min_max(right.min, pos2(right.right(), footer_top));
     if d.chosen.is_empty() {
         p.text(
@@ -573,18 +637,22 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
             .font(theme::body(13.0))
             .text_color(Tokens::text_strong()),
     );
-    let toggles = Rect::from_min_size(pos2(x0, name_row.bottom() + 6.0), vec2(x1 - x0, CARD_H * 2.0 + 2.0));
+    let separately = d.shows_separately();
+    let toggles =
+        Rect::from_min_size(pos2(x0, name_row.bottom() + 6.0), vec2(x1 - x0, if separately { CARD_H * 2.0 + 2.0 } else { CARD_H }));
     card(&p, toggles);
     let ya = toggles.top() + CARD_H / 2.0;
     label(&p, toggles.left() + 10.0, ya, "Include Hidden Items", None);
     switch(ui, &p, toggles.right() - 10.0, ya, ("exp-hidden", 0), &mut d.hidden);
-    p.line_segment(
-        [pos2(toggles.left() + 10.0, toggles.top() + CARD_H + 1.0), pos2(toggles.right() - 10.0, toggles.top() + CARD_H + 1.0)],
-        Stroke::new(1.0, theme::c(0x2c2c2c)),
-    );
-    let yb = toggles.top() + CARD_H * 1.5 + 2.0;
-    label(&p, toggles.left() + 10.0, yb, "Save Each 1st-Level Item Separately", Some("Files are named after the items"));
-    switch(ui, &p, toggles.right() - 10.0, yb, ("exp-separate", 0), &mut d.separately);
+    if separately {
+        p.line_segment(
+            [pos2(toggles.left() + 10.0, toggles.top() + CARD_H + 1.0), pos2(toggles.right() - 10.0, toggles.top() + CARD_H + 1.0)],
+            Stroke::new(1.0, theme::c(0x2c2c2c)),
+        );
+        let yb = toggles.top() + CARD_H * 1.5 + 2.0;
+        label(&p, toggles.left() + 10.0, yb, "Save Each 1st-Level Item Separately", Some("Files are named after the items"));
+        switch(ui, &p, toggles.right() - 10.0, yb, ("exp-separate", 0), &mut d.separately);
+    }
     let bar = r.bottom() - 60.0;
     divider(&p, right, bar);
     let by = r.bottom() - 32.0;

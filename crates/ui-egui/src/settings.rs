@@ -74,6 +74,10 @@ pub struct Settings {
     pub tool_variants: std::collections::BTreeMap<String, usize>,
     /// Export ▸ Slicer: the slicer last opened (its name).
     pub slicer: String,
+    /// Export ▸ SVG: join connected curves into polylines, pixels per inch, curve resolution (0–100).
+    pub svg_join: bool,
+    pub svg_dpi: f64,
+    pub svg_resolution: f64,
     /// The in-app tutorials finished (their ids), ticked on their cards.
     pub tutorials_done: Vec<String>,
     /// Preferences ▸ ShapeCraft ▸ Updates: look for a new version at start and once a day, download it in the
@@ -152,6 +156,9 @@ impl Default for Settings {
             nav_asked: false,
             last_export_dir: None,
             slicer: String::new(),
+            svg_join: true,
+            svg_dpi: 96.0,
+            svg_resolution: 100.0,
             tool_variants: Default::default(),
             custom_keys: Vec::new(),
             tutorials_done: Vec::new(),
