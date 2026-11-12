@@ -250,9 +250,17 @@ impl Workspace {
                         Handle::Ring(_) => format!("{}°", t.value),
                         _ => format_length(t.value, units),
                     });
-                    let r = axis_pill(&painter, tip + dir * 30.0, dir, &text, true);
+                    // Typing (or a click on the handle, #18) swaps the capsule for the value field; Copy goes on
+                    // past the field.
+                    let step = match typed {
+                        None => {
+                            let r = axis_pill(&painter, tip + dir * 30.0, dir, &text, true);
+                            r.width().max(r.height()) / 2.0 + 26.0
+                        }
+                        // The field is a wide, low box: how far along the axis until its edge, plus a gap.
+                        Some(_) => (124.0 / dir.x.abs().max(1e-3)).min(26.0 / dir.y.abs().max(1e-3)) + 18.0,
+                    };
                     if !t.items.is_empty() {
-                        let step = r.width().max(r.height()) / 2.0 + 26.0;
                         let pr = axis_pill(&painter, tip + dir * (30.0 + step), dir, "Copy", t.copy);
                         ui.ctx().data_mut(|d| d.insert_temp(ui.scope_id().with("move-copy-pill"), pr));
                         // The Link badge rides along the arrow after Copy (s29-023).
@@ -260,6 +268,9 @@ impl Workspace {
                             let lr = link_pill(&painter, tip + dir * (30.0 + step + pr.width().max(pr.height()) / 2.0 + 14.0), !t.unlinked);
                             ui.ctx().data_mut(|d| d.insert_temp(ui.scope_id().with("move-link-pill"), lr));
                         }
+                    }
+                    if let Some(typed) = typed {
+                        value_field(&painter, tip + dir * 30.0 - vec2(13.0, 0.0), typed);
                     }
                 } else if !t.items.is_empty() {
                     let at = c + vec2(0.0, 64.0);

@@ -1247,6 +1247,23 @@ impl Tool {
         )
     }
 
+    /// The same drawing tool with its unfinished shape dropped (a line's next segment, a rectangle's first
+    /// corner, a spline's points…): what Cancel does on a touch screen, keeping the tool armed (#14). Segments a
+    /// line chain already made stay. None when nothing is pending.
+    pub fn without_pending(&self) -> Option<Tool> {
+        Some(match self {
+            Tool::Line { first, last } if first.is_some() || last.is_some() => Tool::Line { first: None, last: None },
+            Tool::Rectangle { first: Some(_) } => Tool::Rectangle { first: None },
+            Tool::Circle { center: Some(_) } => Tool::Circle { center: None },
+            Tool::Polygon { center: Some(_) } => Tool::Polygon { center: None },
+            Tool::Arc { a, b } if a.is_some() || b.is_some() => Tool::Arc { a: None, b: None },
+            Tool::Ellipse { center, major } if center.is_some() || major.is_some() => Tool::Ellipse { center: None, major: None },
+            Tool::Rect3 { a, b } if a.is_some() || b.is_some() => Tool::Rect3 { a: None, b: None },
+            Tool::Spline { points, control } if !points.is_empty() => Tool::Spline { points: Vec::new(), control: *control },
+            _ => return None,
+        })
+    }
+
     pub fn takes_numbers(&self) -> bool {
         match self {
             Tool::Line { last, .. } => last.is_some(),

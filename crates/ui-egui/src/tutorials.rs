@@ -63,6 +63,26 @@ pub enum Tool {
     Visualization,
 }
 
+/// An instruction or tip in the words for a touch screen with no keyboard (#15): taps instead of clicks, the
+/// pen to pick, one finger to turn the view, and the value pill's keypad instead of typing and Return.
+pub fn for_touch(text: &str) -> String {
+    match text {
+        "Rotate the camera" => return "Rotate the camera with one finger".into(),
+        "Drag the view cube, or drag with two fingers on a trackpad" => return "Drag with one finger, or drag the view cube".into(),
+        "Hover over the top face and press the Space bar" => return "Tap the top face with the pen, then select Sketch".into(),
+        "Typing a number sets the size exactly" => return "Tap the value to enter a size exactly".into(),
+        _ => {}
+    }
+    // "… type 95 and press Return": the value pill opens a keypad.
+    let mut out = text.to_string();
+    if let (Some(a), Some(b)) = (out.to_lowercase().find("type "), out.find(" and press Return")) {
+        let n = out[a + 5..b].to_string();
+        let tap = if a == 0 { "Tap" } else { "tap" };
+        out = format!("{}{tap} the value and enter {n}{}", &out[..a], &out[b + " and press Return".len()..]);
+    }
+    out.replace("double-click", "tap twice on").replace("Double-click", "Tap twice on").replace("Click", "Tap").replace("click", "tap")
+}
+
 pub struct Hint {
     pub text: &'static str,
     /// A green tip by the pointer, as the reference shows them.
@@ -726,5 +746,33 @@ mod tests {
         fill(&mut v, &vars);
         assert_eq!(v["items"][0], 7);
         assert_eq!(v["x"], "$none");
+    }
+}
+
+#[cfg(test)]
+mod touch_words {
+    use super::for_touch;
+
+    #[test]
+    fn hints_on_a_touch_screen_name_no_keys() {
+        assert_eq!(for_touch("Type 95 and press Return"), "Tap the value and enter 95");
+        assert_eq!(for_touch("Or type -4 and press Return"), "Or tap the value and enter -4");
+        assert_eq!(for_touch("Select Shell, then type 3 and press Return"), "Select Shell, then tap the value and enter 3");
+        assert_eq!(for_touch("Hover over the top face and press the Space bar"), "Tap the top face with the pen, then select Sketch");
+        assert_eq!(for_touch("To select the whole body, double-click it"), "To select the whole body, tap twice on it");
+        assert_eq!(for_touch("Click one corner, then the opposite one"), "Tap one corner, then the opposite one");
+        assert_eq!(for_touch("Select Sketch"), "Select Sketch");
+        for lesson in super::LESSONS {
+            for step in lesson.steps {
+                for h in step.hints {
+                    for t in std::iter::once(h.text).chain(h.tip) {
+                        let w = for_touch(t);
+                        for k in ["Return", "Space", "trackpad", "lick", "Hover", "keyboard"] {
+                            assert!(!w.contains(k), "{} still says {k}: {w}", lesson.id);
+                        }
+                    }
+                }
+            }
+        }
     }
 }

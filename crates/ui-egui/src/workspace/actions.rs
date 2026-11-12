@@ -26,6 +26,12 @@ impl Workspace {
                 // A command from the column ends a tool the pick only predicted, and what it leaves picked (a new
                 // plane, say) predicts afresh: the old face's Offset Face arrow mustn't stay up.
                 let before = self.session.selection.clone();
+                // The on-screen Undo / Redo (touch screens) end the running tool first, as ⌘Z does: a live
+                // result mustn't stay drawn over the step taken back.
+                if matches!(id, "undo" | "redo") {
+                    self.tool = Tool::Idle;
+                    self.numeric = None;
+                }
                 let _ = self.run(id, json!({}));
                 if self.predicted && self.session.selection != before {
                     self.repredict();

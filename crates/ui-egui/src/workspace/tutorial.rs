@@ -32,6 +32,8 @@ pub struct TutorialRun {
     seen_revision: u64,
     base_back: glam::DVec3,
     turned: f64,
+    /// How deep the undo history was when the step began: Undo never goes back into the lesson's own setup.
+    floor: usize,
     /// When the current instruction came up (a tip shows by the pointer after a while).
     hint_since: f64,
     /// The step's caption shows large until then (and grows back from the corner when clicked).
@@ -57,6 +59,7 @@ impl TutorialRun {
             seen_revision: u64::MAX,
             base_back: glam::DVec3::Z,
             turned: 0.0,
+            floor: 0,
             hint_since: 0.0,
             intro_until: None,
             started: false,
@@ -129,12 +132,14 @@ impl Workspace {
         let revision = self.session.revision;
         let back = self.camera.back();
         let now = self.now;
+        let depth = self.session.undo_depth();
         let fresh = self.tutorial.as_deref().is_some_and(|t| t.seen_revision != revision);
         let snap = fresh.then(|| tutorials::snapshot(&self.session));
         let Some(t) = self.tutorial.as_deref_mut() else { return };
         if !t.started {
             t.started = true;
             t.base_back = back;
+            t.floor = depth;
             t.hint_since = now;
             t.intro_until = Some(now + INTRO_S);
         }
@@ -197,13 +202,17 @@ impl Workspace {
         p.galley(pos2(pill.left() + 10.0, c.y - galley.size().y / 2.0), galley, Tokens::text_strong());
 
         // Top centre: what to do now.
+        // On a touch screen with no keyboard the words name taps, the pen and the value's keypad (#15).
+        let touch = crate::tablet::touch_ui() && !crate::tablet::shows_shortcuts();
+        let words = |w: &str| if touch { tutorials::for_touch(w) } else { w.to_string() };
         let text = match hint {
-            Some(h) => h.text,
-            None if t.step + 1 == steps => "All done. Select Continue to finish",
-            None => "Nicely done. Select Continue",
+            Some(h) => words(h.text),
+            None if t.step + 1 == steps => "All done. Select Continue to finish".into(),
+            None => "Nicely done. Select Continue".into(),
         };
-        let galley = p.layout_no_wrap(text.to_string(), theme::body(12.0), Tokens::text_strong());
-        let pill = Rect::from_center_size(pos2(vp.center().x, vp.top() + 16.0), vec2(galley.size().x + 22.0, 22.0));
+        let galley = p.layout_no_wrap(text, theme::body(12.0), Tokens::text_strong());
+        // Under the project's title pill where it has one (touch screens), not hidden behind it (#15).
+        let pill = Rect::from_center_size(pos2(vp.center().x, self.banner_y() + 8.0), vec2(galley.size().x + 22.0, 22.0));
         // White in Light, as observed; a dark pill in Dark.
         p.rect_filled(pill.translate(vec2(0.0, 1.0)), radius(11), Color32::from_black_alpha(22));
         p.rect_filled(pill, radius(11), if theme::is_light() { Color32::WHITE } else { theme::hex(0x2b2a2a) });
@@ -211,11 +220,22 @@ impl Workspace {
 
         // Left: the step's tools and Retry, or Continue and Redo once it's done; centred like the reference's.
         let sketching = self.session.active_sketch.is_some() || matches!(self.tool, Tool::PickPlane { .. });
-        let tools: Vec<ToolDef> =
+        let mut tools: Vec<ToolDef> =
             if done { Vec::new() } else { (if sketching { step.sketch_tools } else { step.tools }).iter().map(|k| def(*k)).collect() };
+        // With no Space bar, a sketch on a face starts from Sketch with the face picked (#15).
+        if crate::tablet::touch_ui()
+            && !sketching
+            && hint.is_some_and(|h| h.goal == tutorials::Goal::SketchOnFace)
+            && !tools.iter().any(|d| d.label == "Sketch")
+        {
+            tools.push(def(tutorials::Tool::Sketch));
+        }
+        // On a touch screen the workspace's Undo / Redo come along (the toolbar holding them is hidden) (#16).
+        let undo = crate::tablet::touch_ui();
         let gap = toolbar::GROUP_GAP;
         let h_tools = if tools.is_empty() { 0.0 } else { toolbar::group_height(tools.len()) + gap };
-        let h_end = if done { 2.0 * toolbar::group_height(1) + gap } else { toolbar::group_height(1) };
+        let h_end = if done { 2.0 * toolbar::group_height(1) + gap } else { toolbar::group_height(1) }
+            + if undo { toolbar::group_height(2) + gap } else { 0.0 };
         let mut y = (vp.center().y - (h_tools + h_end) / 2.0).max(ring.bottom() + 20.0);
         let mut clicked: Option<ToolDef> = None;
         let mut request = None;
@@ -236,20 +256,34 @@ impl Workspace {
             p.rect_filled(cell.shrink(4.0), radius(8), theme::hex(0x34c759).gamma_multiply(0.22));
             icons::paint(&p, Rect::from_center_size(cell.center(), vec2(18.0, 18.0)), Icon::ChevronRight, theme::hex(0x2a9d48));
             y += toolbar::group_height(1) + gap;
-            if toolbar::group(ui, pos2(x, y), &[plain(Icon::Retry, "Redo")], &[false], true, "tut-redo").is_some() {
+            if toolbar::group(ui, pos2(x, y), &[plain(Icon::Retry, if undo { "Retry" } else { "Redo" })], &[false], true, "tut-redo")
+                .is_some()
+            {
                 request = Some(Request::Retry);
             }
-        } else if toolbar::group(ui, pos2(x, y), &[plain(Icon::Retry, "Retry")], &[false], true, "tut-retry").is_some() {
-            request = Some(Request::Retry);
+            y += toolbar::group_height(1) + gap;
+        } else {
+            if toolbar::group(ui, pos2(x, y), &[plain(Icon::Retry, "Retry")], &[false], true, "tut-retry").is_some() {
+                request = Some(Request::Retry);
+            }
+            y += toolbar::group_height(1) + gap;
+        }
+        let mut undone = false;
+        if undo && let Some(i) = toolbar::group(ui, pos2(x, y), &[toolbar::UNDO, toolbar::REDO], &[false, false], true, "tut-undo") {
+            // Undo stops where the step began (Retry starts the step over).
+            if i == 1 || self.session.undo_depth() > t.floor {
+                clicked = [toolbar::UNDO, toolbar::REDO].get(i).copied();
+                undone = true;
+            }
         }
 
         // A tip by the pointer when an instruction has waited a while.
         if let (Some(h), Some(cursor)) = (hint, self.cursor)
-            && let Some(tip) = h.tip
+            && let Some(tip) = h.tip.map(words)
             && now - t.hint_since > 6.0
             && vp.contains(cursor)
         {
-            let galley = p.layout(tip.to_string(), theme::strong(11.5), Color32::WHITE, 220.0);
+            let galley = p.layout(tip, theme::strong(11.5), Color32::WHITE, 220.0);
             let r = Rect::from_min_size(cursor + vec2(18.0, 18.0), galley.size() + vec2(20.0, 14.0));
             p.rect_filled(r, radius(8), theme::hex(0x34a853));
             p.galley(r.min + vec2(10.0, 7.0), galley, Color32::WHITE);
@@ -338,6 +372,12 @@ impl Workspace {
         }
         let Some(t) = self.tutorial.as_deref_mut() else { return };
         t.quit_ask = quit_ask;
+        // After an undo or redo the step's instructions are checked again from the first (#16): an undone result
+        // takes Continue away, and what still stands moves straight back to where it was.
+        if undone {
+            t.hint = 0;
+            t.seen_revision = u64::MAX;
+        }
         if skip_intro {
             t.intro_until = Some(now - 0.0001);
         } else if replay {

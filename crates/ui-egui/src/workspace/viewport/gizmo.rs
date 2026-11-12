@@ -80,6 +80,121 @@ impl Workspace {
         best.map(|(_, h)| h)
     }
 
+    /// Makes `h` the Move gizmo's working handle. The same handle carries on with the live step (true); another
+    /// one settles it and starts a new step from here.
+    fn take_move_handle(&mut self, h: Handle) -> bool {
+        let live = self.is_live();
+        let mut settled = false;
+        let mut carried = false;
+        if let Tool::Move(t) = &mut self.tool {
+            carried = t.handle == h && live;
+            if !carried {
+                if live {
+                    t.settle();
+                    settled = true;
+                } else {
+                    t.value = 0.0;
+                    t.planar = DVec3::ZERO;
+                }
+            }
+            t.handle = h;
+            t.planar_start = t.planar;
+        }
+        if settled {
+            self.live_step = None;
+            // Copies are selected after a copying move; the next step moves those.
+            let copies: Vec<_> = self.session.selection.iter().filter_map(Pick::body).collect();
+            if let Tool::Move(t) = &mut self.tool
+                && t.copy
+                && !copies.is_empty()
+            {
+                t.items = copies;
+            }
+            // Moved faces or a moved edge carry on under the numbers they have now (the step re-picked them).
+            let sel = self.session.selection.clone();
+            if let Tool::Move(t) = &mut self.tool {
+                settle_picks(t, &sel);
+            }
+        }
+        carried
+    }
+
+    /// A plain click on a running tool's handle (a gizmo arrow, plane tab or rotation handle, or a tool's single
+    /// arrow) makes that handle the one typed numbers go to and opens the value box (#18).
+    /// It never reaches what lies behind the handle: the selection stays. Returns whether the click was taken.
+    pub(super) fn handle_click(&mut self, ui: &Ui, c: Pos2) -> bool {
+        // The value box starts from the handle's own pill when the live step carries on, else from nothing.
+        let pill = |ui: &Ui| super::paint::value_pills(ui.ctx()).first().and_then(|(_, text)| super::paint::pill_number(text));
+        let open = match &self.tool {
+            Tool::Move(t) => {
+                let shown = t.shown_pivot();
+                let center = self.to_screen(shown).is_some_and(|s| (s - c).length() < 9.0);
+                match self.gizmo_hit(shown, t.frame, c) {
+                    Some(h) => {
+                        let carried = self.take_move_handle(h);
+                        Some(if carried { pill(ui) } else { None }.unwrap_or_else(|| "0".into()))
+                    }
+                    // The center dot only drags (it moves the gizmo); a click there does nothing.
+                    None if center => return true,
+                    None => return false,
+                }
+            }
+            Tool::Scale(t) => {
+                let Some(h) = self.scale_hit(t, c) else { return false };
+                let live = self.is_live();
+                if let Tool::Scale(t) = &mut self.tool
+                    && (t.handle != h || !live)
+                {
+                    if live {
+                        self.live_step = None;
+                    }
+                    t.factor = 1.0;
+                    t.handle = h;
+                    Some("1".into())
+                } else {
+                    Some(pill(ui).unwrap_or_else(|| "1".into()))
+                }
+            }
+            Tool::Pattern(t) => {
+                let Some(Handle::Arrow(a)) = self.gizmo_hit(t.pivot, t.frame, c) else { return false };
+                if let Tool::Pattern(t) = &mut self.tool
+                    && t.axis != a
+                {
+                    t.spacing = 0.0;
+                    t.axis = a;
+                }
+                // Its Spacing and Quantity pills open their own fields (#6); the click only picks the axis.
+                return true;
+            }
+            Tool::RotateAxis(t) => {
+                let near =
+                    t.axis.is_some() && t.handle_at(t.angle).and_then(|h| self.to_screen(h)).is_some_and(|h| (c - h).length() < 14.0);
+                if !near {
+                    return false;
+                }
+                None
+            }
+            _ => {
+                if !self.single_arrow_hit(c) {
+                    return false;
+                }
+                None
+            }
+        };
+        // Another gizmo handle starts its box afresh; a tool's only arrow opens its pill as a pill click would.
+        let text = match open {
+            Some(n) => Some(n),
+            None if self.numeric.is_none() => pill(ui),
+            None => None,
+        };
+        if let Some(n) = text {
+            self.numeric = Some(n);
+            self.numeric_fresh = true;
+        }
+        self.numpad_at = Some(c);
+        true
+    }
+
     pub(super) fn move_drags(&mut self, ui: &Ui, resp: &egui::Response) {
         let Tool::Move(t) = &self.tool else { return };
         let pointer = ui.input(|i| i.pointer.interact_pos());
@@ -92,37 +207,9 @@ impl Workspace {
             && let Some(p) = pointer
             && let Some(h) = self.gizmo_hit(shown, frame, p)
         {
-            let mut settled = false;
+            self.take_move_handle(h);
             if let Tool::Move(t) = &mut self.tool {
-                // The same handle carries on with the live step; another one starts a new step from here.
-                if t.handle != h || !live {
-                    if live {
-                        t.settle();
-                        settled = true;
-                    } else {
-                        t.value = 0.0;
-                        t.planar = DVec3::ZERO;
-                    }
-                }
-                t.handle = h;
-                t.planar_start = t.planar;
                 t.dragging = Some((h, p, t.value));
-            }
-            if settled {
-                self.live_step = None;
-                // Copies are selected after a copying move; the next step moves those.
-                let copies: Vec<_> = self.session.selection.iter().filter_map(Pick::body).collect();
-                if let Tool::Move(t) = &mut self.tool
-                    && t.copy
-                    && !copies.is_empty()
-                {
-                    t.items = copies;
-                }
-                // Moved faces or a moved edge carry on under the numbers they have now (the step re-picked them).
-                let sel = self.session.selection.clone();
-                if let Tool::Move(t) = &mut self.tool {
-                    settle_picks(t, &sel);
-                }
             }
             self.numeric = None;
         }

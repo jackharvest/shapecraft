@@ -112,6 +112,8 @@ pub struct Settings {
     pub backup_after_change: bool,
     /// The first-run setup (look, Work Folder, backups) was answered.
     pub setup_done: bool,
+    /// Preferences ▸ Tablet: a quick round pen stroke with Line draws a circle.
+    pub pen_circles: bool,
 }
 
 impl Default for Settings {
@@ -174,6 +176,7 @@ impl Default for Settings {
             backup_versions: 10,
             backup_after_change: false,
             setup_done: false,
+            pen_circles: true,
             import_mode: "Quality".into(),
             import_custom: [true; 4],
             import_skip_prefs: false,

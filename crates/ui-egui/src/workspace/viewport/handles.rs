@@ -263,30 +263,23 @@ impl Workspace {
         }
         let Some((base, dir, value, per_mm)) = self.arrow_handle() else { return };
         let Some((s0, sdir, px_per_mm)) = self.handle_frame(base, dir) else { return };
-        if pressed && let Some(p) = pointer {
-            // The fillet's ↔ sits just outside its point (it points into the part); the others reach forward.
-            let (from, tip) = match self.tool {
-                Tool::Fillet(_) => (s0 - sdir * 40.0, s0),
-                // Revolve's ↕ sits on the profile, centred on it.
-                Tool::Revolve(_) => (s0 - sdir * 16.0, s0 + sdir * 16.0),
-                _ => (s0, s0 + sdir * 46.0),
-            };
-            let (d, _) = seg_dist(to_d(p), to_d(from), to_d(tip));
-            if d < 14.0 {
-                self.numeric = None;
-                match &mut self.tool {
-                    Tool::Extrude(t) => t.dragging = Some((p, value)),
-                    Tool::Fillet(t) => t.dragging = Some((p, value)),
-                    Tool::Shell(t) => t.dragging = Some((p, value)),
-                    Tool::OffsetFace(t) => t.dragging = Some((p, value)),
-                    Tool::OffsetEdge(t) => t.dragging = Some((p, value)),
-                    Tool::OffsetPlane(t) => t.dragging = Some((p, value)),
-                    Tool::Revolve(t) => {
-                        t.dragging = Some((p, value));
-                        t.height_typed = false;
-                    }
-                    _ => {}
+        if pressed
+            && let Some(p) = pointer
+            && self.single_arrow_hit(p)
+        {
+            self.numeric = None;
+            match &mut self.tool {
+                Tool::Extrude(t) => t.dragging = Some((p, value)),
+                Tool::Fillet(t) => t.dragging = Some((p, value)),
+                Tool::Shell(t) => t.dragging = Some((p, value)),
+                Tool::OffsetFace(t) => t.dragging = Some((p, value)),
+                Tool::OffsetEdge(t) => t.dragging = Some((p, value)),
+                Tool::OffsetPlane(t) => t.dragging = Some((p, value)),
+                Tool::Revolve(t) => {
+                    t.dragging = Some((p, value));
+                    t.height_typed = false;
                 }
+                _ => {}
             }
         }
         let start = match &self.tool {
@@ -503,6 +496,20 @@ impl Workspace {
             t.drafting = None;
         }
         true
+    }
+
+    /// Whether `p` is on the running tool's single arrow (Extrude, Chamfer/Fillet, Shell, the offsets, Revolve).
+    pub(super) fn single_arrow_hit(&self, p: Pos2) -> bool {
+        let Some((base, dir, ..)) = self.arrow_handle() else { return false };
+        let Some((s0, sdir, _)) = self.handle_frame(base, dir) else { return false };
+        // The fillet's ↔ sits just outside its point (it points into the part); the others reach forward.
+        let (from, tip) = match self.tool {
+            Tool::Fillet(_) => (s0 - sdir * 40.0, s0),
+            // Revolve's ↕ sits on the profile, centred on it.
+            Tool::Revolve(_) => (s0 - sdir * 16.0, s0 + sdir * 16.0),
+            _ => (s0, s0 + sdir * 46.0),
+        };
+        seg_dist(to_d(p), to_d(from), to_d(tip)).0 < 14.0
     }
 
     /// The running tool's arrow: where it sits, which way it points, its value, and how much one mm of drag adds.

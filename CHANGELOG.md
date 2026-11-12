@@ -2,6 +2,30 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.7.10-alpha
+**Move arrows take a click, and tablets get easier sketching and tutorials you can finish.**
+### Fixed
+- **Clicking a Move/Rotate arrow picks that arrow** and opens its value box, ready for a distance or angle, instead of
+  selecting whatever was behind it (or clearing the selection). The same goes for Scale and Pattern handles,
+  Rotate Around Axis and the single arrow of Extrude, Offset Face, Chamfer/Fillet and the others. Typing into Move
+  now shows the full value box at the arrow, with Copy moved past it. Thanks
+  [@ryansinclair14](https://github.com/ryansinclair14) (#18).
+- **Tablets: a finger turning the view no longer drags an unfinished line or rectangle along.** It stays where the
+  pen left it. Thanks [@joravarsinghing](https://github.com/joravarsinghing) (#14).
+- **Tablets: Line only turns into a circle for a quick round stroke.** Steering a line to fix its angle or length
+  keeps it a line, and Preferences ▸ Tablet ▸ Pen turns the circle gesture off. Thanks
+  [@joravarsinghing](https://github.com/joravarsinghing) (#14).
+- **Tutorials on tablets can be finished.** The step's instruction shows under the project name instead of hidden
+  behind it, the words talk about taps, the pen and the value keypad instead of keys, and a step that needs a
+  sketch on a face offers Sketch. Thanks [@joravarsinghing](https://github.com/joravarsinghing) (#15).
+### New
+- **Tablets: Cancel for an unfinished shape.** While a line, rectangle, circle or other shape is half drawn, Cancel
+  at the bottom drops it and keeps the tool; lines you finished stay. Thanks
+  [@joravarsinghing](https://github.com/joravarsinghing) (#14).
+- **Tablets: Undo and Redo in tutorials,** under Retry, so a slip takes one step back instead of starting the step
+  over. Undo stops where the step began. Thanks [@joravarsinghing](https://github.com/joravarsinghing) (#16).
+- The on-screen Undo and Redo on tablets end the running tool first, as ⌘Z does.
+
 ## 0.7.9-alpha
 **SVG export now writes your sketches as clean, true-size outlines for laser cutters, CNC and vector apps.**
 ### Changed

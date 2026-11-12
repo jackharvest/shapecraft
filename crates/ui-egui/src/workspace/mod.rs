@@ -311,7 +311,7 @@ pub struct Workspace {
     /// Where a press-drag-release sketch stroke began (screen).
     pub(crate) sketch_drag: Option<Pos2>,
     /// The pencil's path during a drawing drag (touch): a round one turns Line into a circle.
-    pub(crate) pen_stroke: Vec<Pos2>,
+    pub(crate) pen_stroke: viewport::PenStroke,
     /// A selected sketch line's ↕ being dragged: (sketch, line, the elements before, press point).
     /// What the last sketch tool drew (selected afterwards, shown blue rather than orange).
     pub(crate) just_drawn: Vec<Pick>,
@@ -698,7 +698,7 @@ impl Workspace {
             extrude_auto: Default::default(),
             variant_menu: None,
             sketch_drag: None,
-            pen_stroke: Vec::new(),
+            pen_stroke: viewport::PenStroke::default(),
             side_drag: None,
             just_drawn: Vec::new(),
             defined: None,

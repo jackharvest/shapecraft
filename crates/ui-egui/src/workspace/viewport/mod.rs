@@ -37,6 +37,7 @@ use super::Workspace;
 use super::tools::Tool;
 use crate::theme::{self, Tokens, radius};
 
+pub(in crate::workspace) use clicks::PenStroke;
 pub(in crate::workspace) use dimensions::{DimEdit, DimKind, format_degrees};
 pub use gpu::ViewportGpu;
 pub(crate) use gpu::unmix;
@@ -76,7 +77,10 @@ impl Workspace {
         let over_field = self.numeric.is_some()
             && self.cursor.is_some()
             && cursor.is_some_and(|p| paint::field_rect(ui.ctx()).is_some_and(|r| r.contains(p)));
-        if !over_field {
+        // A finger on a touch screen only turns the view: the drawing stays aimed where the pen left it, so an
+        // unfinished line or rectangle doesn't follow the finger (#14).
+        let finger = self.finger_nav && crate::tablet::touch_ui();
+        if !over_field && !finger {
             self.cursor = cursor;
         }
         self.viewport_hot = resp.hovered() || resp.dragged();
@@ -88,7 +92,7 @@ impl Workspace {
                 self.pen_nudged = Some(self.now);
             }
             if resp.double_clicked()
-                && let Some(c) = self.cursor
+                && let Some(c) = cursor
             {
                 self.zoom_to_face(c);
             }
@@ -244,6 +248,18 @@ impl Workspace {
                 Some(_) => self.finish_live(),
                 None => {}
             }
+        }
+        // A touch screen has no Escape key: an unfinished line, rectangle or other shape gets Cancel at the bottom,
+        // which drops just that shape and keeps the tool armed (#14).
+        if crate::tablet::touch_ui()
+            && let Some(fresh) = self.tool.without_pending()
+            && self.bottom_actions(ui, false).is_some()
+        {
+            self.tool = fresh;
+            self.numeric = None;
+            self.line_len = None;
+            self.sketch_drag = None;
+            self.pen_stroke.clear();
         }
         // Project in a sketch: Cancel at the bottom (s24 matrix).
         if matches!(self.tool, Tool::Project) && self.bottom_actions(ui, false).is_some() {

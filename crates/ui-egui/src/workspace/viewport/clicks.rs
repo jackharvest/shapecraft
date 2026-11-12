@@ -268,6 +268,10 @@ impl Workspace {
             }
             return;
         }
+        // A running tool's handle takes a plain click itself: it picks that handle for typing (#18).
+        if self.handle_click(ui, c) {
+            return;
+        }
         // A constraint badge: select it (Delete removes it).
         if let Some((_, sketch, i, _)) = self.constraint_badges().into_iter().find(|b| b.0.contains(c)) {
             self.selected_constraint = Some((sketch, i));
@@ -399,25 +403,21 @@ impl Workspace {
             self.click_at(origin, false);
             self.cursor = now;
             self.sketch_drag = Some(origin);
-            self.pen_stroke = vec![origin];
+            self.pen_stroke = PenStroke::start(origin, self.now);
             return true;
         }
         let Some(origin) = self.sketch_drag else { return false };
-        // The pencil's Line on a touch screen: a stroke that bends round becomes a circle about where it started
-        // (owner on iPad: Line is the default, a round stroke turns into a circle that grows with the pen).
+        // The pencil's Line on a touch screen: a quick stroke that bends round becomes a circle about where it
+        // started, growing with the pen. Preferences ▸ Tablet turns it off.
         if crate::tablet::touch_ui()
             && self.pen_input
             && let Some(at) = ui.input(|i| i.pointer.interact_pos())
+            && self.pen_stroke.push(at, self.now)
+            && self.settings.pen_circles
+            && let Tool::Line { first: Some(center), last: Some(l) } = self.tool
+            && center.distance(l) < 1e-9
         {
-            if self.pen_stroke.last().is_none_or(|l| l.distance(at) >= 4.0) {
-                self.pen_stroke.push(at);
-            }
-            if let Tool::Line { first: Some(center), last: Some(l) } = self.tool
-                && center.distance(l) < 1e-9
-                && stroke_is_round(&self.pen_stroke)
-            {
-                self.tool = Tool::Circle { center: Some(center) };
-            }
+            self.tool = Tool::Circle { center: Some(center) };
         }
         if resp.drag_stopped() {
             self.pen_stroke.clear();
@@ -1111,6 +1111,48 @@ fn moved_side(base: &[SketchEntity], line: u32, by: DVec2) -> Vec<serde_json::Va
         .collect()
 }
 
+/// A pencil stroke being drawn with Line, watched for the round-stroke circle. Only a quick gesture counts: once
+/// the pen rests or the stroke runs long it stays a line, so swinging a line round to fix its angle or pulling it
+/// back to fix its length never turns it into a circle (#14).
+#[derive(Clone, Debug, Default)]
+pub(crate) struct PenStroke {
+    pts: Vec<Pos2>,
+    started: f64,
+    moved: f64,
+    line: bool,
+}
+
+impl PenStroke {
+    /// A round stroke has to be drawn within this long (seconds)…
+    const QUICK: f64 = 1.2;
+    /// …without resting this long on the way.
+    const REST: f64 = 0.3;
+
+    pub(crate) fn start(at: Pos2, now: f64) -> Self {
+        Self { pts: vec![at], started: now, moved: now, line: false }
+    }
+
+    pub(crate) fn clear(&mut self) {
+        *self = Self::default();
+    }
+
+    /// Adds where the pen is now; true while the stroke reads as a circle.
+    pub(crate) fn push(&mut self, at: Pos2, now: f64) -> bool {
+        let Some(last) = self.pts.last() else { return false };
+        let moved = last.distance(at) >= 4.0;
+        // A rest counts once the stroke is under way (the pen may sit still where it went down).
+        let resting = !moved && self.pts.len() >= 3 && now - self.moved >= Self::REST;
+        if resting || now - self.started > Self::QUICK {
+            self.line = true;
+        }
+        if moved {
+            self.pts.push(at);
+            self.moved = now;
+        }
+        !self.line && stroke_is_round(&self.pts)
+    }
+}
+
 /// Whether a pencil stroke (screen points, about 4 pt apart) bends round enough to be a circle, not a line: it turns
 /// through at least 80° in all, and strays from its chord by more than a fifth of the chord's length.
 pub(crate) fn stroke_is_round(pts: &[Pos2]) -> bool {
@@ -1140,7 +1182,7 @@ pub(crate) fn stroke_is_round(pts: &[Pos2]) -> bool {
 
 #[cfg(test)]
 mod stroke_tests {
-    use super::stroke_is_round;
+    use super::{PenStroke, stroke_is_round};
     use egui::{Pos2, pos2};
 
     fn arc(deg: f32, r: f32) -> Vec<Pos2> {
@@ -1158,5 +1200,55 @@ mod stroke_tests {
             [pos2(0.0, 0.0), pos2(20.0, 0.0), pos2(40.0, 0.0), pos2(60.0, 0.0), pos2(60.0, 20.0), pos2(60.0, 40.0), pos2(60.0, 60.0)];
         assert!(stroke_is_round(&corner), "a quick right-angle stroke, as the owner saw");
         assert!(!stroke_is_round(&[pos2(0.0, 0.0), pos2(5.0, 5.0)]));
+    }
+
+    /// Feeds a stroke at one point per `dt` seconds; whether it ever read as a circle.
+    fn feed(pts: &[Pos2], dt: f64, rest_after: Option<(usize, f64)>) -> bool {
+        let mut s = PenStroke::start(pts[0], 0.0);
+        let mut t = 0.0;
+        let mut round = false;
+        for (k, p) in pts.iter().enumerate().skip(1) {
+            t += dt;
+            if let Some((at, len)) = rest_after
+                && k == at
+            {
+                // The pen sits still a while: a few frames at the same spot.
+                for _ in 0..10 {
+                    t += len / 10.0;
+                    round |= s.push(pts[k - 1], t);
+                }
+            }
+            round |= s.push(*p, t);
+        }
+        round
+    }
+
+    #[test]
+    fn only_a_quick_round_stroke_turns_into_a_circle() {
+        // A quick round stroke (a fifth of a second for 300°) is a circle.
+        assert!(feed(&arc(300.0, 60.0), 0.008, None));
+        // Bending only after the stroke has run long is someone steering the line: it stays a line.
+        let mut late: Vec<Pos2> = (0..=40).map(|k| pos2(100.0 + 4.0 * k as f32, 100.0)).collect();
+        late.extend(arc(300.0, 60.0).into_iter().map(|p| p + egui::vec2(100.0, 0.0)));
+        assert!(!feed(&late, 0.04, None));
+        // A line drawn out, a pause, then swung round to fix its angle (#14): still a line.
+        let mut steer: Vec<Pos2> = (0..=20).map(|k| pos2(100.0 + 8.0 * k as f32, 100.0)).collect();
+        steer.extend((1..=12).map(|k| {
+            let a = (k as f32 * 8.0).to_radians();
+            pos2(100.0 + 160.0 * a.cos(), 100.0 + 160.0 * a.sin())
+        }));
+        assert!(!feed(&steer, 0.01, Some((21, 0.5))));
+        // Pulled back to make it shorter, after a pause: still a line.
+        let mut back: Vec<Pos2> = (0..=20).map(|k| pos2(100.0 + 8.0 * k as f32, 100.0)).collect();
+        back.extend((1..=10).map(|k| pos2(260.0 - 8.0 * k as f32, 100.0 + 2.5 * k as f32)));
+        assert!(!feed(&back, 0.01, Some((21, 0.4))));
+        // Resting where the pen went down doesn't count against a circle drawn after.
+        let mut s = PenStroke::start(pos2(160.0, 100.0), 0.0);
+        assert!(!s.push(pos2(160.0, 100.0), 0.5));
+        let mut round = false;
+        for (k, p) in arc(300.0, 60.0).into_iter().enumerate() {
+            round |= s.push(p, 0.5 + 0.008 * k as f64);
+        }
+        assert!(round);
     }
 }

@@ -343,6 +343,11 @@ impl Session {
         !self.undo.is_empty()
     }
 
+    /// How many steps Undo can take back.
+    pub fn undo_depth(&self) -> usize {
+        self.undo.len()
+    }
+
     pub fn can_redo(&self) -> bool {
         !self.redo.is_empty()
     }

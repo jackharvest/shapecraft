@@ -526,6 +526,12 @@ fn tablet_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
     y += 22.0;
     sep(y);
     y += 24.0;
+    // How the pen draws, wherever there is one (a browser on a tablet, an Android tablet).
+    row_label(&p, col, y, "Pen:");
+    check(ui, pos2(col, y), "pref-pen-circles", &mut s.pen_circles, "A quick round stroke with Line draws a circle");
+    y += 22.0;
+    sep(y);
+    y += 24.0;
     if crate::tablet::on_tablet() {
         p.text(
             pos2(r.center().x, y + 10.0),
