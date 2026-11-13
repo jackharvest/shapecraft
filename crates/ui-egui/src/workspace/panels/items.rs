@@ -31,7 +31,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
     let (filter, filter_resp) = if touch {
         // iPad: the filter is the header itself, "All Items ⌃⌄" centred (New Folder at the right, below).
         let (label, _) = ITEM_FILTERS[ws.items_filter.min(ITEM_FILTERS.len() - 1)];
-        let g = p.layout_no_wrap(label.to_string(), theme::strong(17.0), Tokens::text_strong());
+        let g = p.layout_no_wrap(crate::i18n::tr_s(label), theme::strong(17.0), Tokens::text_strong());
         let c = pos2(r.center().x - 8.0, r.top() + 24.0);
         let hit = Rect::from_center_size(c + vec2(8.0, 0.0), vec2(g.size().x + 34.0, 36.0));
         let resp = ui.interact(hit, ui.scope_id().with("items-filter"), Sense::click());
@@ -63,7 +63,13 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             filter_icon,
             Tokens::text_dim(),
         );
-        p.text(pos2(filter.left() + 26.5, filter.center().y), Align2::LEFT_CENTER, filter_label, theme::strong(11.0), theme::c(0xa2a1a1));
+        p.text(
+            pos2(filter.left() + 26.5, filter.center().y),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr_s(filter_label),
+            theme::strong(11.0),
+            theme::c(0xa2a1a1),
+        );
         let chev = pos2(filter.right() - 10.0, filter.center().y);
         icons::paint(&p, Rect::from_center_size(chev - vec2(0.0, 3.0), vec2(8.0, 8.0)), Icon::ChevronUp, Tokens::text_dim());
         icons::paint(&p, Rect::from_center_size(chev + vec2(0.0, 3.0), vec2(8.0, 8.0)), Icon::ChevronDown, Tokens::text_dim());
@@ -112,7 +118,13 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
     {
         let c = pos2(r.center().x, r.center().y - 10.0);
         p.text(c, Align2::CENTER_CENTER, crate::i18n::tr("Workspace is empty"), theme::strong(12.5), Tokens::text_strong());
-        p.text(c + vec2(0.0, 20.0), Align2::CENTER_CENTER, "Start modeling to see your items here", theme::body(11.0), Tokens::text_dim());
+        p.text(
+            c + vec2(0.0, 20.0),
+            Align2::CENTER_CENTER,
+            crate::i18n::tr("Start modeling to see your items here"),
+            theme::body(11.0),
+            Tokens::text_dim(),
+        );
         return;
     }
 
@@ -568,7 +580,7 @@ fn touch_footer(ws: &mut Workspace, ui: &mut Ui, r: Rect, footer_y: f32) {
     let font = theme::body(15.0);
     let mut more_rect = Rect::NOTHING;
     for (i, (label, align, on)) in slots.iter().enumerate() {
-        let w = ui.painter().layout_no_wrap(label.to_string(), font.clone(), blue).size().x + 16.0;
+        let w = ui.painter().layout_no_wrap(crate::i18n::tr_s(label), font.clone(), blue).size().x + 16.0;
         let x = match i {
             0 => r.left() + 4.0,
             1 => r.center().x - w / 2.0,
@@ -582,7 +594,7 @@ fn touch_footer(ws: &mut Workspace, ui: &mut Ui, r: Rect, footer_y: f32) {
             _ => hit.right_center() - vec2(8.0, 0.0),
         };
         let open = i == 2 && ws.items_menu == Some("touch-more");
-        ui.painter().text(at, *align, *label, font.clone(), if *on && !open { blue } else { grey });
+        ui.painter().text(at, *align, crate::i18n::tr_s(*label), font.clone(), if *on && !open { blue } else { grey });
         if i == 2 {
             more_rect = hit;
         }
@@ -636,7 +648,7 @@ fn touch_more_menu(ws: &mut Workspace, ui: &mut Ui, r: Rect, more: Rect) {
                     p.rect_filled(row, radius(10), Tokens::button_hover());
                 }
                 let ink = if on { Tokens::text_strong() } else { Tokens::text_dim() };
-                p.text(row.left_center() + vec2(12.0, 0.0), Align2::LEFT_CENTER, *label, theme::body(15.0), ink);
+                p.text(row.left_center() + vec2(12.0, 0.0), Align2::LEFT_CENTER, crate::i18n::tr_s(*label), theme::body(15.0), ink);
                 if on && resp.clicked() {
                     chosen = Some(*label);
                 }

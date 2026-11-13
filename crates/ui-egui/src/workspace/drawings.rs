@@ -140,7 +140,7 @@ pub(super) fn sheet_view(ws: &mut Workspace, ui: &mut Ui) {
     let d = match made {
         Ok(d) => d.clone(),
         Err(e) => {
-            p.text(rect.center(), Align2::CENTER_CENTER, e, theme::body(13.0), theme::c(0x6b6b70));
+            p.text(rect.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(e), theme::body(13.0), theme::c(0x6b6b70));
             return;
         }
     };
@@ -211,7 +211,7 @@ pub(super) fn right_column(ws: &mut Workspace, ui: &mut Ui) {
 }
 
 fn row_label(p: &egui::Painter, at: Pos2, text: &str) {
-    p.text(at, Align2::LEFT_CENTER, text, theme::body(12.5), Tokens::text());
+    p.text(at, Align2::LEFT_CENTER, crate::i18n::tr_s(text), theme::body(12.5), Tokens::text());
 }
 
 /// A labelled pop-up of choices; true when one was picked.
@@ -244,13 +244,13 @@ pub(super) fn properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     // A sidebar like the others (it takes the pointer, so the sheet under it doesn't).
     super::panels::panel(ui, r, None);
     let p = ui.painter().clone();
-    p.text(pos2(r.center().x, r.top() + 18.0), Align2::CENTER_CENTER, "Properties", theme::body(12.0), Tokens::text_dim());
+    p.text(pos2(r.center().x, r.top() + 18.0), Align2::CENTER_CENTER, crate::i18n::tr("Properties"), theme::body(12.0), Tokens::text_dim());
     let Some(id) = ws.drawings.as_ref().map(|d| d.id) else { return };
     let Some(spec) = ws.session.doc.drawing(id).cloned() else { return };
     let mut y = r.top() + 46.0;
     let left = r.left() + 14.0;
     let right = r.right() - 14.0;
-    p.text(pos2(left, y), Align2::LEFT_CENTER, "Sheet", theme::strong(12.5), Tokens::text_strong());
+    p.text(pos2(left, y), Align2::LEFT_CENTER, crate::i18n::tr("Sheet"), theme::strong(12.5), Tokens::text_strong());
     y += 22.0;
     // Orientation tiles.
     let mut update = serde_json::Map::new();
@@ -264,7 +264,7 @@ pub(super) fn properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
             p.rect_stroke(tile.expand(3.0), radius(5), Stroke::new(2.0, Tokens::accent()), StrokeKind::Inside);
             p.circle_filled(tile.center(), 5.0, Tokens::accent());
         }
-        p.text(pos2(c.x, y + 40.0), Align2::CENTER_CENTER, *label, theme::body(11.5), Tokens::text());
+        p.text(pos2(c.x, y + 40.0), Align2::CENTER_CENTER, crate::i18n::tr_s(*label), theme::body(11.5), Tokens::text());
         if resp.clicked() && !on {
             update.insert("landscape".into(), json!(landscape));
         }
@@ -312,7 +312,7 @@ pub(super) fn properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     y += 34.0;
     p.line_segment([pos2(left, y), pos2(right, y)], Stroke::new(1.0, Tokens::chip_border()));
     y += 18.0;
-    p.text(pos2(left, y), Align2::LEFT_CENTER, "Dimensions", theme::strong(12.5), Tokens::text_strong());
+    p.text(pos2(left, y), Align2::LEFT_CENTER, crate::i18n::tr("Dimensions"), theme::strong(12.5), Tokens::text_strong());
     y += 26.0;
     row_label(&p, pos2(left, y), "Units");
     let units = match ws.session.doc.units.suffix() {
@@ -360,7 +360,7 @@ pub(super) fn properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     y += 34.0;
     p.line_segment([pos2(left, y), pos2(right, y)], Stroke::new(1.0, Tokens::chip_border()));
     y += 18.0;
-    p.text(pos2(left, y), Align2::LEFT_CENTER, "Line Widths", theme::strong(12.5), Tokens::text_strong());
+    p.text(pos2(left, y), Align2::LEFT_CENTER, crate::i18n::tr("Line Widths"), theme::strong(12.5), Tokens::text_strong());
     let pens: Vec<(String, f64)> =
         [0.10, 0.13, 0.15, 0.18, 0.25, 0.35, 0.40, 0.50, 0.70, 1.00].iter().map(|w| (format!("{w:.2} mm").replace('.', sep), *w)).collect();
     let rows: [(&str, &str, &mut f64); 6] = [
@@ -405,7 +405,13 @@ pub(super) fn switcher(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
         let cell = Rect::from_center_size(pos2(r.left() + 18.0, r.center().y), vec2(28.0, 28.0));
         ui.painter().rect_filled(cell, radius(6), theme::c(0x3d3d3f));
         icons::paint(ui.painter(), cell.shrink(4.0), icon, Tokens::icon());
-        ui.painter().text(pos2(r.left() + 42.0, r.center().y), Align2::LEFT_CENTER, label, theme::body(12.5), Tokens::text());
+        ui.painter().text(
+            pos2(r.left() + 42.0, r.center().y),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr_s(label),
+            theme::body(12.5),
+            Tokens::text(),
+        );
         resp.clicked()
     };
     let modeling = ws.drawings.is_none() && !ws.visualizing;
@@ -421,7 +427,7 @@ pub(super) fn switcher(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
         ws.switcher = false;
     }
     y += 48.0;
-    p.text(pos2(panel.left() + 16.0, y), Align2::LEFT_CENTER, "Drawings", theme::strong(10.5), Tokens::text_faint());
+    p.text(pos2(panel.left() + 16.0, y), Align2::LEFT_CENTER, crate::i18n::tr("Drawings"), theme::strong(10.5), Tokens::text_faint());
     y += 14.0;
     let list: Vec<(ItemId, String)> = ws.session.doc.drawings.iter().map(|d| (d.id, d.name.clone())).collect();
     for (id, name) in list {
@@ -449,7 +455,13 @@ pub(crate) fn dialog(ui: &mut Ui, full: Rect, size: egui::Vec2, title: &str) -> 
     p.rect_filled(r.translate(vec2(0.0, 6.0)), radius(12), Color32::from_black_alpha(90));
     p.rect_filled(r, radius(11), theme::c(0x2a2a2c));
     p.rect_stroke(r, radius(11), Stroke::new(1.0, theme::c(0x48484a)), StrokeKind::Inside);
-    p.text(pos2(r.left() + 16.0, r.top() + 20.0), Align2::LEFT_CENTER, title, theme::strong(13.0), Tokens::text_strong());
+    p.text(
+        pos2(r.left() + 16.0, r.top() + 20.0),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr_s(title),
+        theme::strong(13.0),
+        Tokens::text_strong(),
+    );
     r
 }
 
@@ -462,7 +474,7 @@ pub(crate) fn button(ui: &mut Ui, r: Rect, label: &str, primary: bool, id: &str)
         (false, true) => theme::c(0x68686c),
     };
     ui.painter().rect_filled(r, radius(6), fill);
-    ui.painter().text(r.center(), Align2::CENTER_CENTER, label, theme::body(12.5), Color32::WHITE);
+    ui.painter().text(r.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(label), theme::body(12.5), Color32::WHITE);
     resp.clicked()
 }
 
@@ -473,10 +485,10 @@ pub(super) fn prefs_dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     let p = ui.painter().clone();
     let lx = r.left() + 130.0;
     let mut y = r.top() + 58.0;
-    p.text(pos2(lx - 8.0, y), Align2::RIGHT_CENTER, "Name:", theme::body(12.5), Tokens::text());
+    p.text(pos2(lx - 8.0, y), Align2::RIGHT_CENTER, crate::i18n::tr("Name:"), theme::body(12.5), Tokens::text());
     ui.put(Rect::from_min_size(pos2(lx, y - 11.0), vec2(r.right() - lx - 18.0, 22.0)), egui::TextEdit::singleline(&mut prefs.name));
     y += 58.0;
-    p.text(pos2(lx - 8.0, y), Align2::RIGHT_CENTER, "Orientation:", theme::body(12.5), Tokens::text());
+    p.text(pos2(lx - 8.0, y), Align2::RIGHT_CENTER, crate::i18n::tr("Orientation:"), theme::body(12.5), Tokens::text());
     for (k, (label, landscape)) in [("Portrait", false), ("Landscape", true)].iter().enumerate() {
         let c = pos2(lx + 24.0 + k as f32 * 70.0, y - 4.0);
         let tile = Rect::from_center_size(c, if *landscape { vec2(42.0, 30.0) } else { vec2(28.0, 38.0) });
@@ -486,13 +498,13 @@ pub(super) fn prefs_dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
             p.rect_stroke(tile.expand(3.0), radius(5), Stroke::new(2.0, Tokens::accent()), StrokeKind::Inside);
             p.circle_filled(tile.center(), 5.0, Tokens::accent());
         }
-        p.text(pos2(c.x, y + 26.0), Align2::CENTER_CENTER, *label, theme::body(11.5), Tokens::text());
+        p.text(pos2(c.x, y + 26.0), Align2::CENTER_CENTER, crate::i18n::tr_s(*label), theme::body(11.5), Tokens::text());
         if resp.clicked() {
             prefs.landscape = *landscape;
         }
     }
     y += 62.0;
-    p.text(pos2(lx - 8.0, y), Align2::RIGHT_CENTER, "Sheet Size:", theme::body(12.5), Tokens::text());
+    p.text(pos2(lx - 8.0, y), Align2::RIGHT_CENTER, crate::i18n::tr("Sheet Size:"), theme::body(12.5), Tokens::text());
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(Rect::from_min_size(pos2(lx, y - 11.0), vec2(200.0, 22.0))));
     let sheet_label = |i: usize| {
         let name = SHEETS[i.min(SHEETS.len() - 1)];
@@ -505,8 +517,8 @@ pub(super) fn prefs_dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
         }
     });
     y += 40.0;
-    p.text(pos2(lx - 8.0, y - 7.0), Align2::RIGHT_CENTER, "View-to-", theme::body(12.5), Tokens::text());
-    p.text(pos2(lx - 8.0, y + 8.0), Align2::RIGHT_CENTER, "Sheet Scale:", theme::body(12.5), Tokens::text());
+    p.text(pos2(lx - 8.0, y - 7.0), Align2::RIGHT_CENTER, crate::i18n::tr("View-to-"), theme::body(12.5), Tokens::text());
+    p.text(pos2(lx - 8.0, y + 8.0), Align2::RIGHT_CENTER, crate::i18n::tr("Sheet Scale:"), theme::body(12.5), Tokens::text());
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(Rect::from_min_size(pos2(lx, y - 11.0), vec2(120.0, 22.0))));
     let shown = prefs.scale.map_or_else(|| "Auto".to_string(), drawing::scale_label);
     egui::ComboBox::from_id_salt("pref-scale").selected_text(shown).width(100.0).show_ui(&mut child, |ui| {
@@ -518,7 +530,13 @@ pub(super) fn prefs_dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     y += 44.0;
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(Rect::from_min_size(pos2(lx, y - 11.0), vec2(220.0, 22.0))));
     child.checkbox(&mut prefs.four_views, "Include 4 Views");
-    p.text(pos2(lx + 26.0, y + 16.0), Align2::LEFT_CENTER, "Front, Left, Top, Isometric", theme::body(10.5), Tokens::text_dim());
+    p.text(
+        pos2(lx + 26.0, y + 16.0),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr("Front, Left, Top, Isometric"),
+        theme::body(10.5),
+        Tokens::text_dim(),
+    );
     let foot = r.bottom() - 30.0;
     p.rect_filled(
         Rect::from_min_max(pos2(r.left() + 1.0, foot - 22.0), pos2(r.right() - 1.0, r.bottom() - 1.0)),
@@ -578,7 +596,13 @@ pub(super) fn export_dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
         }
         y += 30.0;
     }
-    p.text(pos2(r.left() + 24.0, y + 4.0), Align2::LEFT_CENTER, "Choose one or more formats.", theme::body(11.0), Tokens::text_dim());
+    p.text(
+        pos2(r.left() + 24.0, y + 4.0),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr("Choose one or more formats."),
+        theme::body(11.0),
+        Tokens::text_dim(),
+    );
     let foot = r.bottom() - 26.0;
     if button(ui, Rect::from_center_size(pos2(r.right() - 140.0, foot), vec2(80.0, 24.0)), "Cancel", false, "exp-cancel") {
         ws.export_choice = None;

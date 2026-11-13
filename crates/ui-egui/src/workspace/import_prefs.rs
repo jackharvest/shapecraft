@@ -60,13 +60,25 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     p.rect_filled(r.translate(vec2(0.0, 6.0)).expand(2.0), radius(12), Color32::from_black_alpha(90));
     p.rect_filled(r, radius(10), theme::c(0x1e1e1e));
     p.rect_stroke(r, radius(10), Stroke::new(1.0, theme::c(0x4b4b4b)), StrokeKind::Outside);
-    p.text(r.left_top() + vec2(29.0, 29.0), Align2::LEFT_CENTER, "Import Preferences", theme::strong(15.0), Tokens::text_strong());
+    p.text(
+        r.left_top() + vec2(29.0, 29.0),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr("Import Preferences"),
+        theme::strong(15.0),
+        Tokens::text_strong(),
+    );
     let x0 = r.left() + 18.0;
     let x1 = r.right() - 18.0;
     // "Optimize Import for" and the three segments, in a rounded box.
     let head = Rect::from_min_max(pos2(x0, r.top() + 56.0), pos2(x1, r.top() + 98.0));
     p.rect_filled(head, radius(7), theme::c(0x262626));
-    p.text(head.left_center() + vec2(12.0, 0.0), Align2::LEFT_CENTER, "Optimize Import for", theme::body(13.0), Tokens::text_strong());
+    p.text(
+        head.left_center() + vec2(12.0, 0.0),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr("Optimize Import for"),
+        theme::body(13.0),
+        Tokens::text_strong(),
+    );
     if let Some(k) = segmented(ui, &p, head.right() - 10.0, head.center().y, ("import-mode", 0), &MODES, d.mode) {
         d.mode = k;
     }
@@ -87,12 +99,12 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
             p.text(
                 pos2(tx, b.top() + 18.0),
                 Align2::LEFT_CENTER,
-                "Warning: Some Geometry May Not Import Cleanly",
+                crate::i18n::tr("Warning: Some Geometry May Not Import Cleanly"),
                 theme::strong(13.0),
                 Tokens::text_strong(),
             );
             let g = p.layout(
-                "Speed skips every repair of the file's geometry. Bodies may come in with gaps, wrong edges or other faults that stop later modeling.".into(),
+                crate::i18n::tr_s("Speed skips every repair of the file's geometry. Bodies may come in with gaps, wrong edges or other faults that stop later modeling."),
                 theme::body(11.0),
                 Tokens::text_dim(),
                 b.right() - tx - 12.0,
@@ -109,8 +121,14 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
                 if k > 0 {
                     p.line_segment([pos2(b.left() + 10.0, top), pos2(b.right(), top)], Stroke::new(1.0, theme::c(0x343436)));
                 }
-                p.text(pos2(b.left() + 12.0, top + 16.0), Align2::LEFT_CENTER, *title, theme::strong(13.0), Tokens::text_strong());
-                let g = p.layout((*what).into(), theme::body(11.0), Tokens::text_dim(), b.width() - 90.0);
+                p.text(
+                    pos2(b.left() + 12.0, top + 16.0),
+                    Align2::LEFT_CENTER,
+                    crate::i18n::tr_s(*title),
+                    theme::strong(13.0),
+                    Tokens::text_strong(),
+                );
+                let g = p.layout(crate::i18n::tr_s(*what), theme::body(11.0), Tokens::text_dim(), b.width() - 90.0);
                 p.galley(pos2(b.left() + 12.0, top + 27.0), g, Tokens::text_dim());
                 switch(ui, &p, b.right() - 12.0, top + row_h / 2.0, ("import-custom", k), &mut d.custom[k]);
             }
@@ -122,16 +140,22 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     // Footer: "Don't show this again" with its switch, then Cancel and Import.
     let fy = r.bottom() - 30.0;
     p.line_segment([pos2(r.left(), fy - 30.0), pos2(r.right(), fy - 30.0)], Stroke::new(1.0, theme::c(0x343436)));
-    p.text(pos2(r.left() + 20.0, fy), Align2::LEFT_CENTER, "Don't show this again", theme::body(13.0), Tokens::text_strong());
+    p.text(
+        pos2(r.left() + 20.0, fy),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr("Don't show this again"),
+        theme::body(13.0),
+        Tokens::text_strong(),
+    );
     switch(ui, &p, r.left() + 210.0, fy, ("import-dont-show", 0), &mut d.dont_show);
     let go = Rect::from_min_size(pos2(r.right() - 20.0 - 60.0, fy - 10.5), vec2(60.0, 21.0));
     let cancel = Rect::from_min_size(pos2(go.left() - 8.0 - 62.0, fy - 10.5), vec2(62.0, 21.0));
     let cr = ui.interact(cancel, ui.scope_id().with("import-cancel"), Sense::click());
     p.rect_filled(cancel, radius(5), if cr.hovered() { theme::c(0x6a6a6a) } else { theme::c(0x565656) });
-    p.text(cancel.center(), Align2::CENTER_CENTER, "Cancel", theme::body(13.0), Color32::WHITE);
+    p.text(cancel.center(), Align2::CENTER_CENTER, crate::i18n::tr("Cancel"), theme::body(13.0), Color32::WHITE);
     let gr = ui.interact(go, ui.scope_id().with("import-go"), Sense::click());
     p.rect_filled(go, radius(5), if gr.hovered() { theme::c(0x3a62e8) } else { theme::c(0x2f55d4) });
-    p.text(go.center(), Align2::CENTER_CENTER, "Import", theme::body(13.0), Color32::WHITE);
+    p.text(go.center(), Align2::CENTER_CENTER, crate::i18n::tr("Import"), theme::body(13.0), Color32::WHITE);
     let keys = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter)));
     if cr.clicked() || keys.0 {
         return;

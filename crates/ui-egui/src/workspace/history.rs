@@ -184,7 +184,7 @@ pub(super) fn parse_value(
 
 /// A read-only choice, drawn like the reference's pop-up buttons (text on a gray pill, blue stepper square).
 fn choice(p: &egui::Painter, right: f32, y: f32, text: &str) {
-    let galley = p.layout_no_wrap(text.to_string(), theme::body(12.0), Tokens::text_strong());
+    let galley = p.layout_no_wrap(crate::i18n::tr_s(text), theme::body(12.0), Tokens::text_strong());
     let w = galley.size().x + 32.0;
     let r = Rect::from_min_max(pos2(right - w, y - 10.0), pos2(right, y + 10.0));
     p.rect_filled(r, radius(5), pill());
@@ -275,7 +275,13 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     if steps.is_empty() {
         let c = r.center();
         p.text(c, Align2::CENTER_CENTER, crate::i18n::tr("Workspace is empty"), theme::strong(12.0), Tokens::text_strong());
-        p.text(c + vec2(0.0, 19.0), Align2::CENTER_CENTER, "Your steps show up here as you model", theme::body(10.5), Tokens::text_dim());
+        p.text(
+            c + vec2(0.0, 19.0),
+            Align2::CENTER_CENTER,
+            crate::i18n::tr("Your steps show up here as you model"),
+            theme::body(10.5),
+            Tokens::text_dim(),
+        );
         return;
     }
     let units = ws.session.doc.units;
@@ -297,8 +303,15 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
         for (dy, half) in [(-2.2, 3.4), (0.0, 2.4), (2.2, 1.3)] {
             p.line_segment([dot + vec2(-half, dy), dot + vec2(half, dy)], Stroke::new(1.0, ink));
         }
-        p.text(pos2(bar.left() + 25.0, bar.center().y), Align2::LEFT_CENTER, "Related to Selection", theme::strong(12.5), ink);
-        let clear = p.text(pos2(bar.right() - 6.0, bar.center().y), Align2::RIGHT_CENTER, "Clear", theme::body(12.5), link);
+        p.text(
+            pos2(bar.left() + 25.0, bar.center().y),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr("Related to Selection"),
+            theme::strong(12.5),
+            ink,
+        );
+        let clear =
+            p.text(pos2(bar.right() - 6.0, bar.center().y), Align2::RIGHT_CENTER, crate::i18n::tr("Clear"), theme::body(12.5), link);
         if !busy && ui.interact(clear.expand(4.0), ui.scope_id().with("history-clear"), Sense::click()).clicked() {
             ws.history.cleared = Some(ws.session.selection.clone());
         }
@@ -519,7 +532,7 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
                 // "Fix…" (26.200, the manual's broken-dependency steps): pick the step's references again.
                 let fix_at = Rect::from_min_size(pos2(panel.right() - 50.0, panel.center().y - 10.0), vec2(42.0, 20.0));
                 let text = p.layout(
-                    "Something went wrong. Try editing or recreating this step.".to_string(),
+                    crate::i18n::tr_s("Something went wrong. Try editing or recreating this step."),
                     theme::body(12.0),
                     Tokens::text_strong(),
                     panel.width() - 40.0 - fix_at.width() - 8.0,
@@ -528,7 +541,7 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
                 ui.interact(panel, ui.scope_id().with(("history-error", i)), Sense::hover()).on_hover_text(err);
                 let fr = ui.interact(fix_at, ui.scope_id().with(("history-fix", i)), Sense::click());
                 p.rect_filled(fix_at, radius(5), if fr.hovered() { Color32::from_white_alpha(70) } else { Color32::from_white_alpha(45) });
-                p.text(fix_at.center(), Align2::CENTER_CENTER, "Fix…", theme::body(12.0), Color32::WHITE);
+                p.text(fix_at.center(), Align2::CENTER_CENTER, crate::i18n::tr("Fix…"), theme::body(12.0), Color32::WHITE);
                 if fr.clicked() {
                     fix = Some(i);
                 }
@@ -541,7 +554,7 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
             }
             let mut fy = y + 12.0 + FIELD_PITCH / 2.0;
             let label = |text: &str, fy: f32| {
-                p.text(pos2(lx, fy), Align2::LEFT_CENTER, text, theme::body(12.5), Tokens::text());
+                p.text(pos2(lx, fy), Align2::LEFT_CENTER, crate::i18n::tr_s(text), theme::body(12.5), Tokens::text());
             };
             if step.kind == "sketch" {
                 let curves = step.sketch.and_then(|id| ws.session.doc.sketch(id)).map_or(0, |s| s.entities.len());
@@ -550,7 +563,7 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
                 fy += FIELD_PITCH;
             }
             if step.kind == "extrude" {
-                p.text(pos2(lx, fy - 6.0), Align2::LEFT_CENTER, "Profile", theme::body(12.5), Tokens::text());
+                p.text(pos2(lx, fy - 6.0), Align2::LEFT_CENTER, crate::i18n::tr("Profile"), theme::body(12.5), Tokens::text());
                 let n = history::profile_count(step).unwrap_or(1);
                 p.text(
                     pos2(lx, fy + 8.0),
@@ -561,7 +574,7 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
                 );
                 let b = Rect::from_min_max(pos2(rx - 54.0, fy - 10.0), pos2(rx, fy + 10.0));
                 p.rect_filled(b, radius(5), pill());
-                p.text(b.center(), Align2::CENTER_CENTER, "Edit…", theme::body(12.0), Tokens::text_strong());
+                p.text(b.center(), Align2::CENTER_CENTER, crate::i18n::tr("Edit…"), theme::body(12.0), Tokens::text_strong());
                 fy += FIELD_PITCH;
                 for (text, value) in [("Sides", "One-Sided"), ("Extent", "Distance")] {
                     label(text, fy);

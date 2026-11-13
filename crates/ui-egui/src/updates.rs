@@ -70,7 +70,7 @@ fn button(ui: &mut Ui, r: Rect, label: &str, primary: bool, id: &str) -> bool {
     };
     ui.painter().rect_filled(r, radius(6), fill);
     let text = if primary { Color32::WHITE } else { Tokens::text_strong() };
-    ui.painter().text(r.center(), Align2::CENTER_CENTER, label, theme::body(12.0), text);
+    ui.painter().text(r.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(label), theme::body(12.0), text);
     if resp.hovered() {
         ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
     }
@@ -143,8 +143,12 @@ fn pill_line(s: &Snapshot) -> Option<Line> {
 fn pill(ui: &mut Ui, full: Rect, state: &mut UpdateUi, snap: &Snapshot, line: &Line) -> Option<Action> {
     let p = ui.painter().clone();
     let font = theme::body(11.5);
-    let text = p.layout_no_wrap(line.text.clone(), font.clone(), if line.strong { Tokens::text_strong() } else { Tokens::text_dim() });
-    let button_w = line.button.map_or(0.0, |b| p.layout_no_wrap(b.to_string(), font.clone(), Color32::WHITE).size().x + 22.0);
+    let text = p.layout_no_wrap(
+        crate::i18n::tr_s(line.text.clone()),
+        font.clone(),
+        if line.strong { Tokens::text_strong() } else { Tokens::text_dim() },
+    );
+    let button_w = line.button.map_or(0.0, |b| p.layout_no_wrap(crate::i18n::tr_s(b), font.clone(), Color32::WHITE).size().x + 22.0);
     let w = (16.0 + 14.0 + text.size().x + 10.0 + button_w + if line.button.is_some() { 8.0 } else { 0.0 } + 22.0).min(full.width() - 32.0);
     let r = Rect::from_min_size(pos2(full.right() - 16.0 - w, full.bottom() - 16.0 - 32.0), vec2(w, 32.0));
     p.rect_filled(r.translate(vec2(0.0, 2.0)), radius(16), Color32::from_black_alpha(50));
@@ -252,7 +256,7 @@ fn card(ui: &mut Ui, full: Rect, pill: Rect, state: &mut UpdateUi, snap: &Snapsh
         Phase::Downloading { .. } => "Downloading in the background.".to_string(),
         _ => String::new(),
     };
-    let foot = p.layout(footer, theme::body(10.5), Tokens::text_dim(), wrap);
+    let foot = p.layout(crate::i18n::tr_s(footer), theme::body(10.5), Tokens::text_dim(), wrap);
     let h = 64.0 + notes_h + 12.0 + foot.size().y + 50.0;
     let r = Rect::from_min_size(pos2(pill.right() - w, pill.top() - 10.0 - h), vec2(w, h));
     // Clicks on the card stay on it.
@@ -323,7 +327,7 @@ fn card(ui: &mut Ui, full: Rect, pill: Rect, state: &mut UpdateUi, snap: &Snapsh
         let b = Rect::from_min_size(pos2(r.left() + 10.0, by), vec2(120.0, 24.0));
         let resp = ui.interact(b, ui.scope_id().with("upd-skip"), Sense::click());
         let c = if resp.hovered() { Tokens::text_strong() } else { Tokens::text_dim() };
-        p.text(pos2(b.left() + 6.0, b.center().y), Align2::LEFT_CENTER, "Skip This Version", theme::body(11.5), c);
+        p.text(pos2(b.left() + 6.0, b.center().y), Align2::LEFT_CENTER, crate::i18n::tr("Skip This Version"), theme::body(11.5), c);
         if resp.clicked() {
             state.card = false;
             action = Some(Action::Skip(version));
@@ -349,7 +353,7 @@ fn closing_question(ui: &mut Ui, full: Rect, state: &mut UpdateUi, snap: &Snapsh
             p.text(
                 pos2(r.left() + 20.0, r.top() + 28.0),
                 Align2::LEFT_CENTER,
-                "Update ShapeCraft before closing?",
+                crate::i18n::tr("Update ShapeCraft before closing?"),
                 theme::strong(14.0),
                 Tokens::text_strong(),
             );
@@ -363,7 +367,7 @@ fn closing_question(ui: &mut Ui, full: Rect, state: &mut UpdateUi, snap: &Snapsh
             // "Always update" box.
             let at = pos2(r.left() + 20.0, r.top() + 112.0);
             let bx = Rect::from_min_size(pos2(at.x, at.y - 7.0), vec2(14.0, 14.0));
-            let label = p.layout_no_wrap("Always update when closing".into(), theme::body(11.5), Tokens::text_dim());
+            let label = p.layout_no_wrap(crate::i18n::tr_s("Always update when closing"), theme::body(11.5), Tokens::text_dim());
             let hit = Rect::from_min_size(bx.min, vec2(22.0 + label.size().x, 14.0));
             if ui.interact(hit, ui.scope_id().with("upd-always"), Sense::click()).clicked() {
                 state.always = !state.always;
@@ -441,14 +445,14 @@ pub fn prefs_section(ui: &mut Ui, col: f32, mut y: f32, s: &mut Settings, label:
     }
     y += 18.0;
     if !status.is_empty() {
-        let g = p.layout(status, theme::body(10.0), Tokens::text_dim(), 340.0);
+        let g = p.layout(crate::i18n::tr_s(status), theme::body(10.0), Tokens::text_dim(), 340.0);
         let gh = g.size().y;
         p.galley(pos2(col, y - 6.0), g, Tokens::text_dim());
         y += gh;
     }
     y += 16.0;
     let row = |ui: &mut Ui, y: f32, id: &str, value: &mut bool, text: &str| {
-        let g = p.layout_no_wrap(text.to_string(), theme::body(12.5), Tokens::text_strong());
+        let g = p.layout_no_wrap(crate::i18n::tr_s(text), theme::body(12.5), Tokens::text_strong());
         let hit = Rect::from_min_size(pos2(col, y - 9.0), vec2(22.0 + g.size().x, 18.0));
         if ui.interact(hit, ui.scope_id().with(id), Sense::click()).clicked() {
             *value = !*value;

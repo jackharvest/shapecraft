@@ -112,7 +112,7 @@ pub(super) fn command_search(ws: &mut Workspace, ui: &mut Ui) {
         let font = theme::body(14.5);
         let field = Rect::from_min_size(rect.min + vec2(38.0, 10.0), vec2(w - 70.0, 22.0));
         let edit = egui::TextEdit::singleline(&mut search.query)
-            .hint_text("Search Commands")
+            .hint_text(crate::i18n::tr("Search Commands"))
             .frame(egui::Frame::NONE)
             .font(font.clone())
             .desired_width(field.width());
@@ -167,7 +167,7 @@ pub(super) fn command_search(ws: &mut Workspace, ui: &mut Ui) {
             if let Some(icon) = crate::workspace::toolbar::icon_for_label(label) {
                 icons::paint(p, Rect::from_center_size(pos2(rect.left() + 21.0, row.center().y), vec2(18.0, 18.0)), icon, ink);
             }
-            p.text(pos2(rect.left() + 38.0, row.center().y), Align2::LEFT_CENTER, *label, theme::body(13.0), ink);
+            p.text(pos2(rect.left() + 38.0, row.center().y), Align2::LEFT_CENTER, crate::i18n::tr_s(*label), theme::body(13.0), ink);
             p.text(
                 pos2(rect.right() - 12.0, row.center().y),
                 Align2::RIGHT_CENTER,

@@ -24,14 +24,14 @@ pub fn show(ui: &mut Ui) -> Option<usize> {
         p.text(
             pos2(card.center().x, card.top() + 44.0),
             Align2::CENTER_CENTER,
-            "Which device do you want to use for modeling?",
+            crate::i18n::tr("Which device do you want to use for modeling?"),
             theme::strong(17.0),
             Tokens::text_strong(),
         );
         p.text(
             pos2(card.center().x, card.top() + 70.0),
             Align2::CENTER_CENTER,
-            "You can change it any time in Preferences.",
+            crate::i18n::tr("You can change it any time in Preferences."),
             theme::body(12.5),
             Tokens::text_dim(),
         );
@@ -152,18 +152,22 @@ pub fn tablet(ui: &mut Ui, choice: &mut Option<usize>) -> Option<usize> {
         p.text(
             pos2(card.center().x, card.top() + 44.0),
             Align2::CENTER_CENTER,
-            if android { "How do you want to use ShapeCraft on this device?" } else { "How do you want to use ShapeCraft on this tablet?" },
+            crate::i18n::tr_s(if android {
+                "How do you want to use ShapeCraft on this device?"
+            } else {
+                "How do you want to use ShapeCraft on this tablet?"
+            }),
             theme::strong(19.0),
             Tokens::text_strong(),
         );
         p.text(
             pos2(card.center().x, card.top() + 72.0),
             Align2::CENTER_CENTER,
-            if android {
+            crate::i18n::tr_s(if android {
                 "Use either any time: a stylus and a mouse are told apart by themselves, and fingers always move the view."
             } else {
                 "Use either any time: the Pencil, a mouse and a trackpad are told apart by themselves; fingers always move the view."
-            },
+            }),
             theme::body(13.0),
             Tokens::text_dim(),
         );
@@ -203,14 +207,20 @@ pub fn tablet(ui: &mut Ui, choice: &mut Option<usize>) -> Option<usize> {
             let mut y = card.top() + 322.0;
             let controls = if android { ANDROID_CONTROLS[c] } else { TABLET_CONTROLS[c] };
             for (gesture, what) in controls {
-                p.text(pos2(card.left() + 60.0, y), Align2::LEFT_CENTER, *gesture, theme::strong(14.0), Tokens::text_strong());
-                p.text(pos2(card.left() + 280.0, y), Align2::LEFT_CENTER, *what, theme::body(14.0), Tokens::text_dim());
+                p.text(
+                    pos2(card.left() + 60.0, y),
+                    Align2::LEFT_CENTER,
+                    crate::i18n::tr_s(*gesture),
+                    theme::strong(14.0),
+                    Tokens::text_strong(),
+                );
+                p.text(pos2(card.left() + 280.0, y), Align2::LEFT_CENTER, crate::i18n::tr_s(*what), theme::body(14.0), Tokens::text_dim());
                 y += 30.0;
             }
             let go = Rect::from_min_size(pos2(card.left() + 40.0, card.bottom() - 68.0), vec2(card.width() - 80.0, 44.0));
             let resp = ui.interact(go, ui.scope_id().with("tablet-go"), Sense::click());
             p.rect_filled(go, radius(10), if resp.hovered() { theme::c(0x2f7cf6) } else { Tokens::accent() });
-            p.text(go.center(), Align2::CENTER_CENTER, "Start Modeling", theme::strong(15.0), Color32::WHITE);
+            p.text(go.center(), Align2::CENTER_CENTER, crate::i18n::tr("Start Modeling"), theme::strong(15.0), Color32::WHITE);
             if resp.clicked() {
                 done = Some(c);
             }

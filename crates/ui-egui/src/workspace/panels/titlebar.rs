@@ -104,7 +104,9 @@ pub(in crate::workspace) fn titlebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     if bar_button(ui, help, "help", Icon::Help, ink).clicked() {
         ws.ui_action(UiAction::Help);
     }
-    if !system_menu_bar && bar_button(ui, help - vec2(34.0, 0.0), "preferences", Icon::Gear, ink).on_hover_text("Preferences").clicked() {
+    if !system_menu_bar
+        && bar_button(ui, help - vec2(34.0, 0.0), "preferences", Icon::Gear, ink).on_hover_text(crate::i18n::tr("Preferences")).clicked()
+    {
         ws.ui_action(UiAction::Preferences);
     }
     // Drag the window from the empty title bar.
@@ -191,7 +193,13 @@ pub(in crate::workspace) fn touch_title(ws: &mut Workspace, ui: &mut Ui, bar: Re
             let p = ui.painter();
             p.rect_filled(popover.translate(vec2(0.0, 6.0)), radius(14), Color32::from_black_alpha(80));
             p.rect_filled(popover, radius(13), theme::c(0x2c2c2e));
-            p.text(popover.left_top() + vec2(32.0, 30.0), Align2::LEFT_CENTER, "NAME", theme::body(13.0), Tokens::text_dim());
+            p.text(
+                popover.left_top() + vec2(32.0, 30.0),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr("NAME"),
+                theme::body(13.0),
+                Tokens::text_dim(),
+            );
             let field = Rect::from_min_size(popover.left_top() + vec2(16.0, 50.0), vec2(343.0, 36.0));
             ui.painter().rect_filled(field, radius(9), theme::c(0x3a3a3c));
             let edit_id = ui.scope_id().with("rename-project-touch");
@@ -254,7 +262,7 @@ fn pen_help_card(ws: &mut Workspace, ui: &mut Ui, top: Pos2) {
         )
     };
     let width = 400.0;
-    let wrap = |t: &str, font| ui.painter().layout(t.to_string(), font, Tokens::text_dim(), width - 40.0);
+    let wrap = |t: &str, font| ui.painter().layout(crate::i18n::tr_s(t), font, Tokens::text_dim(), width - 40.0);
     let (g_body, g_alt) = (wrap(body, theme::body(14.0)), wrap(alt, theme::body(14.0)));
     let height = 20.0 + 24.0 + 10.0 + g_body.size().y + 10.0 + g_alt.size().y + 16.0 + 36.0 + 16.0;
     let card = Rect::from_min_size(pos2(top.x - width / 2.0, top.y), vec2(width, height));
@@ -266,7 +274,7 @@ fn pen_help_card(ws: &mut Workspace, ui: &mut Ui, top: Pos2) {
         p.rect_filled(card, radius(13), theme::c(0x2c2c2e));
         let x = card.left() + 20.0;
         let mut y = card.top() + 20.0;
-        p.text(pos2(x, y + 12.0), Align2::LEFT_CENTER, title, theme::strong(16.0), Tokens::text_strong());
+        p.text(pos2(x, y + 12.0), Align2::LEFT_CENTER, crate::i18n::tr_s(title), theme::strong(16.0), Tokens::text_strong());
         y += 34.0;
         let h = g_body.size().y;
         p.galley(pos2(x, y), g_body, Tokens::text_dim());
@@ -280,9 +288,9 @@ fn pen_help_card(ws: &mut Workspace, ui: &mut Ui, top: Pos2) {
         let ok_resp = ui.interact(ok, ui.scope_id().with("pen-help-ok"), Sense::click());
         let p = ui.painter();
         p.rect_filled(mouse, radius(9), if mouse_resp.hovered() { theme::c(0x48484a) } else { theme::c(0x3a3a3c) });
-        p.text(mouse.center(), Align2::CENTER_CENTER, "Use a Mouse", theme::strong(14.0), Tokens::text_strong());
+        p.text(mouse.center(), Align2::CENTER_CENTER, crate::i18n::tr("Use a Mouse"), theme::strong(14.0), Tokens::text_strong());
         p.rect_filled(ok, radius(9), if ok_resp.hovered() { theme::c(0x2f7cf6) } else { Tokens::accent() });
-        p.text(ok.center(), Align2::CENTER_CENTER, "OK", theme::strong(14.0), Color32::WHITE);
+        p.text(ok.center(), Align2::CENTER_CENTER, crate::i18n::tr("OK"), theme::strong(14.0), Color32::WHITE);
         if mouse_resp.clicked() {
             // As if the first run's answer had been the mouse (the app saves the workspace's settings).
             if ipad {
@@ -374,7 +382,13 @@ fn touch_more_menu(ws: &mut Workspace, ui: &mut Ui, more: Rect, more_c: Pos2, be
                     }
                     None => 14.0,
                 };
-                p.text(row.left_center() + vec2(text_x, 0.0), Align2::LEFT_CENTER, *label, theme::body(16.0), Tokens::text_strong());
+                p.text(
+                    row.left_center() + vec2(text_x, 0.0),
+                    Align2::LEFT_CENTER,
+                    crate::i18n::tr_s(*label),
+                    theme::body(16.0),
+                    Tokens::text_strong(),
+                );
                 if let Pick::Sub(_) = pick {
                     icons::paint(
                         &p,

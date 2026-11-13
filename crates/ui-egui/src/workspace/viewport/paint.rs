@@ -341,7 +341,7 @@ fn warning_sign(painter: &egui::Painter, c: Pos2, size: f32) {
 fn error_callout(painter: &egui::Painter, below: Pos2, text: &str, missing: Option<&str>) {
     let mut chars = text.chars();
     let msg = chars.next().map(|f| f.to_uppercase().collect::<String>() + chars.as_str()).unwrap_or_default();
-    let g = painter.layout(msg, theme::body(12.0), Tokens::text_strong(), 200.0);
+    let g = painter.layout(crate::i18n::tr_s(msg), theme::body(12.0), Tokens::text_strong(), 200.0);
     let create = missing.map(|n| painter.layout_no_wrap(format!("Create {n}…"), theme::strong(12.0), Tokens::icon_blue()));
     let extra = create.as_ref().map_or(egui::Vec2::ZERO, |c| vec2((c.size().x - g.size().x).max(0.0), c.size().y + 8.0));
     let r = Rect::from_min_size(below + vec2(40.0, 8.0), g.size() + extra + vec2(42.0, 18.0));
@@ -424,7 +424,13 @@ pub(super) fn axis_pill_ex(painter: &egui::Painter, center: Pos2, dir: egui::Vec
 pub(super) fn copy_pill(painter: &egui::Painter, center: Pos2, on: bool) -> Rect {
     let r = Rect::from_center_size(center, vec2(40.0, 17.0));
     painter.rect_filled(r, radius(5), if on { Tokens::accent() } else { Color32::WHITE });
-    painter.text(r.center(), Align2::CENTER_CENTER, "Copy", theme::strong(10.0), if on { Color32::WHITE } else { PILL_INK });
+    painter.text(
+        r.center(),
+        Align2::CENTER_CENTER,
+        crate::i18n::tr("Copy"),
+        theme::strong(10.0),
+        if on { Color32::WHITE } else { PILL_INK },
+    );
     r
 }
 

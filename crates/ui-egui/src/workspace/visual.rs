@@ -82,7 +82,7 @@ pub(super) struct SliderOut {
 pub(super) fn slider<K: std::hash::Hash + std::fmt::Debug>(ui: &mut Ui, s: Slider<K>) -> SliderOut {
     let p = ui.painter().clone();
     let mut out = SliderOut::default();
-    p.text(pos2(s.left, s.top), Align2::LEFT_CENTER, s.label, theme::strong(12.5), Tokens::text_strong());
+    p.text(pos2(s.left, s.top), Align2::LEFT_CENTER, crate::i18n::tr_s(s.label), theme::strong(12.5), Tokens::text_strong());
     let (lo, hi) = s.range;
     let to_t = |v: f64| if s.log { (v.max(lo) / lo).ln() / (hi / lo).ln() } else { (v - lo) / (hi - lo) };
     let from_t = |t: f64| if s.log { lo * (hi / lo).powf(t) } else { lo + (hi - lo) * t };
@@ -147,7 +147,7 @@ pub(super) fn checkbox<K: std::hash::Hash + std::fmt::Debug>(ui: &mut Ui, at: Po
         p.rect_filled(bx, radius(3), theme::c(0x3a3a3c));
         p.rect_stroke(bx, radius(3), Stroke::new(1.0, theme::c(0x5a5a5e)), StrokeKind::Inside);
     }
-    let galley = p.layout_no_wrap(label.to_string(), theme::body(12.0), Tokens::text());
+    let galley = p.layout_no_wrap(crate::i18n::tr_s(label), theme::body(12.0), Tokens::text());
     let hit = Rect::from_min_size(pos2(at.x, at.y - 9.0), vec2(20.0 + galley.size().x, 18.0));
     p.galley(pos2(at.x + 17.0, at.y - galley.size().y / 2.0), galley, Tokens::text());
     ui.interact(hit, ui.scope_id().with(("check", id)), Sense::click()).clicked()
@@ -168,7 +168,7 @@ pub(super) fn pill_menu<K: std::hash::Hash + std::fmt::Debug>(
     let chev = Rect::from_min_max(pos2(pill.right() - 14.0, pill.top() + 2.0), pos2(pill.right() - 2.0, pill.bottom() - 2.0));
     p.rect_filled(chev, radius(4), theme::c(0x3b5bdb));
     crate::icons::paint(&p, chev.shrink(2.5), crate::icons::Icon::ChevronDown, Color32::WHITE);
-    p.text(pos2(chev.left() - 5.0, pill.center().y), Align2::RIGHT_CENTER, label, theme::body(11.5), Tokens::text());
+    p.text(pos2(chev.left() - 5.0, pill.center().y), Align2::RIGHT_CENTER, crate::i18n::tr_s(label), theme::body(11.5), Tokens::text());
     let mut open = ui.data(|d| d.get_temp::<bool>(open_id).unwrap_or(false));
     if resp.clicked() {
         open = !open;
@@ -215,7 +215,7 @@ pub(super) fn done_button<K: std::hash::Hash + std::fmt::Debug>(ui: &mut Ui, r: 
     let dr = ui.interact(done, ui.scope_id().with(("done", id)), Sense::click());
     let p = ui.painter();
     p.rect_filled(done, radius(6), if dr.hovered() { theme::c(0x3a62e8) } else { theme::c(0x2f55d4) });
-    p.text(done.center(), Align2::CENTER_CENTER, "Done", theme::body(12.5), Color32::WHITE);
+    p.text(done.center(), Align2::CENTER_CENTER, crate::i18n::tr("Done"), theme::body(12.5), Color32::WHITE);
     dr.clicked()
 }
 
@@ -290,7 +290,7 @@ fn tabs(ui: &mut Ui, r: Rect, labels: &[&str], sel: usize) -> Option<usize> {
         if k == sel {
             ui.painter().rect_filled(seg, radius(6), theme::c(0x5a5a5e));
         }
-        ui.painter().text(seg.center(), Align2::CENTER_CENTER, *l, theme::body(12.5), Tokens::text());
+        ui.painter().text(seg.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(*l), theme::body(12.5), Tokens::text());
         if ui.interact(seg, ui.scope_id().with(("vis-tab", k)), Sense::click()).clicked() {
             out = Some(k);
         }
@@ -383,7 +383,7 @@ fn materials(ws: &mut Workspace, ui: &mut Ui) {
         Tokens::text_dim(),
     );
     let edit = egui::TextEdit::singleline(&mut ws.vis_search)
-        .hint_text("Search Materials")
+        .hint_text(crate::i18n::tr("Search Materials"))
         .frame(egui::Frame::NONE)
         .font(theme::body(12.5))
         .desired_width(field.width() - 34.0);
@@ -398,7 +398,11 @@ fn materials(ws: &mut Workspace, ui: &mut Ui) {
         }
     }
     if q.is_empty() && !used.is_empty() {
-        ui.label(egui::RichText::new(format!("Used Materials ({})", used.len())).font(theme::strong(13.5)).color(Tokens::text_strong()));
+        ui.label(
+            egui::RichText::new(format!("{} ({})", crate::i18n::tr("Used Materials"), used.len()))
+                .font(theme::strong(13.5))
+                .color(Tokens::text_strong()),
+        );
         ui.add_space(4.0);
         for look in &used {
             let (rect, resp) = ui.allocate_exact_size(vec2(w - 8.0, 52.0), Sense::click());
@@ -416,7 +420,13 @@ fn materials(ws: &mut Workspace, ui: &mut Ui) {
                 Some(a) => (a.finish.clone(), a.name.clone(), a.color),
                 None => ("Standard".into(), "Default Material".into(), [0.627, 0.627, 0.643]),
             };
-            p.text(pos2(rect.left() + 54.0, rect.top() + 13.0), Align2::LEFT_CENTER, finish, theme::body(9.5), Tokens::text_dim());
+            p.text(
+                pos2(rect.left() + 54.0, rect.top() + 13.0),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr_s(finish),
+                theme::body(9.5),
+                Tokens::text_dim(),
+            );
             p.text(pos2(rect.left() + 54.0, rect.top() + 27.0), Align2::LEFT_CENTER, name, theme::strong(12.0), Tokens::text_strong());
             let hex = format!(
                 "#{:02X}{:02X}{:02X}",
@@ -451,7 +461,13 @@ fn materials(ws: &mut Workspace, ui: &mut Ui) {
         section_line(ui, w);
         let (head, head_resp) = ui.allocate_exact_size(vec2(w - 8.0, 22.0), Sense::click());
         let open = !q.is_empty() || !ws.vis_collapsed.contains(group);
-        ui.painter().text(pos2(head.left(), head.center().y), Align2::LEFT_CENTER, group, theme::strong(13.5), Tokens::text_strong());
+        ui.painter().text(
+            pos2(head.left(), head.center().y),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr_s(group),
+            theme::strong(13.5),
+            Tokens::text_strong(),
+        );
         let chev = if open { crate::icons::Icon::ChevronDown } else { crate::icons::Icon::ChevronRight };
         crate::icons::paint(
             ui.painter(),
@@ -520,7 +536,7 @@ fn materials(ws: &mut Workspace, ui: &mut Ui) {
 
 fn environments(ws: &mut Workspace, ui: &mut Ui) {
     let w = ui.available_width() - 8.0;
-    ui.label(egui::RichText::new("Studio").font(theme::strong(12.5)).color(Tokens::text_strong()));
+    ui.label(egui::RichText::new(crate::i18n::tr("Studio")).font(theme::strong(12.5)).color(Tokens::text_strong()));
     ui.add_space(6.0);
     let current = ws.session.doc.visual.environment;
     for (i, (name, _, _)) in ENVIRONMENTS.iter().enumerate() {
@@ -641,7 +657,7 @@ fn custom_environments(ws: &mut Workspace, ui: &mut Ui, w: f32) {
     let current = ws.session.doc.visual.environment;
     if !panoramas.is_empty() {
         ui.add_space(8.0);
-        ui.label(egui::RichText::new("Custom").font(theme::strong(12.5)).color(Tokens::text_strong()));
+        ui.label(egui::RichText::new(crate::i18n::tr("Custom")).font(theme::strong(12.5)).color(Tokens::text_strong()));
         ui.add_space(6.0);
     }
     for (k, pano) in panoramas.iter().enumerate() {
@@ -681,7 +697,7 @@ fn custom_environments(ws: &mut Workspace, ui: &mut Ui, w: f32) {
             let _ = ws.run("visual_settings", json!({ "environment": i }));
         }
         resp.context_menu(|ui| {
-            if ui.button("Delete").clicked() {
+            if ui.button(crate::i18n::tr("Delete")).clicked() {
                 let _ = ws.run("delete_environment", json!({ "id": pano.id.0 }));
                 ui.close();
             }
@@ -697,8 +713,20 @@ fn custom_environments(ws: &mut Workspace, ui: &mut Ui, w: f32) {
     p.circle_stroke(c, 7.0, Stroke::new(1.3, Tokens::text_strong()));
     p.line_segment([c - vec2(3.5, 0.0), c + vec2(3.5, 0.0)], Stroke::new(1.3, Tokens::text_strong()));
     p.line_segment([c - vec2(0.0, 3.5), c + vec2(0.0, 3.5)], Stroke::new(1.3, Tokens::text_strong()));
-    p.text(pos2(rect.left() + 36.0, rect.center().y), Align2::LEFT_CENTER, "Import Panorama…", theme::strong(11.5), Tokens::text_strong());
-    p.text(pos2(rect.right() - 10.0, rect.center().y), Align2::RIGHT_CENTER, "HDR · EXR · PNG · JPG", theme::body(9.0), Tokens::text_dim());
+    p.text(
+        pos2(rect.left() + 36.0, rect.center().y),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr("Import Panorama…"),
+        theme::strong(11.5),
+        Tokens::text_strong(),
+    );
+    p.text(
+        pos2(rect.right() - 10.0, rect.center().y),
+        Align2::RIGHT_CENTER,
+        crate::i18n::tr("HDR · EXR · PNG · JPG"),
+        theme::body(9.0),
+        Tokens::text_dim(),
+    );
     if resp.clicked() {
         ws.wants_environment = true;
     }
@@ -725,7 +753,7 @@ fn env_properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     let v = ws.session.doc.visual.clone();
     let env = v.environment.min(ENVIRONMENTS.len() - 1);
     let p = ui.painter().clone();
-    p.text(pos2(r.center().x, r.top() + 18.0), Align2::CENTER_CENTER, "Properties", theme::body(12.0), Tokens::text_dim());
+    p.text(pos2(r.center().x, r.top() + 18.0), Align2::CENTER_CENTER, crate::i18n::tr("Properties"), theme::body(12.0), Tokens::text_dim());
     let left = r.left() + 14.0;
     let w = r.width() - 28.0;
     // Our own picture of the light (not the reference's photograph): sky over floor, the sun where it stands.
@@ -789,7 +817,7 @@ fn env_properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     if COLORED.contains(&env) {
         p.line_segment([pos2(left, y), pos2(left + w, y)], Stroke::new(1.0, theme::c(0x3e3d3e)));
         y += 16.0;
-        p.text(pos2(left, y), Align2::LEFT_CENTER, "Background Color", theme::strong(12.5), Tokens::text_strong());
+        p.text(pos2(left, y), Align2::LEFT_CENTER, crate::i18n::tr("Background Color"), theme::strong(12.5), Tokens::text_strong());
         y += 12.0;
         let c = ws.vis_draft.unwrap_or(theme::c(backdrop(&v)));
         let (picked, used) = color_picker(ui, left, y, w, c, "backdrop");
@@ -884,8 +912,12 @@ fn camera(ws: &mut Workspace, ui: &mut Ui) {
         "blur",
     );
     y += 40.0;
-    let hint =
-        ui.painter().layout("Right click anywhere on your model to move the focus point.".into(), theme::body(10.0), Tokens::text_dim(), w);
+    let hint = ui.painter().layout(
+        crate::i18n::tr_s("Right click anywhere on your model to move the focus point."),
+        theme::body(10.0),
+        Tokens::text_dim(),
+        w,
+    );
     ui.painter().galley(pos2(left, y), hint, Tokens::text_dim());
 }
 
@@ -916,7 +948,7 @@ fn trim(v: f64) -> String {
 /// With something selected: its material, a color picker, and Done.
 fn properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     let p = ui.painter().clone();
-    p.text(pos2(r.center().x, r.top() + 18.0), Align2::CENTER_CENTER, "Properties", theme::body(12.0), Tokens::text_dim());
+    p.text(pos2(r.center().x, r.top() + 18.0), Align2::CENTER_CENTER, crate::i18n::tr("Properties"), theme::body(12.0), Tokens::text_dim());
     let first_body = ws.session.selection.iter().find_map(Pick::body);
     let look = first_body.and_then(|b| ws.session.doc.body(b)).and_then(|b| b.appearance.clone());
     let face_color = ws.session.selection.iter().find_map(|pk| match *pk {
@@ -929,21 +961,27 @@ fn properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     if let Some(b) = first_body {
         y += super::decals::body_rows(ws, ui, r, y, b);
     }
-    p.text(pos2(r.left() + 14.0, y), Align2::LEFT_CENTER, "Material", theme::strong(12.5), Tokens::text_strong());
+    p.text(pos2(r.left() + 14.0, y), Align2::LEFT_CENTER, crate::i18n::tr("Material"), theme::strong(12.5), Tokens::text_strong());
     y += 14.0;
     let card = Rect::from_min_size(pos2(r.left() + 12.0, y), vec2(r.width() - 24.0, 54.0));
     p.rect_filled(card, radius(7), theme::c(0x303032));
     ball(&p, pos2(card.left() + 27.0, card.center().y), 19.0, look.as_ref());
     let (finish, name) =
         look.as_ref().map_or(("Standard".to_string(), "Default Material".to_string()), |a| (a.finish.clone(), a.name.clone()));
-    p.text(pos2(card.left() + 54.0, card.top() + 15.0), Align2::LEFT_CENTER, finish, theme::body(9.5), Tokens::text_dim());
+    p.text(
+        pos2(card.left() + 54.0, card.top() + 15.0),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr_s(finish),
+        theme::body(9.5),
+        Tokens::text_dim(),
+    );
     p.text(pos2(card.left() + 54.0, card.top() + 30.0), Align2::LEFT_CENTER, name, theme::strong(12.0), Tokens::text_strong());
     let change = Rect::from_center_size(pos2(card.right() - 32.0, card.center().y), vec2(56.0, 22.0));
     let cr = ui.interact(change, ui.scope_id().with("vis-change"), Sense::click());
     p.text(
         change.center(),
         Align2::CENTER_CENTER,
-        "Change",
+        crate::i18n::tr("Change"),
         theme::body(12.0),
         if cr.hovered() { theme::c(0x6fa0ff) } else { theme::c(0x3f86ff) },
     );
@@ -986,7 +1024,7 @@ fn properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
         }
         return;
     }
-    p.text(pos2(r.left() + 14.0, y), Align2::LEFT_CENTER, "Color", theme::strong(12.5), Tokens::text_strong());
+    p.text(pos2(r.left() + 14.0, y), Align2::LEFT_CENTER, crate::i18n::tr("Color"), theme::strong(12.5), Tokens::text_strong());
     y += 12.0;
     let base = face_color.or(look.as_ref().map(|a| a.color)).unwrap_or([0.627, 0.627, 0.643]);
     let c = ws.vis_draft.unwrap_or(srgb(base));
@@ -1032,7 +1070,7 @@ fn properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     let reset = Rect::from_min_size(pos2(r.left() + 12.0, sy + 24.0), vec2(r.width() - 24.0, 26.0));
     let rr = ui.interact(reset, ui.scope_id().with("vis-default"), Sense::click());
     p.rect_filled(reset, radius(6), if rr.hovered() { theme::c(0x58585c) } else { theme::c(0x48484b) });
-    p.text(reset.center(), Align2::CENTER_CENTER, "Default Body Color", theme::body(12.0), Tokens::text());
+    p.text(reset.center(), Align2::CENTER_CENTER, crate::i18n::tr("Default Body Color"), theme::body(12.0), Tokens::text());
     if rr.clicked() {
         let has_faces = ws.session.selection.iter().any(|p| matches!(p, Pick::Face { .. }));
         if has_faces {
@@ -1045,7 +1083,7 @@ fn properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     let done = Rect::from_min_size(pos2(r.left() + 12.0, r.bottom() - 36.0), vec2(r.width() - 24.0, 26.0));
     let dr = ui.interact(done, ui.scope_id().with("vis-done"), Sense::click());
     p.rect_filled(done, radius(6), if dr.hovered() { theme::c(0x3a62e8) } else { theme::c(0x2f55d4) });
-    p.text(done.center(), Align2::CENTER_CENTER, "Done", theme::body(12.5), Color32::WHITE);
+    p.text(done.center(), Align2::CENTER_CENTER, crate::i18n::tr("Done"), theme::body(12.5), Color32::WHITE);
     if dr.clicked() {
         ws.session.selection.clear();
     }
@@ -1067,7 +1105,13 @@ fn decal_and_custom(ws: &mut Workspace, ui: &mut Ui, w: f32) {
     let header = |ui: &mut Ui, title: &str, open: bool| -> bool {
         let (rect, resp) = ui.allocate_exact_size(vec2(w - 8.0, 22.0), Sense::click());
         let p = ui.painter();
-        p.text(pos2(rect.left(), rect.center().y), Align2::LEFT_CENTER, title, theme::strong(13.5), Tokens::text_strong());
+        p.text(
+            pos2(rect.left(), rect.center().y),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr_s(title),
+            theme::strong(13.5),
+            Tokens::text_strong(),
+        );
         let plus = pos2(rect.right() - 26.0, rect.center().y);
         p.circle_stroke(plus, 5.5, Stroke::new(1.2, Tokens::text_dim()));
         p.line_segment([plus - vec2(2.8, 0.0), plus + vec2(2.8, 0.0)], Stroke::new(1.2, Tokens::text_dim()));
@@ -1102,7 +1146,7 @@ fn decal_and_custom(ws: &mut Workspace, ui: &mut Ui, w: f32) {
     let button = Rect::from_center_size(pos2(rect.center().x, rect.bottom() - 16.0), vec2(64.0, 16.0));
     let button_resp = ui.interact(button, ui.scope_id().with("decal-import"), Sense::click());
     p.rect_filled(button, radius(4), if button_resp.hovered() { theme::c(0x6a6a6e) } else { theme::c(0x58585c) });
-    p.text(button.center(), Align2::CENTER_CENTER, "Import…", theme::body(10.5), Color32::WHITE);
+    p.text(button.center(), Align2::CENTER_CENTER, crate::i18n::tr("Import…"), theme::body(10.5), Color32::WHITE);
     if tile_resp.clicked() || button_resp.clicked() {
         ws.wants_decal = true;
     }
@@ -1195,7 +1239,7 @@ pub(super) fn color_picker(ui: &mut Ui, left: f32, top: f32, width: f32, color: 
     p.circle_stroke(pos2(hx, bar.center().y), 7.5, Stroke::new(2.0, Color32::WHITE));
     // Hexadecimal.
     let y = bar.bottom() + 24.0;
-    p.text(pos2(left, y), Align2::LEFT_CENTER, "Hexadecimal", theme::body(11.0), Tokens::text_dim());
+    p.text(pos2(left, y), Align2::LEFT_CENTER, crate::i18n::tr("Hexadecimal"), theme::body(11.0), Tokens::text_dim());
     let field = Rect::from_min_max(pos2(left + width - 66.0, y - 10.0), pos2(left + width, y + 10.0));
     p.rect_filled(field, radius(4), theme::c(0x1e1e1f));
     p.text(pos2(field.left() + 7.0, y), Align2::LEFT_CENTER, "#", theme::body(11.0), Tokens::text_dim());

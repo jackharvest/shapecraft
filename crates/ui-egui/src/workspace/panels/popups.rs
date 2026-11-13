@@ -93,7 +93,7 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
     };
     if let Some((text, _)) = &ws.notice {
         // A refusal takes the banner's place (s12-004): a dark chip, the message centred on up to two lines.
-        let mut job = egui::text::LayoutJob::simple(text.clone(), theme::body(13.0), Tokens::text_strong(), 280.0);
+        let mut job = egui::text::LayoutJob::simple(crate::i18n::tr_s(text), theme::body(13.0), Tokens::text_strong(), 280.0);
         job.halign = egui::Align::Center;
         let g = p.layout_job(job);
         // A one-word notice ("Visualized") is a small pill; a refusal a wider chip.
@@ -104,10 +104,10 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
         p.rect_filled(r, radius(8), theme::c(0x171616));
         p.galley(pos2(r.center().x, r.top() + if short { 4.0 } else { 6.0 }), g, Tokens::text_strong());
     } else if let Some((title, body)) = predicted {
-        let title_g = p.layout_no_wrap(title.to_string(), theme::strong(12.0), Tokens::text_strong());
-        let body_g = p.layout_no_wrap(body.to_string(), theme::body(11.0), Tokens::text_dim());
+        let title_g = p.layout_no_wrap(crate::i18n::tr_s(title), theme::strong(12.0), Tokens::text_strong());
+        let body_g = p.layout_no_wrap(crate::i18n::tr_s(body), theme::body(11.0), Tokens::text_dim());
         // 26.200: no title, the hint as a paragraph in white beside the picture, wrapped at about 250 px (s11-024).
-        let para = p.layout(body.to_string(), theme::body(13.5), Tokens::text_strong(), 268.0);
+        let para = p.layout(crate::i18n::tr_s(body), theme::body(13.5), Tokens::text_strong(), 268.0);
         // Measured (L05): 62 px tall, no border, the picture 56×42 at (12, 10), text from x 77, 30 px for the
         // chevron after it.
         // Measure's banner has no picture (as observed, L24): 46 px, text 12 px in.
@@ -128,10 +128,28 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
         banner_bottom = r.bottom();
         p.rect_filled(r, radius(8), Tokens::banner());
         if plain && !collapsed && body.is_empty() {
-            p.text(pos2(r.left() + 12.0, r.center().y), Align2::LEFT_CENTER, title, theme::body(13.0), Tokens::text_strong());
+            p.text(
+                pos2(r.left() + 12.0, r.center().y),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr_s(title),
+                theme::body(13.0),
+                Tokens::text_strong(),
+            );
         } else if plain && !collapsed {
-            p.text(pos2(r.left() + 12.0, r.top() + 15.0), Align2::LEFT_CENTER, title, theme::strong(12.0), Tokens::text_strong());
-            p.text(pos2(r.left() + 12.0, r.top() + 31.0), Align2::LEFT_CENTER, body, theme::body(11.0), Tokens::text_dim());
+            p.text(
+                pos2(r.left() + 12.0, r.top() + 15.0),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr_s(title),
+                theme::strong(12.0),
+                Tokens::text_strong(),
+            );
+            p.text(
+                pos2(r.left() + 12.0, r.top() + 31.0),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr_s(body),
+                theme::body(11.0),
+                Tokens::text_dim(),
+            );
         } else if !collapsed {
             // The picture: a dark 56×41 tile, 11 px in, centred (s11-024).
             let thumb = Rect::from_min_size(pos2(r.left() + 11.0, r.center().y - 20.5), vec2(56.0, 41.0));
@@ -186,7 +204,13 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
             icons::paint(&p, thumb.shrink(7.0), icon, Tokens::icon());
             p.galley(pos2(r.left() + 75.0, r.center().y - para.size().y / 2.0), para, Tokens::text_strong());
         } else {
-            p.text(pos2(r.left() + 12.0, r.center().y), Align2::LEFT_CENTER, title, theme::strong(12.0), Tokens::text_strong());
+            p.text(
+                pos2(r.left() + 12.0, r.center().y),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr_s(title),
+                theme::strong(12.0),
+                Tokens::text_strong(),
+            );
         }
         let chev = Rect::from_center_size(pos2(r.right() - 13.0, r.center().y), vec2(12.0, 12.0));
         icons::paint(&p, chev, if collapsed { Icon::ChevronDown } else { Icon::ChevronUp }, Tokens::text_dim());
@@ -202,7 +226,7 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
         && !ws.animating()
     {
         let ink = theme::c(0x1c1c1e);
-        let g = p.layout_no_wrap("Normal to Sketch".to_string(), theme::strong(12.0), ink);
+        let g = p.layout_no_wrap(crate::i18n::tr_s("Normal to Sketch"), theme::strong(12.0), ink);
         let r = Rect::from_center_size(pos2(vp.center().x, banner_bottom + 10.0 + 14.0), vec2(g.size().x + 52.0, 28.0));
         let resp = ui.interact(r, ui.scope_id().with("normal-to-sketch"), Sense::click());
         p.rect_filled(r, radius(9), if resp.hovered() { theme::c(0xe6e6ea) } else { theme::c(0xffffff) });
@@ -228,7 +252,13 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
         && !ws.visualizing
         && ws.drawings.is_none()
     {
-        p.text(pos2(vp.center().x, vp.top() + 15.0), Align2::CENTER_CENTER, "Zebra Analysis", theme::strong(12.0), Tokens::text_strong());
+        p.text(
+            pos2(vp.center().x, vp.top() + 15.0),
+            Align2::CENTER_CENTER,
+            crate::i18n::tr("Zebra Analysis"),
+            theme::strong(12.0),
+            Tokens::text_strong(),
+        );
     }
 
     // As observed (L09): with something selected that runs out of the view, a white "Zoom to Selection" pill under
@@ -240,7 +270,7 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
         && !ws.box_in_view(lo, hi)
     {
         let ink = theme::c(0x1c1c1e);
-        let g = p.layout_no_wrap("Zoom to Selection".to_string(), theme::strong(12.5), ink);
+        let g = p.layout_no_wrap(crate::i18n::tr_s("Zoom to Selection"), theme::strong(12.5), ink);
         let r = Rect::from_center_size(pos2(vp.center().x, banner_bottom + 13.0 + 15.0), vec2(g.size().x + 54.0, 30.0));
         let resp = ui.interact(r, ui.scope_id().with("zoom-to-selection"), Sense::click());
         p.rect_filled(r, radius(10), if resp.hovered() { theme::c(0xe6e6ea) } else { theme::c(0xffffff) });
@@ -279,8 +309,8 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
             Some(l) => (Some(shapecraft_doc::format_length(l, units)), false),
             None => (ws.session.selection_radius().map(|r| shapecraft_doc::format_length(2.0 * r, units)), true),
         };
-        let g = p.layout_no_wrap(text.clone(), theme::body(11.0), Tokens::text());
-        let lg = length.as_ref().map(|l| p.layout_no_wrap(l.clone(), theme::body(11.0), Tokens::text_strong()));
+        let g = p.layout_no_wrap(crate::i18n::tr_s(text.clone()), theme::body(11.0), Tokens::text());
+        let lg = length.as_ref().map(|l| p.layout_no_wrap(crate::i18n::tr_s(l.clone()), theme::body(11.0), Tokens::text_strong()));
         // Two lines meeting at a corner add their angle before the length (s15-006: "2 edges | ∠ 120.9638° | ∿ …").
         let ag = ws
             .picked_angle()
@@ -290,7 +320,7 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
         let h = if lg.is_some() || ag.is_some() { 26.0 } else { 22.0 };
         let r = Rect::from_center_size(pos2(vp.center().x, vp.bottom() - 28.0), vec2(g.size().x + 16.0 + extra, h));
         p.rect_filled(r, radius(6), Tokens::pill());
-        p.text(pos2(r.left() + 8.0, r.center().y), Align2::LEFT_CENTER, text, theme::body(11.0), Tokens::text());
+        p.text(pos2(r.left() + 8.0, r.center().y), Align2::LEFT_CENTER, crate::i18n::tr_s(text), theme::body(11.0), Tokens::text());
         let measured = ag.is_some() || lg.is_some();
         if let Some(ag) = ag {
             let chip = Rect::from_min_size(pos2(r.left() + g.size().x + 14.0, r.top() + 4.0), vec2(ag.size().x + 24.0, 18.0));
@@ -431,7 +461,13 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
                     ui.painter().rect_filled(row, radius(6), Tokens::accent());
                 }
                 let col = if *label == "Delete" && !r.hovered() { Tokens::danger() } else { Tokens::text() };
-                ui.painter().text(pos2(row.left() + 10.0, row.center().y), Align2::LEFT_CENTER, *label, theme::body(12.5), col);
+                ui.painter().text(
+                    pos2(row.left() + 10.0, row.center().y),
+                    Align2::LEFT_CENTER,
+                    crate::i18n::tr_s(*label),
+                    theme::body(12.5),
+                    col,
+                );
                 if r.clicked() {
                     chosen = Some(*label);
                 }
@@ -498,11 +534,11 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
     // Toasts, bottom center above the pill.
     let mut y = vp.bottom() - 64.0;
     for t in ws.toasts.iter().rev() {
-        let g = p.layout_no_wrap(t.text.clone(), theme::body(12.0), Tokens::text());
+        let g = p.layout_no_wrap(crate::i18n::tr_s(t.text.clone()), theme::body(12.0), Tokens::text());
         let r = Rect::from_center_size(pos2(vp.center().x, y), vec2(g.size().x + 24.0, 30.0));
         p.rect_filled(r, radius(8), Tokens::banner());
         p.rect_stroke(r, radius(8), Stroke::new(1.0, Tokens::chip_border()), StrokeKind::Inside);
-        p.text(r.center(), Align2::CENTER_CENTER, &t.text, theme::body(12.0), Tokens::text());
+        p.text(r.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(&t.text), theme::body(12.0), Tokens::text());
         y -= 36.0;
     }
 }
@@ -523,7 +559,7 @@ fn replace_face_card(ws: &mut Workspace, ui: &mut Ui) {
         p.rect_filled(rect, radius(10), theme::c(0x2a2727));
         p.rect_stroke(rect, radius(10), Stroke::new(1.0, theme::c(0x6f6d6d)), StrokeKind::Inside);
         let head = pos2(rect.left() + 16.0, rect.top() + 19.0);
-        let title = p.text(head, Align2::LEFT_CENTER, t.title(), theme::strong(13.0), Tokens::text_strong());
+        let title = p.text(head, Align2::LEFT_CENTER, crate::i18n::tr_s(t.title()), theme::strong(13.0), Tokens::text_strong());
         if error.is_some() {
             warning(p, pos2(title.right() + 12.0, head.y));
         }
@@ -539,7 +575,13 @@ fn replace_face_card(ws: &mut Workspace, ui: &mut Ui) {
             let bar = Rect::from_min_size(pos2(rect.left() + 5.0, y), vec2(rect.width() - 10.0, 37.0));
             p.rect_filled(bar, radius(6), theme::c(0x58302f));
             warning(p, pos2(bar.left() + 17.0, bar.center().y));
-            p.text(pos2(bar.left() + 33.0, bar.center().y), Align2::LEFT_CENTER, e, theme::body(12.5), Tokens::text_strong());
+            p.text(
+                pos2(bar.left() + 33.0, bar.center().y),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr_s(e),
+                theme::body(12.5),
+                Tokens::text_strong(),
+            );
             y = bar.bottom() + 6.0;
         }
         let inner = Rect::from_min_max(pos2(rect.left() + 5.0, y), pos2(rect.right() - 5.0, rect.bottom() - 5.0));
@@ -554,12 +596,18 @@ fn replace_face_card(ws: &mut Workspace, ui: &mut Ui) {
         };
         // Faces to Replace: one chip per face, its ⓧ takes it out.
         let (first, second) = if t.project { ("Items to Project", "Project Onto") } else { ("Faces to Replace", "Replacing Face") };
-        p.text(pos2(inner.left() + 11.0, inner.top() + 18.0), Align2::LEFT_CENTER, first, theme::body(13.0), Tokens::text());
+        p.text(
+            pos2(inner.left() + 11.0, inner.top() + 18.0),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr_s(first),
+            theme::body(13.0),
+            Tokens::text(),
+        );
         let mut x = inner.left() + 11.0;
         let cy = inner.top() + 49.0;
         let mut remove = None;
         for (i, (pick, _)) in t.items.iter().enumerate() {
-            let g = p.layout_no_wrap(t.chip(pick).into(), theme::strong(10.5), Tokens::text_strong());
+            let g = p.layout_no_wrap(crate::i18n::tr_s(t.chip(pick)), theme::strong(10.5), Tokens::text_strong());
             let chip = Rect::from_min_size(pos2(x, cy - 9.0), vec2(g.size().x + 27.0, 18.0));
             p.rect_filled(chip, radius(9), theme::c(0x2e68ff));
             p.galley(pos2(chip.left() + 6.0, cy - g.size().y / 2.0), g, Tokens::text_strong());
@@ -574,10 +622,16 @@ fn replace_face_card(ws: &mut Workspace, ui: &mut Ui) {
         dot(p, cy);
         p.hline(rules.clone(), inner.top() + 73.0, rule);
         // Replacing Face.
-        p.text(pos2(inner.left() + 11.0, inner.top() + 92.0), Align2::LEFT_CENTER, second, theme::body(13.0), Tokens::text());
+        p.text(
+            pos2(inner.left() + 11.0, inner.top() + 92.0),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr_s(second),
+            theme::body(13.0),
+            Tokens::text(),
+        );
         let cy2 = inner.top() + 125.0;
         if t.to.is_some() {
-            let g = p.layout_no_wrap("1 face".into(), theme::strong(10.5), Tokens::text_strong());
+            let g = p.layout_no_wrap(crate::i18n::tr_s("1 face"), theme::strong(10.5), Tokens::text_strong());
             let chip = Rect::from_min_size(pos2(inner.left() + 11.0, cy2 - 9.0), vec2(g.size().x + 27.0, 18.0));
             p.rect_filled(chip, radius(9), theme::c(0x2e68ff));
             p.galley(pos2(chip.left() + 6.0, cy2 - g.size().y / 2.0), g, Tokens::text_strong());
@@ -590,7 +644,7 @@ fn replace_face_card(ws: &mut Workspace, ui: &mut Ui) {
             }
         } else {
             let ask = if t.project { "Select a face..." } else { "Select a face or a plane..." };
-            p.text(pos2(inner.left() + 11.0, cy2), Align2::LEFT_CENTER, ask, theme::body(12.5), Tokens::text_dim());
+            p.text(pos2(inner.left() + 11.0, cy2), Align2::LEFT_CENTER, crate::i18n::tr_s(ask), theme::body(12.5), Tokens::text_dim());
         }
         dot(p, cy2);
         if let Some(i) = remove {
@@ -603,7 +657,7 @@ fn replace_face_card(ws: &mut Workspace, ui: &mut Ui) {
         p.hline(rules, inner.top() + 146.0, rule);
         // Flip Alignment switch.
         let cy3 = inner.top() + 168.0;
-        p.text(pos2(inner.left() + 11.0, cy3), Align2::LEFT_CENTER, "Flip Alignment", theme::body(13.0), Tokens::text());
+        p.text(pos2(inner.left() + 11.0, cy3), Align2::LEFT_CENTER, crate::i18n::tr("Flip Alignment"), theme::body(13.0), Tokens::text());
         let sw = Rect::from_center_size(pos2(inner.right() - 26.0, cy3), vec2(40.0, 24.0));
         p.rect_filled(sw, radius(12), if t.flip { theme::c(0x2443c4) } else { theme::c(0x4a4747) });
         let knob = if t.flip { sw.right() - 12.0 } else { sw.left() + 12.0 };

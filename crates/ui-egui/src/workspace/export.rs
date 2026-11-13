@@ -279,11 +279,11 @@ fn divider(p: &egui::Painter, r: Rect, y: f32) {
 fn label(p: &egui::Painter, x: f32, y: f32, text: &str, sub: Option<&str>) {
     match sub {
         Some(s) => {
-            p.text(pos2(x, y - 7.0), Align2::LEFT_CENTER, text, theme::body(13.5), Tokens::text_strong());
-            p.text(pos2(x, y + 8.0), Align2::LEFT_CENTER, s, theme::body(11.5), Tokens::text_dim());
+            p.text(pos2(x, y - 7.0), Align2::LEFT_CENTER, crate::i18n::tr_s(text), theme::body(13.5), Tokens::text_strong());
+            p.text(pos2(x, y + 8.0), Align2::LEFT_CENTER, crate::i18n::tr_s(s), theme::body(11.5), Tokens::text_dim());
         }
         None => {
-            p.text(pos2(x, y), Align2::LEFT_CENTER, text, theme::body(13.5), Tokens::text_strong());
+            p.text(pos2(x, y), Align2::LEFT_CENTER, crate::i18n::tr_s(text), theme::body(13.5), Tokens::text_strong());
         }
     }
 }
@@ -319,7 +319,7 @@ pub(super) fn segmented(
         if k == current {
             p.rect_filled(s.shrink(1.0), radius(5), theme::c(0x5c5c5e));
         }
-        p.text(s.center(), Align2::CENTER_CENTER, *item, theme::body(13.0), Tokens::text_strong());
+        p.text(s.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(*item), theme::body(13.0), Tokens::text_strong());
         if ui.interact(s, ui.scope_id().with((id.0, id.1, k)), Sense::click()).clicked() {
             picked = Some(k);
         }
@@ -451,7 +451,13 @@ fn settings(d: &mut ExportDialog, ui: &mut Ui, p: &egui::Painter, f: Format, k: 
         }
         let r = row(&mut y, 22.0);
         if paint {
-            p.text(pos2(r.left() + 10.0, r.center().y), Align2::LEFT_CENTER, d.svg_scope(), theme::body(11.5), Tokens::text_dim());
+            p.text(
+                pos2(r.left() + 10.0, r.center().y),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr_s(d.svg_scope()),
+                theme::body(11.5),
+                Tokens::text_dim(),
+            );
         }
     }
     if f == Format::Step {
@@ -494,18 +500,24 @@ fn settings(d: &mut ExportDialog, ui: &mut Ui, p: &egui::Painter, f: Format, k: 
                 Stroke::new(1.0, theme::c(0x2c2c2c)),
             );
             let y2 = r.top() + CARD_H + (CARD_H + 18.0) / 2.0;
-            p.text(pos2(r.left() + 10.0, y2 - 14.0), Align2::LEFT_CENTER, "Units", theme::body(13.5), Tokens::text_strong());
+            p.text(
+                pos2(r.left() + 10.0, y2 - 14.0),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr("Units"),
+                theme::body(13.5),
+                Tokens::text_strong(),
+            );
             p.text(
                 pos2(r.left() + 10.0, y2 + 2.0),
                 Align2::LEFT_CENTER,
-                "STL files carry plain numbers without a unit;",
+                crate::i18n::tr("STL files carry plain numbers without a unit;"),
                 theme::body(11.5),
                 Tokens::text_dim(),
             );
             p.text(
                 pos2(r.left() + 10.0, y2 + 15.0),
                 Align2::LEFT_CENTER,
-                "set the same unit in your slicer.",
+                crate::i18n::tr("set the same unit in your slicer."),
                 theme::body(11.5),
                 Tokens::text_dim(),
             );
@@ -535,7 +547,13 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     // The format list.
     let pill = Rect::from_center_size(pos2(list.center().x, r.top() + 21.0), vec2(108.0, 20.0));
     p.rect_filled(pill, radius(5), theme::c(0x3a3a3c));
-    p.text(pill.left_center() + vec2(8.0, 0.0), Align2::LEFT_CENTER, "All Formats", theme::body(13.0), Tokens::text_strong());
+    p.text(
+        pill.left_center() + vec2(8.0, 0.0),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr("All Formats"),
+        theme::body(13.0),
+        Tokens::text_strong(),
+    );
     let chev = Rect::from_center_size(pill.right_center() - vec2(12.0, 0.0), vec2(14.0, 16.0));
     p.rect_filled(chev, radius(4), selected());
     p.text(chev.center(), Align2::CENTER_CENTER, "⌃", theme::body(8.0), Color32::WHITE);
@@ -560,7 +578,7 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
             p.text(
                 pos2(list.left() + 17.0, y + 7.0),
                 Align2::LEFT_CENTER,
-                if i == 0 { "Recommended Formats" } else { "Everything Else" },
+                crate::i18n::tr_s(if i == 0 { "Recommended Formats" } else { "Everything Else" }),
                 theme::strong(11.0),
                 theme::c(0x5a5a5a),
             );
@@ -615,7 +633,7 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
         p.text(
             pane.center(),
             Align2::CENTER_CENTER,
-            "Choose one or more file formats to export…",
+            crate::i18n::tr("Choose one or more file formats to export…"),
             theme::body(14.0),
             Tokens::text_strong(),
         );
@@ -648,11 +666,23 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
         for (k, f) in order.iter().enumerate() {
             let (_, _, title, desc) = f.info();
             if many {
-                clip.text(pos2(x0 + 10.0, y + 14.0), Align2::LEFT_CENTER, title, theme::strong(13.5), Tokens::text_strong());
+                clip.text(
+                    pos2(x0 + 10.0, y + 14.0),
+                    Align2::LEFT_CENTER,
+                    crate::i18n::tr_s(title),
+                    theme::strong(13.5),
+                    Tokens::text_strong(),
+                );
                 y += 34.0;
             } else {
-                clip.text(pos2(x0 + 10.0, y + 25.0), Align2::LEFT_CENTER, title, theme::strong(15.0), Tokens::text_strong());
-                clip.text(pos2(x0 + 10.0, y + 45.0), Align2::LEFT_CENTER, desc, theme::body(13.0), theme::c(0xbababa));
+                clip.text(
+                    pos2(x0 + 10.0, y + 25.0),
+                    Align2::LEFT_CENTER,
+                    crate::i18n::tr_s(title),
+                    theme::strong(15.0),
+                    Tokens::text_strong(),
+                );
+                clip.text(pos2(x0 + 10.0, y + 45.0), Align2::LEFT_CENTER, crate::i18n::tr_s(desc), theme::body(13.0), theme::c(0xbababa));
                 y += 4.0;
                 y += 62.0;
             }
@@ -708,7 +738,7 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     let cancel = Rect::from_min_size(pos2(export.left() - 8.0 - 62.0, by - 10.0), vec2(62.0, 21.0));
     let cr = ui.interact(cancel, ui.scope_id().with("exp-cancel"), Sense::click());
     p.rect_filled(cancel, radius(5), if cr.hovered() { theme::c(0x6a6a6a) } else { theme::c(0x565656) });
-    p.text(cancel.center(), Align2::CENTER_CENTER, "Cancel", theme::body(13.0), Color32::WHITE);
+    p.text(cancel.center(), Align2::CENTER_CENTER, crate::i18n::tr("Cancel"), theme::body(13.0), Color32::WHITE);
     let er = ui.interact(export, ui.scope_id().with("exp-go"), Sense::click());
     let can = n > 0 && !d.name().is_empty();
     p.rect_filled(
@@ -722,7 +752,13 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
             theme::c(0x2f55d4)
         },
     );
-    p.text(export.center(), Align2::CENTER_CENTER, export_label, theme::body(13.0), if can { Color32::WHITE } else { Tokens::text_dim() });
+    p.text(
+        export.center(),
+        Align2::CENTER_CENTER,
+        crate::i18n::tr_s(export_label),
+        theme::body(13.0),
+        if can { Color32::WHITE } else { Tokens::text_dim() },
+    );
 
     let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
     if cr.clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {

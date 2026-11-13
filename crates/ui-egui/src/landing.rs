@@ -412,7 +412,11 @@ impl Landing {
         p.text(badge.center(), Align2::CENTER_CENTER, "S", theme::strong(17.0), Color32::WHITE);
         p.text(pos2(badge.right() + 9.0, badge.top() + 8.0), Align2::LEFT_CENTER, "ShapeCraft", theme::strong(13.5), Tokens::text_strong());
         let folder = self.root.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_else(|| shorten_home(&self.root));
-        let mut job = egui::text::LayoutJob::simple_singleline(format!("Local · {folder}"), theme::body(10.0), Tokens::text_dim());
+        let mut job = egui::text::LayoutJob::simple_singleline(
+            format!("{} · {folder}", crate::i18n::tr("Local")),
+            theme::body(10.0),
+            Tokens::text_dim(),
+        );
         job.wrap = egui::text::TextWrapping {
             max_width: side.right() - badge.right() - 21.0,
             max_rows: 1,
@@ -431,7 +435,13 @@ impl Landing {
             (false, true) => hex(0x676767),
         };
         p.rect_filled(folder_button, radius(5), fb_fill);
-        p.text(folder_button.center(), Align2::CENTER_CENTER, "Show Projects Folder", theme::strong(12.0), Tokens::text_strong());
+        p.text(
+            folder_button.center(),
+            Align2::CENTER_CENTER,
+            crate::i18n::tr("Show Projects Folder"),
+            theme::strong(12.0),
+            Tokens::text_strong(),
+        );
         if fb.clicked() {
             if crate::tablet::on_tablet() {
                 // The folder is on the computer serving this page, not on the tablet.
@@ -461,8 +471,13 @@ impl Landing {
             pos2(search_rect.left() + 26.0, search_rect.top() + 4.0),
             pos2(search_rect.right() - 6.0, search_rect.bottom() - 4.0),
         );
-        let searched = ui
-            .put(field, egui::TextEdit::singleline(&mut self.search).hint_text("Search").frame(egui::Frame::NONE).font(theme::body(12.0)));
+        let searched = ui.put(
+            field,
+            egui::TextEdit::singleline(&mut self.search)
+                .hint_text(crate::i18n::tr("Search"))
+                .frame(egui::Frame::NONE)
+                .font(theme::body(12.0)),
+        );
         if std::mem::take(&mut self.focus_search) {
             searched.request_focus();
         }
@@ -495,7 +510,7 @@ impl Landing {
             ui.painter().text(
                 pos2(r.left() + 33.0, r.center().y),
                 Align2::LEFT_CENTER,
-                label,
+                crate::i18n::tr_s(label),
                 theme::body(12.5),
                 if on_blue { Color32::WHITE } else { Tokens::text() },
             );
@@ -513,7 +528,13 @@ impl Landing {
         // The backups, first first, each opening its ShapeCraft Backups folder (every computer's copies).
         let mut open_place = None;
         if !self.places.is_empty() {
-            p.text(pos2(side.left() + 16.0, side.top() + 337.0), Align2::LEFT_CENTER, "Backups", theme::strong(10.5), Tokens::text_faint());
+            p.text(
+                pos2(side.left() + 16.0, side.top() + 337.0),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr("Backups"),
+                theme::strong(10.5),
+                Tokens::text_faint(),
+            );
         }
         for (k, place) in self.places.iter().enumerate() {
             let on = self.section == Section::All && !searching && here.as_ref() == Some(&place.dir);
@@ -545,7 +566,13 @@ impl Landing {
                 }
             }
         }
-        p.text(pos2(side.left() + 16.0, side.top() + 243.0), Align2::LEFT_CENTER, "Projects", theme::strong(10.5), Tokens::text_faint());
+        p.text(
+            pos2(side.left() + 16.0, side.top() + 243.0),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr("Projects"),
+            theme::strong(10.5),
+            Tokens::text_faint(),
+        );
 
         // Content: the title strip (white with no line in a key window, grey with a line otherwise, as measured).
         let content = Rect::from_min_max(pos2(side.right(), full.top()), full.max);
@@ -558,12 +585,14 @@ impl Landing {
         p.rect_filled(strip, 0.0, strip_fill);
         let folder_name = self.folder.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
         let title = match (self.search.is_empty(), self.section) {
-            (false, _) => "Search".to_string(),
-            (true, Section::GetStarted) => "Get Started".to_string(),
-            (true, Section::Tutorials) => "Tutorials".to_string(),
-            (true, Section::Recents) => "Recents".to_string(),
-            (true, Section::All) if self.folder == self.root => local.to_string(),
-            (true, Section::All) if let Some(p) = self.places.iter().find(|p| p.dir == self.folder) => format!("{} Backup", p.label),
+            (false, _) => crate::i18n::tr_s("Search"),
+            (true, Section::GetStarted) => crate::i18n::tr_s("Get Started"),
+            (true, Section::Tutorials) => crate::i18n::tr_s("Tutorials"),
+            (true, Section::Recents) => crate::i18n::tr_s("Recents"),
+            (true, Section::All) if self.folder == self.root => crate::i18n::tr_s(local),
+            (true, Section::All) if let Some(p) = self.places.iter().find(|p| p.dir == self.folder) => {
+                format!("{} {}", p.label, crate::i18n::tr("Backup"))
+            }
             (true, Section::All) => folder_name,
         };
         let chevron = |ui: &mut Ui, x: f32, icon: Icon, enabled: bool, id: &str| -> bool {
@@ -642,10 +671,16 @@ impl Landing {
             return action;
         }
         if self.search.is_empty() && self.section == Section::Recents {
-            p.text(pos2(left, y), Align2::LEFT_CENTER, "What's new", theme::strong(16.0), Tokens::text_strong());
+            p.text(pos2(left, y), Align2::LEFT_CENTER, crate::i18n::tr("What's new"), theme::strong(16.0), Tokens::text_strong());
             self.whats_new_row(ui, Rect::from_min_max(pos2(content.left(), y + 26.0), pos2(content.right(), y + 34.0 + 219.0)), left);
             y += 252.0;
-            p.text(pos2(left, y + 20.0), Align2::LEFT_CENTER, "Recent Projects", theme::strong(16.0), Tokens::text_strong());
+            p.text(
+                pos2(left, y + 20.0),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr("Recent Projects"),
+                theme::strong(16.0),
+                Tokens::text_strong(),
+            );
             y += 52.0;
         }
 
@@ -680,9 +715,9 @@ impl Landing {
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
             }
             let c = pos2(content.center().x, y + 120.0);
-            p.text(c, Align2::CENTER_CENTER, line, theme::strong(13.0), Tokens::text());
+            p.text(c, Align2::CENTER_CENTER, crate::i18n::tr_s(line), theme::strong(13.0), Tokens::text());
             if let Some(hint) = hint {
-                p.text(c + vec2(0.0, 20.0), Align2::CENTER_CENTER, hint, theme::body(11.0), Tokens::text_dim());
+                p.text(c + vec2(0.0, 20.0), Align2::CENTER_CENTER, crate::i18n::tr_s(hint), theme::body(11.0), Tokens::text_dim());
             }
         } else if tiles.is_empty() && !self.search.is_empty() {
             // As the reference words and places it, in the middle of the page (26.202, s39-refsearch).
@@ -691,13 +726,13 @@ impl Landing {
             p.text(
                 c + vec2(0.0, 20.0),
                 Align2::CENTER_CENTER,
-                "Check the spelling or try a new search.",
+                crate::i18n::tr("Check the spelling or try a new search."),
                 theme::body(11.0),
                 Tokens::text_dim(),
             );
         } else if tiles.is_empty() {
             let c = pos2(content.center().x, y + 120.0);
-            p.text(c, Align2::CENTER_CENTER, "No projects yet", theme::strong(13.0), Tokens::text());
+            p.text(c, Align2::CENTER_CENTER, crate::i18n::tr("No projects yet"), theme::strong(13.0), Tokens::text());
             p.text(
                 c + vec2(0.0, 20.0),
                 Align2::CENTER_CENTER,
@@ -755,7 +790,7 @@ impl Landing {
                         p.image(thumb, tile.shrink(6.0), Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
                     }
                     let place = match (self.backup_of(dir), proj.versions) {
-                        (Some(p), _) => format!("{} Backup", p.label),
+                        (Some(p), _) => format!("{} {}", p.label, crate::i18n::tr("Backup")),
                         // Saved on two computers at once: the sync app kept both (right-click splits them apart).
                         (None, n) if n > 0 => format!("{} Versions", n + 1),
                         (None, _) => "Local".to_string(),
@@ -850,10 +885,10 @@ impl Landing {
             if *until < now {
                 self.toast = None;
             } else {
-                let g = p.layout_no_wrap(text.clone(), theme::body(12.0), Tokens::text());
+                let g = p.layout_no_wrap(crate::i18n::tr_s(text.clone()), theme::body(12.0), Tokens::text());
                 let r = Rect::from_center_size(pos2(content.center().x, full.bottom() - 40.0), vec2(g.size().x + 24.0, 30.0));
                 p.rect_filled(r, radius(8), Tokens::banner());
-                p.text(r.center(), Align2::CENTER_CENTER, text, theme::body(12.0), Tokens::text());
+                p.text(r.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(text), theme::body(12.0), Tokens::text());
                 ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
             }
         }
@@ -881,19 +916,19 @@ impl Landing {
                     Color32::WHITE,
                 );
             }
-            p.text(card.min + vec2(24.0, 26.0), Align2::LEFT_CENTER, e.title, theme::strong(18.0), Color32::WHITE);
+            p.text(card.min + vec2(24.0, 26.0), Align2::LEFT_CENTER, crate::i18n::tr_s(e.title), theme::strong(18.0), Color32::WHITE);
             p.text(card.min + vec2(24.0, 50.0), Align2::LEFT_CENTER, format!("New in {}", e.version), theme::body(11.5), hex(0xa9a9ab));
             let g = p.layout(e.text.to_string(), theme::body(12.5), hex(0xdfdfdf), card.width() - 48.0);
             p.galley(pos2(card.left() + 24.0, pic.bottom() + 16.0), g, hex(0xdfdfdf));
             let b = Rect::from_min_size(pos2(card.right() - 104.0, card.bottom() - 46.0), vec2(80.0, 28.0));
             let r = ui.interact(b, ui.scope_id().with("whats-new-close"), Sense::click());
             p.rect_filled(b, radius(14), hex(if r.hovered() { 0x2a5cff } else { 0x1d4fff }));
-            p.text(b.center(), Align2::CENTER_CENTER, "Close", theme::strong(12.5), Color32::WHITE);
+            p.text(b.center(), Align2::CENTER_CENTER, crate::i18n::tr("Close"), theme::strong(12.5), Color32::WHITE);
             // Every version's notes, in the changelog.
             let notes = Rect::from_min_size(pos2(card.left() + 24.0, card.bottom() - 46.0), vec2(150.0, 28.0));
             let n = ui.interact(notes, ui.scope_id().with("whats-new-notes"), Sense::click());
             let nc = if n.hovered() { hex(0xffffff) } else { hex(0xa9a9ab) };
-            p.text(notes.left_center(), Align2::LEFT_CENTER, "All release notes", theme::body(12.0), nc);
+            p.text(notes.left_center(), Align2::LEFT_CENTER, crate::i18n::tr("All release notes"), theme::body(12.0), nc);
             if n.hovered() {
                 ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
             }
@@ -936,7 +971,7 @@ impl Landing {
             }
             p.galley(
                 pos2(r.left() + 16.0, r.top() + 15.0),
-                p.layout(e.title.to_string(), theme::strong(14.0), Color32::WHITE, 140.0),
+                p.layout(crate::i18n::tr_s(e.title), theme::strong(14.0), Color32::WHITE, 140.0),
                 Color32::WHITE,
             );
             if hit.clicked() {
@@ -957,7 +992,7 @@ impl Landing {
         let tutorials_page = self.section == Section::Tutorials;
         let mut y = content.top() + 94.0;
         let heading = |y: f32, text: &str| {
-            p.text(pos2(left, y), Align2::LEFT_CENTER, text, theme::strong(16.0), Tokens::text_strong());
+            p.text(pos2(left, y), Align2::LEFT_CENTER, crate::i18n::tr_s(text), theme::strong(16.0), Tokens::text_strong());
         };
         heading(y, if tutorials_page { "In-App Tutorials" } else { "New to CAD" });
         let fill = if tutorials_page { hex(0x333333) } else { hex(0x1d4fff) };
@@ -971,7 +1006,7 @@ impl Landing {
             }
             p.galley(
                 pos2(r.left() + 16.0, r.top() + 15.0),
-                p.layout(lesson.title.to_string(), theme::strong(14.0), Color32::WHITE, 140.0),
+                p.layout(crate::i18n::tr_s(lesson.title), theme::strong(14.0), Color32::WHITE, 140.0),
                 Color32::WHITE,
             );
             p.text(
@@ -1014,7 +1049,7 @@ impl Landing {
             p.rect_filled(r, radius(5), hex(0x505050));
             p.galley(
                 pos2(r.left() + 16.0, r.top() + 15.0),
-                p.layout(title.to_string(), theme::strong(14.0), Color32::WHITE, 140.0),
+                p.layout(crate::i18n::tr_s(title), theme::strong(14.0), Color32::WHITE, 140.0),
                 Color32::WHITE,
             );
             if i == 0 {
@@ -1199,7 +1234,13 @@ fn popup_menu(ui: &mut Ui, id: &str, at: egui::Pos2, entries: &[&str], danger: &
                 ui.painter().rect_filled(row, radius(6), Tokens::accent());
             }
             let col = if *label == danger && !r.hovered() { Tokens::danger() } else { Tokens::text() };
-            ui.painter().text(pos2(row.left() + 10.0, row.center().y), Align2::LEFT_CENTER, *label, theme::body(12.5), col);
+            ui.painter().text(
+                pos2(row.left() + 10.0, row.center().y),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr_s(*label),
+                theme::body(12.5),
+                col,
+            );
             if r.clicked() {
                 chosen = Some(i);
             }

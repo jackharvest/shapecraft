@@ -222,8 +222,20 @@ pub(super) fn interact(ws: &mut Workspace, ui: &mut Ui, d: &Drawing, sheet: Rect
             let (title, body) = t.hint();
             let banner = Rect::from_center_size(pos2(ws.viewport_rect.center().x, ws.viewport_rect.top() + 34.0), vec2(330.0, 44.0));
             p.rect_filled(banner, radius(8), Tokens::banner());
-            p.text(pos2(banner.left() + 14.0, banner.top() + 14.0), Align2::LEFT_CENTER, title, theme::strong(12.0), Tokens::text_strong());
-            p.text(pos2(banner.left() + 14.0, banner.top() + 31.0), Align2::LEFT_CENTER, body, theme::body(11.0), Tokens::text_dim());
+            p.text(
+                pos2(banner.left() + 14.0, banner.top() + 14.0),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr_s(title),
+                theme::strong(12.0),
+                Tokens::text_strong(),
+            );
+            p.text(
+                pos2(banner.left() + 14.0, banner.top() + 31.0),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr_s(body),
+                theme::body(11.0),
+                Tokens::text_dim(),
+            );
             // Min-Max keeps its first circle in the picks (drawn as the circle itself).
             for pk in picks.iter().filter(|_| t != DrawTool::MinMax) {
                 p.circle_filled(to(*pk), 4.0, accent);
@@ -592,7 +604,7 @@ pub(super) fn interact(ws: &mut Workspace, ui: &mut Ui, d: &Drawing, sheet: Rect
     if let Some((at, mut text, focus)) = note {
         let field = Rect::from_min_size(to(at) - vec2(0.0, 22.0), vec2(220.0, 22.0));
         let id = ui.scope_id().with("note-field");
-        let r = ui.put(field, egui::TextEdit::singleline(&mut text).id(id).hint_text("Note").font(theme::body(13.0)));
+        let r = ui.put(field, egui::TextEdit::singleline(&mut text).id(id).hint_text(crate::i18n::tr("Note")).font(theme::body(13.0)));
         if focus {
             r.request_focus();
         }
@@ -691,7 +703,7 @@ pub(super) fn dim_card(ws: &mut Workspace, ui: &mut Ui) {
                 ui.painter().text(
                     pos2(row.left() + 22.0, row.center().y),
                     Align2::LEFT_CENTER,
-                    label,
+                    crate::i18n::tr_s(label),
                     theme::strong(12.5),
                     if on { Tokens::text_strong() } else { Tokens::text_dim() },
                 );
@@ -763,7 +775,7 @@ pub(super) fn dim_card(ws: &mut Workspace, ui: &mut Ui) {
                     changed = true;
                 }
                 let labelled = |ui: &mut Ui, label: &str, text: &mut String, id: &str| -> Option<f64> {
-                    ui.label(egui::RichText::new(label).size(11.0).color(Tokens::text_dim()));
+                    ui.label(egui::RichText::new(crate::i18n::tr(label)).size(11.0).color(Tokens::text_dim()));
                     if field(ui, text, id) { parse(text) } else { None }
                 };
                 match t.kind {

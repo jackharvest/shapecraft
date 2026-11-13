@@ -55,15 +55,28 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     let search = Rect::from_min_size(side.min + vec2(10.0, 16.0), vec2(220.0, 26.0));
     p.rect_filled(search, radius(6), theme::c(0x333335));
     p.text(search.left_center() + vec2(9.0, 0.0), Align2::LEFT_CENTER, "⌕", theme::body(13.0), Tokens::text_dim());
-    let edit = egui::TextEdit::singleline(&mut sheet.query).hint_text("Search").frame(egui::Frame::NONE).font(theme::body(12.5));
+    let edit =
+        egui::TextEdit::singleline(&mut sheet.query).hint_text(crate::i18n::tr("Search")).frame(egui::Frame::NONE).font(theme::body(12.5));
     ui.put(Rect::from_min_max(search.min + vec2(26.0, 4.0), search.max - vec2(6.0, 4.0)), edit);
     let recents = Rect::from_min_size(side.min + vec2(10.0, 54.0), vec2(220.0, 26.0));
     p.rect_filled(recents, radius(6), theme::c(0x3a3a3c));
     p.circle_stroke(recents.left_center() + vec2(16.0, 0.0), 6.0, Stroke::new(1.4, Tokens::icon_blue()));
-    p.text(recents.left_center() + vec2(30.0, 0.0), Align2::LEFT_CENTER, "Recents", theme::body(13.0), Tokens::text_strong());
+    p.text(
+        recents.left_center() + vec2(30.0, 0.0),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr("Recents"),
+        theme::body(13.0),
+        Tokens::text_strong(),
+    );
     // Header.
     let main = Rect::from_min_max(pos2(side.right(), r.top()), r.max);
-    p.text(pos2(main.left() + 70.0, r.top() + 29.0), Align2::LEFT_CENTER, "Recents", theme::strong(13.0), Tokens::text_strong());
+    p.text(
+        pos2(main.left() + 70.0, r.top() + 29.0),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr("Recents"),
+        theme::strong(13.0),
+        Tokens::text_strong(),
+    );
     for (k, ch) in ["‹", "›"].iter().enumerate() {
         let b = Rect::from_center_size(pos2(main.left() + 27.0 + 22.0 * k as f32, r.top() + 29.0), vec2(20.0, 20.0));
         p.rect_filled(b, radius(4), theme::c(0x333335));
@@ -85,7 +98,7 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     }
     let gp = p.with_clip_rect(grid);
     if shown.is_empty() {
-        p.text(grid.center(), Align2::CENTER_CENTER, "No projects", theme::strong(13.0), Tokens::text_dim());
+        p.text(grid.center(), Align2::CENTER_CENTER, crate::i18n::tr("No projects"), theme::strong(13.0), Tokens::text_dim());
     }
     for (k, &i) in shown.iter().enumerate() {
         let (col, row) = ((k % 2) as f32, (k / 2) as f32);
@@ -146,10 +159,16 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     let import = Rect::from_min_size(pos2(main.right() - 92.0, r.bottom() - 34.0), vec2(76.0, 22.0));
     let cancel = import.translate(vec2(-86.0, 0.0));
     p.rect_filled(cancel, radius(5), theme::c(0x5b5b5e));
-    p.text(cancel.center(), Align2::CENTER_CENTER, "Cancel", theme::body(12.5), Tokens::text_strong());
+    p.text(cancel.center(), Align2::CENTER_CENTER, crate::i18n::tr("Cancel"), theme::body(12.5), Tokens::text_strong());
     let can = sheet.selected.is_some();
     p.rect_filled(import, radius(5), if can { Tokens::accent() } else { theme::c(0x3a3a3c) });
-    p.text(import.center(), Align2::CENTER_CENTER, "Import", theme::body(12.5), if can { Color32::WHITE } else { Tokens::text_faint() });
+    p.text(
+        import.center(),
+        Align2::CENTER_CENTER,
+        crate::i18n::tr("Import"),
+        theme::body(12.5),
+        if can { Color32::WHITE } else { Tokens::text_faint() },
+    );
     let cancelled = ui.interact(cancel, ui.scope_id().with("import-cancel"), Sense::click()).clicked()
         || ui.input(|i| i.key_pressed(egui::Key::Escape));
     let go = can

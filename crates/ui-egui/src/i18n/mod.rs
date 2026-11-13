@@ -7,8 +7,20 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 mod tables;
 
 /// The languages, by the names the Language menu shows (each in its own language), English first.
-pub const LANGUAGES: &[&str] =
-    &["English", "简体中文", "繁體中文", "Deutsch", "Español", "Français", "Italiano", "日本語", "한국어", "Português (Brasil)", "Русский", "Slovenčina"];
+pub const LANGUAGES: &[&str] = &[
+    "English",
+    "简体中文",
+    "繁體中文",
+    "Deutsch",
+    "Español",
+    "Français",
+    "Italiano",
+    "日本語",
+    "한국어",
+    "Português (Brasil)",
+    "Русский",
+    "Slovenčina",
+];
 
 static CURRENT: AtomicUsize = AtomicUsize::new(0);
 
@@ -57,6 +69,11 @@ pub fn set(name: &str) -> bool {
 /// The current language's [`LANGUAGES`] name.
 pub fn current() -> &'static str {
     LANGUAGES.get(CURRENT.load(Ordering::Relaxed)).copied().unwrap_or("English")
+}
+
+/// [`tr`] for text that comes as a `String` or `&String` (a label picked at run time); the result is owned.
+pub fn tr_s(english: impl AsRef<str>) -> String {
+    tr(english.as_ref()).to_owned()
 }
 
 /// `english` in the current language (as it is when there's no translation).

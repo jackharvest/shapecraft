@@ -66,7 +66,11 @@ impl Workspace {
             // The value as typed (selected-looking while it is the pill's own value).
             let field = Rect::from_min_size(frame.min + vec2(PAD, PAD), vec2(size.x - PAD * 2.0, 40.0));
             p.rect_filled(field, radius(9), theme::c(0x1c1c1e));
-            let g = p.layout_no_wrap(if shown.is_empty() { "0".into() } else { shown.clone() }, theme::strong(20.0), Tokens::text_strong());
+            let g = p.layout_no_wrap(
+                crate::i18n::tr_s(if shown.is_empty() { "0".into() } else { shown.clone() }),
+                theme::strong(20.0),
+                Tokens::text_strong(),
+            );
             let text_at = pos2(field.right() - 12.0 - g.size().x, field.center().y - g.size().y / 2.0);
             if fresh && !shown.is_empty() {
                 p.rect_filled(Rect::from_min_size(text_at, g.size()).expand(2.0), radius(4), Tokens::accent().gamma_multiply(0.6));
@@ -93,7 +97,7 @@ impl Workspace {
                             p.text(r.center(), Align2::CENTER_CENTER, "✓", theme::strong(20.0), Color32::WHITE);
                         }
                         Pad::Char(_) => {
-                            p.text(r.center(), Align2::CENTER_CENTER, *label, theme::body(21.0), Tokens::text_strong());
+                            p.text(r.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(*label), theme::body(21.0), Tokens::text_strong());
                         }
                     }
                     if resp.clicked() {

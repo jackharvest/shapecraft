@@ -87,7 +87,7 @@ fn cards(ws: &mut Workspace, ui: &mut Ui, w: f32, material: bool) -> bool {
                     p.text(
                         pos2(rect.left() + 8.0, rect.bottom() - 22.0),
                         Align2::LEFT_CENTER,
-                        "Standard",
+                        crate::i18n::tr("Standard"),
                         theme::body(9.5),
                         Tokens::text_dim(),
                     );
@@ -127,11 +127,11 @@ fn cards(ws: &mut Workspace, ui: &mut Ui, w: f32, material: bool) -> bool {
                     ws.vis_changing = false;
                 }
                 resp.context_menu(|ui| {
-                    if ui.button("Rename").clicked() {
+                    if ui.button(crate::i18n::tr("Rename")).clicked() {
                         ws.picture_rename = Some((img.id, img.name.clone()));
                         ui.close();
                     }
-                    if ui.button("Delete").clicked() {
+                    if ui.button(crate::i18n::tr("Delete")).clicked() {
                         let _ = ws.run("delete_decal_image", json!({ "image": img.id.0 }));
                         ui.close();
                     }
@@ -252,11 +252,11 @@ pub(super) fn properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     };
     let img = ws.session.doc.decal_images.iter().find(|i| i.id == d.image).cloned();
     let p = ui.painter().clone();
-    p.text(pos2(r.center().x, r.top() + 18.0), Align2::CENTER_CENTER, "Properties", theme::body(12.0), Tokens::text_dim());
+    p.text(pos2(r.center().x, r.top() + 18.0), Align2::CENTER_CENTER, crate::i18n::tr("Properties"), theme::body(12.0), Tokens::text_dim());
     let left = r.left() + 14.0;
     let w = r.width() - 28.0;
     let mut y = r.top() + 46.0;
-    p.text(pos2(left, y), Align2::LEFT_CENTER, "Decal", theme::strong(12.5), Tokens::text_strong());
+    p.text(pos2(left, y), Align2::LEFT_CENTER, crate::i18n::tr("Decal"), theme::strong(12.5), Tokens::text_strong());
     y += 12.0;
     let card = Rect::from_min_size(pos2(left - 2.0, y), vec2(w + 4.0, 54.0));
     p.rect_filled(card, radius(7), theme::c(0x303032));
@@ -293,9 +293,9 @@ pub(super) fn properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
         }
         y += 50.0;
     }
-    p.text(pos2(left, y), Align2::LEFT_CENTER, "Projection", theme::strong(12.5), Tokens::text_strong());
+    p.text(pos2(left, y), Align2::LEFT_CENTER, crate::i18n::tr("Projection"), theme::strong(12.5), Tokens::text_strong());
     y += 22.0;
-    p.text(pos2(left, y), Align2::LEFT_CENTER, "Type", theme::body(12.0), Tokens::text());
+    p.text(pos2(left, y), Align2::LEFT_CENTER, crate::i18n::tr("Type"), theme::body(12.0), Tokens::text());
     let label = if d.projection == Projection::Cylindrical { "Cylindrical" } else { "Planar" };
     let pill = Rect::from_min_size(pos2(left + w - 62.0, y - 9.0), vec2(62.0, 18.0));
     if super::visual::pill_menu(ui, pill, label, &["Planar", "Cylindrical"], ("decal-projection", id.0)).is_some_and(|k| k != label) {
@@ -320,7 +320,7 @@ pub(super) fn body_rows(ws: &mut Workspace, ui: &mut Ui, r: Rect, top: f32, body
     let p = ui.painter().clone();
     let left = r.left() + 14.0;
     let mut y = top;
-    p.text(pos2(left, y), Align2::LEFT_CENTER, "Decal", theme::strong(12.5), Tokens::text_strong());
+    p.text(pos2(left, y), Align2::LEFT_CENTER, crate::i18n::tr("Decal"), theme::strong(12.5), Tokens::text_strong());
     y += 12.0;
     for (id, image) in decals.into_iter().take(4) {
         let card = Rect::from_min_size(pos2(left - 2.0, y), vec2(r.width() - 24.0, 54.0));
@@ -338,7 +338,7 @@ pub(super) fn body_rows(ws: &mut Workspace, ui: &mut Ui, r: Rect, top: f32, body
         p.text(
             edit.center(),
             Align2::CENTER_CENTER,
-            "Edit",
+            crate::i18n::tr("Edit"),
             theme::body(12.0),
             if er.hovered() { theme::c(0x6fa0ff) } else { theme::c(0x3f86ff) },
         );

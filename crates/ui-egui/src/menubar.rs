@@ -127,8 +127,8 @@ pub fn grid_label(s: &MenuState) -> String {
     let mm = s.grid_um as f64 / 1000.0;
     let size = format!("{mm:.3}");
     let size = size.trim_end_matches('0').trim_end_matches('.');
-    let verb = if s.grid_locked { "Unlock" } else { "Lock" };
-    if s.grid_um == 0 { format!("{verb} Grid Size") } else { format!("{verb} Grid Size ({size} mm)") }
+    let what = crate::i18n::tr(if s.grid_locked { "Unlock Grid Size" } else { "Lock Grid Size" });
+    if s.grid_um == 0 { what.to_string() } else { format!("{what} ({size} mm)") }
 }
 
 impl When {
@@ -639,6 +639,8 @@ mod native {
         /// Each item with its action, when it's enabled, and its single key if it has one.
         items: Vec<(Native, MenuAction, When, Option<egui::Key>)>,
         state: Option<MenuState>,
+        /// The interface language the bars were built in; they're built again when it changes.
+        lang: &'static str,
         /// Picked items, and whether a key press picked them. muda stops filling its own channel once a handler is
         /// set, so the handler forwards here.
         picked: std::sync::mpsc::Receiver<(MenuEvent, bool)>,
@@ -681,7 +683,7 @@ mod native {
 
     /// macOS reads "&" as a mnemonic marker and drops it ("Wrap  Emboss"); "&&" shows one.
     fn native_label(label: &str) -> String {
-        label.replace('&', "&&")
+        crate::i18n::tr(label).replace('&', "&&")
     }
 
     fn fill(sub: &Submenu, entries: Vec<Entry>, items: &mut Vec<(Native, MenuAction, When, Option<egui::Key>)>) {
@@ -715,17 +717,18 @@ mod native {
 
     fn build(menus: Vec<(&'static str, Vec<Entry>)>, items: &mut Vec<(Native, MenuAction, When, Option<egui::Key>)>) -> Option<Bar> {
         let menu = Menu::new();
+        let tr = crate::i18n::tr;
         let app = Submenu::new("ShapeCraft", true);
-        let quit = MenuItem::new("Quit ShapeCraft", true, Accelerator::from_str("CmdOrCtrl+Q").ok());
-        let prefs = MenuItem::new("Preferences…", true, Accelerator::from_str("CmdOrCtrl+Comma").ok());
+        let quit = MenuItem::new(tr("Quit ShapeCraft"), true, Accelerator::from_str("CmdOrCtrl+Q").ok());
+        let prefs = MenuItem::new(tr("Preferences…"), true, Accelerator::from_str("CmdOrCtrl+Comma").ok());
         let _ = app.append_items(&[
-            &PredefinedMenuItem::about(Some("About ShapeCraft"), None),
+            &PredefinedMenuItem::about(Some(tr("About ShapeCraft")), None),
             &PredefinedMenuItem::separator(),
             &prefs,
             &PredefinedMenuItem::separator(),
             &PredefinedMenuItem::services(None),
             &PredefinedMenuItem::separator(),
-            &PredefinedMenuItem::hide(Some("Hide ShapeCraft")),
+            &PredefinedMenuItem::hide(Some(tr("Hide ShapeCraft"))),
             &PredefinedMenuItem::hide_others(None),
             &PredefinedMenuItem::show_all(None),
             &PredefinedMenuItem::separator(),
@@ -735,7 +738,7 @@ mod native {
         items.push((Native::Plain(prefs), MenuAction::Ui(crate::workspace::toolbar::UiAction::Preferences), When::Always, None));
         menu.append(&app).ok()?;
         // The system's Window menu: macOS adds Fill, Center, Move & Resize, tiling and the window list.
-        let window = Submenu::new("Window", true);
+        let window = Submenu::new(tr("Window"), true);
         let _ = window.append_items(&[
             &PredefinedMenuItem::minimize(None),
             &PredefinedMenuItem::maximize(None),
@@ -743,11 +746,11 @@ mod native {
             &PredefinedMenuItem::bring_all_to_front(None),
         ]);
         for (title, entries) in menus {
-            let sub = Submenu::new(title, true);
+            let sub = Submenu::new(native_label(title), true);
             fill(&sub, entries, items);
             if title == "View" {
                 // Last, right after the grid tip, as the reference has it (macOS retitles it Exit Full Screen).
-                let _ = sub.append(&PredefinedMenuItem::fullscreen(Some("Enter Full Screen")));
+                let _ = sub.append(&PredefinedMenuItem::fullscreen(Some(tr("Enter Full Screen"))));
             }
             menu.append(&sub).ok()?;
             if title == "View" {
@@ -763,6 +766,7 @@ mod native {
             let mut items = Vec::new();
             let project = build(tree(), &mut items)?;
             let home = build(home_tree(), &mut items)?;
+            let lang = crate::i18n::current();
             let (send, picked) = std::sync::mpsc::channel();
             let send = std::sync::Mutex::new(send);
             MenuEvent::set_event_handler(Some(move |e: MenuEvent| {
@@ -772,7 +776,7 @@ mod native {
                 }
                 wake();
             }));
-            let mut bar = MenuBar { project, home, in_project: None, items, state: None, picked };
+            let mut bar = MenuBar { project, home, in_project: None, items, state: None, lang, picked };
             bar.show_bar(false);
             Some(bar)
         }
@@ -801,6 +805,9 @@ mod native {
         }
 
         pub fn update(&mut self, state: MenuState) {
+            if self.lang != crate::i18n::current() {
+                self.rebuild();
+            }
             if self.state == Some(state) {
                 return;
             }
@@ -815,6 +822,19 @@ mod native {
                 }
             }
             self.state = Some(state);
+        }
+
+        /// Builds both bars again in the current language (Preferences ▸ Language) and installs the right one.
+        fn rebuild(&mut self) {
+            self.lang = crate::i18n::current();
+            let mut items = Vec::new();
+            let (Some(project), Some(home)) = (build(tree(), &mut items), build(home_tree(), &mut items)) else { return };
+            // The old bars go only once the new one is installed.
+            let _old = (std::mem::replace(&mut self.project, project), std::mem::replace(&mut self.home, home));
+            self.items = items;
+            self.state = None;
+            let in_project = self.in_project.take().unwrap_or(false);
+            self.show_bar(in_project);
         }
 
         /// The menus live in the system's menu bar here: nothing to draw in the window.
@@ -914,7 +934,7 @@ impl WindowMenu {
         egui::MenuBar::new().ui(&mut strip, |ui| {
             for (title, entries) in &menus {
                 if self.state.in_project || usable(entries, &self.state) {
-                    ui.menu_button(*title, |ui| self.entries(ui, entries));
+                    ui.menu_button(crate::i18n::tr(title), |ui| self.entries(ui, entries));
                 }
             }
         });
@@ -938,9 +958,9 @@ impl WindowMenu {
                     let text = accel.map(shortcut_text).unwrap_or_default();
                     // Check items lead with ✓ when on, and keep the space when off so the labels line up.
                     let label = match self.state.checked(action) {
-                        Some(true) => format!("✓ {label}"),
-                        Some(false) => format!("    {label}"),
-                        None => label.to_string(),
+                        Some(true) => format!("✓ {}", crate::i18n::tr(label)),
+                        Some(false) => format!("    {}", crate::i18n::tr(label)),
+                        None => crate::i18n::tr_s(label),
                     };
                     if ui.add_enabled(when.holds(&self.state), egui::Button::new(label).shortcut_text(text)).clicked() {
                         self.pending.push(*action);
@@ -951,7 +971,7 @@ impl WindowMenu {
                     ui.separator();
                 }
                 Entry::Sub { label, items } => {
-                    ui.menu_button(*label, |ui| self.entries(ui, items));
+                    ui.menu_button(crate::i18n::tr(label), |ui| self.entries(ui, items));
                 }
             }
         }

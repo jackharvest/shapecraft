@@ -143,7 +143,13 @@ pub fn show_at(ui: &mut Ui, id: &str, place: Place, bounds: Rect, rows: &[Row]) 
             let r = Rect::from_min_size(pos2(rect.left() + 8.0, y), vec2(W - 16.0, rh));
             match row {
                 Row::Header(t) => {
-                    p.text(pos2(r.left() + 6.0, r.center().y), Align2::LEFT_CENTER, *t, theme::strong(11.0), Tokens::text_dim());
+                    p.text(
+                        pos2(r.left() + 6.0, r.center().y),
+                        Align2::LEFT_CENTER,
+                        crate::i18n::tr_s(*t),
+                        theme::strong(11.0),
+                        Tokens::text_dim(),
+                    );
                 }
                 Row::Choice { label, checked, enabled } => {
                     let resp = ui.interact(r, ui.scope_id().with((id, i)), Sense::click());
@@ -156,7 +162,7 @@ pub fn show_at(ui: &mut Ui, id: &str, place: Place, bounds: Rect, rows: &[Row]) 
                     if *checked {
                         p.text(pos2(r.left() + 6.0, r.center().y), Align2::LEFT_CENTER, "✓", theme::body(13.0), col);
                     }
-                    p.text(pos2(r.left() + indent, r.center().y), Align2::LEFT_CENTER, *label, theme::body(13.5), col);
+                    p.text(pos2(r.left() + indent, r.center().y), Align2::LEFT_CENTER, crate::i18n::tr_s(*label), theme::body(13.5), col);
                     if *enabled && resp.clicked() {
                         clicked = Some((i, 0));
                     }
@@ -167,11 +173,11 @@ pub fn show_at(ui: &mut Ui, id: &str, place: Place, bounds: Rect, rows: &[Row]) 
                         p.rect_filled(r, radius(5), theme::c(0x3a3a3c));
                     }
                     let col = if *saved { Tokens::text_strong() } else { Tokens::text_faint() };
-                    p.text(pos2(r.left() + 6.0, r.center().y), Align2::LEFT_CENTER, *label, theme::body(13.5), col);
+                    p.text(pos2(r.left() + 6.0, r.center().y), Align2::LEFT_CENTER, crate::i18n::tr_s(*label), theme::body(13.5), col);
                     if !saved && resp.hovered() {
                         let b = Rect::from_center_size(pos2(r.right() - 27.0, r.center().y), vec2(48.0, 20.0));
                         p.rect_filled(b, radius(5), theme::c(0x636366));
-                        p.text(b.center(), Align2::CENTER_CENTER, "Save", theme::body(12.0), Color32::WHITE);
+                        p.text(b.center(), Align2::CENTER_CENTER, crate::i18n::tr("Save"), theme::body(12.0), Color32::WHITE);
                         if resp.clicked() && resp.interact_pointer_pos().is_some_and(|q| b.contains(q)) {
                             clicked = Some((i, 1));
                         }
@@ -181,7 +187,13 @@ pub fn show_at(ui: &mut Ui, id: &str, place: Place, bounds: Rect, rows: &[Row]) 
                 }
                 Row::Switch { label, on } => {
                     let resp = ui.interact(r, ui.scope_id().with((id, i)), Sense::click());
-                    p.text(pos2(r.left() + 6.0, r.center().y), Align2::LEFT_CENTER, *label, theme::body(13.5), Tokens::text());
+                    p.text(
+                        pos2(r.left() + 6.0, r.center().y),
+                        Align2::LEFT_CENTER,
+                        crate::i18n::tr_s(*label),
+                        theme::body(13.5),
+                        Tokens::text(),
+                    );
                     let track = Rect::from_center_size(pos2(r.right() - 22.0, r.center().y), vec2(38.0, 22.0));
                     p.rect_filled(track, radius(11), if *on { theme::c(0x2f5bd8) } else { theme::c(0x5a5a5e) });
                     let knob = if *on { track.right() - 11.0 } else { track.left() + 11.0 };
@@ -194,13 +206,19 @@ pub fn show_at(ui: &mut Ui, id: &str, place: Place, bounds: Rect, rows: &[Row]) 
                     let b = r.shrink2(vec2(0.0, 3.0));
                     let resp = ui.interact(b, ui.scope_id().with((id, i)), Sense::click());
                     p.rect_filled(b, radius(6), if resp.hovered() { theme::c(0x6a6a6e) } else { theme::c(0x58585c) });
-                    p.text(b.center(), Align2::CENTER_CENTER, *t, theme::body(13.0), Color32::WHITE);
+                    p.text(b.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(*t), theme::body(13.0), Color32::WHITE);
                     if resp.clicked() {
                         clicked = Some((i, 0));
                     }
                 }
                 Row::Tip(t) => {
-                    p.text(pos2(r.left() + 6.0, r.center().y), Align2::LEFT_CENTER, *t, theme::body(10.5), Tokens::text_dim());
+                    p.text(
+                        pos2(r.left() + 6.0, r.center().y),
+                        Align2::LEFT_CENTER,
+                        crate::i18n::tr_s(*t),
+                        theme::body(10.5),
+                        Tokens::text_dim(),
+                    );
                 }
                 Row::Separator => {
                     p.line_segment(
@@ -217,21 +235,33 @@ pub fn show_at(ui: &mut Ui, id: &str, place: Place, bounds: Rect, rows: &[Row]) 
                         if k == *sel {
                             p.rect_filled(seg, radius(6), theme::c(0x5a5a5e));
                         }
-                        p.text(seg.center(), Align2::CENTER_CENTER, *l, theme::body(13.0), Tokens::text());
+                        p.text(seg.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(*l), theme::body(13.0), Tokens::text());
                         if ui.interact(seg, ui.scope_id().with((id, i, k)), Sense::click()).clicked() {
                             clicked = Some((i, k));
                         }
                     }
                 }
                 Row::Title(t) => {
-                    p.text(pos2(r.left() + 6.0, r.center().y), Align2::LEFT_CENTER, *t, theme::strong(12.0), Tokens::text_strong());
+                    p.text(
+                        pos2(r.left() + 6.0, r.center().y),
+                        Align2::LEFT_CENTER,
+                        crate::i18n::tr_s(*t),
+                        theme::strong(12.0),
+                        Tokens::text_strong(),
+                    );
                 }
                 Row::Paragraph(t, _) => {
-                    let g = p.layout(t.to_string(), theme::body(10.5), Tokens::text_dim(), r.width() - 10.0);
+                    let g = p.layout(crate::i18n::tr_s(t), theme::body(10.5), Tokens::text_dim(), r.width() - 10.0);
                     p.galley(pos2(r.left() + 6.0, r.top() + 2.0), g, Tokens::text_dim());
                 }
                 Row::Select { label, options, current } => {
-                    p.text(pos2(r.left() + 6.0, r.center().y), Align2::LEFT_CENTER, *label, theme::body(13.5), Tokens::text());
+                    p.text(
+                        pos2(r.left() + 6.0, r.center().y),
+                        Align2::LEFT_CENTER,
+                        crate::i18n::tr_s(*label),
+                        theme::body(13.5),
+                        Tokens::text(),
+                    );
                     let opts: Vec<String> = options.iter().map(|o| o.to_string()).collect();
                     if let Some(k) = pill_select(ui, &format!("{id}-{i}"), pos2(r.right() - 4.0, r.center().y), 92.0, &opts, Some(*current))
                     {
@@ -239,7 +269,13 @@ pub fn show_at(ui: &mut Ui, id: &str, place: Place, bounds: Rect, rows: &[Row]) 
                     }
                 }
                 Row::Scale { label, value, min, max } => {
-                    p.text(pos2(r.left() + 6.0, r.top() + 12.0), Align2::LEFT_CENTER, *label, theme::body(13.5), Tokens::text());
+                    p.text(
+                        pos2(r.left() + 6.0, r.top() + 12.0),
+                        Align2::LEFT_CENTER,
+                        crate::i18n::tr_s(*label),
+                        theme::body(13.5),
+                        Tokens::text(),
+                    );
                     let v = value.get();
                     let ty = r.top() + 40.0;
                     p.text(pos2(r.right() - 4.0, ty), Align2::RIGHT_CENTER, format!("{v:.1}x"), theme::body(12.5), Tokens::text());
@@ -261,8 +297,8 @@ pub fn show_at(ui: &mut Ui, id: &str, place: Place, bounds: Rect, rows: &[Row]) 
                 Row::Slider { left, right, value, min, max } => {
                     let v = value.get();
                     let ly = r.top() + 12.0;
-                    p.text(pos2(r.left() + 6.0, ly), Align2::LEFT_CENTER, *left, theme::body(13.0), Tokens::text());
-                    p.text(pos2(r.right() - 4.0, ly), Align2::RIGHT_CENTER, *right, theme::body(13.0), Tokens::text());
+                    p.text(pos2(r.left() + 6.0, ly), Align2::LEFT_CENTER, crate::i18n::tr_s(*left), theme::body(13.0), Tokens::text());
+                    p.text(pos2(r.right() - 4.0, ly), Align2::RIGHT_CENTER, crate::i18n::tr_s(*right), theme::body(13.0), Tokens::text());
                     p.text(pos2(r.center().x - 10.0, ly), Align2::CENTER_CENTER, format!("{v:.0}"), theme::body(13.0), Tokens::accent());
                     let track = Rect::from_min_max(pos2(r.left() + 6.0, r.top() + 34.0), pos2(r.right() - 4.0, r.top() + 38.0));
                     let t = ((v - min) / (max - min).max(1e-9)).clamp(0.0, 1.0) as f32;
@@ -296,7 +332,7 @@ pub fn pill_select(ui: &mut Ui, id: &str, right_center: Pos2, min_width: f32, op
     let open_key = ui.scope_id().with((id, "pill-open"));
     let text = current.and_then(|i| options.get(i)).cloned().unwrap_or_default();
     let p = ui.painter().clone();
-    let galley = p.layout_no_wrap(text, theme::body(12.0), Tokens::text_strong());
+    let galley = p.layout_no_wrap(crate::i18n::tr_s(text), theme::body(12.0), Tokens::text_strong());
     let w = (galley.size().x + 32.0).max(min_width);
     let pill = Rect::from_min_max(pos2(right_center.x - w, right_center.y - 10.0), pos2(right_center.x, right_center.y + 10.0));
     let resp = ui.interact(pill, ui.scope_id().with((id, "pill")), Sense::click());
@@ -315,7 +351,11 @@ pub fn pill_select(ui: &mut Ui, id: &str, right_center: Pos2, min_width: f32, op
         return None;
     }
     let row_h = 24.0;
-    let list_w = options.iter().map(|o| p.layout_no_wrap(o.clone(), theme::body(12.5), Tokens::text()).size().x).fold(0.0, f32::max) + 44.0;
+    let list_w = options
+        .iter()
+        .map(|o| p.layout_no_wrap(crate::i18n::tr_s(o.clone()), theme::body(12.5), Tokens::text()).size().x)
+        .fold(0.0, f32::max)
+        + 44.0;
     let list_w = list_w.max(pill.width());
     let mut picked = None;
     let shown = egui::Area::new(ui.scope_id().with((id, "pill-list")))
@@ -336,7 +376,13 @@ pub fn pill_select(ui: &mut Ui, id: &str, right_center: Pos2, min_width: f32, op
                 if Some(i) == current {
                     p.text(pos2(r.left() + 7.0, r.center().y), Align2::LEFT_CENTER, "✓", theme::body(12.5), Tokens::text_strong());
                 }
-                p.text(pos2(r.left() + 24.0, r.center().y), Align2::LEFT_CENTER, o, theme::body(12.5), Tokens::text_strong());
+                p.text(
+                    pos2(r.left() + 24.0, r.center().y),
+                    Align2::LEFT_CENTER,
+                    crate::i18n::tr_s(o),
+                    theme::body(12.5),
+                    Tokens::text_strong(),
+                );
                 if resp.clicked() {
                     picked = Some(i);
                 }
@@ -386,7 +432,7 @@ pub fn pull_down(
                 crate::icons::paint(p, Rect::from_center_size(pos2(x + 7.0, row.center().y), vec2(13.0, 13.0)), *icon, Tokens::text());
                 x += 20.0;
             }
-            p.text(pos2(x, row.center().y), Align2::LEFT_CENTER, *label, theme::body(12.5), Tokens::text_strong());
+            p.text(pos2(x, row.center().y), Align2::LEFT_CENTER, crate::i18n::tr_s(*label), theme::body(12.5), Tokens::text_strong());
             if resp.clicked() {
                 clicked = Some(i);
             }
@@ -450,7 +496,7 @@ pub fn native_menu(
                 crate::icons::paint(p, Rect::from_center_size(pos2(x + 5.0, row.center().y), vec2(13.0, 13.0)), *icon, col);
                 x += 18.0;
             }
-            p.text(pos2(x, row.center().y), Align2::LEFT_CENTER, *label, theme::body(13.5), col);
+            p.text(pos2(x, row.center().y), Align2::LEFT_CENTER, crate::i18n::tr_s(*label), theme::body(13.5), col);
             if resp.clicked() {
                 clicked = Some(i);
             }
