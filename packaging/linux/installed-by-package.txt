@@ -1,0 +1,1 @@
+This copy of ShapeCraft was installed from its .deb or .rpm package. Install the next version's package to update it.

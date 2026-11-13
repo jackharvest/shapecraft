@@ -1,5 +1,6 @@
 # Pushing a tag like v0.4.0-alpha builds every download and publishes them as a GitHub release:
-#   macOS DMGs (Apple silicon, Intel), a Windows installer and portable zip, a Linux AppImage and tar.gz, an Android APK
+#   macOS DMGs (Apple silicon, Intel), a Windows installer, MSI and portable zip, a Linux AppImage, .deb, .rpm and
+#   tar.gz, an Android APK
 #   (arm64, signed with the release key from the repository's secrets), SHA256SUMS.txt.
 # File names follow the Craft App Suite's (shapecraft-<version>-<os>-<arch>[-portable].<ext>); the app's updater and
 # the website pick their files by those names. OCCT comes from conda-forge on every platform and goes inside each
@@ -66,13 +67,17 @@ jobs:
       - name: Inno Setup
         shell: pwsh
         run: if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup -y --no-progress }
+      # The MSI is what the Craft App Suite's launcher installs.
+      - name: WiX
+        shell: pwsh
+        run: dotnet tool install --global wix --version 5.0.2
       - name: Bundle
         shell: pwsh
         run: |
           $env:CARGO_TARGET_X86_64_PC_WINDOWS_MSVC_LINKER = Join-Path $env:VCToolsInstallDir 'bin\Hostx64\x64\link.exe'
           cargo xtask bundle-windows
       - uses: actions/upload-artifact@v4
-        with: { name: windows, path: "target/*-portable.zip\ntarget/*-setup.exe", if-no-files-found: error }
+        with: { name: windows, path: "target/*-portable.zip\ntarget/*-setup.exe\ntarget/*.msi", if-no-files-found: error }
 
   linux:
     # The oldest Ubuntu runner: the programs need the glibc they were built against or newer.
@@ -96,8 +101,15 @@ jobs:
           curl -fsSL -o appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool
           APPIMAGETOOL="$PWD/appimagetool" cargo xtask appimage
+      # .deb and .rpm (what the Craft App Suite's launcher installs on those distributions), nfpm checked by its hash.
+      - name: deb and rpm
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/nfpm.deb" https://github.com/goreleaser/nfpm/releases/download/v2.48.0/nfpm_2.48.0_amd64.deb
+          echo "787af76e172dd5fc7cedf4d7c5a090a2f62be9001557a4db1103e270f90ddefd  $RUNNER_TEMP/nfpm.deb" | sha256sum -c -
+          sudo dpkg -i "$RUNNER_TEMP/nfpm.deb"
+          cargo xtask linux-packages
       - uses: actions/upload-artifact@v4
-        with: { name: linux, path: "target/*.tar.gz\ntarget/*.AppImage", if-no-files-found: error }
+        with: { name: linux, path: "target/*.tar.gz\ntarget/*.AppImage\ntarget/*.deb\ntarget/*.rpm", if-no-files-found: error }
 
   android:
     # Release-signed (#8): the same key every time, so each APK installs over the last one. OCCT for Android comes
@@ -169,7 +181,8 @@ jobs:
             echo "versions in the background and installs them when you close it."
             echo
             echo "**First launch:** macOS asks once: System Settings ▸ Privacy & Security ▸ Open Anyway."
-            echo "Windows SmartScreen: More info ▸ Run anyway. Linux: make the AppImage executable, then double-click it."
+            echo "Windows SmartScreen: More info ▸ Run anyway. Linux: make the AppImage executable, then double-click it,"
+            echo "or install the .deb (Debian, Ubuntu) or .rpm (Fedora, openSUSE) package."
             echo "Android (test build, arm64, Android 8.0+): open the APK on the device and allow installs from that app."
             echo "A copy installed from an earlier test build (debug-signed) has to be uninstalled once first."
             echo

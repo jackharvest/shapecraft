@@ -3,7 +3,8 @@
 //!   cargo xtask bundle-mac          ShapeCraft.app + DMG from a release build (macOS)
 //!   cargo xtask bundle-linux        self-contained folder + .tar.gz (Linux; BUNDLE_CXX_RUNTIME=1 adds libstdc++)
 //!   cargo xtask appimage            AppImage from bundle-linux's folder (APPIMAGETOOL=path)
-//!   cargo xtask bundle-windows      portable zip + Inno Setup installer (Windows, in a VS developer shell)
+//!   cargo xtask linux-packages      .deb and .rpm from bundle-linux's folder (nfpm)
+//!   cargo xtask bundle-windows      portable zip, Inno Setup installer, MSI (Windows, in a VS developer shell)
 //!   cargo xtask android-occt [ABI]  OpenCASCADE for Android with the NDK (ANDROID_NDK_HOME, OCCT_SRC)
 //!   cargo xtask android-cli [ABI]   shapecraft-cli for Android (arm64 or x86_64), checked for 16 KB pages
 //!   cargo xtask android-smoke [ABI] kernel smoke test on the adb device
@@ -36,6 +37,7 @@ fn main() -> std::process::ExitCode {
         Some("bundle-mac") => mac::bundle(),
         Some("bundle-linux") => linux::bundle(),
         Some("appimage") => linux::appimage(),
+        Some("linux-packages") => linux::packages(),
         Some("bundle-windows") => windows::bundle(),
         Some("android-occt") => android::occt(rest),
         Some("android-cli") => android::cli(rest),

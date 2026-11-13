@@ -2,6 +2,17 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.7.11-alpha
+**New ways to install: an MSI for Windows and packages for Debian, Ubuntu, Fedora and openSUSE.**
+### New
+- **Windows: an MSI download.** Double-click it to install ShapeCraft for yourself, no administrator needed (or for
+  everyone with `msiexec /i … ALLUSERS=1`). It shows up in Apps & features and updates itself like before.
+- **Linux: .deb and .rpm packages** for Debian, Ubuntu, Fedora and openSUSE. They put ShapeCraft in your app menu and
+  `shapecraft` on your PATH; install the next version's package to update.
+### Changed
+- **Windows copies from the setup program move to the MSI at their next update,** in the same folder, with your
+  shortcuts and settings kept. The setup program download stays for a few more versions and then goes away.
+
 ## 0.7.10-alpha
 **Move arrows take a click, and tablets get easier sketching and tutorials you can finish.**
 ### Fixed

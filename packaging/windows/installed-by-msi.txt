@@ -1,0 +1,1 @@
+This copy of ShapeCraft was installed from its MSI. ShapeCraft updates it by installing the next version's MSI.

@@ -6,6 +6,8 @@
 //!   → target/shapecraft-<version>-linux-<arch>.tar.gz
 //!   cargo xtask appimage   (APPIMAGETOOL=path, else appimagetool on PATH)
 //!   → target/shapecraft-<version>-linux-<arch>.AppImage
+//!   cargo xtask linux-packages   (nfpm on PATH)
+//!   → target/shapecraft-<version>-linux-<arch>.deb and .rpm
 //!
 //! Needs patchelf. The programs run on the glibc they were built against or newer, so build on the OLDEST system to
 //! support. On the other machine: extract the bundle, cd into its folder, ./install.sh.
@@ -263,6 +265,118 @@ pub fn appimage() -> Result<()> {
         bail!("{tool} failed ({status})");
     }
     println!("{} ({})", out.display(), mb(&out));
+    Ok(())
+}
+
+/// A .deb and an .rpm of bundle-linux's folder (nfpm: https://nfpm.goreleaser.com), what the Craft App Suite's
+/// launcher installs on Debian/Ubuntu and Fedora/openSUSE. The folder goes to /opt/shapecraft as it is (the programs
+/// find their libraries beside them), with links in /usr/bin, the menu entry and the icons. installed-by-package.txt
+/// tells ShapeCraft's updater that the package manager owns this copy (crates/update/src/install.rs).
+pub fn packages() -> Result<()> {
+    if !has("nfpm") {
+        bail!("linux-packages needs nfpm (https://nfpm.goreleaser.com/install/)");
+    }
+    let bundle_dir = target().join("bundle");
+    let stage = PathBuf::from(std::fs::read_to_string(bundle_dir.join("STAGE")).context("run cargo xtask bundle-linux first")?.trim());
+    let version = version()?;
+    let arch = std::env::consts::ARCH;
+    let (deb_arch, glibc) = (
+        match arch {
+            "x86_64" => "amd64",
+            "aarch64" => "arm64",
+            other => bail!("no package architecture for {other}"),
+        },
+        newest_glibc(&stage)?.and_then(|g| g.strip_prefix("GLIBC_").map(str::to_string)),
+    );
+    let tree = bundle_dir.join("package");
+    clear(&tree)?;
+    let opt = tree.join("opt/shapecraft");
+    std::fs::create_dir_all(&opt)?;
+    run("cp", &["-a", s(&stage.join("bin")), s(&stage.join("lib")), s(&stage.join("licenses")), s(&opt)])?;
+    for f in ["LICENSE-MIT", "LICENSE-APACHE", "ATTRIBUTION.md"] {
+        if stage.join(f).exists() {
+            copy(&stage.join(f), &opt.join(f))?;
+        }
+    }
+    copy(&root().join("packaging/linux/installed-by-package.txt"), &opt.join("installed-by-package.txt"))?;
+    let share = tree.join("usr/share");
+    copy(&root().join("packaging/linux/shapecraft.desktop"), &share.join("applications/shapecraft.desktop"))?;
+    copy(&root().join("assets/icon/shapecraft.svg"), &share.join("icons/hicolor/scalable/apps/shapecraft.svg"))?;
+    for n in [16, 32, 48, 64, 128, 256, 512] {
+        copy(
+            &root().join("assets/icon/png").join(format!("shapecraft-{n}.png")),
+            &share.join(format!("icons/hicolor/{n}x{n}/apps/shapecraft.png")),
+        )?;
+    }
+
+    let libc = glibc.map(|g| format!(" (>= {g})")).unwrap_or_default();
+    let config = format!(
+        r#"name: shapecraft
+arch: {deb_arch}
+platform: linux
+version: {version}
+version_schema: semver
+release: 1
+section: graphics
+priority: optional
+maintainer: ShapeCraft contributors <https://github.com/jackharvest/shapecraft/issues>
+vendor: ShapeCraft contributors
+homepage: https://jackharvest.com/shapecraft/
+license: MIT OR Apache-2.0
+description: |-
+  Local-first direct-modeling CAD: sketch, push and pull, fillet and combine solids
+  with a pencil, a touchscreen or a mouse. Opens and writes STEP, IGES, STL, OBJ and 3MF.
+  Includes shapecraft-cli, a headless runner and MCP server.
+overrides:
+  deb:
+    depends:
+      - libc6{libc}
+      - libgcc-s1
+      - libxkbcommon0
+      - libvulkan1 | libegl1
+    recommends:
+      - libwayland-client0
+      - libx11-6
+      - libxcursor1
+      - libxi6
+      - libxrandr2
+      - xdg-desktop-portal
+  rpm:
+    depends:
+      - libxkbcommon
+      - (vulkan-loader or libglvnd-egl)
+    recommends:
+      - libwayland-client
+      - libX11
+      - libXcursor
+      - libXi
+      - libXrandr
+      - xdg-desktop-portal
+contents:
+  - src: {opt}/
+    dst: /opt/shapecraft/
+    type: tree
+  - src: /opt/shapecraft/bin/shapecraft
+    dst: /usr/bin/shapecraft
+    type: symlink
+  - src: /opt/shapecraft/bin/shapecraft-cli
+    dst: /usr/bin/shapecraft-cli
+    type: symlink
+  - src: {share}/
+    dst: /usr/share/
+    type: tree
+"#,
+        opt = opt.display(),
+        share = share.display(),
+    );
+    let yaml = bundle_dir.join("nfpm.yaml");
+    std::fs::write(&yaml, config)?;
+    for kind in ["deb", "rpm"] {
+        let out = target().join(format!("shapecraft-{version}-linux-{arch}.{kind}"));
+        let _ = std::fs::remove_file(&out);
+        run("nfpm", &["package", "-f", s(&yaml), "-p", kind, "-t", s(&out)])?;
+        println!("{} ({})", out.display(), mb(&out));
+    }
     Ok(())
 }
 

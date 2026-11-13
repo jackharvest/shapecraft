@@ -31,13 +31,15 @@ ShapeCraft keeps itself up to date. Nobody has to visit a download page.
 | Installed as | Downloads | Swap |
 |---|---|---|
 | macOS `ShapeCraft.app` (anywhere writable, usually Applications) | `…-macos-<arch>.dmg` | old bundle aside, new one in, old removed |
-| Windows, by the setup program | `…-windows-x64-setup.exe` | the setup program, silently, into the same folder |
+| Windows MSI (`installed-by-msi.txt` beside the program) | `…-windows-x64.msi` | `msiexec /i` with a progress bar only (a major upgrade of the same product) |
+| Windows, by the old setup program (up to 0.7.10) | `…-windows-x64.msi` | the MSI into the same folder, then the setup program's uninstaller, Apps & features entry and Start menu folder are removed |
 | Windows portable zip | `…-windows-x64-portable.zip` | new files copied over the folder |
 | Linux AppImage | `…-linux-x86_64.AppImage` | new file moved over the old one |
 | Linux download (`bin/`, `lib/`, unpacked or put in `~/.local/lib/shapecraft` by `install.sh`) | `…-linux-x86_64.tar.gz` | old folder aside, new one in, old removed |
 
 A copy that can't update in place says why and offers the download page instead: one running from its disk image
-or from App Translocation (macOS: move it to Applications), or a build installed by a package manager.
+or from App Translocation (macOS: move it to Applications), or a build installed by a package manager (the .deb and
+.rpm: install the next version's package).
 
 Development builds (anything not built by the release workflow, which sets `SHAPECRAFT_RELEASE=1`) never check on
 their own. `SHAPECRAFT_UPDATE_CHECK=1` makes one check, `=0` stops a release build from checking.

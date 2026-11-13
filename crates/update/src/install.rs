@@ -14,6 +14,10 @@ const LAUNCHER_NAME: &str = "ArtCraft Launcher";
 const LAUNCHER_APP_ID: &str = "shapecraft";
 /// The longest manager name shown (the variable is untrusted text).
 const MAX_MANAGER_NAME: usize = 64;
+/// Beside the program in a copy installed from the MSI (packaging/windows/shapecraft.wxs).
+const MSI_MARKER: &str = "installed-by-msi.txt";
+/// At the top of a copy installed from the .deb or .rpm (/opt/shapecraft), which the package manager owns.
+const PACKAGE_MARKER: &str = "installed-by-package.txt";
 /// A launcher's record file is a few KB.
 const MAX_RECORD_FILE: u64 = 1 << 20;
 
@@ -27,6 +31,8 @@ pub enum Install {
     MacApp(PathBuf),
     /// Installed by the Windows setup program, into this folder.
     WindowsInstalled(PathBuf),
+    /// Installed from the MSI (`installed-by-msi.txt` beside the program), into this folder.
+    WindowsMsi(PathBuf),
     /// The Windows portable zip, unpacked into this folder.
     WindowsPortable(PathBuf),
     /// The AppImage file.
@@ -45,6 +51,7 @@ impl Install {
             Install::Managed(_) => "managed by a launcher",
             Install::MacApp(_) => "macOS app",
             Install::WindowsInstalled(_) => "Windows installer",
+            Install::WindowsMsi(_) => "Windows MSI",
             Install::WindowsPortable(_) => "portable zip",
             Install::AppImage(_) => "AppImage",
             Install::LinuxFolder(_) => "Linux download",
@@ -58,6 +65,7 @@ impl Install {
             self,
             Install::MacApp(_)
                 | Install::WindowsInstalled(_)
+                | Install::WindowsMsi(_)
                 | Install::WindowsPortable(_)
                 | Install::AppImage(_)
                 | Install::LinuxFolder(_)
@@ -74,7 +82,8 @@ impl Install {
         };
         match self {
             Install::MacApp(_) => Some(format!("-macos-{arch}.dmg")),
-            Install::WindowsInstalled(_) if arch == "x86_64" => Some("-windows-x64-setup.exe".into()),
+            // A copy from the old setup program moves to the MSI at its next update (apply.rs).
+            Install::WindowsInstalled(_) | Install::WindowsMsi(_) if arch == "x86_64" => Some("-windows-x64.msi".into()),
             Install::WindowsPortable(_) if arch == "x86_64" => Some("-windows-x64-portable.zip".into()),
             Install::AppImage(_) => Some(format!("-linux-{}.AppImage", std::env::consts::ARCH)),
             Install::LinuxFolder(_) => Some(format!("-linux-{}.tar.gz", std::env::consts::ARCH)),
@@ -114,6 +123,7 @@ pub fn detect(p: &Probe) -> Install {
         },
         "windows" => match exe.parent() {
             Some(dir) if (p.exists)(&dir.join("unins000.exe")) => Install::WindowsInstalled(dir.to_path_buf()),
+            Some(dir) if (p.exists)(&dir.join(MSI_MARKER)) => Install::WindowsMsi(dir.to_path_buf()),
             Some(dir) if (p.exists)(&dir.join("shapecraft-cli.exe")) => Install::WindowsPortable(dir.to_path_buf()),
             _ => Install::Elsewhere("This copy of ShapeCraft isn't in its installed or unzipped folder.".into()),
         },
@@ -125,6 +135,9 @@ pub fn detect(p: &Probe) -> Install {
                 Install::AppImage(PathBuf::from(image))
             } else {
                 match exe.parent().filter(|b| b.file_name().is_some_and(|n| n == "bin")).and_then(Path::parent) {
+                    Some(root) if (p.exists)(&root.join(PACKAGE_MARKER)) => Install::Elsewhere(
+                        "This copy came as a .deb or .rpm package: install the new version's package to update it.".into(),
+                    ),
                     Some(root) if (p.exists)(&root.join("lib")) && !root.starts_with("/usr") => Install::LinuxFolder(root.to_path_buf()),
                     _ => Install::Elsewhere("This copy of ShapeCraft was installed by something that updates it.".into()),
                 }
@@ -284,6 +297,28 @@ mod tests {
             Install::LinuxFolder("/home/a/.local/lib/shapecraft".into())
         );
         assert!(matches!(probe("linux", "/usr/bin/shapecraft", &[], &["/usr/lib"], None), Install::Elsewhere(_)));
+        // The MSI's marker wins over the CLI beside the program (both are there).
+        assert_eq!(
+            probe(
+                "windows",
+                "C:/Program Files/ShapeCraft/shapecraft.exe",
+                &[],
+                &["C:/Program Files/ShapeCraft/shapecraft-cli.exe", "C:/Program Files/ShapeCraft/installed-by-msi.txt"],
+                None
+            ),
+            Install::WindowsMsi("C:/Program Files/ShapeCraft".into())
+        );
+        // A .deb or .rpm copy has bin/ and lib/ like the download folder, but the package manager owns it.
+        assert!(matches!(
+            probe(
+                "linux",
+                "/opt/shapecraft/bin/shapecraft",
+                &[],
+                &["/opt/shapecraft/lib", "/opt/shapecraft/installed-by-package.txt"],
+                None
+            ),
+            Install::Elsewhere(_)
+        ));
     }
 
     #[test]

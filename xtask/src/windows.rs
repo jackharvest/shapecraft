@@ -1,12 +1,14 @@
 //! The Windows downloads from a release build: a portable zip (the app, the CLI and every DLL they load that Windows
-//! doesn't ship: OpenCASCADE, TBB, the VC runtime…) and an installer built from the same folder with Inno Setup.
+//! doesn't ship: OpenCASCADE, TBB, the VC runtime…), an installer built from the same folder with Inno Setup, and an
+//! MSI of the same folder with WiX (what the Craft App Suite's launcher installs).
 //!
 //!   cargo build --release -p shapecraft -p shapecraft-cli
 //!   cargo xtask bundle-windows          (in a Visual Studio developer shell, for dumpbin)
-//!   → target\shapecraft-<version>-windows-x64-portable.zip and target\shapecraft-<version>-windows-x64-setup.exe
+//!   → target\shapecraft-<version>-windows-x64-portable.zip, …-windows-x64-setup.exe and …-windows-x64.msi
 //!
 //! DLLs are looked up in OCCT_BIN (default: CONDA_PREFIX\Library\bin), then CONDA_PREFIX; anything not found there
-//! is treated as part of Windows. The installer needs Inno Setup 6 (iscc on PATH or in Program Files).
+//! is treated as part of Windows. The installer needs Inno Setup 6 (iscc on PATH or in Program Files), the MSI WiX 5
+//! (`wix` on PATH); either is skipped with a warning when its tool is missing.
 
 use std::collections::{BTreeSet, VecDeque};
 use std::io::Write as _;
@@ -126,7 +128,7 @@ pub fn bundle() -> Result<()> {
     });
     let Some(iscc) = iscc else {
         eprintln!("warning: Inno Setup not found: no installer made");
-        return Ok(());
+        return msi(&stage, &version, &name);
     };
     let status = std::process::Command::new(&iscc)
         .args([
@@ -143,5 +145,39 @@ pub fn bundle() -> Result<()> {
         bail!("Inno Setup failed ({status})");
     }
     println!("{}", target().join(format!("{name}-setup.exe")).display());
+    msi(&stage, &version, &name)
+}
+
+/// The MSI, from the same folder (WiX v5: `dotnet tool install --global wix --version 5.0.2`). The launcher of the
+/// Craft App Suite installs apps from their MSI. Its version is the numeric X.Y.Z (MSI versions have no labels).
+fn msi(stage: &Path, version: &str, name: &str) -> Result<()> {
+    if std::process::Command::new("wix").arg("--version").output().is_err() {
+        eprintln!("warning: WiX not found: no MSI made");
+        return Ok(());
+    }
+    let numeric = version.split(['-', '+']).next().unwrap_or(version);
+    let out = target().join(format!("{name}.msi"));
+    let _ = std::fs::remove_file(&out);
+    let status = std::process::Command::new("wix")
+        .args([
+            "build".to_string(),
+            "-arch".into(),
+            "x64".into(),
+            "-d".into(),
+            format!("Version={numeric}"),
+            "-d".into(),
+            format!("Stage={}", stage.display()),
+            "-d".into(),
+            format!("Marker={}", root().join("packaging/windows/installed-by-msi.txt").display()),
+            "-o".into(),
+            out.display().to_string(),
+            root().join("packaging/windows/shapecraft.wxs").display().to_string(),
+        ])
+        .status()
+        .context("couldn't start WiX")?;
+    if !status.success() {
+        bail!("WiX failed ({status})");
+    }
+    println!("{}", out.display());
     Ok(())
 }

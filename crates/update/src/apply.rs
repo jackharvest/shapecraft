@@ -6,7 +6,8 @@
 //! | Installed as | Swap |
 //! |---|---|
 //! | macOS `.app` | move the old bundle aside, move the new one in, remove the old |
-//! | Windows installer | run the new setup program silently (it updates the same folder and the uninstaller) |
+//! | Windows MSI | install the new MSI with a progress bar only (a major upgrade of the same product) |
+//! | Windows setup program (before the MSI) | install the MSI into the same folder, then remove the setup program's registration |
 //! | Windows portable zip | copy the new files over the folder |
 //! | AppImage | move the new AppImage over the old file |
 //! | Linux download folder | move the old folder aside, move the new one in, remove the old |
@@ -107,14 +108,40 @@ pub(crate) fn windows_script(
 ) -> Result<String, String> {
     let s = |path: &Path| pq(&path.to_string_lossy());
     let (steps, exe) = match install {
-        Install::WindowsInstalled(dir) => (
+        // 3010: installed, a restart would finish it (nothing of ShapeCraft's needs one). An install for everyone asks
+        // Windows for permission first.
+        Install::WindowsMsi(dir) => (
             format!(
-                "$r = Start-Process -FilePath {} -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/CURRENTUSER','/NOCANCEL' -Wait -PassThru\n\
-                 if ($r.ExitCode -ne 0) {{ throw \"the setup program stopped with code $($r.ExitCode)\" }}\n",
+                "$r = Start-Process -FilePath 'msiexec.exe' -ArgumentList '/i',('\"' + {} + '\"'),'/passive','/norestart' -Wait -PassThru\n\
+                 if ($r.ExitCode -ne 0 -and $r.ExitCode -ne 3010) {{ throw \"the MSI stopped with code $($r.ExitCode)\" }}\n",
                 s(staged)
             ),
             dir.join("shapecraft.exe"),
         ),
+        // A copy from the old setup program (Inno Setup) moves to the MSI: the MSI goes into the same folder, for the
+        // same users, replacing every file (REINSTALLMODE a: the setup program's files carry their own dates, which
+        // Windows Installer would otherwise keep as "changed by the user"). Only once it is in does the setup program's
+        // registration go (its uninstaller files, its Apps & features entry, its Start menu folder), so a failed MSI
+        // leaves the old copy as it was.
+        Install::WindowsInstalled(dir) => {
+            let everyone = dir.to_string_lossy().to_ascii_lowercase().contains("program files");
+            let scope = if everyone { "'ALLUSERS=1'" } else { "'ALLUSERS=2','MSIINSTALLPERUSER=1'" };
+            let hive = if everyone { "HKLM" } else { "HKCU" };
+            let menu = if everyone { "CommonPrograms" } else { "Programs" };
+            (
+                format!(
+                    "$r = Start-Process -FilePath 'msiexec.exe' -ArgumentList '/i',('\"' + {staged} + '\"'),'/passive','/norestart',{scope},'REINSTALLMODE=amus',('INSTALLFOLDER=\"' + {dir} + '\"') -Wait -PassThru\n\
+                     if ($r.ExitCode -ne 0 -and $r.ExitCode -ne 3010) {{ throw \"the MSI stopped with code $($r.ExitCode)\" }}\n\
+                     Say 'moved from the setup program to the MSI'\n\
+                     Get-ChildItem -LiteralPath {dir} -Filter 'unins*' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue\n\
+                     Remove-Item -LiteralPath '{hive}:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\{{6F1C2A4E-3B7D-4C59-9E2A-5D8B1F0C7A31}}_is1' -Recurse -Force -ErrorAction SilentlyContinue\n\
+                     Remove-Item -LiteralPath (Join-Path ([Environment]::GetFolderPath('{menu}')) 'ShapeCraft') -Recurse -Force -ErrorAction SilentlyContinue\n",
+                    staged = s(staged),
+                    dir = s(dir),
+                ),
+                dir.join("shapecraft.exe"),
+            )
+        }
         Install::WindowsPortable(dir) => (
             format!(
                 "& robocopy {} {} /E /R:10 /W:1 /NFL /NDL /NJH /NJS /NP | Out-Null\n\
@@ -291,11 +318,28 @@ mod tests {
         let quiet = unix_script(&app, Path::new("/n"), Path::new("/c"), Path::new("/l"), 1, false, &[]).unwrap_or_default();
         assert!(!quiet.contains("open "));
         let win = Install::WindowsInstalled(PathBuf::from(r"C:\Users\O'Neil\AppData\Local\Programs\ShapeCraft"));
-        let w = windows_script(&win, Path::new(r"C:\c\setup.exe"), Path::new(r"C:\c"), Path::new(r"C:\c\log"), 7, true, &[])
-            .unwrap_or_default();
+        let w =
+            windows_script(&win, Path::new(r"C:\c\x.msi"), Path::new(r"C:\c"), Path::new(r"C:\c\log"), 7, true, &[]).unwrap_or_default();
         assert!(w.contains("Get-Process -Id 7"));
-        assert!(w.contains("'/VERYSILENT'"));
+        assert!(w.contains("'ALLUSERS=2','MSIINSTALLPERUSER=1','REINSTALLMODE=amus',('INSTALLFOLDER=\"' + 'C:\\Users\\O''Neil"));
+        assert!(w.contains("_is1"));
+        // The setup program's registration goes only after the MSI went in.
+        assert!(w.find("msiexec") < w.find("unins*"));
         assert!(w.contains(r"Start-Process -FilePath 'C:\Users\O''Neil\AppData\Local\Programs\ShapeCraft"));
+        let msi = Install::WindowsMsi(PathBuf::from(r"C:\Program Files\ShapeCraft"));
+        let m = windows_script(
+            &msi,
+            Path::new(r"C:\c\shapecraft-0.8.0-windows-x64.msi"),
+            Path::new(r"C:\c"),
+            Path::new(r"C:\c\log"),
+            7,
+            true,
+            &[],
+        )
+        .unwrap_or_default();
+        assert!(m.contains(r#"'msiexec.exe' -ArgumentList '/i',('"' + 'C:\c\shapecraft-0.8.0-windows-x64.msi' + '"'),'/passive'"#));
+        assert!(m.contains("-ne 3010"));
+        assert!(m.contains(r"Start-Process -FilePath 'C:\Program Files\ShapeCraft"));
         assert!(windows_script(&Install::Dev, Path::new("x"), Path::new("x"), Path::new("x"), 1, true, &[]).is_err());
     }
 }

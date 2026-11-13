@@ -20,6 +20,7 @@ pub fn updates_dir(install: &Install) -> Option<PathBuf> {
     let place = match install {
         Install::MacApp(p)
         | Install::WindowsInstalled(p)
+        | Install::WindowsMsi(p)
         | Install::WindowsPortable(p)
         | Install::AppImage(p)
         | Install::LinuxFolder(p) => p.to_string_lossy().to_lowercase(),
@@ -75,7 +76,7 @@ pub fn stage(
 
     let ready = match install {
         Install::MacApp(_) => mac_app_from_dmg(&file, &here)?,
-        Install::WindowsInstalled(_) => file,
+        Install::WindowsInstalled(_) | Install::WindowsMsi(_) => file,
         Install::WindowsPortable(_) => unpack(&file, &here, "shapecraft.exe")?,
         Install::AppImage(_) => {
             #[cfg(unix)]

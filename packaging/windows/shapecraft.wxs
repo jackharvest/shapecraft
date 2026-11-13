@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The ShapeCraft MSI (WiX v5), built by `cargo xtask bundle-windows` from the same folder as the portable zip and
+  the setup program. The Craft App Suite's launcher installs apps from their MSI, so this is the file it picks.
+
+  Scope perUserOrMachine: a double-click installs for the current user (no administrator prompt), into
+  %LOCALAPPDATA%\Programs\ShapeCraft; `msiexec /i … ALLUSERS=1` installs for everyone, into Program Files.
+  installed-by-msi.txt tells ShapeCraft's updater to update this copy with the next MSI instead of copying files over
+  it (crates/update/src/install.rs).
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="ShapeCraft" Manufacturer="ShapeCraft contributors" Version="$(var.Version)"
+           UpgradeCode="08595BF4-FF15-4278-9413-8F8CFF2897DA" Scope="perUserOrMachine" Compressed="yes" Language="1033">
+    <SummaryInformation Description="ShapeCraft direct-modeling CAD" Manufacturer="ShapeCraft contributors" />
+    <!-- MSI versions are numbers only, so successive alphas of one X.Y.Z must be able to replace each other. -->
+    <MajorUpgrade AllowSameVersionUpgrades="yes" DowngradeErrorMessage="A newer version of ShapeCraft is already installed." />
+    <MediaTemplate EmbedCab="yes" CompressionLevel="high" />
+
+    <Icon Id="ShapeCraftIcon.ico" SourceFile="$(var.Stage)\shapecraft.ico" />
+    <Property Id="ARPPRODUCTICON" Value="ShapeCraftIcon.ico" />
+    <Property Id="ARPURLINFOABOUT" Value="https://jackharvest.com/shapecraft/" />
+    <Property Id="ARPURLUPDATEINFO" Value="https://github.com/jackharvest/shapecraft/releases" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/jackharvest/shapecraft/issues" />
+    <!-- One feature: nothing to change in Apps & features. -->
+    <Property Id="ARPNOMODIFY" Value="1" />
+
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="ShapeCraft" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder" />
+
+    <Feature Id="Main" Title="ShapeCraft" Level="1">
+      <ComponentGroupRef Id="ShapeCraftFiles" />
+    </Feature>
+  </Package>
+
+  <Fragment>
+    <ComponentGroup Id="ShapeCraftFiles" Directory="INSTALLFOLDER">
+      <Component Id="ShapeCraftApp" Guid="CB035310-A177-45C9-BAA9-57E03D5F2E00">
+        <File Id="ShapeCraftExe" Source="$(var.Stage)\shapecraft.exe" KeyPath="yes">
+          <Shortcut Id="StartMenuShortcut" Directory="ProgramMenuFolder" Name="ShapeCraft" Description="ShapeCraft direct-modeling CAD"
+                    WorkingDirectory="INSTALLFOLDER" Advertise="yes" Icon="ShapeCraftIcon.ico" IconIndex="0" />
+        </File>
+        <RegistryValue Root="HKMU" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\shapecraft.exe" Value="[#ShapeCraftExe]" Type="string" />
+      </Component>
+      <Component Id="MsiMarker" Guid="C1EF86B6-45D8-455D-B732-2D09148C4F6D">
+        <File Id="MsiMarkerFile" Source="$(var.Marker)" Name="installed-by-msi.txt" KeyPath="yes" />
+      </Component>
+      <!-- Everything else in the bundle folder: the CLI, OpenCASCADE and runtime DLLs, licences. -->
+      <Files Include="$(var.Stage)\**">
+        <Exclude Files="$(var.Stage)\shapecraft.exe" />
+      </Files>
+    </ComponentGroup>
+  </Fragment>
+</Wix>
