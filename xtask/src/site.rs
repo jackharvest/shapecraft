@@ -718,6 +718,38 @@ pub fn media(args: &[String]) -> Result<()> {
 // ------------------------------------------------------------------ home screen art
 
 /// Runs commands through shapecraft-cli; with `png`, renders the result (see-through, 680 × 876 = 2× the card art).
+/// A binary STL of a ball (latitude/longitude triangles), for the mesh-body picture.
+fn ball_stl(r: f64, around: usize, down: usize) -> Vec<u8> {
+    let at = |i: usize, j: usize| {
+        let (t, p) = (std::f64::consts::TAU * i as f64 / around as f64, std::f64::consts::PI * j as f64 / down as f64);
+        [(r * p.sin() * t.cos()) as f32, (r * p.sin() * t.sin()) as f32, (r * p.cos()) as f32]
+    };
+    let mut tris = Vec::new();
+    for j in 0..down {
+        for i in 0..around {
+            let (a, b, c, d) = (at(i, j), at(i + 1, j), at(i + 1, j + 1), at(i, j + 1));
+            if j > 0 {
+                tris.push([a, d, b]);
+            }
+            if j + 1 < down {
+                tris.push([b, d, c]);
+            }
+        }
+    }
+    let mut out = vec![0u8; 80];
+    out.extend_from_slice(&(tris.len() as u32).to_le_bytes());
+    for t in tris {
+        out.extend_from_slice(&[0u8; 12]);
+        for v in t {
+            for c in v {
+                out.extend_from_slice(&c.to_le_bytes());
+            }
+        }
+        out.extend_from_slice(&[0, 0]);
+    }
+    out
+}
+
 fn cli_run(cli: &Path, scratch: &Path, name: &str, cmds: &[(&str, Value)], png: bool) -> Result<String> {
     let path = scratch.join(format!("{name}.jsonl"));
     std::fs::write(&path, cmds.iter().map(|(c, p)| format!("{}\n", json!({ "command": c, "params": p }))).collect::<String>())?;
@@ -855,6 +887,23 @@ pub fn home_art(args: &[String]) -> Result<()> {
             ),
         ]);
         cli_run(&cli, &scratch, "new-languages", &plate, true)?;
+        // A mesh body (an STL we write here: a smooth ball) with a round pocket cut by a sketch and Subtract.
+        let ball = scratch.join("ball.stl");
+        std::fs::write(&ball, ball_stl(22.0, 96, 48))?;
+        let meshes: Vec<(&str, Value)> = vec![
+            ("import_file", json!({ "path": ball })),
+            ("sketch", json!({ "origin": [0, 0, 22], "normal": [0, 0, 1] })),
+            ("circle", json!({ "center": [0, 0], "radius": 9 })),
+            ("exit_sketching", json!({})),
+            ("extrude", json!({ "sketch": 3, "region": 0, "distance": -14, "result": "new" })),
+            ("subtract", json!({ "target": 1, "tools": [4] })),
+            (
+                "set_appearance",
+                json!({ "items": [1], "appearance": { "name": "Clay", "color": [0.86, 0.55, 0.38], "metal": 0, "gloss": 0.35 } }),
+            ),
+            ("deselect_all", json!({})),
+        ];
+        cli_run(&cli, &scratch, "new-meshes", &meshes, true)?;
         if let Ok(shapr) = std::env::var("SHAPR_SAMPLE")
             && !shapr.is_empty()
         {

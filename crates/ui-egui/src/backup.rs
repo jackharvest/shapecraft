@@ -676,6 +676,7 @@ mod tests {
             visible: true,
             appearance: None,
             face_colors: Vec::new(),
+            facets: None,
         });
         let dir = d.join("Box");
         project::save(&doc, &k, &dir).unwrap();

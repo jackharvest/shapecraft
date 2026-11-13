@@ -119,7 +119,7 @@ fn flat_target(s: &Session, v: &Value) -> Result<(DVec3, DVec3)> {
 fn reach_through_all(s: &Session, origin: DVec3, normal: DVec3) -> Result<f64> {
     let mut reach: f64 = 0.0;
     for b in &s.doc.bodies {
-        let bb = s.kernel.bounds(&b.shape)?;
+        let bb = crate::cmd::model::body_box(s, b)?;
         for i in 0..8 {
             let c = DVec3::new(
                 if i & 1 == 0 { bb.min.x } else { bb.max.x },
@@ -185,7 +185,7 @@ pub(crate) fn resting_body(s: &Session, faces: &[Shape], normal: DVec3) -> Resul
         let mut share = [0.0; 2];
         for (i, (_, slab, volume)) in slabs.iter().enumerate() {
             let bb = s.kernel.bounds(slab)?;
-            let o = s.kernel.bounds(&b.shape)?;
+            let o = crate::cmd::model::body_box(s, b)?;
             if !(o.min.cmple(bb.max).all() && bb.min.cmple(o.max).all()) {
                 continue;
             }
@@ -259,8 +259,9 @@ fn combine(s: &mut Session, op: BoolOp, targets: &[ItemId], tool: &Shape) -> Res
 pub(super) fn boolean_targets(s: &Session, block: &Shape, op: BoolOp) -> Result<Vec<ItemId>> {
     let bb = s.kernel.bounds(block)?;
     let mut touching = Vec::new();
-    for b in &s.doc.bodies {
-        let o = s.kernel.bounds(&b.shape)?;
+    // Mesh bodies aren't merged into or cut by a feature: they take part only through the boolean tools.
+    for b in s.doc.bodies.iter().filter(|b| !b.is_mesh()) {
+        let o = crate::cmd::model::body_box(s, b)?;
         if o.min.cmple(bb.max).all() && bb.min.cmple(o.max).all() {
             touching.push(b.id);
         }

@@ -17,6 +17,7 @@ mod faces;
 mod features;
 mod files;
 mod history;
+mod meshes;
 mod project;
 mod shapr;
 mod sketch;

@@ -492,6 +492,9 @@ pub trait Kernel: Send + Sync {
 
     fn read_iges(&self, path: &Path) -> Result<Vec<Shape>>;
 
+    /// An empty shape: what a mesh body (triangles, no exact faces) holds as its shape.
+    fn empty(&self) -> Result<Shape>;
+
     /// A body from welded triangles (3 indices each): a solid when the mesh is closed, else an open shell.
     fn shape_from_mesh(&self, positions: &[DVec3], indices: &[u32]) -> Result<Shape>;
 

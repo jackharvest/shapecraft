@@ -64,7 +64,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             params: r#"{"radius": mm, "radius2": mm? (variable: radius at each edge's start, radius2 at its end), "continuity": "g1"|"g2"? (tangent, the default, or curvature-continuous: straight outside edges between flat faces), "curvature": -1..1? (profile: -1 flat, 0 round, 1 sharp; straight edges between flat faces), "mode": "radius"|"chordal"?, "corner": "rolling_ball"|"setback"?, "body": id?, "edges": [n]?}  (default: the selected edges; all edges if a body is selected)"#,
             modifies: true,
             enabled: has_bodies,
-            run: fillet,
+            run: |s, p| exact_only(s, p, "Fillet", fillet),
         },
         CommandSpec {
             id: "chamfer",
@@ -75,7 +75,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             params: r#"{"distance": mm, "distance2": mm? (the other face's; default the same), "face": n? (the face distance runs along), "body": id?, "edges": [n]?}  (default: the selected edges)"#,
             modifies: true,
             enabled: has_bodies,
-            run: chamfer,
+            run: |s, p| exact_only(s, p, "Chamfer", chamfer),
         },
         CommandSpec {
             id: "fill",
@@ -107,7 +107,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             params: r#"{"thickness": mm, "body": id?, "faces": [n]?}  (default: the selected faces; walls grow inwards)"#,
             modifies: true,
             enabled: has_bodies,
-            run: shell,
+            run: |s, p| exact_only(s, p, "Shell", shell),
         },
         CommandSpec {
             id: "revolve",
@@ -217,7 +217,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             params: r#"{"distance": mm, "distance_type": "offset"|"radius"? ("radius": round faces get that radius), "body": id?, "faces": [n]?}  (default: the selected faces; negative moves inwards)"#,
             modifies: true,
             enabled: has_bodies,
-            run: offset_face,
+            run: |s, p| exact_only(s, p, "Offset Face", offset_face),
         },
         CommandSpec {
             id: "move_edge",
@@ -228,7 +228,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             params: r#"{"by": [dx,dy,dz]} | {"origin": [x,y,z], "axis": [x,y,z], "angle": degrees}, "body": id?, "edge": n?  (default: the selected edge)"#,
             modifies: true,
             enabled: has_bodies,
-            run: move_edge,
+            run: |s, p| exact_only(s, p, "Move Edge", move_edge),
         },
         CommandSpec {
             id: "move_faces",
@@ -239,7 +239,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             params: r#"{"by": [dx,dy,dz]? | "origin": [x,y,z], "axis": [x,y,z], "angle": degrees, "body": id?, "faces": [n]?}  (default: the selected faces)"#,
             modifies: true,
             enabled: has_bodies,
-            run: move_faces,
+            run: |s, p| exact_only(s, p, "Move Faces", move_faces),
         },
         CommandSpec {
             id: "wrap_emboss",
@@ -250,7 +250,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             params: r#"{"depth": mm (negative engraves), "sketch": id?, "region": n? | "regions": [n]?, "body": id?, "face": n? (default: the round face nearest the profiles), "rotation": degrees?, "center": [x,y,z]? (the point on the face the profiles' centre goes to)}  (default: the selected regions and face)"#,
             modifies: true,
             enabled: has_bodies,
-            run: wrap_emboss,
+            run: |s, p| exact_only(s, p, "Wrap/Emboss", wrap_emboss),
         },
         CommandSpec {
             id: "replace_face",
@@ -261,7 +261,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             params: r#"{"to": {"body": id, "face": n} | {"plane": id}, "body": id?, "faces": [n]?, "flip": bool?}  (default: the selected faces)"#,
             modifies: true,
             enabled: has_bodies,
-            run: replace_face,
+            run: |s, p| exact_only(s, p, "Replace Face", replace_face),
         },
         CommandSpec {
             id: "project_edge",
@@ -272,7 +272,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             params: r#"{"to": {"body": id, "face": n}, "items": [{"body": id, "edge": n} | {"body": id, "face": n} | {"sketch": id, "region": n}]?}  (default: the selection)"#,
             modifies: true,
             enabled: has_bodies,
-            run: project_edge,
+            run: |s, p| exact_only(s, p, "Project as Edge", project_edge),
         },
         CommandSpec {
             id: "split_body",
@@ -308,6 +308,215 @@ pub fn set_body_shape(s: &mut Session, id: ItemId, shape: Shape) -> Result<()> {
     Ok(())
 }
 
+/// A new mesh body (an STL, OBJ or .shapr mesh body's triangles): no exact faces, an empty shape.
+pub fn add_mesh_body(s: &mut Session, facets: shapecraft_doc::Facets, name: String) -> Result<ItemId> {
+    let shape = s.kernel.empty()?;
+    let mesh = Arc::new(facets.render_mesh());
+    let id = s.doc.alloc_id();
+    s.doc.bodies.push(Body {
+        id,
+        name,
+        shape,
+        mesh,
+        visible: true,
+        appearance: None,
+        face_colors: Vec::new(),
+        facets: Some(Arc::new(facets)),
+    });
+    Ok(id)
+}
+
+/// Replaces a mesh body's triangles (after a move, a mirror, a boolean).
+pub fn set_body_facets(s: &mut Session, id: ItemId, facets: shapecraft_doc::Facets) -> Result<()> {
+    let mesh = Arc::new(facets.render_mesh());
+    let body = s.doc.body_mut(id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
+    body.mesh = mesh;
+    body.facets = Some(Arc::new(facets));
+    Ok(())
+}
+
+/// Moves a body by an affine transform: a mesh body's triangles directly, an exact body through `exact`.
+pub fn transform_body(s: &mut Session, id: ItemId, m: &glam::DMat4, exact: impl FnOnce(&Session, &Shape) -> Result<Shape>) -> Result<()> {
+    let body = s.doc.body(id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
+    if let Some(f) = body.facets.clone() {
+        return set_body_facets(s, id, f.transformed(m));
+    }
+    let shape = exact(s, &body.shape.clone())?;
+    set_body_shape(s, id, shape)
+}
+
+/// What a move, turn, scale or mirror makes of a body: a new exact shape, or its triangles moved.
+pub enum Moved {
+    Exact(Shape),
+    Mesh(shapecraft_doc::Facets),
+}
+
+impl Moved {
+    /// Body `id` moved by `m`: a mesh body's triangles directly, an exact body's shape through `exact`.
+    pub fn of(s: &Session, id: ItemId, m: &glam::DMat4, exact: impl FnOnce(&Shape) -> Result<Shape>) -> Result<Self> {
+        let body = s.doc.body(id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
+        Ok(match &body.facets {
+            Some(f) => Moved::Mesh(f.transformed(m)),
+            None => Moved::Exact(exact(&body.shape)?),
+        })
+    }
+}
+
+/// Puts a moved body back in place of `id`.
+pub fn put_moved(s: &mut Session, id: ItemId, moved: Moved) -> Result<()> {
+    match moved {
+        Moved::Exact(shape) => set_body_shape(s, id, shape),
+        Moved::Mesh(f) => set_body_facets(s, id, f),
+    }
+}
+
+/// A new body from a moved one (pattern and mirror copies): the next body name, default looks.
+pub fn add_moved(s: &mut Session, moved: Moved) -> Result<ItemId> {
+    match moved {
+        Moved::Exact(shape) => add_body(s, shape),
+        Moved::Mesh(f) => {
+            let name = s.doc.next_body_name();
+            add_mesh_body(s, f, name)
+        }
+    }
+}
+
+/// A copy of `of`, moved: named "<of> (1)" with its looks.
+pub fn add_moved_copy(s: &mut Session, of: ItemId, moved: Moved) -> Result<ItemId> {
+    match moved {
+        Moved::Exact(shape) => add_copy(s, of, shape),
+        Moved::Mesh(f) => {
+            let (name, appearance) = match s.doc.body(of) {
+                Some(b) => (s.doc.copy_name(&b.name), b.appearance.clone()),
+                None => (s.doc.next_body_name(), None),
+            };
+            let id = add_mesh_body(s, f, name)?;
+            if let Some(b) = s.doc.body_mut(id) {
+                b.appearance = appearance;
+            }
+            Ok(id)
+        }
+    }
+}
+
+/// A body as a shape the kernel can cut: an exact body's own, a mesh body's triangles sewn for the one operation.
+/// `closed` asks for a solid (booleans take only closed meshes).
+pub fn working_shape(s: &Session, id: ItemId, closed: bool) -> Result<Shape> {
+    let body = s.doc.body(id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
+    match &body.facets {
+        None => Ok(body.shape.clone()),
+        Some(f) => {
+            if closed && !f.is_closed() {
+                return Err(EngineError::NotAvailable("booleans need a closed mesh body (this one is open)".into()));
+            }
+            Ok(s.kernel.shape_from_mesh(&f.points, &f.flat_indices())?)
+        }
+    }
+}
+
+/// A shape's surface as mesh-body triangles (what a boolean or split on a mesh body gives back).
+pub fn facets_of(s: &Session, shape: &Shape) -> Result<shapecraft_doc::Facets> {
+    let m = s.kernel.tessellate(shape, shapecraft_doc::project::deflection())?;
+    let pts: Vec<glam::DVec3> = m.positions.iter().map(|p| glam::DVec3::new(p[0] as f64, p[1] as f64, p[2] as f64)).collect();
+    let tris: Vec<[u32; 3]> = m.indices.as_chunks::<3>().0.to_vec();
+    let (pts, idx) = crate::formats::weld(&pts, &tris);
+    shapecraft_doc::Facets::new(pts, &idx).ok_or_else(|| EngineError::NotAvailable("the result has no surface left".into()))
+}
+
+/// Puts a result in place of `id`: as a mesh body when `mesh`, else as the exact shape.
+pub fn put_result(s: &mut Session, id: ItemId, shape: Shape, mesh: bool) -> Result<()> {
+    if mesh {
+        let f = facets_of(s, &shape)?;
+        let shape = s.kernel.empty()?;
+        let body = s.doc.body_mut(id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
+        body.shape = shape;
+        return set_body_facets(s, id, f);
+    }
+    if let Some(b) = s.doc.body_mut(id) {
+        b.facets = None;
+    }
+    set_body_shape(s, id, shape)
+}
+
+/// A new body from a result, a mesh body when `mesh`.
+pub fn add_result(s: &mut Session, shape: Shape, mesh: bool) -> Result<ItemId> {
+    if mesh {
+        let f = facets_of(s, &shape)?;
+        let name = s.doc.next_body_name();
+        return add_mesh_body(s, f, name);
+    }
+    add_body(s, shape)
+}
+
+/// Runs a tool that works on exact faces and edges, refusing it when a mesh body is involved (named in the
+/// params or selected): these tools aren't offered for mesh bodies.
+fn exact_only(s: &mut Session, p: &Params, tool: &str, run: fn(&mut Session, &Params) -> Result<Value>) -> Result<Value> {
+    let mut ids: Vec<ItemId> = s.selection.iter().filter_map(Pick::body).collect();
+    for key in ["body", "target"] {
+        if let Ok(id) = p.id(key) {
+            ids.push(id);
+        }
+    }
+    for key in ["items", "bodies", "tools"] {
+        if let Ok(list) = p.ids(key) {
+            ids.extend(list);
+        }
+    }
+    no_meshes(s, &ids, tool)?;
+    run(s, p)
+}
+
+/// The matrices of the kernel's moves, for mesh bodies.
+pub fn translation(by: glam::DVec3) -> glam::DMat4 {
+    glam::DMat4::from_translation(by)
+}
+
+pub fn rotation(axis: shapecraft_kernel::Axis, radians: f64) -> glam::DMat4 {
+    let q = glam::DQuat::from_axis_angle(axis.dir.normalize_or(glam::DVec3::Z), radians);
+    glam::DMat4::from_translation(axis.origin) * glam::DMat4::from_quat(q) * glam::DMat4::from_translation(-axis.origin)
+}
+
+pub fn scaling(center: glam::DVec3, factors: glam::DVec3) -> glam::DMat4 {
+    glam::DMat4::from_translation(center) * glam::DMat4::from_scale(factors) * glam::DMat4::from_translation(-center)
+}
+
+pub fn reflection(origin: glam::DVec3, normal: glam::DVec3) -> glam::DMat4 {
+    let n = normal.normalize_or(glam::DVec3::Z);
+    let r = glam::DMat3::IDENTITY - 2.0 * glam::DMat3::from_cols(n * n.x, n * n.y, n * n.z);
+    glam::DMat4::from_translation(origin) * glam::DMat4::from_mat3(r) * glam::DMat4::from_translation(-origin)
+}
+
+/// A body's bounding box, mesh or exact.
+pub fn body_bounds(s: &Session, id: ItemId) -> Result<(glam::DVec3, glam::DVec3)> {
+    let body = s.doc.body(id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
+    match &body.facets {
+        Some(f) => f.bounds().ok_or_else(|| EngineError::BadParams("the mesh body is empty".into())),
+        None => {
+            let b = s.kernel.bounds(&body.shape)?;
+            Ok((b.min, b.max))
+        }
+    }
+}
+
+/// A body's box as the kernel gives it, from the triangles for a mesh body (its shape is empty).
+pub fn body_box(s: &Session, b: &Body) -> Result<shapecraft_kernel::Aabb> {
+    match &b.facets {
+        Some(f) => {
+            let (min, max) = f.bounds().ok_or_else(|| EngineError::BadParams("the mesh body is empty".into()))?;
+            Ok(shapecraft_kernel::Aabb { min, max })
+        }
+        None => Ok(s.kernel.bounds(&b.shape)?),
+    }
+}
+
+/// Refuses a tool that needs exact faces when a mesh body is among `ids`: no such tool is offered for one.
+pub fn no_meshes(s: &Session, ids: &[ItemId], tool: &str) -> Result<()> {
+    if ids.iter().any(|id| s.doc.body(*id).is_some_and(|b| b.is_mesh())) {
+        return Err(EngineError::NotAvailable(format!("{tool} isn't available on mesh bodies")));
+    }
+    Ok(())
+}
+
 /// A new body copied from `of`: named "<of> (1)" and with its looks.
 fn add_copy(s: &mut Session, of: ItemId, shape: Shape) -> Result<ItemId> {
     let id = add_body(s, shape)?;
@@ -327,7 +536,7 @@ fn add_body(s: &mut Session, shape: Shape) -> Result<ItemId> {
     let mesh = Arc::new(s.kernel.tessellate(&shape, shapecraft_doc::project::deflection())?);
     let id = s.doc.alloc_id();
     let name = s.doc.next_body_name();
-    s.doc.bodies.push(Body { id, name, shape, mesh, visible: true, appearance: None, face_colors: Vec::new() });
+    s.doc.bodies.push(Body { id, name, shape, mesh, visible: true, appearance: None, face_colors: Vec::new(), facets: None });
     Ok(id)
 }
 

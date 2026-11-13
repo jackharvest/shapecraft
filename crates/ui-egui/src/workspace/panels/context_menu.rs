@@ -355,6 +355,10 @@ pub(super) fn context_menu(ws: &mut Workspace, ui: &mut Ui, at: Pos2, under: Opt
             Some((b, f)) => {
                 ws.sketch_on_face(b, f);
             }
+            // A mesh body: the plane of the triangle under the pointer.
+            None if let Some((origin, normal)) = ws.mesh_triangle_at(at) => {
+                ws.start_sketch_on(serde_json::json!({ "origin": origin.to_array(), "normal": normal.to_array() }));
+            }
             None => ws.start_tool(crate::workspace::toolbar::ToolKind::Sketch),
         },
         "Section View" => ws.ui_action(UiAction::SectionView),

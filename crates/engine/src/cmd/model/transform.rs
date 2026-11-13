@@ -6,8 +6,12 @@ use serde_json::{Value, json};
 use shapecraft_doc::{Constraint, ItemId, Pick, SketchEntity, SketchPlane};
 use shapecraft_kernel::{Axis, BoolOp, SubShape};
 
+use super::add_body;
 use super::sweep::topo_axis;
-use super::{add_body, add_copy, face_frame, selected_bodies, set_body_shape, target_bodies};
+use super::{
+    Moved, add_moved, add_moved_copy, body_bounds, face_frame, no_meshes, put_moved, reflection, rotation, scaling, selected_bodies,
+    set_body_shape, target_bodies, translation,
+};
 use crate::{EngineError, Params, Result, Session};
 
 /// Selected bodies and construction planes: what Move/Rotate moves.
@@ -246,8 +250,12 @@ fn thaw_copies(s: &mut Session, p: &Params) -> Result<Option<Value>> {
     }
     let mut made = Vec::new();
     for (of, text) in frozen {
-        let shape = s.kernel.shape_from_text(&text)?;
-        made.push(add_copy(s, ItemId(of), shape)?);
+        let moved = if shapecraft_doc::Facets::is_text(&text) {
+            Moved::Mesh(shapecraft_doc::Facets::from_text(&text).ok_or_else(|| EngineError::BadParams("a broken mesh copy".into()))?)
+        } else {
+            Moved::Exact(s.kernel.shape_from_text(&text)?)
+        };
+        made.push(add_moved_copy(s, ItemId(of), moved)?);
     }
     s.selection = made.iter().map(|&id| item_pick(s, id)).collect();
     Ok(Some(json!({ "copies": made.iter().map(|b| b.0).collect::<Vec<_>>() })))
@@ -259,7 +267,12 @@ fn freeze_copies(s: &mut Session, p: &Params, made: &[(ItemId, ItemId)]) -> Resu
         let mut frozen = Vec::new();
         for (of, id) in made {
             let b = s.doc.body(*id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
-            frozen.push(json!([of.0, s.kernel.shape_to_text(&b.shape)?]));
+            // A mesh body's copy keeps its triangles as text (the History grows by the mesh's size).
+            let text = match &b.facets {
+                Some(f) => f.to_text(),
+                None => s.kernel.shape_to_text(&b.shape)?,
+            };
+            frozen.push(json!([of.0, text]));
         }
         let mut logged = p.all().clone();
         if let Some(o) = logged.as_object_mut() {
@@ -302,18 +315,17 @@ pub(super) fn translate(s: &mut Session, p: &Params) -> Result<Value> {
             }
             continue;
         }
-        let b = s.doc.body(*id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
-        let original = b.shape.clone();
         if copy {
             for k in 1..=copies {
-                let moved = s.kernel.translate(&original, by * k as f64)?;
-                let c = add_copy(s, *id, moved)?;
+                let step = by * k as f64;
+                let moved = Moved::of(s, *id, &translation(step), |sh| Ok(s.kernel.translate(sh, step)?))?;
+                let c = add_moved_copy(s, *id, moved)?;
                 made.push(c);
                 bodies.push((*id, c));
             }
         } else {
-            let moved = s.kernel.translate(&original, by)?;
-            set_body_shape(s, *id, moved)?;
+            let moved = Moved::of(s, *id, &translation(by), |sh| Ok(s.kernel.translate(sh, by)?))?;
+            put_moved(s, *id, moved)?;
         }
     }
     if copy {
@@ -340,7 +352,7 @@ pub fn bodies_center(s: &Session, ids: &[ItemId]) -> Result<DVec3> {
     let (mut min, mut max) = (DVec3::splat(f64::INFINITY), DVec3::splat(f64::NEG_INFINITY));
     for id in ids {
         let b = s.doc.body(*id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
-        let bb = s.kernel.bounds(&b.shape)?;
+        let bb = crate::cmd::model::body_box(s, b)?;
         min = min.min(bb.min);
         max = max.max(bb.max);
     }
@@ -401,12 +413,11 @@ pub(super) fn scale(s: &mut Session, p: &Params) -> Result<Value> {
     let copy = p.bool_or("copy", false);
     let mut made = Vec::new();
     for id in &ids {
-        let b = s.doc.body(*id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
-        let scaled = s.kernel.scale(&b.shape, center, factors)?;
+        let scaled = Moved::of(s, *id, &scaling(center, factors), |sh| Ok(s.kernel.scale(sh, center, factors)?))?;
         if copy {
-            made.push(add_copy(s, *id, scaled)?);
+            made.push(add_moved_copy(s, *id, scaled)?);
         } else {
-            set_body_shape(s, *id, scaled)?;
+            put_moved(s, *id, scaled)?;
         }
     }
     Ok(json!({ "scaled": ids.len(), "copies": made.iter().map(|b| b.0).collect::<Vec<_>>() }))
@@ -446,8 +457,27 @@ pub(super) fn pattern_circular(s: &mut Session, p: &Params) -> Result<Value> {
     }
     let ids = target_bodies(s, p, "select bodies to pattern")?;
     let op = pattern_op(p)?;
+    if op.is_some() {
+        no_meshes(s, &ids, "A combined pattern")?;
+    }
     let mut made = Vec::new();
     for id in &ids {
+        if s.doc.body(*id).is_some_and(|b| b.is_mesh()) {
+            let (lo, hi) = body_bounds(s, *id)?;
+            let center = (lo + hi) / 2.0;
+            for i in 1..n {
+                let turn = (step * i as f64).to_radians();
+                let m = if uniform {
+                    let q = glam::DQuat::from_axis_angle(axis.dir.normalize(), turn);
+                    translation(axis.origin + q * (center - axis.origin) - center)
+                } else {
+                    rotation(axis, turn)
+                };
+                let moved = Moved::of(s, *id, &m, |sh| Ok(sh.clone()))?;
+                made.push(add_moved(s, moved)?.0);
+            }
+            continue;
+        }
         let b = s.doc.body(*id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
         let original = b.shape.clone();
         let mut merged = original.clone();
@@ -537,13 +567,15 @@ pub(super) fn align(s: &mut Session, p: &Params) -> Result<Value> {
             _ => None,
         };
         for id in &ids {
-            let b = s.doc.body(*id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
-            let mut shape = b.shape.clone();
-            if let Some((axis, angle)) = rotation {
-                shape = s.kernel.rotate(&shape, axis, angle)?;
-            }
-            shape = s.kernel.translate(&shape, o_t - o_s)?;
-            set_body_shape(s, *id, shape)?;
+            let m = translation(o_t - o_s) * rotation.map_or(glam::DMat4::IDENTITY, |(axis, angle)| super::rotation(axis, angle));
+            let moved = Moved::of(s, *id, &m, |sh| {
+                let mut shape = sh.clone();
+                if let Some((axis, angle)) = rotation {
+                    shape = s.kernel.rotate(&shape, axis, angle)?;
+                }
+                Ok(s.kernel.translate(&shape, o_t - o_s)?)
+            })?;
+            put_moved(s, *id, moved)?;
         }
         s.selection = ids.iter().map(|&body| Pick::Body { body }).collect();
         return Ok(json!({ "aligned": ids.len() }));
@@ -565,13 +597,15 @@ pub(super) fn align(s: &mut Session, p: &Params) -> Result<Value> {
         Some((Axis::new(o_s, have.cross(want)), cos.acos()))
     };
     for id in &ids {
-        let b = s.doc.body(*id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
-        let mut shape = b.shape.clone();
-        if let Some((axis, angle)) = rotation {
-            shape = s.kernel.rotate(&shape, axis, angle)?;
-        }
-        shape = s.kernel.translate(&shape, o_t - o_s)?;
-        set_body_shape(s, *id, shape)?;
+        let m = translation(o_t - o_s) * rotation.map_or(glam::DMat4::IDENTITY, |(axis, angle)| super::rotation(axis, angle));
+        let moved = Moved::of(s, *id, &m, |sh| {
+            let mut shape = sh.clone();
+            if let Some((axis, angle)) = rotation {
+                shape = s.kernel.rotate(&shape, axis, angle)?;
+            }
+            Ok(s.kernel.translate(&shape, o_t - o_s)?)
+        })?;
+        put_moved(s, *id, moved)?;
     }
     s.selection = ids.iter().map(|&body| Pick::Body { body }).collect();
     Ok(json!({ "aligned": ids.len() }))
@@ -619,14 +653,13 @@ pub(super) fn rotate(s: &mut Session, p: &Params) -> Result<Value> {
             made.extend(xform_plane(s, *id, copy, turn)?);
             continue;
         }
-        let b = s.doc.body(*id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
-        let turned = s.kernel.rotate(&b.shape, axis, angle)?;
+        let turned = Moved::of(s, *id, &rotation(axis, angle), |sh| Ok(s.kernel.rotate(sh, axis, angle)?))?;
         if copy {
-            let c = add_copy(s, *id, turned)?;
+            let c = add_moved_copy(s, *id, turned)?;
             made.push(c);
             bodies.push((*id, c));
         } else {
-            set_body_shape(s, *id, turned)?;
+            put_moved(s, *id, turned)?;
         }
     }
     if copy {
@@ -716,12 +749,11 @@ pub(super) fn mirror(s: &mut Session, p: &Params) -> Result<Value> {
     }
     let mut made = Vec::new();
     for id in &ids {
-        let b = s.doc.body(*id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
-        let m = s.kernel.mirror(&b.shape, origin, normal)?;
+        let m = Moved::of(s, *id, &reflection(origin, normal), |sh| Ok(s.kernel.mirror(sh, origin, normal)?))?;
         if copy {
-            made.push(add_body(s, m)?.0);
+            made.push(add_moved(s, m)?.0);
         } else {
-            set_body_shape(s, *id, m)?;
+            put_moved(s, *id, m)?;
         }
     }
     Ok(json!({ "bodies": made }))
@@ -745,8 +777,19 @@ pub(super) fn pattern(s: &mut Session, p: &Params) -> Result<Value> {
         return Err(EngineError::NotAvailable("select bodies to pattern".into()));
     }
     let op = pattern_op(p)?;
+    if op.is_some() {
+        no_meshes(s, &ids, "A combined pattern")?;
+    }
     let mut made = Vec::new();
     for id in &ids {
+        if s.doc.body(*id).is_some_and(|b| b.is_mesh()) {
+            for i in 1..count as usize {
+                let by = dir * spacing * i as f64;
+                let moved = Moved::of(s, *id, &translation(by), |sh| Ok(s.kernel.translate(sh, by)?))?;
+                made.push(add_moved(s, moved)?.0);
+            }
+            continue;
+        }
         let b = s.doc.body(*id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
         let original = b.shape.clone();
         let mut merged = original.clone();

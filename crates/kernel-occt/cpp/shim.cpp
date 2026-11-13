@@ -954,6 +954,16 @@ int sk_write_brep_text(const SkShape* s) {
   });
 }
 
+// An empty compound: the stand-in shape of a mesh body, which keeps its triangles instead of exact faces.
+int sk_empty(SkShape** out) {
+  return guard([&] {
+    TopoDS_Compound c;
+    BRep_Builder b;
+    b.MakeCompound(c);
+    return put(out, c);
+  });
+}
+
 int sk_read_brep_text(const char* text, SkShape** out) {
   return guard([&] {
     std::istringstream is{std::string(text)};

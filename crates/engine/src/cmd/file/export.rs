@@ -161,12 +161,12 @@ fn export_step(s: &mut Session, p: &Params) -> Result<Value> {
                 .and_then(|f| s.doc.folder(f))
                 .map(|f| f.name.split(" / ").map(str::to_string).collect())
                 .unwrap_or_default();
-            (
-                b.shape.clone(),
+            Ok((
+                crate::cmd::model::working_shape(s, b.id, false)?,
                 shapecraft_kernel::PartInfo { name: Some(b.name.clone()), color: b.appearance.as_ref().map(|a| a.color), path },
-            )
+            ))
         })
-        .collect();
+        .collect::<Result<Vec<_>>>()?;
     let n = match p.opt_str("protocol") {
         None => 214,
         Some(ap) => ap
@@ -371,7 +371,8 @@ fn svg_drawings(s: &Session, p: &Params) -> Result<Vec<Drawing>> {
 
 fn export_iges(s: &mut Session, p: &Params) -> Result<Value> {
     let path = path_param(p, "path")?;
-    let shapes: Vec<_> = chosen_bodies(s, p)?.iter().map(|b| b.shape.clone()).collect();
+    let ids: Vec<_> = chosen_bodies(s, p)?.iter().map(|b| b.id).collect();
+    let shapes = ids.iter().map(|id| crate::cmd::model::working_shape(s, *id, false)).collect::<Result<Vec<_>>>()?;
     s.kernel.write_iges(&shapes, &path)?;
     Ok(json!({ "path": path, "bodies": shapes.len() }))
 }
@@ -388,7 +389,8 @@ fn export_bodies<'a>(s: &'a Session, p: &Params) -> Result<Vec<formats::ExportBo
                 (Some(a), true) => (a.color, a.metal, a.gloss),
                 _ => ([0.7, 0.7, 0.72], 0.0, 0.3),
             };
-            let mesh = if low { Arc::new(s.kernel.tessellate(&b.shape, project::deflection() * 10.0)?) } else { b.mesh.clone() };
+            let mesh =
+                if low && !b.is_mesh() { Arc::new(s.kernel.tessellate(&b.shape, project::deflection() * 10.0)?) } else { b.mesh.clone() };
             Ok(formats::ExportBody { name: &b.name, mesh, color, metal, gloss })
         })
         .collect()
@@ -428,8 +430,13 @@ fn export_glb(s: &mut Session, p: &Params) -> Result<Value> {
 /// Bodies as Parasolid parts (.x_b); several bodies go to one file each, named after the body.
 fn export_parasolid(s: &mut Session, p: &Params) -> Result<Value> {
     let path = path_param(p, "path")?;
-    let bodies: Vec<_> =
-        s.doc.bodies.iter().filter(|b| b.visible || p.bool_or("hidden", false)).map(|b| (b.name.clone(), b.shape.clone())).collect();
+    let bodies: Vec<_> = s
+        .doc
+        .bodies
+        .iter()
+        .filter(|b| b.visible || p.bool_or("hidden", false))
+        .map(|b| Ok((b.name.clone(), crate::cmd::model::working_shape(s, b.id, false)?)))
+        .collect::<Result<Vec<_>>>()?;
     let mut files = Vec::new();
     let single = bodies.len() == 1;
     for (name, shape) in bodies {

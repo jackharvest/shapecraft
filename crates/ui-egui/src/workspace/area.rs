@@ -115,12 +115,16 @@ impl Workspace {
                 .collect();
             match filter {
                 0 | 1 => {
-                    let all: Vec<Option<Pos2>> = edges.iter().flatten().copied().collect();
+                    // A mesh body has no edge lines: its triangles' corners stand in for them.
+                    let all: Vec<Option<Pos2>> =
+                        if body.is_mesh() { tris.iter().flatten().copied().collect() } else { edges.iter().flatten().copied().collect() };
                     let hit = if crossing { edges.iter().any(|e| takes(e)) || tris.iter().any(under_center) } else { takes(&all) };
                     if hit {
                         out.push(Pick::Body { body: body.id });
                     }
                 }
+                // A mesh body has no faces to pick.
+                2 if body.is_mesh() => {}
                 2 => {
                     let mut faces: std::collections::BTreeMap<u32, (bool, bool)> = std::collections::BTreeMap::new();
                     for (t, tri) in tris.iter().enumerate() {

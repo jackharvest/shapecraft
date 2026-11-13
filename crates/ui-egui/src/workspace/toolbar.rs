@@ -387,6 +387,39 @@ pub const BODY: &[ToolDef] = &[
     t(Icon::ProjectEdge, "Project as Edge", "", Tool(ToolKind::ProjectEdge)),
 ];
 
+/// A mesh body picked: no tools that need exact faces; booleans only for a closed mesh
+/// (`left_toolbar` drops them for an open one).
+pub const MESH: &[ToolDef] = &[
+    t(Icon::MoveRotate, "Move/Rotate", "M", Tool(ToolKind::Move)),
+    t(Icon::Scale, "Scale", "S", Tool(ToolKind::Scale)),
+    t(Icon::Pattern, "Pattern - Linear", "", Tool(ToolKind::Pattern)),
+    t(Icon::PatternCircular, "Pattern - Circular", "", Tool(ToolKind::CircularPattern)),
+    t(Icon::Visualize, "Visualize", "", U(UiAction::Visualization)),
+    t(Icon::Translate, "Translate", "N", Tool(ToolKind::Translate)),
+    t(Icon::RotateAxis, "Rotate Around Axis", "", Tool(ToolKind::RotateAxis)),
+    t(Icon::Mirror, "Mirror", "", Tool(ToolKind::Mirror)),
+    t(Icon::Union, "Union", "⌘U", Tool(ToolKind::Union)),
+    t(Icon::Subtract, "Subtract", "⌘B", Tool(ToolKind::Subtract)),
+    t(Icon::Intersect, "Intersect", "⌘I", Tool(ToolKind::Intersect)),
+    t(Icon::SplitBody, "Split Body", "", Tool(ToolKind::SplitBody)),
+];
+
+/// Two or more bodies with a mesh among them: the booleans come up below the patterns.
+pub const MESHES: &[ToolDef] = &[
+    t(Icon::MoveRotate, "Move/Rotate", "M", Tool(ToolKind::Move)),
+    t(Icon::Scale, "Scale", "S", Tool(ToolKind::Scale)),
+    t(Icon::Pattern, "Pattern - Linear", "", Tool(ToolKind::Pattern)),
+    t(Icon::PatternCircular, "Pattern - Circular", "", Tool(ToolKind::CircularPattern)),
+    t(Icon::Union, "Union", "⌘U", Tool(ToolKind::Union)),
+    t(Icon::Subtract, "Subtract", "⌘B", Tool(ToolKind::Subtract)),
+    t(Icon::Intersect, "Intersect", "⌘I", Tool(ToolKind::Intersect)),
+    t(Icon::Visualize, "Visualize", "", U(UiAction::Visualization)),
+    t(Icon::Translate, "Translate", "N", Tool(ToolKind::Translate)),
+    t(Icon::RotateAxis, "Rotate Around Axis", "", Tool(ToolKind::RotateAxis)),
+    t(Icon::Mirror, "Mirror", "", Tool(ToolKind::Mirror)),
+    t(Icon::SplitBody, "Split Body", "", Tool(ToolKind::SplitBody)),
+];
+
 // A curved face, e.g. a fillet's (362).
 pub const CURVED_FACE: &[ToolDef] = &[
     // As 26.200 lists it (s24 matrix).

@@ -18,6 +18,7 @@ pub mod drawing;
 pub mod formats;
 pub mod history;
 mod keep;
+pub mod meshops;
 mod params;
 mod refs;
 pub use cmd::{CommandSpec, face_offset, offset_entities, registry};
@@ -303,6 +304,12 @@ impl Session {
             && before.bodies.iter().zip(&self.doc.bodies).all(|(a, b)| {
                 a.id == b.id
                     && a.shape.ptr_eq(&b.shape)
+                    // A mesh body changes its triangles, not its (empty) shape.
+                    && match (&a.facets, &b.facets) {
+                        (None, None) => true,
+                        (Some(x), Some(y)) => std::sync::Arc::ptr_eq(x, y),
+                        _ => false,
+                    }
                     && a.name == b.name
                     && a.visible == b.visible
                     && a.appearance == b.appearance

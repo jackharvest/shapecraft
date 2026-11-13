@@ -4,9 +4,11 @@ use glam::DVec3;
 use serde_json::{Value, json};
 use shapecraft_kernel::BoolOp;
 
-use super::{add_body, face_frame, selected_bodies, set_body_shape, target_bodies};
+use super::{add_mesh_body, add_result, face_frame, facets_of, put_result, selected_bodies, set_body_facets, target_bodies, working_shape};
 use crate::cmd::CommandSpec;
+use crate::meshops;
 use crate::{EngineError, Params, Result, Session};
+use shapecraft_doc::{Facets, ItemId};
 
 pub(super) fn boolean_spec(
     id: &'static str,
@@ -44,13 +46,19 @@ fn boolean(s: &mut Session, p: &Params, op: BoolOp) -> Result<Value> {
             _ => return Err(EngineError::NotAvailable("select at least two bodies".into())),
         }
     };
-    let mut shape = s.doc.body(target).ok_or_else(|| EngineError::BadParams(format!("no body {}", target.0)))?.shape.clone();
+    // With a mesh body in it, the boolean runs on triangles and the result stays a mesh body, whichever boolean it
+    // is; an exact body taking part is tessellated.
+    let mesh = std::iter::once(&target).chain(&tools).any(|id| s.doc.body(*id).is_some_and(|b| b.is_mesh()));
+    if mesh {
+        return mesh_boolean(s, p, op, target, &tools);
+    }
+    let mut shape = working_shape(s, target, true)?;
     for t in &tools {
         if *t == target {
             continue;
         }
-        let tool = s.doc.body(*t).ok_or_else(|| EngineError::BadParams(format!("no body {}", t.0)))?;
-        shape = s.kernel.boolean(op, &shape, &tool.shape)?;
+        let tool = working_shape(s, *t, true)?;
+        shape = s.kernel.boolean(op, &shape, &tool)?;
     }
     // Keep Originals (observed 380, 383): "target" and/or "tools" stay as they were and the result is a new body.
     let keep = p.opt_str("keep").unwrap_or(if p.bool_or("keep", false) { "all" } else { "none" }).to_string();
@@ -69,11 +77,11 @@ fn boolean(s: &mut Session, p: &Params, op: BoolOp) -> Result<Value> {
     let mut made = Vec::new();
     let mut pieces = pieces.into_iter();
     if !keep_target && let Some(first) = pieces.next() {
-        set_body_shape(s, target, first)?;
+        put_result(s, target, first, mesh)?;
         made.push(target);
     }
     for piece in pieces {
-        let id = add_body(s, piece)?;
+        let id = add_result(s, piece, mesh)?;
         if let Some(b) = s.doc.bodies.iter_mut().find(|b| b.id == id) {
             b.name = target_name.clone();
         }
@@ -85,6 +93,58 @@ fn boolean(s: &mut Session, p: &Params, op: BoolOp) -> Result<Value> {
         }
     }
     // Nothing stays selected (observed 382, 385).
+    s.selection.clear();
+    Ok(json!({ "body": made.first().map_or(target.0, |b| b.0), "bodies": made.iter().map(|b| b.0).collect::<Vec<_>>() }))
+}
+
+/// A boolean among mesh bodies (and exact bodies with them), on triangles. Pieces that came apart become mesh bodies
+/// named after the target; tools go unless kept, as with exact bodies.
+fn mesh_boolean(s: &mut Session, p: &Params, op: BoolOp, target: ItemId, tools: &[ItemId]) -> Result<Value> {
+    let facets = |s: &Session, id: ItemId| -> Result<Facets> {
+        let b = s.doc.body(id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
+        match &b.facets {
+            Some(f) => Ok((**f).clone()),
+            None => facets_of(s, &b.shape),
+        }
+    };
+    let target_facets = facets(s, target)?;
+    let tool_facets = tools.iter().filter(|t| **t != target).map(|t| facets(s, *t)).collect::<Result<Vec<_>>>()?;
+    let mop = match op {
+        BoolOp::Union => meshops::Op::Union,
+        BoolOp::Subtract => meshops::Op::Subtract,
+        BoolOp::Intersect => meshops::Op::Intersect,
+    };
+    let pieces = meshops::boolean(mop, &target_facets, &tool_facets)?;
+    if pieces.is_empty() {
+        return Err(EngineError::NotAvailable("nothing of the body would be left".into()));
+    }
+    let keep = p.opt_str("keep").unwrap_or(if p.bool_or("keep", false) { "all" } else { "none" }).to_string();
+    let (keep_target, keep_tools) = match keep.as_str() {
+        "target" => (true, false),
+        "tools" => (false, true),
+        "all" | "true" => (true, true),
+        _ => (false, false),
+    };
+    let name = s.doc.body(target).map(|b| b.name.clone()).unwrap_or_default();
+    let mut made = Vec::new();
+    let mut pieces = pieces.into_iter();
+    if !keep_target && let Some(first) = pieces.next() {
+        let empty = s.kernel.empty()?;
+        if let Some(b) = s.doc.body_mut(target) {
+            b.shape = empty;
+        }
+        set_body_facets(s, target, first)?;
+        made.push(target);
+    }
+    for piece in pieces {
+        let id = add_mesh_body(s, piece, name.clone())?;
+        made.push(id);
+    }
+    if !keep_tools {
+        for t in tools.iter().filter(|t| **t != target) {
+            s.doc.remove_item(*t);
+        }
+    }
     s.selection.clear();
     Ok(json!({ "body": made.first().map_or(target.0, |b| b.0), "bodies": made.iter().map(|b| b.0).collect::<Vec<_>>() }))
 }
@@ -110,7 +170,34 @@ pub(super) fn split_body(s: &mut Session, p: &Params) -> Result<Value> {
     for id in &ids {
         let b = s.doc.body(*id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
         let name = b.name.clone();
-        let mut pieces = vec![b.shape.clone()];
+        // A mesh body splits on its triangles (a closed one into capped pieces) and its pieces stay mesh bodies.
+        if let Some(f) = b.facets.clone() {
+            let mut pieces = vec![(*f).clone()];
+            for &(origin, normal) in &cuts {
+                let mut next = Vec::new();
+                for piece in &pieces {
+                    match meshops::split(piece, origin, normal)? {
+                        Some(parts) => next.extend(parts),
+                        None => next.push(piece.clone()),
+                    }
+                }
+                if next.len() <= pieces.len() {
+                    return Err(EngineError::NotAvailable(MISSED.into()));
+                }
+                pieces = next;
+            }
+            let mut parts = pieces.into_iter();
+            if !keep {
+                let Some(first) = parts.next() else { continue };
+                set_body_facets(s, *id, first)?;
+            }
+            for part in parts {
+                made.push(add_mesh_body(s, part, name.clone())?);
+            }
+            continue;
+        }
+        let mesh = false;
+        let mut pieces = vec![working_shape(s, *id, false)?];
         for &(origin, normal) in &cuts {
             let mut next = Vec::new();
             for piece in &pieces {
@@ -128,10 +215,10 @@ pub(super) fn split_body(s: &mut Session, p: &Params) -> Result<Value> {
         let mut parts = pieces.into_iter();
         if !keep {
             let Some(first) = parts.next() else { continue };
-            set_body_shape(s, *id, first)?;
+            put_result(s, *id, first, mesh)?;
         }
         for part in parts {
-            let made_id = add_body(s, part)?;
+            let made_id = add_result(s, part, mesh)?;
             if let Some(nb) = s.doc.bodies.iter_mut().find(|b| b.id == made_id) {
                 nb.name = name.clone();
             }

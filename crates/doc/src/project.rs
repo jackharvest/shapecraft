@@ -9,12 +9,17 @@ use serde::{Deserialize, Serialize};
 use shapecraft_kernel::Kernel;
 
 use crate::{
-    Appearance, Body, ConstructionAxis, ConstructionPlane, Document, DrawingSheet, HistoryStep, ItemId, Sketch, SketchEntity, SketchPlane,
-    Units,
+    Appearance, Body, ConstructionAxis, ConstructionPlane, Document, DrawingSheet, Facets, HistoryStep, ItemId, Sketch, SketchEntity,
+    SketchPlane, Units,
 };
 
 /// 2: sketches on faces line up with the standard views (older files keep their frame: `legacy_face_axes`).
-pub const FILE_VERSION: u32 = 2;
+pub const FILE_VERSION: u32 = 3;
+/// What projects without mesh bodies are still saved as, so earlier versions keep opening them; a project with mesh
+/// bodies (version 3) tells an earlier version it was made by a newer ShapeCraft instead of being misread.
+const FILE_VERSION_NO_MESHES: u32 = 2;
+/// The folder mesh bodies' triangles are kept in, one file each (`Facets::to_bytes`).
+pub const MESHES_DIR: &str = "meshes";
 pub const PROJECT_FILE: &str = "project.json";
 pub const BODIES_FILE: &str = "bodies.step";
 /// The other name saves take turns with, so a save never touches the file the project currently points at.
@@ -120,6 +125,9 @@ struct BodyRecord {
     appearance: Option<Appearance>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     face_colors: Vec<(u32, [f32; 3])>,
+    /// A mesh body: its triangles' file in `meshes/` (it has no shape in the bodies file).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    mesh: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -166,7 +174,7 @@ pub fn save(doc: &Document, kernel: &dyn Kernel, dir: &Path) -> Result<(), Proje
 fn file_of(doc: &Document) -> ProjectFile {
     let (next_id, body_counter, sketch_counter, plane_counter, axis_counter) = doc.counters();
     ProjectFile {
-        version: FILE_VERSION,
+        version: if doc.bodies.iter().any(Body::is_mesh) { FILE_VERSION } else { FILE_VERSION_NO_MESHES },
         legacy_face_axes: doc.legacy_face_axes,
         name: doc.name.clone(),
         units: doc.units,
@@ -184,6 +192,7 @@ fn file_of(doc: &Document) -> ProjectFile {
                 visible: b.visible,
                 appearance: b.appearance.clone(),
                 face_colors: b.face_colors.clone(),
+                mesh: b.facets.as_ref().map(|f| mesh_file_name(b.id, f)),
             })
             .collect(),
         sketches: doc
@@ -279,14 +288,29 @@ fn save_file(doc: &Document, mut file: ProjectFile, kernel: &dyn Kernel, dir: &P
     let current = fs::read(dir.join(PROJECT_FILE)).ok().and_then(|b| serde_json::from_slice::<BodiesRef>(&b).ok());
     let using_first = current.is_some_and(|c| c.bodies_file == BODIES_FILE);
     file.bodies_file = if using_first { BODIES_FILE_NEXT } else { BODIES_FILE }.to_string();
-    if !doc.bodies.is_empty() {
+    let exact = doc.bodies.iter().any(|b| !b.is_mesh());
+    if exact {
         let step_path = dir.join(&file.bodies_file);
         let step_tmp = tmp_name(&step_path);
-        let shapes: Vec<_> = doc.bodies.iter().map(|b| b.shape.clone()).collect();
+        let shapes: Vec<_> = doc.bodies.iter().filter(|b| !b.is_mesh()).map(|b| b.shape.clone()).collect();
         kernel.write_step(&shapes, &step_tmp)?;
         sync(&step_tmp)?;
         file.bodies_check = Some(file_check(&step_tmp)?);
         replace(&step_tmp, &step_path)?;
+    }
+    // Mesh bodies' triangles, one file each, named by body and content: unchanged ones aren't written again, and files
+    // no body uses any more go once project.json no longer names them.
+    let meshes_dir = dir.join(MESHES_DIR);
+    let meshes: Vec<(String, &Facets)> =
+        doc.bodies.iter().filter_map(|b| b.facets.as_deref().map(|f| (mesh_file_name(b.id, f), f))).collect();
+    if !meshes.is_empty() {
+        fs::create_dir_all(&meshes_dir)?;
+    }
+    for (name, facets) in &meshes {
+        let path = meshes_dir.join(name);
+        if !path.exists() {
+            write_atomic(&path, &facets.to_bytes())?;
+        }
     }
     // Pictures beside the project, named by item id; files of removed pictures go.
     let images_dir = dir.join(IMAGES_DIR);
@@ -329,10 +353,17 @@ fn save_file(doc: &Document, mut file: ProjectFile, kernel: &dyn Kernel, dir: &P
     write_atomic(&dir.join(PROJECT_FILE), &serde_json::to_vec_pretty(&file)?)?;
     // A save cut short by an older version left its temporary under the plain name.
     let _ = fs::remove_file(dir.join("project.json.tmp"));
-    // Saved. The old bodies go, and with no bodies neither name is in use.
+    // Saved. The old bodies go, and with no exact bodies neither name is in use.
     for name in [BODIES_FILE, BODIES_FILE_NEXT] {
-        if name != file.bodies_file || doc.bodies.is_empty() {
+        if name != file.bodies_file || !exact {
             let _ = fs::remove_file(dir.join(name));
+        }
+    }
+    if let Ok(entries) = fs::read_dir(&meshes_dir) {
+        for e in entries.flatten() {
+            if !meshes.iter().any(|(n, _)| *n == e.file_name().to_string_lossy()) {
+                let _ = fs::remove_file(e.path());
+            }
         }
     }
     Ok(())
@@ -348,8 +379,9 @@ pub fn load(kernel: &dyn Kernel, dir: &Path) -> Result<Document, ProjectError> {
     if ![BODIES_FILE, BODIES_FILE_NEXT].contains(&file.bodies_file.as_str()) {
         return Err(ProjectError::Invalid(format!("unknown bodies file {:?}", file.bodies_file)));
     }
+    let exact = file.bodies.iter().filter(|b| b.mesh.is_none()).count();
     if let Some(want) = file.bodies_check
-        && !file.bodies.is_empty()
+        && exact > 0
     {
         let path = dir.join(&file.bodies_file);
         // There but not the one saved with it: an older file of the same name, the new one still on its way.
@@ -363,7 +395,7 @@ pub fn load(kernel: &dyn Kernel, dir: &Path) -> Result<Document, ProjectError> {
             _ => {}
         }
     }
-    let shapes = if file.bodies.is_empty() { Vec::new() } else { read_bodies(kernel, &dir.join(&file.bodies_file), file.bodies.len())? };
+    let shapes = if exact == 0 { Vec::new() } else { read_bodies(kernel, &dir.join(&file.bodies_file), exact)? };
     build(file, shapes, kernel, Some(dir))
 }
 
@@ -416,8 +448,9 @@ fn build(
     kernel: &dyn Kernel,
     dir: Option<&Path>,
 ) -> Result<Document, ProjectError> {
-    if shapes.len() != file.bodies.len() {
-        return Err(ProjectError::Bodies(format!("the bodies file has {} bodies, project.json lists {}", shapes.len(), file.bodies.len())));
+    let exact = file.bodies.iter().filter(|b| b.mesh.is_none()).count();
+    if shapes.len() != exact {
+        return Err(ProjectError::Bodies(format!("the bodies file has {} bodies, project.json lists {exact}", shapes.len())));
     }
     let mut doc = Document::new(file.name);
     doc.units = file.units;
@@ -509,8 +542,20 @@ fn build(
                 && f.normal().length() > 1e-6
         })
         .collect();
-    for (rec, shape) in file.bodies.into_iter().zip(shapes) {
-        let mesh = Arc::new(kernel.tessellate(&shape, deflection())?);
+    let mut shapes = shapes.into_iter();
+    for rec in file.bodies {
+        // A mesh body reads its triangles; one whose file is gone (a copy without its meshes folder) is left out.
+        let (shape, mesh, facets) = match &rec.mesh {
+            Some(name) => {
+                let Some(facets) = dir.and_then(|d| read_mesh_file(d, name)) else { continue };
+                (kernel.empty()?, Arc::new(facets.render_mesh()), Some(Arc::new(facets)))
+            }
+            None => {
+                let Some(shape) = shapes.next() else { break };
+                let mesh = Arc::new(kernel.tessellate(&shape, deflection())?);
+                (shape, mesh, None)
+            }
+        };
         let appearance = rec.appearance.and_then(Appearance::sanitized);
         let face_colors = rec
             .face_colors
@@ -519,7 +564,7 @@ fn build(
             .map(|(f, c)| (f, c.map(|v| v.clamp(0.0, 1.0))))
             .take(10_000)
             .collect();
-        doc.bodies.push(Body { id: rec.id, name: rec.name, shape, mesh, visible: rec.visible, appearance, face_colors });
+        doc.bodies.push(Body { id: rec.id, name: rec.name, shape, mesh, visible: rec.visible, appearance, face_colors, facets });
     }
     let (bodies, pictures) = (&doc.bodies, &doc.decal_images);
     doc.decals = file
@@ -998,6 +1043,25 @@ pub fn trash(dir: &Path, root: &Path) -> Result<PathBuf, ProjectError> {
 
 fn no_views(v: &[Option<crate::SavedView>; 8]) -> bool {
     v.iter().all(Option::is_none)
+}
+
+/// A mesh body's file name: its id and a hash of its triangles (so a changed mesh gets a new file).
+fn mesh_file_name(id: ItemId, facets: &Facets) -> String {
+    let mut h: u64 = 0xcbf29ce484222325;
+    for b in facets.to_bytes() {
+        h = (h ^ u64::from(b)).wrapping_mul(0x100000001b3);
+    }
+    format!("{}-{h:016x}.scmesh", id.0)
+}
+
+/// Reads one mesh body's triangles. The name comes from project.json, so only a plain file name in `meshes/` is
+/// accepted.
+fn read_mesh_file(dir: &Path, name: &str) -> Option<Facets> {
+    let plain = !name.is_empty() && name.ends_with(".scmesh") && !name.contains(['/', '\\']) && !name.starts_with('.');
+    if !plain {
+        return None;
+    }
+    Facets::from_bytes(&fs::read(dir.join(MESHES_DIR).join(name)).ok()?)
 }
 
 #[cfg(test)]

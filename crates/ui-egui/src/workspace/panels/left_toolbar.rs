@@ -53,6 +53,13 @@ fn context_tools(ws: &Workspace) -> (Vec<ToolDef>, Option<String>) {
         SelectionKind::Faces => toolbar::FACE,
         SelectionKind::Edges if many => toolbar::EDGES,
         SelectionKind::Edges => toolbar::EDGE,
+        SelectionKind::Bodies if ws.session.selection.iter().any(|p| is_mesh(ws, p)) => {
+            if many {
+                toolbar::MESHES
+            } else {
+                toolbar::MESH
+            }
+        }
         SelectionKind::Bodies => toolbar::BODY,
         SelectionKind::Mixed => toolbar::MIXED,
         SelectionKind::SketchEntities => toolbar::SKETCHING,
@@ -61,6 +68,15 @@ fn context_tools(ws: &Workspace) -> (Vec<ToolDef>, Option<String>) {
     };
     v.push(toolbar::SELECTION_HEAD);
     v.extend_from_slice(set);
+    // Booleans take only closed mesh bodies (an open mesh shows none).
+    let open_mesh = ws
+        .session
+        .selection
+        .iter()
+        .any(|p| p.body().and_then(|b| ws.session.doc.body(b)).and_then(|b| b.facets.as_ref()).is_some_and(|f| !f.is_closed()));
+    if open_mesh {
+        v.retain(|d| !matches!(d.label, "Union" | "Subtract" | "Intersect"));
+    }
     // Faces that aren't all flat can't be extruded, lofted, revolved or swept (s24 matrix: Shell on a cylinder).
     if many && ws.session.selection_kind() == SelectionKind::Faces {
         let curved = ws.session.selection.iter().any(|p| match *p {
@@ -771,4 +787,9 @@ impl Workspace {
             self.act(def.action, def.label);
         }
     }
+}
+
+/// A pick on a mesh body.
+fn is_mesh(ws: &crate::workspace::Workspace, p: &Pick) -> bool {
+    p.body().and_then(|b| ws.session.doc.body(b)).is_some_and(|b| b.is_mesh())
 }

@@ -130,7 +130,7 @@ pub(super) fn add_bodies(
         let mesh = Arc::new(s.kernel.tessellate(&shape, project::deflection())?);
         let id = s.doc.alloc_id();
         let name = mesh_name.filter(|n| !n.is_empty()).map_or_else(|| s.doc.next_body_name(), str::to_string);
-        s.doc.bodies.push(Body { id, name, shape, mesh, visible: true, appearance: None, face_colors: Vec::new() });
+        s.doc.bodies.push(Body { id, name, shape, mesh, visible: true, appearance: None, face_colors: Vec::new(), facets: None });
         ids.push(id);
     }
     Ok(ids)
@@ -201,9 +201,8 @@ fn import_file(s: &mut Session, p: &Params) -> Result<Value> {
         }
         let new: Vec<ItemId> = s.doc.bodies.iter().map(|b| b.id).filter(|id| !before.contains(id)).collect();
         for id in new {
-            let Some(b) = s.doc.body(id) else { continue };
-            let scaled = s.kernel.scale(&b.shape, DVec3::ZERO, DVec3::splat(factor))?;
-            crate::cmd::model::set_body_shape(s, id, scaled)?;
+            let m = glam::DMat4::from_scale(DVec3::splat(factor));
+            crate::cmd::model::transform_body(s, id, &m, |s, shape| Ok(s.kernel.scale(shape, DVec3::ZERO, DVec3::splat(factor))?))?;
         }
     }
     Ok(out)
@@ -258,11 +257,14 @@ fn import_any(s: &mut Session, p: &Params) -> Result<Value> {
             } else {
                 formats::read_obj(&String::from_utf8_lossy(&bytes)).map_err(bad)?
             };
+            // Kept as a mesh body, in a folder named after the file, "Mesh body 01".
             let (pts, idx) = formats::weld(&pts, &tris);
-            let shape = s.kernel.shape_from_mesh(&pts, &idx)?;
-            let ids = add_bodies(s, vec![shape], Some(&stem))?;
+            let facets = shapecraft_doc::Facets::new(pts, &idx)
+                .ok_or_else(|| EngineError::BadParams(format!("{} has no usable triangles", path.display())))?;
+            let id = crate::cmd::model::add_mesh_body(s, facets, "Mesh body 01".into())?;
+            let folder = file_folder(s, &path, &[id]);
             s.selection.clear();
-            Ok(json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>() }))
+            Ok(json!({ "bodies": [id.0], "folder": folder, "mesh": true }))
         }
         "dxf" | "svg" => {
             let text = String::from_utf8_lossy(&read_capped(&path)?).into_owned();

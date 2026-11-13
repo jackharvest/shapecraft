@@ -265,6 +265,15 @@ pub(crate) fn build(scene: &SceneInput, camera: &Camera, size: DVec2) -> Built {
             }
         }
     }
+    // Wireframe shows a mesh body by its outline: the edges between a triangle facing the camera and one
+    // facing away, plus an open mesh's rim. A mesh body has no edges of its own.
+    if scene.display == DisplayMode::Wireframe {
+        for body in scene.doc.bodies.iter().filter(|b| b.visible) {
+            let Some(f) = &body.facets else { continue };
+            let color = if fully_selected(body, scene.selection) { c.selected } else { Rgba::hex(0xbdbdc0) };
+            mesh_outline(&mut out, f, camera, color);
+        }
+    }
     if scene.show_axes && !scene.presentation {
         let len = camera.distance * 50.0;
         // Bodies hide the axes (s22-002: no trace of the Y axis across two boxes it runs under); they only show
@@ -706,4 +715,39 @@ pub(crate) fn fully_selected(body: &shapecraft_doc::Body, selection: &[Pick]) ->
     faces.sort_unstable();
     faces.dedup();
     picked >= faces.len() && faces.iter().all(|f| selection.contains(&Pick::Face { body: body.id, face: *f }))
+}
+
+/// A mesh body's outline as seen by `camera`.
+fn mesh_outline(out: &mut Built, f: &shapecraft_doc::Facets, camera: &Camera, color: Rgba) {
+    let eye = camera.eye();
+    let back = camera.back();
+    let ortho = camera.ortho_amount() > 0.5;
+    let facing: Vec<bool> = f
+        .triangles
+        .iter()
+        .map(|t| {
+            let [a, b, c] = t.map(|i| f.points[i as usize]);
+            let n = (b - a).cross(c - a);
+            let toward = if ortho { back } else { eye - a };
+            n.dot(toward) > 0.0
+        })
+        .collect();
+    let mut edges: std::collections::HashMap<(u32, u32), (u32, bool)> = std::collections::HashMap::with_capacity(f.triangles.len() * 2);
+    for (t, tri) in f.triangles.iter().enumerate() {
+        for k in 0..3 {
+            let (a, b) = (tri[k], tri[(k + 1) % 3]);
+            let e = edges.entry((a.min(b), a.max(b))).or_insert((0, facing[t]));
+            e.0 += 1;
+            if e.1 != facing[t] {
+                e.1 = !e.1;
+                e.0 += 100;
+            }
+        }
+    }
+    for (&(a, b), &(n, _)) in &edges {
+        // Shared by one triangle (an open rim) or by a front and a back one (the silhouette).
+        if n == 1 || n >= 100 {
+            out.segments.push(Segment { a: f.points[a as usize], b: f.points[b as usize], color, width: 1.2, overlay: true, clip: true });
+        }
+    }
 }

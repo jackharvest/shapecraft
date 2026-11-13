@@ -29,16 +29,19 @@ fn mesh_and_iges_exports_round_trip() {
     assert!(std::fs::read_to_string(dir.join("p242.step")).unwrap().contains("AP242"));
     assert!(s.execute("export_step", &json!({"path": path("x.step"), "protocol": "AP999"})).is_err());
     s.execute("export_stl", &json!({"path": path("p.stl")})).unwrap();
-    // Each comes back as a closed body of the same volume.
+    // Each comes back as a closed body of the same volume: IGES exact, STL and OBJ as mesh bodies, each in a folder named after its file.
     for (n, file) in ["p.igs", "p.stl", "p.obj"].iter().enumerate() {
         let out = s.execute("import_file", &json!({"path": path(file)})).unwrap().value;
         assert_eq!(out["bodies"].as_array().unwrap().len(), 1, "{file}");
         assert_eq!(s.doc.bodies.len(), n + 2);
-        let body = s.doc.bodies.last().unwrap();
-        let v = s.kernel.mass_props(&body.shape).unwrap().volume;
+        let id = s.doc.bodies.last().unwrap().id.0;
+        let info = s.execute("inspect", &json!({"body": id, "faces": false})).unwrap().value;
+        let v = info["bodies"][0]["volume_mm3"].as_f64().unwrap();
         assert!((v - 1000.0).abs() < 1e-3, "{file}: {v}");
+        assert_eq!(info["bodies"][0]["mesh"].as_bool().unwrap_or(false), *file != "p.igs", "{file}");
     }
-    assert_eq!(s.doc.bodies.last().unwrap().name, "p");
+    assert_eq!(s.doc.bodies.last().unwrap().name, "Mesh body 01");
+    assert_eq!(s.doc.folders.last().unwrap().name, "p.obj");
     // Drawings come in as a sketch named after the file, with regions.
     std::fs::write(dir.join("plate.svg"), r#"<svg xmlns="http://www.w3.org/2000/svg" width="40mm" height="20mm" viewBox="0 0 40 20"><rect width="40" height="20"/><circle cx="20" cy="10" r="5"/></svg>"#).unwrap();
     let out = s.execute("import_file", &json!({"path": path("plate.svg")})).unwrap().value;

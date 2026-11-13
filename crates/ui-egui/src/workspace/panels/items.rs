@@ -237,6 +237,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             theme::c(0x5f5f5f)
         };
         let icon = match kind {
+            ItemKind::Body if ws.session.doc.body(id).is_some_and(|b| b.is_mesh()) => Icon::MeshBody,
             ItemKind::Body => Icon::Body,
             ItemKind::Sketch => Icon::SketchItem,
             ItemKind::Plane => Icon::Plane,

@@ -291,7 +291,7 @@ fn face_param(s: &Session, p: &Params) -> Result<(ItemId, u32)> {
 
 fn size_of_body(s: &Session, body: ItemId) -> Result<f64> {
     let b = s.doc.body(body).ok_or_else(|| EngineError::BadParams(format!("no body {}", body.0)))?;
-    let bb = s.kernel.bounds(&b.shape)?;
+    let bb = crate::cmd::model::body_box(s, b)?;
     Ok(((bb.max - bb.min).length() * 1.3).max(20.0))
 }
 
@@ -334,7 +334,7 @@ fn source_plane(s: &Session, v: &Value) -> Result<(SketchPlane, f64)> {
         let fp = s.kernel.face_plane(&b.shape, face)?.ok_or_else(|| EngineError::NotAvailable("pick a flat face".into()))?;
         let plane = SketchPlane::on_face(fp.origin, fp.normal, s.doc.legacy_face_axes)
             .ok_or_else(|| EngineError::BadParams("face has no usable normal".into()))?;
-        let bb = s.kernel.bounds(&b.shape)?;
+        let bb = crate::cmd::model::body_box(s, b)?;
         Ok((plane, ((bb.max - bb.min).max_element() * 1.3).max(20.0)))
     }
 }

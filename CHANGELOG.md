@@ -2,16 +2,29 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.7.11-alpha
-**New ways to install: an MSI for Windows and packages for Debian, Ubuntu, Fedora and openSUSE.**
+## 0.8.0-alpha
+**STL and OBJ files stay light mesh bodies, .shapr projects with meshes open in seconds, and new ways to install.**
 ### New
+- **Mesh bodies.** STL and OBJ files come in as mesh bodies, as they are, in a folder named after the file ("Mesh body
+  01"): a 20,000-triangle part takes a second instead of minutes. Click one to pick it whole; Move/Rotate, Scale,
+  Patterns, Translate, Rotate Around Axis, Mirror, Split Body and Visualize work on it, and Union, Subtract and
+  Intersect combine it with other bodies (mesh or not) while it stays a mesh. Open (unclosed) meshes take no
+  booleans. Tools that need exact faces (Fillet, Shell, Offset Face…) don't show for a mesh.
+- **Sketch next to a mesh:** Sketch on Face (right-click) sketches on the triangle under the pointer, and an extrude
+  from there makes its own body, ready to Subtract from the mesh or Union onto it. Measure, Section View and Wireframe
+  (which shows a mesh's outline) work on mesh bodies too, and exports include them.
 - **Windows: an MSI download.** Double-click it to install ShapeCraft for yourself, no administrator needed (or for
   everyone with `msiexec /i … ALLUSERS=1`). It shows up in Apps & features and updates itself like before.
 - **Linux: .deb and .rpm packages** for Debian, Ubuntu, Fedora and openSUSE. They put ShapeCraft in your app menu and
   `shapecraft` on your PATH; install the next version's package to update.
 ### Changed
+- **Projects keep mesh bodies in a small file of their own** (a `meshes` folder) instead of the STEP file, so saving is
+  quick. Projects with mesh bodies need this version or later to open.
 - **Windows copies from the setup program move to the MSI at their next update,** in the same folder, with your
   shortcuts and settings kept. The setup program download stays for a few more versions and then goes away.
+### Fixed
+- **Opening a .shapr project with mesh bodies (imported STLs) no longer freezes ShapeCraft** (Windows called it "Not
+  Responding"): every triangle used to become an exact face, and saving those took minutes. They stay mesh bodies now.
 
 ## 0.7.10-alpha
 **Move arrows take a click, and tablets get easier sketching and tutorials you can finish.**

@@ -21,7 +21,9 @@ pub use sketch::{
     rectangle_loop, region_nesting, spline_points,
 };
 
+mod facets;
 pub mod project;
+pub use facets::Facets;
 mod visual;
 pub use visual::{
     APERTURE, BLUR, BUILTIN_ENVIRONMENTS, DECAL_SCALE, Decal, DecalImage, Ground, HdrPixels, LIGHT_INTENSITY, LIGHT_ROTATION,
@@ -42,6 +44,15 @@ pub struct Body {
     pub appearance: Option<Appearance>,
     /// Faces painted their own color (face index, sRGB 0..1), as the reference allows in Visualization.
     pub face_colors: Vec<(u32, [f32; 3])>,
+    /// A mesh body's triangles (an STL, OBJ or .shapr mesh body): `shape` is then empty and `mesh` comes from these.
+    pub facets: Option<Arc<Facets>>,
+}
+
+impl Body {
+    /// A mesh body (triangles, no exact faces): picked whole, no faces or edges to work on.
+    pub fn is_mesh(&self) -> bool {
+        self.facets.is_some()
+    }
 }
 
 /// A body's look: a color and how metallic and glossy it is (all 0..1; color in sRGB).

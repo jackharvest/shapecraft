@@ -652,6 +652,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "clipper2-rust"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "210e9ea90a5f6c731c23bf642383ad7c006d8b24803c5c33afd5aaeae5a33f66"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
 name = "codespan-reporting"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -824,6 +833,38 @@ name = "cursor-icon"
 version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f27ae1dd37df86211c42e150270f82743308803d90a6f6e6651cd730d5e1732f"
+
+[[package]]
+name = "dashu-base"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a64b04cdfc4c8533100fe00304eb9687173bda47b1f1dac8af12ba13712ed49d"
+
+[[package]]
+name = "dashu-int"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b6ee98721d5d223e5b64b642dd9588b79d9ef415554b13720308b77d628c3be6"
+dependencies = [
+ "cfg-if",
+ "dashu-base",
+ "num-modular",
+ "num-traits",
+ "rustversion",
+ "static_assertions",
+]
+
+[[package]]
+name = "dashu-ratio"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "727613e0312d442301147d9e45eb2e7c2797230fc6d223a2c51ecf0e98dfeb5e"
+dependencies = [
+ "dashu-base",
+ "dashu-int",
+ "num-traits",
+ "rustversion",
+]
 
 [[package]]
 name = "data-encoding"
@@ -2033,6 +2074,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
 
 [[package]]
+name = "manifold-rust"
+version = "0.19.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ddad329fd20646de626e339ea1146de838464060824cb3edd5593d8d061a3f95"
+dependencies = [
+ "clipper2-rust",
+ "dashu-int",
+ "dashu-ratio",
+ "num-traits",
+ "rustc-hash 2.1.3",
+]
+
+[[package]]
 name = "memchr"
 version = "2.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2196,6 +2250,12 @@ dependencies = [
  "bytemuck",
  "num-traits",
 ]
+
+[[package]]
+name = "num-modular"
+version = "0.6.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd8e500409e6cd603b03e477c26a6caecdc27ac58979a53e881c75eafc079f44"
 
 [[package]]
 name = "num-traits"
@@ -3434,7 +3494,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft"
-version = "0.7.11"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "eframe",
@@ -3446,7 +3506,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-android"
-version = "0.7.11"
+version = "0.8.0"
 dependencies = [
  "android_logger",
  "eframe",
@@ -3459,7 +3519,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-cli"
-version = "0.7.11"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "png 0.18.1",
@@ -3474,7 +3534,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-doc"
-version = "0.7.11"
+version = "0.8.0"
 dependencies = [
  "chrono",
  "fontdb",
@@ -3489,17 +3549,18 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-dwg"
-version = "0.7.11"
+version = "0.8.0"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "shapecraft-engine"
-version = "0.7.11"
+version = "0.8.0"
 dependencies = [
  "glam",
  "image",
+ "manifold-rust",
  "serde",
  "serde_json",
  "shapecraft-doc",
@@ -3513,7 +3574,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-kernel"
-version = "0.7.11"
+version = "0.8.0"
 dependencies = [
  "glam",
  "thiserror 2.0.21",
@@ -3521,7 +3582,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-kernel-occt"
-version = "0.7.11"
+version = "0.8.0"
 dependencies = [
  "cc",
  "shapecraft-kernel",
@@ -3529,7 +3590,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-mcp"
-version = "0.7.11"
+version = "0.8.0"
 dependencies = [
  "png 0.18.1",
  "serde_json",
@@ -3542,7 +3603,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-render"
-version = "0.7.11"
+version = "0.8.0"
 dependencies = [
  "bytemuck",
  "glam",
@@ -3555,7 +3616,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-shapr"
-version = "0.7.11"
+version = "0.8.0"
 dependencies = [
  "glam",
  "miniz_oxide 0.8.9",
@@ -3570,7 +3631,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-snap"
-version = "0.7.11"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "eframe",
@@ -3585,7 +3646,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-ui"
-version = "0.7.11"
+version = "0.8.0"
 dependencies = [
  "dirs",
  "eframe",
@@ -3617,7 +3678,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-update"
-version = "0.7.11"
+version = "0.8.0"
 dependencies = [
  "dirs",
  "serde_json",
@@ -3627,7 +3688,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-xt"
-version = "0.7.11"
+version = "0.8.0"
 dependencies = [
  "shapecraft-kernel",
  "shapecraft-kernel-occt",
@@ -4992,7 +5053,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.7.11"
+version = "0.8.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

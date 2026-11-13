@@ -61,6 +61,25 @@ fn inspect(s: &mut Session, p: &Params) -> Result<Value> {
         .iter()
         .filter(|b| only_sketch.is_none() && only_body.is_none_or(|id| id == b.id))
         .map(|b| {
+            // A mesh body straight from its triangles (sewing them for every inspect would be slow).
+            if let Some(f) = &b.facets {
+                let (area, volume) = f.area_volume();
+                return json!({
+                    "id": b.id.0,
+                    "name": b.name,
+                    "visible": b.visible,
+                    "mesh": true,
+                    "closed": f.is_closed(),
+                    "triangles": f.triangle_count(),
+                    "volume_mm3": volume,
+                    "area_mm2": area,
+                    "bounds": f.bounds().map(|(lo, hi)| json!({ "min": lo.to_array(), "max": hi.to_array() })),
+                    "face_count": 0,
+                    "faces": [],
+                    "edges": 0,
+                    "appearance": b.appearance,
+                });
+            }
             let mp = s.kernel.mass_props(&b.shape).ok();
             let bb = s.kernel.bounds(&b.shape).ok();
             let face_count = s.kernel.face_count(&b.shape).unwrap_or(0);
@@ -138,7 +157,7 @@ fn measure(s: &mut Session, p: &Params) -> Result<Value> {
     let mut items = Vec::new();
     for pick in &picks {
         let Some((body, sub)) = sub_of(pick) else { continue };
-        let Some(b) = s.doc.body(body) else { continue };
+        let Some(b) = measurable(s, body) else { continue };
         let (value, center) = s.kernel.measure(&b.shape, sub)?;
         let mut v = json!({ "pick": pick, "center": center.to_array() });
         match sub {
@@ -167,7 +186,7 @@ fn measure(s: &mut Session, p: &Params) -> Result<Value> {
         let mut clashes = Vec::new();
         for (i, a) in bodies.iter().enumerate() {
             for b in &bodies[i + 1..] {
-                let (Some(x), Some(y)) = (s.doc.body(*a), s.doc.body(*b)) else { continue };
+                let (Some(x), Some(y)) = (measurable(s, *a), measurable(s, *b)) else { continue };
                 if !s.kernel.bounds(&x.shape)?.overlaps(&s.kernel.bounds(&y.shape)?) {
                     continue;
                 }
@@ -182,7 +201,7 @@ fn measure(s: &mut Session, p: &Params) -> Result<Value> {
     }
     if let [a, b] = picks.as_slice()
         && let (Some((ba, sa)), Some((bb, sb))) = (sub_of(a), sub_of(b))
-        && let (Some(x), Some(y)) = (s.doc.body(ba), s.doc.body(bb))
+        && let (Some(x), Some(y)) = (measurable(s, ba).as_ref(), measurable(s, bb).as_ref())
     {
         let d = s.kernel.distance(&x.shape, sa, &y.shape, sb)?;
         out["distance"] = json!({ "mm": d.distance, "from": d.a.to_array(), "to": d.b.to_array() });
@@ -354,4 +373,14 @@ fn pick_points(b: &shapecraft_doc::Body, sub: shapecraft_kernel::SubShape) -> Ve
     };
     let step = pts.len().div_ceil(1500).max(1);
     pts.into_iter().step_by(step).collect()
+}
+
+/// A body to measure: a mesh body with its triangles sewn into a shape for the measurement (as an STL
+/// measures an STL), an exact body as it is.
+fn measurable(s: &Session, id: shapecraft_doc::ItemId) -> Option<shapecraft_doc::Body> {
+    let mut b = s.doc.body(id)?.clone();
+    if b.is_mesh() {
+        b.shape = crate::cmd::model::working_shape(s, id, false).ok()?;
+    }
+    Some(b)
 }

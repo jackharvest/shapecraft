@@ -19,6 +19,14 @@ pub struct Entry {
 
 pub const ENTRIES: &[Entry] = &[
     Entry {
+        version: "0.8.0",
+        title: "STLs stay light",
+        text: "STL and OBJ files come in as mesh bodies, the way they are: in a second, however many triangles. Move, \
+               pattern and mirror them, sketch next to them, and cut or join them with Union, Subtract and Intersect. \
+               They stay meshes, and projects with them stay small.",
+        art: "new-meshes",
+    },
+    Entry {
         version: "0.5.0",
         title: "Make yourself at home",
         text: "The first launch asks which app's navigation your hands already know, so orbit, pan and zoom work the \

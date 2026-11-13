@@ -909,6 +909,10 @@ impl Kernel for OcctKernel {
         take_shapes(arr, n)
     }
 
+    fn empty(&self) -> Result<Shape> {
+        shape_out("empty", |out| unsafe { ffi::sk_empty(out) })
+    }
+
     fn shape_from_mesh(&self, positions: &[DVec3], indices: &[u32]) -> Result<Shape> {
         if positions.len() > 2_000_000 || indices.len() > 6_000_000 || !indices.len().is_multiple_of(3) {
             return Err(KernelError::InvalidInput("mesh too large or malformed".into()));

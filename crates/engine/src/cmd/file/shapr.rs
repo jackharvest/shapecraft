@@ -181,15 +181,20 @@ fn add_shapr_body(
     folders: &mut Vec<(String, Vec<shapecraft_doc::ItemId>)>,
     links: &mut Vec<(shapecraft_doc::ItemId, i64)>,
 ) -> Result<Vec<shapecraft_doc::ItemId>> {
-    let shape = match &body.mesh {
-        // A facet body (an STL Shapr3D kept as a mesh): its triangles sewn into a solid, as our own STL import does.
+    let made = match &body.mesh {
+        // A facet body (an imported STL kept as a mesh in the file): it stays a mesh body here too.
         Some(m) if body.brep.faces.is_empty() => {
             let (pts, idx) = crate::formats::weld(&m.points, &m.triangles);
-            s.kernel.shape_from_mesh(&pts, &idx)?
+            match shapecraft_doc::Facets::new(pts, &idx) {
+                Some(f) => {
+                    let name = body.name.clone().filter(|n| !n.is_empty()).unwrap_or_else(|| "Mesh body 01".into());
+                    vec![crate::cmd::model::add_mesh_body(s, f, name)?]
+                }
+                None => Vec::new(),
+            }
         }
-        _ => s.kernel.from_brep(&body.brep)?,
+        _ => add_bodies(s, vec![s.kernel.from_brep(&body.brep)?], body.name.as_deref())?,
     };
-    let made = add_bodies(s, vec![shape], body.name.as_deref())?;
     if let (Some(step), [id]) = (body.step, made.as_slice()) {
         links.push((*id, step));
     }
@@ -375,10 +380,11 @@ pub(crate) fn run_followups(s: &mut Session, todo: Vec<Followup>) {
         if f.hidden {
             let _ = s.execute("show_hide", &json!({ "items": [body.0], "visible": false }));
         }
-        let Some(b) = s.doc.body(body).map(|b| (b.name.clone(), b.shape.clone(), b.appearance.as_ref().map(|a| a.color), !b.visible))
-        else {
+        let Some(b) = s.doc.body(body).map(|b| (b.name.clone(), b.appearance.as_ref().map(|a| a.color), !b.visible)) else {
             continue;
         };
+        let Ok(shape) = crate::cmd::model::working_shape(s, body, false) else { continue };
+        let b = (b.0, shape, b.1, b.2);
         let Ok(fp) = fingerprint(s, &b.1) else { continue };
         if let Some(link) = s.doc.shapr.as_mut() {
             let extrude = (f.fillet.is_none() || fillet.is_some()).then_some(shapecraft_doc::ShaprExtrude {
@@ -610,7 +616,10 @@ pub(super) fn export_shapr(s: &mut Session, p: &Params) -> Result<Value> {
     }
     // Copies of the Shapr3D-made bodies kept as they are, for reading the file here again before Shapr3D rebuilds it.
     for r in link.iter().flat_map(|l| &l.bodies).filter(|r| kept.contains(&r.body)) {
-        let Some(shape) = s.doc.body(r.body).map(|b| b.shape.clone()) else { continue };
+        if s.doc.body(r.body).is_none() {
+            continue;
+        }
+        let shape = crate::cmd::model::working_shape(s, r.body, false)?;
         if let [xt] = parasolid_parts(s, &shape)?.as_slice() {
             w.stash_body(r.step, xt).map_err(bad)?;
         }
@@ -637,8 +646,13 @@ pub(super) fn export_shapr(s: &mut Session, p: &Params) -> Result<Value> {
         }
     }
     let mut imported = 0;
-    let bodies: Vec<_> =
-        s.doc.bodies.iter().filter(|b| !kept.contains(&b.id)).map(|b| (b.id, b.name.clone(), b.shape.clone(), look(b))).collect();
+    let bodies: Vec<_> = s
+        .doc
+        .bodies
+        .iter()
+        .filter(|b| !kept.contains(&b.id))
+        .map(|b| Ok((b.id, b.name.clone(), crate::cmd::model::working_shape(s, b.id, false)?, look(b))))
+        .collect::<Result<Vec<_>>>()?;
     for (id, name, shape, look) in bodies {
         let folder = folder_path(s, id);
         let parts = parasolid_parts(s, &shape)?;

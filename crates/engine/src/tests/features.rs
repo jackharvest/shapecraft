@@ -1,5 +1,7 @@
 //! Solid features from profiles: extrude (draft, extents, results), loft, sweep and fill.
 
+use std::sync::Arc;
+
 use serde_json::json;
 use shapecraft_doc::Pick;
 
@@ -202,7 +204,23 @@ f 1 3 2\nf 1 4 3\nf 1 2 6\nf 1 6 5\nf 2 3 7\nf 2 7 6\nf 3 4 8\nf 3 8 7\nf 4 1 5\
     let path = dir.join("cup.obj");
     std::fs::write(&path, obj).unwrap();
     let mut s = session();
-    s.execute("import_file", &json!({"path": path})).unwrap();
+    // An OBJ comes in as a mesh body, which Fill doesn't take : the cup as an exact shell.
+    let (pts, tris) = crate::formats::read_obj(obj).unwrap();
+    let (pts, idx) = crate::formats::weld(&pts, &tris);
+    let shape = s.kernel.shape_from_mesh(&pts, &idx).unwrap();
+    let mesh = Arc::new(s.kernel.tessellate(&shape, shapecraft_doc::project::deflection()).unwrap());
+    let id = s.doc.alloc_id();
+    s.doc.bodies.push(shapecraft_doc::Body {
+        id,
+        name: "Cup".into(),
+        shape,
+        mesh,
+        visible: true,
+        appearance: None,
+        face_colors: Vec::new(),
+        facets: None,
+    });
+    let _ = &path;
     let b = &s.doc.bodies[0];
     let top: Vec<u32> = b
         .mesh

@@ -273,7 +273,7 @@ pub fn make(s: &Session, spec: &DrawingSheet) -> Result<Drawing> {
     let mut min = DVec3::splat(f64::INFINITY);
     let mut max = DVec3::splat(f64::NEG_INFINITY);
     for b in &bodies {
-        let bb = s.kernel.bounds(&b.shape)?;
+        let bb = crate::cmd::model::body_box(s, b)?;
         min = min.min(bb.min);
         max = max.max(bb.max);
     }

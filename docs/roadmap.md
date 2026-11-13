@@ -46,8 +46,8 @@ The `.shapr` corpus (projects made by the reference's users) is the second, stri
 1. Export **OBJ** (with an .mtl of body colours), **3MF** (per-body objects and colours), **GLB** (binary glTF, one
    node per body, PBR material from the appearance), **IGES**. Pure Rust writers where the format is a mesh;
    IGES through the kernel.
-2. Import **IGES**; **STL** and **OBJ** meshes as bodies (triangles sewn into a solid so they work with Booleans,
-   like the reference's mesh bodies), with a triangle cap for hostile files.
+2. Import **IGES**; **STL** and **OBJ** as mesh bodies (kept as triangles; moved, patterned, mirrored and split, and
+   combined with Union/Subtract/Intersect on their triangles, staying meshes), with a triangle cap for hostile files.
 3. Import **DXF** and **SVG** as a sketch on the top plane (lines, polylines with bulges, arcs, circles, ellipses,
    splines/Béziers); export the active sketch as DXF/SVG.
 4. Export dialog like the reference's (format list, items, units, quality) and File ▸ Export to ▸ per-format entries.

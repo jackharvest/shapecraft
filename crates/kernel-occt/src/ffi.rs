@@ -68,6 +68,7 @@ unsafe extern "C" {
     pub fn sk_fillet_edges_var(s: *const SkShape, ids: *const u32, n: usize, r1: f64, r2: f64, out: *mut *mut SkShape) -> i32;
     pub fn sk_write_brep_text(s: *const SkShape) -> i32;
     pub fn sk_read_brep_text(text: *const c_char, out: *mut *mut SkShape) -> i32;
+    pub fn sk_empty(out: *mut *mut SkShape) -> i32;
     pub fn sk_translate(s: *const SkShape, dx: f64, dy: f64, dz: f64, out: *mut *mut SkShape) -> i32;
     pub fn sk_face_count(s: *const SkShape, n: *mut u32) -> i32;
     pub fn sk_planar_regions(

@@ -257,15 +257,19 @@ pub fn pick(ctx: &PickContext, cursor: DVec2) -> Option<(Pick, DVec3)> {
             region_hit = Some((dist, Pick::Image { image: im.id }, hit));
         }
     }
+    // A mesh body has no faces to pick: a click on it picks the whole body.
+    let face_pick = |body: ItemId, face: u32| {
+        if ctx.doc.body(body).is_some_and(|b| b.is_mesh()) { Pick::Body { body } } else { Pick::Face { body, face } }
+    };
     match (face_hit, region_hit) {
         (Some((fd, body, face)), Some((rd, pick, hit))) => {
             if rd <= fd + ctx.camera.distance * 0.001 {
                 Some((pick, hit))
             } else {
-                Some((Pick::Face { body, face }, o + d * fd))
+                Some((face_pick(body, face), o + d * fd))
             }
         }
-        (Some((fd, body, face)), None) => Some((Pick::Face { body, face }, o + d * fd)),
+        (Some((fd, body, face)), None) => Some((face_pick(body, face), o + d * fd)),
         (None, Some((_, pick, hit))) => Some((pick, hit)),
         (None, None) => None,
     }
@@ -394,6 +398,7 @@ mod tests {
             visible: true,
             appearance: None,
             face_colors: Vec::new(),
+            facets: None,
         });
         doc
     }

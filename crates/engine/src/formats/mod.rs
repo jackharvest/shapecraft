@@ -17,8 +17,9 @@ use std::collections::HashMap;
 
 use glam::DVec3;
 
-/// Most triangles a mesh import accepts (sewing every triangle into a face gets slow past this).
-pub const MAX_IMPORT_TRIANGLES: usize = 200_000;
+/// Most triangles a mesh import accepts. STL and OBJ stay mesh bodies (nothing is sewn), so this only guards memory
+/// (about 100 bytes a triangle for the body and its display).
+pub const MAX_IMPORT_TRIANGLES: usize = 10_000_000;
 
 /// Merges positions that are equal to within 1e-6 of the mesh size and drops triangles that collapse.
 pub fn weld(points: &[DVec3], tris: &[[u32; 3]]) -> (Vec<DVec3>, Vec<u32>) {

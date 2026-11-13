@@ -73,7 +73,7 @@ fn auto_result(s: &Session, shape: &Shape, on_body: Option<ItemId>) -> Result<(O
         on_body.into_iter().chain(s.doc.bodies.iter().filter(|b| b.visible && Some(b.id) != on_body).map(|b| b.id)).collect();
     for id in candidates {
         let Some(b) = s.doc.body(id) else { continue };
-        let o = s.kernel.bounds(&b.shape)?;
+        let o = crate::cmd::model::body_box(s, b)?;
         let near = (bb.max - bb.min).length().max(1.0) * 1e-6;
         if !((o.min - near).cmple(bb.max).all() && (bb.min - near).cmple(o.max).all()) {
             continue;

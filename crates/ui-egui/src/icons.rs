@@ -87,6 +87,7 @@ pub enum Icon {
     Subtract,
     Intersect,
     Body,
+    MeshBody,
     NewBody,
     SketchItem,
     Eye,
@@ -1146,6 +1147,13 @@ fn paint_dark(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
         }
         // A hairline cube, as in the reference's Items list (s22-002).
         Body => cube(&pen.thin(), 12.0, 12.0, 7.8),
+        // A mesh body in the Items list: a hairline wire ball, its outline with a latitude and a longitude.
+        MeshBody => {
+            let t = pen.thin();
+            t.circle(12.0, 12.0, 7.8);
+            t.closed(&ring(12.0, 12.0, 7.8, 3.0, 24, 0.0));
+            t.closed(&ring(12.0, 12.0, 3.0, 7.8, 24, 0.0));
+        }
         // The Result badge's New Body: a solid hexagon (s25-017).
         NewBody => pen.fill(&hexagon(12.0, 12.0, 8.5), color),
         // A hairline triangle pointing left with a small ring on each corner: a sketch in the Items list (s22-002).

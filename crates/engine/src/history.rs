@@ -615,8 +615,9 @@ impl Session {
         fresh.doc.variables = self.doc.variables.clone();
         let mut related = vec![false; steps.len()];
         for (i, step) in steps.iter().enumerate() {
-            let before: Vec<(ItemId, shapecraft_kernel::Shape)> =
-                fresh.doc.bodies.iter().filter(|b| bodies.contains(&b.id)).map(|b| (b.id, b.shape.clone())).collect();
+            // By the display mesh, which every change makes anew (a mesh body's shape is empty and never changes).
+            let before: Vec<(ItemId, std::sync::Arc<shapecraft_kernel::Mesh>)> =
+                fresh.doc.bodies.iter().filter(|b| bodies.contains(&b.id)).map(|b| (b.id, b.mesh.clone())).collect();
             if !step.suppressed && step.error.is_none() {
                 for e in &step.entries {
                     fresh.selection = e.selection.clone();
@@ -629,7 +630,7 @@ impl Session {
                 .doc
                 .bodies
                 .iter()
-                .any(|b| bodies.contains(&b.id) && !before.iter().any(|(id, sh)| *id == b.id && sh.ptr_eq(&b.shape)));
+                .any(|b| bodies.contains(&b.id) && !before.iter().any(|(id, m)| *id == b.id && std::sync::Arc::ptr_eq(m, &b.mesh)));
             related[i] = !step.quiet && (touched || step.sketch.is_some_and(|s| sketches.contains(&s)));
         }
         // The sketches the related steps were made from.

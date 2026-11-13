@@ -186,6 +186,15 @@ impl Workspace {
         best.map(|(_, i)| i)
     }
 
+    /// A mesh body's triangle under the cursor: a point on it and its outward normal (Sketch on Face on a mesh).
+    pub(in crate::workspace) fn mesh_triangle_at(&self, cursor: Pos2) -> Option<(DVec3, DVec3)> {
+        let (Pick::Body { body }, _) = self.pick_at(cursor)? else { return None };
+        let facets = self.session.doc.body(body)?.facets.clone()?;
+        let (o, d) = self.camera.ray(self.local(cursor), self.size());
+        let (_, at, normal) = facets.hit(o, d)?;
+        (normal.length() > 0.5).then_some((at, normal))
+    }
+
     pub(in crate::workspace) fn pick_at(&self, cursor: Pos2) -> Option<(Pick, DVec3)> {
         let doc = self.pick_doc();
         let ctx = PickContext {
