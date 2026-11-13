@@ -221,7 +221,13 @@ impl Workspace {
         let r = Rect::from_min_size(pos2(vp.center().x - 155.0, self.banner_y()), vec2(310.0, 92.0));
         p.rect_filled(r.translate(vec2(0.0, 4.0)), radius(14), Color32::from_black_alpha(60));
         p.rect_filled(r, radius(14), Tokens::banner());
-        p.text(r.left_top() + vec2(12.0, 21.0), Align2::LEFT_CENTER, "Area Selection", theme::strong(16.0), Tokens::text_strong());
+        p.text(
+            r.left_top() + vec2(12.0, 21.0),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr("Area Selection"),
+            theme::strong(16.0),
+            Tokens::text_strong(),
+        );
         let fmt = |font: FontId, color: Color32| TextFormat { font_id: font, color, ..Default::default() };
         for (i, (word, col)) in [("fully included", cyan()), ("crossing", purple())].into_iter().enumerate() {
             let y = r.top() + 45.0 + i as f32 * 24.0;
@@ -234,9 +240,9 @@ impl Workspace {
             }
             let mut job = LayoutJob::default();
             let (lead, _) = if i == 0 { ("Drag right to select ", ()) } else { ("Drag left to select ", ()) };
-            job.append(lead, 0.0, fmt(theme::body(14.0), Tokens::text()));
-            job.append(word, 0.0, fmt(theme::strong(14.0), col));
-            job.append(" items", 0.0, fmt(theme::body(14.0), Tokens::text()));
+            job.append(crate::i18n::tr(lead), 0.0, fmt(theme::body(14.0), Tokens::text()));
+            job.append(crate::i18n::tr(word), 0.0, fmt(theme::strong(14.0), col));
+            job.append(crate::i18n::tr(" items"), 0.0, fmt(theme::body(14.0), Tokens::text()));
             let g = ui.fonts_mut(|f| f.layout_job(job));
             p.galley(pos2(r.left() + 34.0, y - g.size().y / 2.0), g, Tokens::text());
         }
@@ -272,17 +278,23 @@ impl Workspace {
         let r = Rect::from_min_size(pos2(vp.center().x - 250.0, vp.top() + 8.0), vec2(500.0, 102.0));
         p.rect_filled(r, radius(8), Tokens::banner());
         p.rect_stroke(r, radius(8), Stroke::new(1.0, Tokens::chip_border()), StrokeKind::Inside);
-        p.text(r.left_top() + vec2(12.0, 14.0), Align2::LEFT_CENTER, "Area Selection", theme::strong(13.0), Tokens::text_strong());
+        p.text(
+            r.left_top() + vec2(12.0, 14.0),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr("Area Selection"),
+            theme::strong(13.0),
+            Tokens::text_strong(),
+        );
         let body = theme::body(12.5);
         let mut job = LayoutJob::default();
         let fmt = |font: FontId, color: Color32| TextFormat { font_id: font, color, ..Default::default() };
-        job.append("Drag right to select ", 0.0, fmt(body.clone(), Tokens::text()));
-        job.append("fully included", 0.0, fmt(theme::strong(12.5), cyan()));
-        job.append(" items, or drag left to select ", 0.0, fmt(body.clone(), Tokens::text()));
-        job.append("crossing", 0.0, fmt(theme::strong(12.5), purple()));
-        job.append(".\nPress ", 0.0, fmt(body.clone(), Tokens::text()));
-        job.append("⇥ (Tab)", 0.0, fmt(theme::strong(12.5), Tokens::text_strong()));
-        job.append(" to filter the selection.", 0.0, fmt(body, Tokens::text()));
+        job.append(crate::i18n::tr("Drag right to select "), 0.0, fmt(body.clone(), Tokens::text()));
+        job.append(crate::i18n::tr("fully included"), 0.0, fmt(theme::strong(12.5), cyan()));
+        job.append(crate::i18n::tr(" items, or drag left to select "), 0.0, fmt(body.clone(), Tokens::text()));
+        job.append(crate::i18n::tr("crossing"), 0.0, fmt(theme::strong(12.5), purple()));
+        job.append(crate::i18n::tr(".\nPress "), 0.0, fmt(body.clone(), Tokens::text()));
+        job.append(crate::i18n::tr("⇥ (Tab)"), 0.0, fmt(theme::strong(12.5), Tokens::text_strong()));
+        job.append(crate::i18n::tr(" to filter the selection."), 0.0, fmt(body, Tokens::text()));
         let g = ui.fonts_mut(|f| f.layout_job(job));
         p.galley(r.left_top() + vec2(12.0, 26.0), g, Tokens::text());
         // The filter row: a dark strip with the chosen filter raised.
@@ -297,7 +309,7 @@ impl Workspace {
             }
             icons::paint(p, Rect::from_center_size(pos2(cell.left() + 14.0, cell.center().y), vec2(12.0, 12.0)), icon, Tokens::icon());
             let font = if i == self.area_filter { theme::strong(11.5) } else { theme::body(11.5) };
-            p.text(pos2(cell.left() + 28.0, cell.center().y), Align2::LEFT_CENTER, *label, font, Tokens::text_strong());
+            p.text(pos2(cell.left() + 28.0, cell.center().y), Align2::LEFT_CENTER, crate::i18n::tr_s(*label), font, Tokens::text_strong());
             if !key.is_empty() {
                 p.text(pos2(cell.right() - 10.0, cell.center().y), Align2::RIGHT_CENTER, *key, theme::body(10.0), Tokens::text_dim());
             }

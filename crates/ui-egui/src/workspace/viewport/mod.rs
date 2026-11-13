@@ -192,7 +192,7 @@ impl Workspace {
             None => {
                 ui.painter().rect_filled(rect, 0.0, Tokens::viewport());
                 if let Some(e) = &self.gpu.error {
-                    ui.painter().text(rect.center(), Align2::CENTER_CENTER, e, theme::body(13.0), Tokens::text_dim());
+                    ui.painter().text(rect.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(e), theme::body(13.0), Tokens::text_dim());
                 }
             }
         }
@@ -211,7 +211,13 @@ impl Workspace {
             let r = Rect::from_center_size(o + vec2(0.0, 44.0), vec2(36.0, 17.0));
             let p = ui.painter();
             p.rect_filled(r, radius(8), if copy { Tokens::accent() } else { Color32::WHITE });
-            p.text(r.center(), Align2::CENTER_CENTER, "Copy", theme::strong(10.0), if copy { Color32::WHITE } else { paint::PILL_INK });
+            p.text(
+                r.center(),
+                Align2::CENTER_CENTER,
+                crate::i18n::tr("Copy"),
+                theme::strong(10.0),
+                if copy { Color32::WHITE } else { paint::PILL_INK },
+            );
             if ui.interact(r, ui.scope_id().with("sketch-move-copy"), Sense::click()).clicked()
                 && let Tool::Move(t) = &mut self.tool
             {

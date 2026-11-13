@@ -195,7 +195,7 @@ impl Workspace {
             .collect();
         p.add(egui::Shape::line(arc, Stroke::new(3.0, theme::hex(0x2e68ff))));
         let label = format!("Step {} out of {}", t.step + 1, steps);
-        let galley = p.layout_no_wrap(label, theme::strong(12.0), Tokens::text_strong());
+        let galley = p.layout_no_wrap(crate::i18n::tr_s(label), theme::strong(12.0), Tokens::text_strong());
         let pill = Rect::from_min_size(pos2(ring.right() + 6.0, c.y - 15.0), vec2(galley.size().x + 20.0, 30.0));
         p.rect_filled(pill, radius(8), Tokens::button());
         p.rect_stroke(pill, radius(8), Stroke::new(1.0, Tokens::card_border()), StrokeKind::Inside);
@@ -210,7 +210,7 @@ impl Workspace {
             None if t.step + 1 == steps => "All done. Select Continue to finish".into(),
             None => "Nicely done. Select Continue".into(),
         };
-        let galley = p.layout_no_wrap(text, theme::body(12.0), Tokens::text_strong());
+        let galley = p.layout_no_wrap(crate::i18n::tr_s(text), theme::body(12.0), Tokens::text_strong());
         // Under the project's title pill where it has one (touch screens), not hidden behind it (#15).
         let pill = Rect::from_center_size(pos2(vp.center().x, self.banner_y() + 8.0), vec2(galley.size().x + 22.0, 22.0));
         // White in Light, as observed; a dark pill in Dark.
@@ -283,7 +283,7 @@ impl Workspace {
             && now - t.hint_since > 6.0
             && vp.contains(cursor)
         {
-            let galley = p.layout(tip, theme::strong(11.5), Color32::WHITE, 220.0);
+            let galley = p.layout(crate::i18n::tr_s(tip), theme::strong(11.5), Color32::WHITE, 220.0);
             let r = Rect::from_min_size(cursor + vec2(18.0, 18.0), galley.size() + vec2(20.0, 14.0));
             p.rect_filled(r, radius(8), theme::hex(0x34a853));
             p.galley(r.min + vec2(10.0, 7.0), galley, Color32::WHITE);
@@ -318,7 +318,7 @@ impl Workspace {
             p.rect_filled(pic, radius(8), theme::hex(0xe9e8e8));
             p.image(tex.id(), shown, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
         }
-        let caption = p.layout(step.intro.to_string(), theme::strong(11.0 + 9.0 * f), Color32::WHITE, card.width() - 40.0);
+        let caption = p.layout(crate::i18n::tr_s(step.intro), theme::strong(11.0 + 9.0 * f), Color32::WHITE, card.width() - 40.0);
         let cap = Rect::from_center_size(
             pos2(card.center().x, card.top() + 14.0 + 12.0 * f + caption.size().y / 2.0),
             caption.size() + vec2(18.0, 8.0),
@@ -345,7 +345,7 @@ impl Workspace {
                 p.text(
                     pos2(card.center().x, card.top() + 24.0),
                     Align2::CENTER_CENTER,
-                    "Quit the tutorial?",
+                    crate::i18n::tr("Quit the tutorial?"),
                     theme::strong(12.5),
                     Tokens::text_strong(),
                 );
@@ -354,9 +354,9 @@ impl Workspace {
                 let r1 = ui.interact(b1, ui.scope_id().with("tut-quit-continue"), Sense::click());
                 let r2 = ui.interact(b2, ui.scope_id().with("tut-quit-quit"), Sense::click());
                 p.rect_filled(b1, radius(12), if r1.hovered() { Tokens::button_hover() } else { Tokens::button() });
-                p.text(b1.center(), Align2::CENTER_CENTER, "Continue", theme::body(12.0), Tokens::text_strong());
+                p.text(b1.center(), Align2::CENTER_CENTER, crate::i18n::tr("Continue"), theme::body(12.0), Tokens::text_strong());
                 p.rect_filled(b2, radius(12), theme::hex(0xff3b30).gamma_multiply(if r2.hovered() { 0.45 } else { 0.3 }));
-                p.text(b2.center(), Align2::CENTER_CENTER, "Quit", theme::body(12.0), theme::hex(0xff3b30));
+                p.text(b2.center(), Align2::CENTER_CENTER, crate::i18n::tr("Quit"), theme::body(12.0), theme::hex(0xff3b30));
                 if r1.clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
                     quit_ask = false;
                 }

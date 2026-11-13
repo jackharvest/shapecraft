@@ -771,7 +771,7 @@ fn paint_dark(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
             }
         }
         Text => {
-            painter.text(pen.at(12.0, 12.5), egui::Align2::CENTER_CENTER, "Aa", crate::theme::strong(15.0 * pen.s), color);
+            painter.text(pen.at(12.0, 12.5), egui::Align2::CENTER_CENTER, crate::i18n::tr("Aa"), crate::theme::strong(15.0 * pen.s), color);
         }
         Trim => {
             pen.circle(7.0, 17.0, 2.8);

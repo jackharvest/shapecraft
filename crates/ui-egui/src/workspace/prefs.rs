@@ -35,7 +35,7 @@ fn variables(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     let (cn, ck, cv, cr) = (r.left() + 18.0, r.left() + 166.0, r.left() + 244.0, r.right() - 70.0);
     let mut y = r.top() + 50.0;
     for (x, t) in [(cn, "Name"), (ck, "Type"), (cv, "Value"), (cr - 40.0, "=")] {
-        p.text(pos2(x, y), Align2::LEFT_CENTER, t, theme::body(11.0), Tokens::text_dim());
+        p.text(pos2(x, y), Align2::LEFT_CENTER, crate::i18n::tr_s(t), theme::body(11.0), Tokens::text_dim());
     }
     y += 22.0;
     // What the rows come to, with every row's current text, as it would be saved (another row is used as saved).
@@ -51,13 +51,13 @@ fn variables(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     for (i, (name, expr, _, kind)) in rows.iter_mut().enumerate() {
         let _ = ui.put(
             Rect::from_min_size(pos2(cn, y - 11.0), vec2(140.0, 22.0)),
-            egui::TextEdit::singleline(name).hint_text("name").font(theme::body(12.5)),
+            egui::TextEdit::singleline(name).hint_text(crate::i18n::tr("name")).font(theme::body(12.5)),
         );
         // The type: a small pill that turns Length → Angle → Number.
         let pill = Rect::from_min_size(pos2(ck, y - 10.0), vec2(66.0, 20.0));
         let pr = ui.interact(pill, ui.scope_id().with(("var-kind", i)), Sense::click());
         p.rect_filled(pill, radius(5), if pr.hovered() { theme::c(0x4a4a4e) } else { theme::c(0x3a3a3c) });
-        p.text(pill.center(), Align2::CENTER_CENTER, kind.label(), theme::body(11.5), Tokens::text_strong());
+        p.text(pill.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(kind.label()), theme::body(11.5), Tokens::text_strong());
         if pr.clicked() {
             use shapecraft_doc::VarKind as K;
             *kind = match *kind {
@@ -68,7 +68,7 @@ fn variables(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
         }
         let _ = ui.put(
             Rect::from_min_size(pos2(cv, y - 11.0), vec2(cr - cv - 50.0, 22.0)),
-            egui::TextEdit::singleline(expr).hint_text("10 mm").font(theme::body(12.5)),
+            egui::TextEdit::singleline(expr).hint_text(crate::i18n::tr("10 mm")).font(theme::body(12.5)),
         );
         let result = shapecraft_doc::expr::eval_as(expr, &vars, *kind, ws.session.doc.units.scale());
         let (text, col) = match result {
@@ -101,7 +101,7 @@ fn variables(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     p.text(
         pos2(add.left() + 20.0, add.center().y),
         Align2::LEFT_CENTER,
-        "Add Variable",
+        crate::i18n::tr("Add Variable"),
         theme::body(12.5),
         if add_resp.hovered() { Tokens::text_strong() } else { Tokens::icon_blue() },
     );
@@ -187,22 +187,22 @@ pub(super) fn help(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
         p.rect_stroke(r, radius(11), Stroke::new(1.0, Tokens::chip_border()), StrokeKind::Inside);
         let left = r.left() + 14.0;
         let mut y = r.top() + 22.0;
-        p.text(pos2(left, y), Align2::LEFT_CENTER, "Help", theme::strong(14.0), Tokens::text_strong());
+        p.text(pos2(left, y), Align2::LEFT_CENTER, crate::i18n::tr("Help"), theme::strong(14.0), Tokens::text_strong());
         y += 26.0;
-        p.text(pos2(left, y), Align2::LEFT_CENTER, "What's New?", theme::body(12.0), Tokens::text_dim());
+        p.text(pos2(left, y), Align2::LEFT_CENTER, crate::i18n::tr("What's New?"), theme::body(12.0), Tokens::text_dim());
         y += 22.0;
         // The newest features, as the home screen's What's new cards name them.
         for e in crate::whats_new::ENTRIES.iter().take(3) {
             let chip = Rect::from_min_size(pos2(left, y - 8.0), vec2(40.0, 16.0));
             p.rect_filled(chip, radius(8), theme::c(0x48484b));
             p.text(chip.center(), Align2::CENTER_CENTER, e.version, theme::body(10.0), Tokens::text());
-            p.text(pos2(chip.right() + 10.0, y), Align2::LEFT_CENTER, e.title, theme::body(11.5), Tokens::text_strong());
+            p.text(pos2(chip.right() + 10.0, y), Align2::LEFT_CENTER, crate::i18n::tr_s(e.title), theme::body(11.5), Tokens::text_strong());
             y += 21.0;
         }
         y += 6.0;
         p.line_segment([pos2(left, y), pos2(r.right() - 14.0, y)], Stroke::new(1.0, Tokens::chip_border()));
         y += 18.0;
-        p.text(pos2(left, y), Align2::LEFT_CENTER, "Manual", theme::body(12.0), Tokens::text_dim());
+        p.text(pos2(left, y), Align2::LEFT_CENTER, crate::i18n::tr("Manual"), theme::body(12.0), Tokens::text_dim());
         y += 14.0;
         let tile_w = (w - 28.0 - 10.0) / 2.0;
         for (k, (label, glyph, act)) in
@@ -222,7 +222,13 @@ pub(super) fn help(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
                     Tokens::text_strong(),
                 );
             }
-            p.text(pos2(t.center().x, t.top() + 49.0), Align2::CENTER_CENTER, label, theme::body(11.5), Tokens::text_strong());
+            p.text(
+                pos2(t.center().x, t.top() + 49.0),
+                Align2::CENTER_CENTER,
+                crate::i18n::tr_s(label),
+                theme::body(11.5),
+                Tokens::text_strong(),
+            );
             if resp.clicked() {
                 action = Some(act);
             }
@@ -240,7 +246,7 @@ pub(super) fn help(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
         p.text(
             pos2(search.left() + 32.0, search.center().y),
             Align2::LEFT_CENTER,
-            "Search Commands",
+            crate::i18n::tr("Search Commands"),
             theme::body(12.0),
             Tokens::text_strong(),
         );
@@ -262,7 +268,7 @@ pub(super) fn help(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
 
 /// A label on the left, right-aligned at the column, as the Preferences window lays its rows out.
 fn row_label(p: &egui::Painter, col: f32, y: f32, text: &str) {
-    p.text(pos2(col - 8.0, y), Align2::RIGHT_CENTER, text, theme::body(12.5), Tokens::text_strong());
+    p.text(pos2(col - 8.0, y), Align2::RIGHT_CENTER, crate::i18n::tr_s(text), theme::body(12.5), Tokens::text_strong());
 }
 
 fn popup(ui: &mut Ui, at: Pos2, width: f32, id: &str, current: &mut String, options: &[&str]) {
@@ -277,7 +283,7 @@ fn popup(ui: &mut Ui, at: Pos2, width: f32, id: &str, current: &mut String, opti
 
 fn check(ui: &mut Ui, at: Pos2, id: &str, value: &mut bool, text: &str) {
     let p = ui.painter().clone();
-    let g = p.layout_no_wrap(text.to_string(), theme::body(12.5), Tokens::text_strong());
+    let g = p.layout_no_wrap(crate::i18n::tr_s(text), theme::body(12.5), Tokens::text_strong());
     let hit = Rect::from_min_size(pos2(at.x, at.y - 9.0), vec2(22.0 + g.size().x, 18.0));
     let resp = ui.interact(hit, ui.scope_id().with(id), Sense::click());
     let bx = Rect::from_min_size(pos2(at.x, at.y - 7.0), vec2(14.0, 14.0));
@@ -298,7 +304,7 @@ fn check(ui: &mut Ui, at: Pos2, id: &str, value: &mut bool, text: &str) {
 
 fn small_button(ui: &mut Ui, at: Pos2, id: &str, text: &str) -> bool {
     let p = ui.painter().clone();
-    let g = p.layout_no_wrap(text.to_string(), theme::body(12.0), Tokens::text_strong());
+    let g = p.layout_no_wrap(crate::i18n::tr_s(text), theme::body(12.0), Tokens::text_strong());
     let r = Rect::from_min_size(pos2(at.x, at.y - 10.0), vec2(g.size().x + 18.0, 20.0));
     let resp = ui.interact(r, ui.scope_id().with(id), Sense::click());
     p.rect_filled(r, radius(5), if resp.hovered() { theme::c(0x68686c) } else { theme::c(0x58585c) });
@@ -392,7 +398,7 @@ fn window_in(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings, shortcu
             Tokens::text_faint()
         };
         icons::paint(&p, Rect::from_center_size(c, vec2(15.0, 15.0)), icon, col);
-        p.text(c + vec2(0.0, 15.0), Align2::CENTER_CENTER, label, theme::body(9.5), col);
+        p.text(c + vec2(0.0, 15.0), Align2::CENTER_CENTER, crate::i18n::tr_s(label), theme::body(9.5), col);
     }
     p.line_segment([pos2(r.left(), r.top() + 70.0), pos2(r.right(), r.top() + 70.0)], Stroke::new(1.0, Tokens::chip_border()));
     let (mut customize, mut presets) = (false, false);
@@ -422,7 +428,7 @@ fn radio(ui: &mut Ui, at: Pos2, id: &str, on: bool, enabled: bool, name: &str, d
     }
     p.text(pos2(at.x + 22.0, at.y), Align2::LEFT_CENTER, name, theme::body(12.5), text);
     let dim = if enabled { Tokens::text_dim() } else { Tokens::text_faint() };
-    p.text(pos2(at.x + 22.0, at.y + 15.0), Align2::LEFT_CENTER, detail, theme::body(10.0), dim);
+    p.text(pos2(at.x + 22.0, at.y + 15.0), Align2::LEFT_CENTER, crate::i18n::tr_s(detail), theme::body(10.0), dim);
     enabled && resp.clicked()
 }
 
@@ -449,7 +455,13 @@ fn shapecraft_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
     let col = r.left() + 170.0;
     let sep = |y: f32| p.line_segment([pos2(r.left() + 20.0, y), pos2(r.right() - 20.0, y)], Stroke::new(1.0, Tokens::chip_border()));
     let mut y = r.top() + 92.0;
-    p.text(pos2(r.center().x, y), Align2::CENTER_CENTER, "Options you'll only find in ShapeCraft.", theme::body(11.0), Tokens::text_dim());
+    p.text(
+        pos2(r.center().x, y),
+        Align2::CENTER_CENTER,
+        crate::i18n::tr("Options you'll only find in ShapeCraft."),
+        theme::body(11.0),
+        Tokens::text_dim(),
+    );
     y += 22.0;
     sep(y);
     y += 24.0;
@@ -476,7 +488,13 @@ fn shapecraft_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
         y += 16.0;
     }
     if !status.choice.is_empty() && (s.graphics != status.choice || s.gpu != status.gpu) {
-        p.text(pos2(col, y - 4.0), Align2::LEFT_CENTER, "Restart ShapeCraft to apply.", theme::body(10.0), Tokens::text_strong());
+        p.text(
+            pos2(col, y - 4.0),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr("Restart ShapeCraft to apply."),
+            theme::body(10.0),
+            Tokens::text_strong(),
+        );
         y += 16.0;
     }
     y += 6.0;
@@ -501,7 +519,7 @@ fn shapecraft_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
     y += crate::updates::prefs_section(ui, col, y, s, |p, y, t| row_label(p, col, y, t));
     row_label(&p, col, y, "When Closing:");
     popup(ui, pos2(col, y), 140.0, "pref-upd-close", &mut s.update_on_close, &crate::updates::ON_CLOSE);
-    p.text(pos2(col + 150.0, y), Align2::LEFT_CENTER, "with an update downloaded", theme::body(10.5), Tokens::text_dim());
+    p.text(pos2(col + 150.0, y), Align2::LEFT_CENTER, crate::i18n::tr("with an update downloaded"), theme::body(10.5), Tokens::text_dim());
 }
 
 /// Tablet access is early: said plainly so nobody takes it for finished.
@@ -517,12 +535,12 @@ fn tablet_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
     p.text(
         pos2(r.center().x, y),
         Align2::CENTER_CENTER,
-        "Use ShapeCraft on an iPad, iPhone or another computer, in its browser.",
+        crate::i18n::tr("Use ShapeCraft on an iPad, iPhone or another computer, in its browser."),
         theme::body(11.0),
         Tokens::text_dim(),
     );
     y += 18.0;
-    p.text(pos2(r.center().x, y), Align2::CENTER_CENTER, IN_TESTING, theme::body(11.0), Tokens::accent());
+    p.text(pos2(r.center().x, y), Align2::CENTER_CENTER, crate::i18n::tr_s(IN_TESTING), theme::body(11.0), Tokens::accent());
     y += 22.0;
     sep(y);
     y += 24.0;
@@ -536,18 +554,18 @@ fn tablet_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
         p.text(
             pos2(r.center().x, y + 10.0),
             Align2::CENTER_CENTER,
-            "You're using ShapeCraft from a browser.",
+            crate::i18n::tr("You're using ShapeCraft from a browser."),
             theme::body(12.5),
             Tokens::text_strong(),
         );
         p.text(
             pos2(r.center().x, y + 30.0),
             Align2::CENTER_CENTER,
-            "Turn tablet access on or off on the computer that runs it.",
+            crate::i18n::tr("Turn tablet access on or off on the computer that runs it."),
             theme::body(11.0),
             Tokens::text_dim(),
         );
-        p.text(pos2(r.center().x, y + 50.0), Align2::CENTER_CENTER, IN_TESTING, theme::body(11.0), Tokens::accent());
+        p.text(pos2(r.center().x, y + 50.0), Align2::CENTER_CENTER, crate::i18n::tr_s(IN_TESTING), theme::body(11.0), Tokens::accent());
         return;
     }
     row_label(&p, col, y, "Tablet Access:");
@@ -582,17 +600,17 @@ fn tablet_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
             "it full screen, like an app. Your projects stay on this computer.",
         ];
         for l in lines {
-            p.text(pos2(col - 120.0, y), Align2::LEFT_CENTER, l, theme::body(11.0), Tokens::text_dim());
+            p.text(pos2(col - 120.0, y), Align2::LEFT_CENTER, crate::i18n::tr_s(l), theme::body(11.0), Tokens::text_dim());
             y += 16.0;
         }
         return;
     };
     if let Some(e) = &st.error {
-        p.text(pos2(col - 120.0, y), Align2::LEFT_CENTER, e, theme::body(11.0), Tokens::text_strong());
+        p.text(pos2(col - 120.0, y), Align2::LEFT_CENTER, crate::i18n::tr_s(e), theme::body(11.0), Tokens::text_strong());
         y += 20.0;
     }
     let Some(url) = st.urls.first().cloned() else {
-        p.text(pos2(col - 120.0, y), Align2::LEFT_CENTER, "Starting…", theme::body(11.0), Tokens::text_dim());
+        p.text(pos2(col - 120.0, y), Align2::LEFT_CENTER, crate::i18n::tr("Starting…"), theme::body(11.0), Tokens::text_dim());
         return;
     };
     // The code a tablet's camera opens, the first address under it, the others below.
@@ -613,7 +631,13 @@ fn tablet_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
         p.text(pos2(r.center().x, y), Align2::CENTER_CENTER, u, font, if i == 0 { Tokens::text_strong() } else { Tokens::text_dim() });
         y += 18.0;
     }
-    p.text(pos2(r.center().x, y), Align2::CENTER_CENTER, "Click an address to copy it.", theme::body(10.0), Tokens::text_faint());
+    p.text(
+        pos2(r.center().x, y),
+        Align2::CENTER_CENTER,
+        crate::i18n::tr("Click an address to copy it."),
+        theme::body(10.0),
+        Tokens::text_faint(),
+    );
     y += 24.0;
     let who = if st.clients.is_empty() { "No browser connected".to_string() } else { format!("Connected: {}", st.clients.join(", ")) };
     p.text(pos2(r.center().x, y), Align2::CENTER_CENTER, who, theme::body(11.5), Tokens::text_strong());
@@ -646,11 +670,11 @@ fn qr_code(p: &egui::Painter, r: Rect, text: &str) {
 fn plugins_tab(ui: &mut Ui, r: Rect) {
     let p = ui.painter().clone();
     let c = pos2(r.center().x, r.top() + 150.0);
-    p.text(c, Align2::CENTER_CENTER, "No plugins yet", theme::body(14.0), Tokens::text_strong());
+    p.text(c, Align2::CENTER_CENTER, crate::i18n::tr("No plugins yet"), theme::body(14.0), Tokens::text_strong());
     p.text(
         c + vec2(0.0, 22.0),
         Align2::CENTER_CENTER,
-        "Plugin support is planned. Your plugins will be listed here.",
+        crate::i18n::tr("Plugin support is planned. Your plugins will be listed here."),
         theme::body(11.0),
         Tokens::text_dim(),
     );
@@ -664,11 +688,12 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
     use crate::cloud::{self, State};
     let p = ui.painter().clone();
     let sep = |y: f32| p.line_segment([pos2(r.left() + 20.0, y), pos2(r.right() - 20.0, y)], Stroke::new(1.0, Tokens::chip_border()));
-    let heading =
-        |y: f32, text: &str| p.text(pos2(r.left() + 28.0, y), Align2::LEFT_CENTER, text, theme::strong(11.0), Tokens::text_faint());
+    let heading = |y: f32, text: &str| {
+        p.text(pos2(r.left() + 28.0, y), Align2::LEFT_CENTER, crate::i18n::tr_s(text), theme::strong(11.0), Tokens::text_faint())
+    };
     // One line of small grey text, cut short with … when it doesn't fit.
     let detail = |ui: &mut Ui, at: Pos2, text: String, width: f32, color: Color32| {
-        let mut job = egui::text::LayoutJob::simple_singleline(text, theme::body(10.5), color);
+        let mut job = egui::text::LayoutJob::simple_singleline(crate::i18n::tr_s(&text), theme::body(10.5), color);
         job.wrap = egui::text::TextWrapping { max_width: width, max_rows: 1, break_anywhere: true, overflow_character: Some('…') };
         let g = ui.fonts_mut(|f| f.layout_job(job));
         ui.painter().galley(at, g, color);
@@ -684,7 +709,7 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
         "Projects save to your Work Folder as you go. Backups keep a copy",
         "in your cloud storage, a NAS or another drive, kept up to date.",
     ] {
-        p.text(pos2(r.center().x, y), Align2::CENTER_CENTER, line, theme::body(11.0), Tokens::text_dim());
+        p.text(pos2(r.center().x, y), Align2::CENTER_CENTER, crate::i18n::tr_s(line), theme::body(11.0), Tokens::text_dim());
         y += 16.0;
     }
     y += 6.0;
@@ -694,7 +719,7 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
         p.text(
             pos2(r.center().x, y + 10.0),
             Align2::CENTER_CENTER,
-            "Set up the Work Folder and backups on the computer that runs ShapeCraft.",
+            crate::i18n::tr("Set up the Work Folder and backups on the computer that runs ShapeCraft."),
             theme::body(12.0),
             Tokens::text_strong(),
         );
@@ -788,7 +813,7 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
         p.text(pos2(left - 26.0, y), Align2::CENTER_CENTER, format!("{}", k + 1), theme::strong(11.0), Tokens::text_faint());
         let icon = if t.is_cloud() { Icon::Cloud } else { Icon::Folder };
         icons::paint(&p, Rect::from_center_size(pos2(left - 6.0, y), vec2(15.0, 15.0)), icon, Tokens::icon_blue());
-        p.text(pos2(left + 8.0, y), Align2::LEFT_CENTER, t.label(&found), theme::strong(12.5), Tokens::text_strong());
+        p.text(pos2(left + 8.0, y), Align2::LEFT_CENTER, crate::i18n::tr_s(t.label(&found)), theme::strong(12.5), Tokens::text_strong());
         let st = jobs.status(b);
         let (line, col) = match (&root, &st) {
             (None, _) if detector.busy() => ("Looking for it…".to_string(), Tokens::text_dim()),
@@ -896,7 +921,7 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
     heading(y, "CLOUD STORAGE ON THIS COMPUTER");
     y += 22.0;
     if found.clouds.is_empty() {
-        p.text(pos2(left + 4.0, y), Align2::LEFT_CENTER, "Looking…", theme::body(12.0), Tokens::text_dim());
+        p.text(pos2(left + 4.0, y), Align2::LEFT_CENTER, crate::i18n::tr("Looking…"), theme::body(12.0), Tokens::text_dim());
         ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
         return;
     }
@@ -912,7 +937,7 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
         p.text(
             pos2(left + 4.0, y),
             Align2::LEFT_CENTER,
-            c.label(),
+            crate::i18n::tr_s(c.label()),
             theme::strong(12.0),
             if ready { Tokens::text_strong() } else { Tokens::text() },
         );
@@ -944,7 +969,7 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
             }
             State::NotInstalled => {
                 let label = format!("Get {}", c.provider.name());
-                let w = p.layout_no_wrap(label.clone(), theme::body(12.0), Tokens::text_strong()).size().x + 18.0;
+                let w = p.layout_no_wrap(crate::i18n::tr_s(label.clone()), theme::body(12.0), Tokens::text_strong()).size().x + 18.0;
                 if small_button(ui, pos2(right - w, y + 2.0), &id, &label) {
                     crate::landing::open_link(c.provider.download_url());
                 }
@@ -1029,7 +1054,7 @@ fn general_tab(ui: &mut Ui, r: Rect, s: &mut Settings, shortcuts: bool) -> (bool
     popup(ui, pos2(col, y), 160.0, "pref-circ", &mut s.circular_annotations, &["Radius and Diameter", "Always Radius"]);
     y += 22.0;
     let tip = "Radius and Diameter labels circles and round holes by\ndiameter; Always Radius uses the radius everywhere.";
-    p.text(pos2(col, y), Align2::LEFT_TOP, tip, theme::body(10.0), Tokens::text_dim());
+    p.text(pos2(col, y), Align2::LEFT_TOP, crate::i18n::tr_s(tip), theme::body(10.0), Tokens::text_dim());
     y += 44.0;
     sep(&p, y);
     y += 24.0;
@@ -1045,7 +1070,7 @@ fn general_tab(ui: &mut Ui, r: Rect, s: &mut Settings, shortcuts: bool) -> (bool
     let customize = if shortcuts {
         small_button(ui, pos2(col, y), "pref-keys", "Customize…")
     } else {
-        p.text(pos2(col, y), Align2::LEFT_CENTER, "Open a project to customize", theme::body(12.0), Tokens::text_dim());
+        p.text(pos2(col, y), Align2::LEFT_CENTER, crate::i18n::tr("Open a project to customize"), theme::body(12.0), Tokens::text_dim());
         false
     };
     y += pitch;
@@ -1084,7 +1109,13 @@ fn general_tab(ui: &mut Ui, r: Rect, s: &mut Settings, shortcuts: bool) -> (bool
     y += 26.0;
     check(ui, pos2(col, y), "pref-keyshow", &mut s.tutorial_keys, "Display keyboard presses");
     y += 22.0;
-    p.text(pos2(col, y), Align2::LEFT_CENTER, "Restart the app to apply these settings.", theme::body(10.0), Tokens::text_dim());
+    p.text(
+        pos2(col, y),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr("Restart the app to apply these settings."),
+        theme::body(10.0),
+        Tokens::text_dim(),
+    );
     y += 20.0;
     sep(&p, y);
     y += 20.0;
@@ -1128,7 +1159,7 @@ fn arrow(p: &egui::Painter, from: Pos2, to: Pos2) {
 }
 
 fn keycap(p: &egui::Painter, c: Pos2, text: &str) {
-    let g = p.layout_no_wrap(text.to_string(), theme::body(8.0), Tokens::text());
+    let g = p.layout_no_wrap(crate::i18n::tr_s(text), theme::body(8.0), Tokens::text());
     let r = Rect::from_center_size(c, vec2(g.size().x + 8.0, 11.0));
     p.rect_stroke(r, radius(2), Stroke::new(1.0, Tokens::text_dim()), StrokeKind::Inside);
     p.galley(pos2(r.left() + 4.0, c.y - g.size().y / 2.0), g, Tokens::text());
@@ -1195,7 +1226,7 @@ pub(crate) fn presets_window(ui: &mut Ui, full: Rect, nav: &mut Option<&'static 
         p.text(
             pos2(r.left() + 19.0, r.top() + 27.0),
             Align2::LEFT_CENTER,
-            "Make yourself at home",
+            crate::i18n::tr("Make yourself at home"),
             theme::strong(21.0),
             Tokens::text_strong(),
         );
@@ -1211,7 +1242,7 @@ pub(crate) fn presets_window(ui: &mut Ui, full: Rect, nav: &mut Option<&'static 
         p.text(
             pos2(r.left() + 19.0, r.top() + 36.0),
             Align2::LEFT_CENTER,
-            "Navigation Presets",
+            crate::i18n::tr("Navigation Presets"),
             theme::strong(21.0),
             Tokens::text_strong(),
         );
@@ -1223,7 +1254,7 @@ pub(crate) fn presets_window(ui: &mut Ui, full: Rect, nav: &mut Option<&'static 
     let mut y = list.top() + 20.0;
     let mut picked = None;
     for (group, own) in [("ShapeCraft Presets", true), ("Popular Presets", false)] {
-        p.text(pos2(list.left() + 12.0, y), Align2::LEFT_CENTER, group, theme::strong(11.5), Tokens::text_dim());
+        p.text(pos2(list.left() + 12.0, y), Align2::LEFT_CENTER, crate::i18n::tr_s(group), theme::strong(11.5), Tokens::text_dim());
         y += 16.0;
         for preset in PRESETS.iter().filter(|p| p.own == own) {
             let h = if preset.recommended { 52.0 } else { 40.0 };
@@ -1240,7 +1271,13 @@ pub(crate) fn presets_window(ui: &mut Ui, full: Rect, nav: &mut Option<&'static 
             }
             let mut ty = row.center().y - 6.0;
             if preset.recommended {
-                p.text(pos2(row.left() + 36.0, row.top() + 10.0), Align2::LEFT_CENTER, "Recommended", theme::body(9.5), Tokens::text_dim());
+                p.text(
+                    pos2(row.left() + 36.0, row.top() + 10.0),
+                    Align2::LEFT_CENTER,
+                    crate::i18n::tr("Recommended"),
+                    theme::body(9.5),
+                    Tokens::text_dim(),
+                );
                 ty += 6.0;
             }
             let tile = Rect::from_center_size(pos2(row.left() + 18.0, ty + 6.0), vec2(18.0, 18.0));
@@ -1254,7 +1291,13 @@ pub(crate) fn presets_window(ui: &mut Ui, full: Rect, nav: &mut Option<&'static 
                 if on { theme::c(0x2453c9) } else { Tokens::text_strong() },
             );
             p.text(pos2(row.left() + 36.0, ty), Align2::LEFT_CENTER, preset.name, theme::strong(12.5), Tokens::text_strong());
-            p.text(pos2(row.left() + 36.0, ty + 14.0), Align2::LEFT_CENTER, preset.devices, theme::body(10.0), Tokens::text_strong());
+            p.text(
+                pos2(row.left() + 36.0, ty + 14.0),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr_s(preset.devices),
+                theme::body(10.0),
+                Tokens::text_strong(),
+            );
             if on {
                 p.text(pos2(row.right() - 12.0, row.center().y), Align2::CENTER_CENTER, "✓", theme::body(12.5), Color32::WHITE);
             }
@@ -1271,7 +1314,13 @@ pub(crate) fn presets_window(ui: &mut Ui, full: Rect, nav: &mut Option<&'static 
     let cols = [("Pan", NavAction::Pan), ("Orbit", NavAction::Orbit), ("Zoom", NavAction::Zoom)];
     let col_x = |k: usize| dx + 82.0 + k as f32 * 152.0;
     for (k, (label, _)) in cols.iter().enumerate() {
-        p.text(pos2(col_x(k), body.top() + 34.0), Align2::CENTER_CENTER, *label, theme::body(12.0), Tokens::text_strong());
+        p.text(
+            pos2(col_x(k), body.top() + 34.0),
+            Align2::CENTER_CENTER,
+            crate::i18n::tr_s(*label),
+            theme::body(12.0),
+            Tokens::text_strong(),
+        );
     }
     let mut lowest: f32 = body.top() + 140.0;
     for (k, (_, action)) in cols.iter().enumerate() {

@@ -54,7 +54,13 @@ pub(super) fn variable_menu(ws: &mut Workspace, ui: &mut Ui, at: Pos2) {
     let size = vec2(220.0, 34.0 + row_h * rows.len().min(12) as f32);
     let (picked, shown) = panel(ui, "var-menu", at, size, |ui, rect| {
         let p = ui.painter().clone();
-        p.text(pos2(rect.left() + 14.0, rect.top() + 16.0), Align2::LEFT_CENTER, "Variables", theme::body(12.5), Tokens::text_dim());
+        p.text(
+            pos2(rect.left() + 14.0, rect.top() + 16.0),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr("Variables"),
+            theme::body(12.5),
+            Tokens::text_dim(),
+        );
         let mut picked = None;
         for (i, (name, value)) in rows.iter().take(12).enumerate() {
             let row = Rect::from_min_size(pos2(rect.left() + 5.0, rect.top() + 28.0 + row_h * i as f32), vec2(rect.width() - 10.0, row_h));
@@ -90,7 +96,13 @@ pub(super) fn create_variable(ws: &mut Workspace, ui: &mut Ui) {
     let mut cancel = false;
     let (_, shown) = panel(ui, "var-create", vc.at, size, |ui, rect| {
         let p = ui.painter().clone();
-        p.text(pos2(rect.left() + 14.0, rect.top() + 16.0), Align2::LEFT_CENTER, "New Variable", theme::body(12.5), Tokens::text_dim());
+        p.text(
+            pos2(rect.left() + 14.0, rect.top() + 16.0),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr("New Variable"),
+            theme::body(12.5),
+            Tokens::text_dim(),
+        );
         let y = rect.top() + 44.0;
         p.text(pos2(rect.left() + 14.0, y), Align2::LEFT_CENTER, format!("{} =", vc.name), theme::body(13.0), Tokens::text_strong());
         let name_w = p.layout_no_wrap(format!("{} =", vc.name), theme::body(13.0), Color32::WHITE).size().x;
@@ -116,7 +128,7 @@ pub(super) fn create_variable(ws: &mut Workspace, ui: &mut Ui) {
         let pill = Rect::from_min_size(pos2(rect.right() - 76.0, y - 10.0), vec2(62.0, 20.0));
         let pr = ui.interact(pill, ui.scope_id().with("var-create-kind"), Sense::click());
         p.rect_filled(pill, radius(5), if pr.hovered() { theme::c(0x4a4a4e) } else { theme::c(0x3a3a3c) });
-        p.text(pill.center(), Align2::CENTER_CENTER, vc.kind.label(), theme::body(11.5), Tokens::text_strong());
+        p.text(pill.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(vc.kind.label()), theme::body(11.5), Tokens::text_strong());
         if pr.clicked() {
             vc.kind = match vc.kind {
                 VarKind::Length => VarKind::Angle,
@@ -126,7 +138,7 @@ pub(super) fn create_variable(ws: &mut Workspace, ui: &mut Ui) {
             vc.error = None;
         }
         if let Some(e) = &vc.error {
-            p.text(pos2(rect.left() + 14.0, y + 24.0), Align2::LEFT_CENTER, e, theme::body(11.5), Tokens::danger());
+            p.text(pos2(rect.left() + 14.0, y + 24.0), Align2::LEFT_CENTER, crate::i18n::tr_s(e), theme::body(11.5), Tokens::danger());
         }
         let by = rect.bottom() - 26.0;
         cancel = crate::workspace::drawings::button(

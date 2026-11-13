@@ -224,11 +224,29 @@ pub fn card(ws: &mut Workspace, ui: &mut Ui) {
     if close_resp.clicked() {
         ws.measuring = false;
     }
-    p.text(pos2(r.left() + 16.0, r.top() + 46.0), Align2::LEFT_CENTER, "Measure", theme::strong(13.0), Tokens::text_strong());
+    p.text(
+        pos2(r.left() + 16.0, r.top() + 46.0),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr("Measure"),
+        theme::strong(13.0),
+        Tokens::text_strong(),
+    );
     let line = |y: f32| p.line_segment([pos2(r.left() + 1.0, y), pos2(r.right() - 1.0, y)], Stroke::new(1.0, theme::c(0x3e3d3e)));
     line(r.top() + 64.5);
-    p.text(pos2(r.left() + 16.0, r.top() + 95.0), Align2::LEFT_CENTER, "Pin to Always Show", theme::body(10.5), Tokens::text_faint());
-    p.text(pos2(r.left() + 16.0, r.top() + 126.0), Align2::LEFT_CENTER, "Include X, Y, Z Deltas", theme::body(13.0), Tokens::text());
+    p.text(
+        pos2(r.left() + 16.0, r.top() + 95.0),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr("Pin to Always Show"),
+        theme::body(10.5),
+        Tokens::text_faint(),
+    );
+    p.text(
+        pos2(r.left() + 16.0, r.top() + 126.0),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr("Include X, Y, Z Deltas"),
+        theme::body(13.0),
+        Tokens::text(),
+    );
     let track = Rect::from_center_size(pos2(r.right() - 34.0, r.top() + 126.0), vec2(38.0, 22.0));
     if ui.interact(track, ui.scope_id().with("measure-deltas"), Sense::click()).clicked() {
         ws.measure_deltas = !ws.measure_deltas;
@@ -248,11 +266,15 @@ pub fn card(ws: &mut Workspace, ui: &mut Ui) {
             2 => "Pick three points: an end, the corner, the other end.",
             _ => "Select any item to measure.",
         };
-        p.text(pos2(r.left() + 16.0, y), Align2::LEFT_CENTER, hint, theme::body(11.5), Tokens::text_dim());
+        p.text(pos2(r.left() + 16.0, y), Align2::LEFT_CENTER, crate::i18n::tr_s(hint), theme::body(11.5), Tokens::text_dim());
         y += 30.0;
     } else if unpinned.is_empty() {
-        let g =
-            p.layout("Measurements for the selection are already pinned.".into(), theme::body(12.5), Tokens::text_dim(), r.width() - 40.0);
+        let g = p.layout(
+            crate::i18n::tr_s("Measurements for the selection are already pinned."),
+            theme::body(12.5),
+            Tokens::text_dim(),
+            r.width() - 40.0,
+        );
         let gh = g.size().y;
         p.galley(pos2(r.left() + 16.0, y - 8.0), g, Tokens::text_dim());
         y += gh + 14.0;
@@ -268,10 +290,15 @@ pub fn card(ws: &mut Workspace, ui: &mut Ui) {
         y += 46.0;
     }
     line(y + 2.5);
-    p.text(pos2(r.left() + 16.0, y + 34.0), Align2::LEFT_CENTER, "Pinned", theme::body(10.5), Tokens::text_faint());
+    p.text(pos2(r.left() + 16.0, y + 34.0), Align2::LEFT_CENTER, crate::i18n::tr("Pinned"), theme::body(10.5), Tokens::text_faint());
     y += 66.0;
     if ws.pinned.is_empty() {
-        let g = p.layout("Pin measurements to have them always visible.".into(), theme::body(12.5), Tokens::text_dim(), r.width() - 80.0);
+        let g = p.layout(
+            crate::i18n::tr_s("Pin measurements to have them always visible."),
+            theme::body(12.5),
+            Tokens::text_dim(),
+            r.width() - 80.0,
+        );
         p.galley(pos2(r.left() + 16.0, y - 8.0), g, Tokens::text_dim());
     }
     let mut remove = None;

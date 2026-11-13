@@ -164,7 +164,13 @@ pub(super) fn distance_menu(ws: &mut Workspace, ui: &mut Ui, at: Pos2) {
                 fill,
                 Stroke::NONE,
             ));
-            p.text(pos2(rect.left() + 14.0, rect.top() + 15.0), Align2::LEFT_CENTER, title, theme::body(12.5), Tokens::text_dim());
+            p.text(
+                pos2(rect.left() + 14.0, rect.top() + 15.0),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr_s(title),
+                theme::body(12.5),
+                Tokens::text_dim(),
+            );
             for (i, &(label, total)) in options.iter().enumerate() {
                 let row = Rect::from_min_size(pos2(rect.left() + 5.0, rect.top() + 26.0 + row_h * i as f32), vec2(width - 10.0, row_h));
                 let resp = ui.interact(row, ui.scope_id().with(("distance-type", i)), Sense::click());
@@ -174,7 +180,13 @@ pub(super) fn distance_menu(ws: &mut Workspace, ui: &mut Ui, at: Pos2) {
                 if current == total {
                     p.text(pos2(row.left() + 6.0, row.center().y), Align2::LEFT_CENTER, "✓", theme::body(13.0), Tokens::text_strong());
                 }
-                p.text(pos2(row.left() + 22.0, row.center().y), Align2::LEFT_CENTER, label, theme::body(13.0), Tokens::text_strong());
+                p.text(
+                    pos2(row.left() + 22.0, row.center().y),
+                    Align2::LEFT_CENTER,
+                    crate::i18n::tr_s(label),
+                    theme::body(13.0),
+                    Tokens::text_strong(),
+                );
                 if resp.clicked() {
                     chosen = Some(total);
                 }
@@ -313,7 +325,7 @@ pub(super) fn context_menu(ws: &mut Workspace, ui: &mut Ui, at: Pos2, under: Opt
             if *checked {
                 p.text(pos2(rect.left() + 11.0, row.center().y), Align2::LEFT_CENTER, "✓", theme::body(13.0), col);
             }
-            p.text(pos2(rect.left() + 23.0, row.center().y), Align2::LEFT_CENTER, *label, theme::body(13.5), col);
+            p.text(pos2(rect.left() + 23.0, row.center().y), Align2::LEFT_CENTER, crate::i18n::tr_s(*label), theme::body(13.5), col);
             if resp.clicked() {
                 chosen = Some(*label);
             }

@@ -29,18 +29,18 @@ impl Workspace {
         let p = ui.painter().clone();
         p.rect_filled(rect.expand(1.0), radius(12), theme::c(0x48474a));
         p.rect_filled(rect, radius(11), theme::c(0x232224));
-        p.text(rect.min + vec2(16.0, 20.0), Align2::LEFT_CENTER, "Add Text", theme::strong(13.0), Tokens::text_strong());
+        p.text(rect.min + vec2(16.0, 20.0), Align2::LEFT_CENTER, crate::i18n::tr("Add Text"), theme::strong(13.0), Tokens::text_strong());
         let ready = matches!(&self.tool, Tool::Text { text, .. } if !text.trim().is_empty());
         let cont = Rect::from_min_size(pos2(rect.right() - 92.0, rect.top() + 9.0), vec2(76.0, 22.0));
         let cancel = Rect::from_min_size(pos2(cont.left() - 66.0, cont.top()), vec2(62.0, 22.0));
         let blue = if ready { Tokens::accent() } else { Tokens::accent().gamma_multiply(0.45) };
         p.rect_filled(cancel, radius(5), theme::c(0x5a595c));
-        p.text(cancel.center(), Align2::CENTER_CENTER, "Cancel", theme::body(13.0), Tokens::text_strong());
+        p.text(cancel.center(), Align2::CENTER_CENTER, crate::i18n::tr("Cancel"), theme::body(13.0), Tokens::text_strong());
         p.rect_filled(cont, radius(5), blue);
         p.text(
             cont.center(),
             Align2::CENTER_CENTER,
-            "Continue",
+            crate::i18n::tr("Continue"),
             theme::body(13.0),
             if ready { Color32::WHITE } else { Tokens::text_dim() },
         );
@@ -57,7 +57,13 @@ impl Workspace {
         let align_row = Rect::from_min_size(pos2(rows.left(), rows.bottom() + 8.0), vec2(rows.width(), 42.0));
         card(align_row);
         let font = self.text_font.clone().or_else(shapecraft_doc::text::font_name).unwrap_or_else(|| "System".into());
-        p.text(pos2(rows.left() + 10.0, rows.top() + 21.0), Align2::LEFT_CENTER, "Font", theme::body(13.0), Tokens::text_strong());
+        p.text(
+            pos2(rows.left() + 10.0, rows.top() + 21.0),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr("Font"),
+            theme::body(13.0),
+            Tokens::text_strong(),
+        );
         // The family, then a ⋯ button that opens the installed families (as observed, s11-070).
         let dots = Rect::from_center_size(pos2(rows.right() - 20.0, rows.top() + 21.0), vec2(24.0, 20.0));
         let font_row = Rect::from_min_max(pos2(rows.left() + 60.0, rows.top() + 8.0), pos2(rows.right() - 4.0, rows.top() + 34.0));
@@ -78,15 +84,21 @@ impl Workspace {
         p.text(
             pos2(rows.left() + 10.0, rows.bottom() - 21.0),
             Align2::LEFT_CENTER,
-            "Capital Height",
+            crate::i18n::tr("Capital Height"),
             theme::body(13.0),
             Tokens::text_strong(),
         );
-        p.text(pos2(rows.right() - 10.0, rows.bottom() - 21.0), Align2::RIGHT_CENTER, "mm", theme::body(13.0), Tokens::text_strong());
+        p.text(
+            pos2(rows.right() - 10.0, rows.bottom() - 21.0),
+            Align2::RIGHT_CENTER,
+            crate::i18n::tr("mm"),
+            theme::body(13.0),
+            Tokens::text_strong(),
+        );
         p.text(
             pos2(align_row.left() + 10.0, align_row.center().y),
             Align2::LEFT_CENTER,
-            "Alignment",
+            crate::i18n::tr("Alignment"),
             theme::body(13.0),
             Tokens::text_strong(),
         );
@@ -127,7 +139,7 @@ impl Workspace {
             text_box.shrink2(vec2(8.0, 6.0)),
             egui::TextEdit::multiline(text)
                 .id(ui.scope_id().with("sketch-text"))
-                .hint_text("Type here…")
+                .hint_text(crate::i18n::tr("Type here…"))
                 .frame(egui::Frame::NONE)
                 .font(theme::body(13.0)),
         );
@@ -179,7 +191,11 @@ impl Workspace {
         let id = ui.scope_id().with("font-search");
         let resp = ui.put(
             field.shrink2(vec2(8.0, 3.0)),
-            egui::TextEdit::singleline(&mut query).id(id).hint_text("Search fonts").frame(egui::Frame::NONE).font(theme::body(13.0)),
+            egui::TextEdit::singleline(&mut query)
+                .id(id)
+                .hint_text(crate::i18n::tr("Search fonts"))
+                .frame(egui::Frame::NONE)
+                .font(theme::body(13.0)),
         );
         if resp.changed() {
             self.font_list = Some(query.clone());
@@ -210,7 +226,13 @@ impl Workspace {
             });
         });
         if names.is_empty() {
-            p.text(list.center_top() + vec2(0.0, 20.0), Align2::CENTER_CENTER, "No fonts found", theme::body(12.0), Tokens::text_dim());
+            p.text(
+                list.center_top() + vec2(0.0, 20.0),
+                Align2::CENTER_CENTER,
+                crate::i18n::tr("No fonts found"),
+                theme::body(12.0),
+                Tokens::text_dim(),
+            );
         }
         if let Some(name) = picked {
             self.text_font = Some(name);
@@ -317,9 +339,15 @@ impl Workspace {
             let over = self.cursor.is_some_and(|c| r.contains(c));
             p.rect_filled(r, radius(6), if over { Tokens::chip_hover() } else { Tokens::chip() });
             if caps {
-                p.text(pos2(r.left() + 8.0, r.center().y), Align2::LEFT_CENTER, label, theme::body(13.0), Tokens::text_strong());
+                p.text(
+                    pos2(r.left() + 8.0, r.center().y),
+                    Align2::LEFT_CENTER,
+                    crate::i18n::tr_s(label),
+                    theme::body(13.0),
+                    Tokens::text_strong(),
+                );
             } else {
-                p.text(r.center(), Align2::CENTER_CENTER, label, theme::body(14.0), Tokens::text_strong());
+                p.text(r.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(label), theme::body(14.0), Tokens::text_strong());
             }
             let cap = Rect::from_min_size(pos2(r.right() - 24.0, r.top() + 4.0), vec2(18.0, 16.0));
             if !caps {

@@ -132,12 +132,24 @@ impl Workspace {
 }
 
 fn banner(p: &egui::Painter, ws: &Workspace, title: &str, body: &str) {
-    let galley_w = p.layout_no_wrap(body.to_string(), theme::body(11.0), Tokens::text_dim()).size().x;
+    let galley_w = p.layout_no_wrap(crate::i18n::tr_s(body), theme::body(11.0), Tokens::text_dim()).size().x;
     let banner =
         Rect::from_center_size(pos2(ws.viewport_rect.center().x, ws.viewport_rect.top() + 34.0), vec2((galley_w + 28.0).max(330.0), 44.0));
     p.rect_filled(banner, radius(8), Tokens::banner());
-    p.text(pos2(banner.left() + 14.0, banner.top() + 14.0), Align2::LEFT_CENTER, title, theme::strong(12.0), Tokens::text_strong());
-    p.text(pos2(banner.left() + 14.0, banner.top() + 31.0), Align2::LEFT_CENTER, body, theme::body(11.0), Tokens::text_dim());
+    p.text(
+        pos2(banner.left() + 14.0, banner.top() + 14.0),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr_s(title),
+        theme::strong(12.0),
+        Tokens::text_strong(),
+    );
+    p.text(
+        pos2(banner.left() + 14.0, banner.top() + 31.0),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr_s(body),
+        theme::body(11.0),
+        Tokens::text_dim(),
+    );
 }
 
 /// A white ⊕ like the reference's add buttons; true when clicked.
@@ -153,7 +165,7 @@ fn plus(ui: &mut Ui, at: Pos2, id: (i8, i8)) -> bool {
 
 /// A small white pill with dark text; true when clicked.
 fn white_pill(ui: &mut Ui, center: Pos2, text: &str, id: &str) -> (Rect, bool) {
-    let galley = ui.painter().layout_no_wrap(text.to_string(), theme::strong(10.5), theme::c(0x1e1e1e));
+    let galley = ui.painter().layout_no_wrap(crate::i18n::tr_s(text), theme::strong(10.5), theme::c(0x1e1e1e));
     let r = Rect::from_center_size(center, vec2(galley.size().x + 14.0, 18.0));
     let resp = ui.interact(r, ui.scope_id().with(("view-pill", id)), Sense::click());
     ui.painter().rect_filled(r, radius(4), if resp.hovered() { Color32::WHITE } else { theme::c(0xeeeeee) });
@@ -271,7 +283,7 @@ pub(super) fn interact(ws: &mut Workspace, ui: &mut Ui, d: &Drawing, sheet: Rect
                 pp.text(
                     pos2(r.left() + 15.0, r.top() + 24.0),
                     Align2::LEFT_CENTER,
-                    "Base View",
+                    crate::i18n::tr("Base View"),
                     theme::strong(12.5),
                     Tokens::text_strong(),
                 );
@@ -306,7 +318,13 @@ pub(super) fn interact(ws: &mut Workspace, ui: &mut Ui, d: &Drawing, sheet: Rect
                 let custom = Rect::from_min_size(pos2(r.left() + 15.0, r.bottom() - 34.0), vec2(r.width() - 30.0, 20.0));
                 let cr = ui.interact(custom, ui.scope_id().with("custom-base"), Sense::click());
                 pp.rect_filled(custom, radius(4), if cr.hovered() { theme::c(0x6d7680) } else { theme::c(0x5d6670) });
-                pp.text(custom.center(), Align2::CENTER_CENTER, "Custom Base View…", theme::body(12.0), Tokens::text_strong());
+                pp.text(
+                    custom.center(),
+                    Align2::CENTER_CENTER,
+                    crate::i18n::tr("Custom Base View…"),
+                    theme::body(12.0),
+                    Tokens::text_strong(),
+                );
                 // The model as it's seen in Modeling: the view looks the way the camera does, its right to the right.
                 if cr.clicked() {
                     let toward = ws.camera.back();
@@ -457,7 +475,7 @@ pub(super) fn interact(ws: &mut Workspace, ui: &mut Ui, d: &Drawing, sheet: Rect
                 p.text(
                     ghost.center_bottom() + vec2(0.0, 14.0),
                     Align2::CENTER_CENTER,
-                    "Section",
+                    crate::i18n::tr("Section"),
                     theme::body(11.0),
                     Color32::from_white_alpha(170),
                 );
@@ -636,7 +654,7 @@ fn selected_view(ws: &mut Workspace, ui: &mut Ui, d: &Drawing, sheet: Rect, k: f
     ui.painter().circle_filled(c, 10.0, if sv.hidden_lines { Tokens::accent() } else { theme::c(0x555559) });
     ui.painter().add(egui::Shape::dashed_line(&[c - vec2(5.0, 0.0), c + vec2(5.0, 0.0)], Stroke::new(1.5, Color32::WHITE), 2.5, 1.5));
     if t.hovered() {
-        p.text(c + vec2(16.0, 0.0), Align2::LEFT_CENTER, "Hidden Lines", theme::body(11.0), Color32::WHITE);
+        p.text(c + vec2(16.0, 0.0), Align2::LEFT_CENTER, crate::i18n::tr("Hidden Lines"), theme::body(11.0), Color32::WHITE);
     }
     if t.clicked() {
         update.insert("hidden_lines".into(), json!(!sv.hidden_lines));

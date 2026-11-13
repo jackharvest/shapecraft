@@ -93,7 +93,7 @@ pub fn show(ui: &mut Ui, st: &mut Setup, found: Option<&Found>) -> bool {
         p.text(
             pos2(card.left() + 40.0, go.center().y),
             Align2::LEFT_CENTER,
-            "All of this is in Preferences later.",
+            crate::i18n::tr("All of this is in Preferences later."),
             theme::body(11.5),
             Tokens::text_dim(),
         );
@@ -102,8 +102,20 @@ pub fn show(ui: &mut Ui, st: &mut Setup, found: Option<&Found>) -> bool {
 }
 
 fn title(p: &egui::Painter, body: Rect, big: &str, small: &str) {
-    p.text(pos2(body.center().x, body.top() + 14.0), Align2::CENTER_CENTER, big, theme::strong(18.0), Tokens::text_strong());
-    p.text(pos2(body.center().x, body.top() + 40.0), Align2::CENTER_CENTER, small, theme::body(12.5), Tokens::text_dim());
+    p.text(
+        pos2(body.center().x, body.top() + 14.0),
+        Align2::CENTER_CENTER,
+        crate::i18n::tr_s(big),
+        theme::strong(18.0),
+        Tokens::text_strong(),
+    );
+    p.text(
+        pos2(body.center().x, body.top() + 40.0),
+        Align2::CENTER_CENTER,
+        crate::i18n::tr_s(small),
+        theme::body(12.5),
+        Tokens::text_dim(),
+    );
 }
 
 fn pill(ui: &mut Ui, r: Rect, label: &str, primary: bool, id: &str) -> bool {
@@ -115,7 +127,7 @@ fn pill(ui: &mut Ui, r: Rect, label: &str, primary: bool, id: &str) -> bool {
         (false, true) => theme::c(0x45454a),
     };
     ui.painter().rect_filled(r, radius(8), fill);
-    ui.painter().text(r.center(), Align2::CENTER_CENTER, label, theme::strong(13.0), Color32::WHITE);
+    ui.painter().text(r.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(label), theme::strong(13.0), Color32::WHITE);
     resp.clicked()
 }
 
@@ -212,7 +224,13 @@ fn projects(ui: &mut Ui, body: Rect, st: &mut Setup, found: Option<&Found>) {
         let p = ui.painter();
         icons::paint(p, Rect::from_center_size(pos2(r.left() + 28.0, r.center().y), vec2(18.0, 18.0)), icon, Tokens::icon_blue());
         p.text(pos2(r.left() + 52.0, r.center().y - 9.0), Align2::LEFT_CENTER, name, theme::strong(13.0), Tokens::text_strong());
-        p.text(pos2(r.left() + 52.0, r.center().y + 10.0), Align2::LEFT_CENTER, detail, theme::body(11.0), Tokens::text_dim());
+        p.text(
+            pos2(r.left() + 52.0, r.center().y + 10.0),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr_s(detail),
+            theme::body(11.0),
+            Tokens::text_dim(),
+        );
         if on {
             p.circle_filled(pos2(r.right() - 24.0, r.center().y), 7.0, Tokens::accent());
             p.circle_filled(pos2(r.right() - 24.0, r.center().y), 2.5, Color32::WHITE);
@@ -237,7 +255,7 @@ fn projects(ui: &mut Ui, body: Rect, st: &mut Setup, found: Option<&Found>) {
         p.text(
             pos2(body.left() + 4.0, y + 14.0),
             Align2::LEFT_CENTER,
-            "Looking for cloud storage apps…",
+            crate::i18n::tr("Looking for cloud storage apps…"),
             theme::body(12.0),
             Tokens::text_dim(),
         );
@@ -281,7 +299,7 @@ fn projects(ui: &mut Ui, body: Rect, st: &mut Setup, found: Option<&Found>) {
     } else {
         format!("Found on this computer: {}.", names.join(", "))
     };
-    p.text(pos2(body.left(), r.center().y), Align2::LEFT_CENTER, line, theme::body(11.0), Tokens::text_dim());
+    p.text(pos2(body.left(), r.center().y), Align2::LEFT_CENTER, crate::i18n::tr_s(line), theme::body(11.0), Tokens::text_dim());
 }
 
 /// Step 3: backups, each a cloud app's folder or any folder (a NAS), and when they're made.
@@ -306,7 +324,13 @@ fn backups(ui: &mut Ui, body: Rect, st: &mut Setup, found: Option<&Found>) {
         }
         check_box(&p, pos2(r.left() + 22.0, r.center().y), on);
         icons::paint(&p, Rect::from_center_size(pos2(r.left() + 50.0, r.center().y), vec2(16.0, 16.0)), Icon::Cloud, Tokens::icon_blue());
-        p.text(pos2(r.left() + 68.0, r.center().y), Align2::LEFT_CENTER, c.label(), theme::strong(13.0), Tokens::text_strong());
+        p.text(
+            pos2(r.left() + 68.0, r.center().y),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr_s(c.label()),
+            theme::strong(13.0),
+            Tokens::text_strong(),
+        );
         if let Some(n) = st.backups.iter().position(|b| *b == key) {
             p.text(
                 pos2(r.right() - 16.0, r.center().y),
@@ -331,7 +355,7 @@ fn backups(ui: &mut Ui, body: Rect, st: &mut Setup, found: Option<&Found>) {
         p.text(
             pos2(r.left() + 68.0, r.center().y),
             Align2::LEFT_CENTER,
-            t.label(&Found::default()),
+            crate::i18n::tr_s(t.label(&Found::default())),
             theme::strong(13.0),
             Tokens::text_strong(),
         );
@@ -348,7 +372,7 @@ fn backups(ui: &mut Ui, body: Rect, st: &mut Setup, found: Option<&Found>) {
     }
     // When: on Save (⌘S), closing and quitting leaves a gap to go back to; every change keeps it closest.
     let y = body.bottom() - 58.0;
-    p.text(pos2(body.left(), y), Align2::LEFT_CENTER, "Back up:", theme::strong(12.5), Tokens::text_strong());
+    p.text(pos2(body.left(), y), Align2::LEFT_CENTER, crate::i18n::tr("Back up:"), theme::strong(12.5), Tokens::text_strong());
     let save_key = if cfg!(target_os = "macos") { "⌘S" } else { "Ctrl+S" };
     let opts = [(false, format!("When I press {save_key}, close a project or quit")), (true, "A moment after every change".to_string())];
     for (k, (value, text)) in opts.iter().enumerate() {
@@ -364,7 +388,7 @@ fn backups(ui: &mut Ui, body: Rect, st: &mut Setup, found: Option<&Found>) {
         } else {
             p.circle_stroke(at, 6.0, Stroke::new(1.2, theme::c(0x6a6a70)));
         }
-        p.text(pos2(at.x + 14.0, at.y), Align2::LEFT_CENTER, text, theme::body(12.0), Tokens::text());
+        p.text(pos2(at.x + 14.0, at.y), Align2::LEFT_CENTER, crate::i18n::tr_s(text), theme::body(12.0), Tokens::text());
     }
 }
 

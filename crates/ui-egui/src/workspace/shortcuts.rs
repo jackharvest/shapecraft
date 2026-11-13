@@ -358,7 +358,7 @@ pub(super) fn window(ws: &mut Workspace, ui: &mut Ui) {
             p.text(
                 pos2(r.left() + 33.0, r.center().y),
                 Align2::LEFT_CENTER,
-                *title,
+                crate::i18n::tr_s(*title),
                 theme::body(13.0),
                 if i == sel { Color32::WHITE } else { Tokens::text_strong() },
             );
@@ -369,7 +369,13 @@ pub(super) fn window(ws: &mut Workspace, ui: &mut Ui) {
         // The chosen category's commands.
         let body = Rect::from_min_max(pos2(side.right() + 1.0, rect.top()), pos2(rect.right(), rect.bottom() - 52.0));
         let Some((title, cards)) = cats.get(sel) else { return };
-        p.text(pos2(body.left() + 30.0, body.top() + 30.0), Align2::LEFT_CENTER, *title, theme::strong(15.0), Tokens::text_strong());
+        p.text(
+            pos2(body.left() + 30.0, body.top() + 30.0),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr_s(*title),
+            theme::strong(15.0),
+            Tokens::text_strong(),
+        );
         let list = Rect::from_min_max(pos2(body.left() + 22.0, body.top() + 56.0), pos2(body.right() - 18.0, body.bottom()));
         let mut child = ui.new_child(egui::UiBuilder::new().max_rect(list));
         let (edits, focus) = ws.key_edits.clone().unwrap_or_default();
@@ -389,7 +395,7 @@ pub(super) fn window(ws: &mut Workspace, ui: &mut Ui) {
                     }
                     let cy = y + 20.5;
                     let col = if row.have { Tokens::text_strong() } else { Tokens::text_faint() };
-                    p.text(pos2(r.left() + 10.0, cy), Align2::LEFT_CENTER, row.label, theme::body(12.5), col);
+                    p.text(pos2(r.left() + 10.0, cy), Align2::LEFT_CENTER, crate::i18n::tr_s(row.label), theme::body(12.5), col);
                     let field = Rect::from_min_size(pos2(r.right() - 139.0, cy - 10.5), vec2(129.0, 21.0));
                     p.rect_filled(field, radius(5), if row.have { theme::c(0x58585c) } else { theme::c(0x3a3a3c) });
                     let kcol = if row.have { Color32::WHITE } else { Tokens::text_faint() };
@@ -474,7 +480,7 @@ pub(super) fn window(ws: &mut Workspace, ui: &mut Ui) {
         let close_r = Rect::from_min_size(pos2(rect.right() - 176.0, rect.bottom() - 36.0), vec2(56.0, 20.0));
         let resp = ui.interact(close_r, ui.scope_id().with("shortcuts-close"), Sense::click());
         p.rect_filled(close_r, radius(5), if resp.hovered() { theme::c(0x4a7ff8) } else { Tokens::accent() });
-        p.text(close_r.center(), Align2::CENTER_CENTER, "Cancel", theme::body(12.0), Color32::WHITE);
+        p.text(close_r.center(), Align2::CENTER_CENTER, crate::i18n::tr("Cancel"), theme::body(12.0), Color32::WHITE);
         if resp.clicked() {
             close = true;
         }
