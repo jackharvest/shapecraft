@@ -132,7 +132,9 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     let gr = ui.interact(go, ui.scope_id().with("import-go"), Sense::click());
     p.rect_filled(go, radius(5), if gr.hovered() { theme::c(0x3a62e8) } else { theme::c(0x2f55d4) });
     p.text(go.center(), Align2::CENTER_CENTER, "Import", theme::body(13.0), Color32::WHITE);
-    let keys = ui.input(|i| (i.key_pressed(egui::Key::Escape), i.key_pressed(egui::Key::Enter)));
+    // Taken here, so the same Return doesn't also open Search Commands behind the sheet.
+    let keys =
+        ui.input_mut(|i| (i.consume_key(egui::Modifiers::NONE, egui::Key::Escape), i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)));
     if cr.clicked() || keys.0 {
         return;
     }
@@ -144,4 +146,41 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
         return;
     }
     ws.import_prefs = Some(d);
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    /// Return on the sheet starts the import and nothing else: it used to open Search Commands behind it too.
+    #[test]
+    fn return_on_the_sheet_doesnt_open_search() {
+        let session = shapecraft_engine::Session::new(Arc::new(shapecraft_kernel_occt::OcctKernel::new()), "Sheet");
+        let mut ws = Workspace::new(session, crate::settings::Settings::default());
+        ws.import_prefs = Some(ImportPrefs { path: "part.step".into(), mode: 0, custom: [true; 4], dont_show: false });
+        let ctx = egui::Context::default();
+        let frame = |ws: &mut Workspace, events: Vec<egui::Event>| {
+            let input = egui::RawInput {
+                screen_rect: Some(Rect::from_min_size(pos2(0.0, 0.0), vec2(1400.0, 900.0))),
+                events,
+                ..Default::default()
+            };
+            let mut out = ctx.run_ui(input, |ui| ws.ui(ui, None));
+            out.textures_delta.clear();
+        };
+        frame(&mut ws, Vec::new());
+        let enter = |pressed| egui::Event::Key {
+            key: egui::Key::Enter,
+            physical_key: None,
+            pressed,
+            repeat: false,
+            modifiers: egui::Modifiers::NONE,
+        };
+        frame(&mut ws, vec![enter(true), enter(false)]);
+        assert!(ws.import_prefs.is_none());
+        assert!(ws.import_file_go.is_some(), "Return imports");
+        assert!(ws.search.is_none(), "and opens nothing else");
+    }
 }

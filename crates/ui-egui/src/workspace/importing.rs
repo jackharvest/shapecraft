@@ -1,18 +1,18 @@
 //! Imports run on their own thread (#22): a big STEP or .shapr file can take minutes in the kernel, and the window
 //! must keep drawing and answering meanwhile. The import works on a fork of the session; when it ends, the fork
-//! (with the import in its undo history) takes the session's place. Until then a card shows the file and the time,
-//! and nothing else edits the project. Cancel stops the kernel at its next check and drops whatever comes back.
+//! (with the import in its undo history) takes the session's place. Until then the window shows the import, and
+//! nothing else edits the project. Cancel stops the kernel at its next check and drops whatever comes back.
 
 use std::sync::mpsc::{Receiver, TryRecvError, channel};
 use std::time::{Duration, Instant};
 
-use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
+use egui::{Align2, Color32, Rect, Sense, Stroke, Ui, pos2, vec2};
 use serde_json::Value;
 use shapecraft_engine::{EngineError, Outcome, Session};
 use shapecraft_render::StandardView;
 
 use super::Workspace;
-use crate::theme::{self, Tokens, radius};
+use crate::theme::{self, Tokens};
 
 type Done = (Session, Result<Outcome, EngineError>);
 
@@ -104,39 +104,84 @@ impl Workspace {
     }
 }
 
-/// The card over the project while an import runs: the file, the time so far, a moving bar and Cancel.
+/// While an import runs, the window below the title bar turns into a dark backdrop with a soft blue glow and a warm
+/// core, a round badge with a turning blue arc, "Importing", the file's name and what's happening, and a quiet
+/// Cancel underneath (Escape too).
 pub(super) fn card(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     let Some(imp) = &ws.importing else { return };
     let secs = imp.started.elapsed().as_secs_f32();
     let file = imp.file.clone();
-    let r = Rect::from_center_size(full.center(), vec2(380.0, 132.0));
+    let title_h = match (crate::tablet::touch_ui(), full.height() > full.width()) {
+        (false, _) => Tokens::TITLEBAR_H,
+        (true, true) => 44.0,
+        (true, false) => 0.0,
+    };
+    let body = Rect::from_min_max(full.min + vec2(0.0, title_h), full.max);
     let p = ui.painter().clone();
-    p.rect_filled(full, 0.0, Color32::from_black_alpha(60));
-    p.rect_filled(r.translate(vec2(0.0, 6.0)).expand(2.0), radius(12), Color32::from_black_alpha(90));
-    p.rect_filled(r, radius(10), theme::c(0x1e1e1e));
-    p.rect_stroke(r, radius(10), Stroke::new(1.0, theme::c(0x4b4b4b)), StrokeKind::Outside);
-    p.text(r.left_top() + vec2(20.0, 26.0), Align2::LEFT_CENTER, "Importing", theme::strong(15.0), Tokens::text_strong());
-    let name = p.layout_no_wrap(file, theme::body(12.0), Tokens::text_dim());
-    let clip = Rect::from_min_max(r.left_top() + vec2(20.0, 40.0), pos2(r.right() - 20.0, r.top() + 58.0));
-    p.with_clip_rect(clip).galley(clip.min, name, Tokens::text_dim());
-    // An indeterminate bar: the kernel can't say how far along it is.
-    let bar = Rect::from_min_max(pos2(r.left() + 20.0, r.top() + 70.0), pos2(r.right() - 20.0, r.top() + 74.0));
-    p.rect_filled(bar, radius(2), theme::c(0x343436));
-    let w = bar.width() * 0.3;
-    let x = bar.left() + (bar.width() + w) * ((secs * 0.6).fract()) - w;
-    let seg = Rect::from_min_max(pos2(x.max(bar.left()), bar.top()), pos2((x + w).min(bar.right()), bar.bottom()));
-    if seg.width() > 0.0 {
-        p.rect_filled(seg, radius(2), theme::c(0x2f55d4));
-    }
-    let fy = r.bottom() - 26.0;
-    p.text(pos2(r.left() + 20.0, fy), Align2::LEFT_CENTER, format!("{secs:.0} s"), theme::body(12.0), Tokens::text_dim());
-    let cancel = Rect::from_min_size(pos2(r.right() - 20.0 - 62.0, fy - 10.5), vec2(62.0, 21.0));
+    p.rect_filled(body, 0.0, theme::c(0x272728));
+    let mid = body.center() + vec2(0.0, -0.02 * body.height());
+    // Glows: radial fans, their colour at the middle fading to nothing at the rim.
+    glow(
+        &p,
+        mid + vec2(0.0, 40.0),
+        vec2(0.30 * body.width(), 0.30 * body.height()),
+        Color32::from_rgba_unmultiplied(0x25, 0x2b, 0x48, 230),
+    );
+    glow(&p, mid + vec2(0.0, 105.0), vec2(150.0, 95.0), Color32::from_rgba_unmultiplied(0x66, 0x40, 0x1c, 150));
+    // The badge: a dark disc with a darker rim, our import mark inside, a blue arc going round its edge.
+    let c = mid + vec2(0.0, -70.0);
+    let r = 34.0;
+    p.circle_filled(c, r, theme::c(0x1c1c1e));
+    p.circle_filled(c, r - 3.0, theme::c(0x2c2c2e));
+    crate::icons::paint(&p, Rect::from_center_size(c, vec2(28.0, 28.0)), crate::icons::Icon::Import, Color32::WHITE);
+    let start = secs * 4.0;
+    let arc: Vec<egui::Pos2> = (0..=24)
+        .map(|k| {
+            let a = start + k as f32 / 24.0 * 1.1;
+            c + vec2(a.cos(), a.sin()) * (r - 1.5)
+        })
+        .collect();
+    p.add(egui::Shape::line(arc, Stroke::new(3.0, theme::c(0x2e68ff))));
+    p.text(mid + vec2(0.0, -10.0), Align2::CENTER_CENTER, "Importing", theme::strong(21.0), Color32::WHITE);
+    p.text(mid + vec2(0.0, 22.0), Align2::CENTER_CENTER, file, theme::body(14.0), Color32::WHITE);
+    p.text(mid + vec2(0.0, 50.0), Align2::CENTER_CENTER, "Reading the file…", theme::body(14.0), theme::c(0xa1a1a6));
+    let g = p.layout_no_wrap("Cancel".to_string(), theme::body(13.0), theme::c(0x8e8e93));
+    let cancel = Rect::from_center_size(mid + vec2(0.0, 92.0), g.size() + vec2(16.0, 8.0));
     let cr = ui.interact(cancel, ui.scope_id().with("import-running-cancel"), Sense::click());
-    p.rect_filled(cancel, radius(5), if cr.hovered() { theme::c(0x6a6a6a) } else { theme::c(0x565656) });
-    p.text(cancel.center(), Align2::CENTER_CENTER, "Cancel", theme::body(13.0), Color32::WHITE);
+    let ink = if cr.hovered() { Color32::WHITE } else { theme::c(0x8e8e93) };
+    p.text(cancel.center(), Align2::CENTER_CENTER, "Cancel", theme::body(13.0), ink);
+    if cr.hovered() {
+        p.line_segment(
+            [pos2(cancel.left() + 8.0, cancel.bottom() - 3.0), pos2(cancel.right() - 8.0, cancel.bottom() - 3.0)],
+            Stroke::new(1.0, ink),
+        );
+    }
     if cr.clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
         ws.cancel_import();
     }
+}
+
+/// A soft elliptical glow: `color` at `center`, fading to transparent at `radii`.
+fn glow(p: &egui::Painter, center: egui::Pos2, radii: egui::Vec2, color: Color32) {
+    let mut mesh = egui::Mesh::default();
+    let n = 64;
+    // Two rings so the fall-off isn't a straight cone: half strength at 55% of the way out.
+    let rings = [(0.55, color.gamma_multiply(0.5)), (1.0, Color32::TRANSPARENT)];
+    mesh.colored_vertex(center, color);
+    for (f, col) in rings {
+        for k in 0..n {
+            let a = std::f32::consts::TAU * k as f32 / n as f32;
+            mesh.colored_vertex(center + vec2(a.cos() * radii.x, a.sin() * radii.y) * f, col);
+        }
+    }
+    for k in 0..n {
+        let next = (k + 1) % n;
+        mesh.add_triangle(0, 1 + k, 1 + next);
+        let (a, b, c, d) = (1 + k, 1 + next, 1 + n + k, 1 + n + next);
+        mesh.add_triangle(a, b, d);
+        mesh.add_triangle(a, d, c);
+    }
+    p.add(egui::Shape::mesh(mesh));
 }
 
 #[cfg(test)]

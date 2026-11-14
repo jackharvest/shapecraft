@@ -724,8 +724,9 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     );
     p.text(export.center(), Align2::CENTER_CENTER, export_label, theme::body(13.0), if can { Color32::WHITE } else { Tokens::text_dim() });
 
-    let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
-    if cr.clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+    // Taken here, so the same Return doesn't also open Search Commands once the dialog is gone.
+    let enter = ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter));
+    if cr.clicked() || ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
         return;
     }
     let go = std::mem::take(&mut d.go);

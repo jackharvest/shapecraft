@@ -2,9 +2,12 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.8.2-alpha
-**Box selection in a sketch picks its curves and points, and picked profiles are easier to read.**
+## 0.8.3-alpha
+**Box selection in a sketch picks its curves and points, picked profiles are easier to read, and imports get a proper
+screen.**
 ### Changed
+- **While a file imports, the window shows it:** a calm full-window screen with the file's name and a turning badge,
+  and Cancel underneath (or Escape), instead of a small card over the project.
 - **A box dragged inside a sketch filters by All Items, Edges (E), Points (P) and Constraints (C).** It picks the
   sketch's curves or their points, not its regions; to pick regions with a box, exit the sketch and use Faces (F).
   This replaces the 0.8.1 change for #19. Thanks [@leo-smi](https://github.com/leo-smi) (#19).
@@ -12,6 +15,7 @@ How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest fi
   still choosing them, so the lines and the Extrude arrow stay easy to see.
 ### Fixed
 - **Normal to Sketch no longer sits on top of the Area Selection banner;** it moves below it while you drag a box.
+- **Pressing Return in Import Preferences, Export or Import Project no longer also opens Search Commands.**
 
 ## 0.8.1-alpha
 **Big imports no longer freeze the window, more .shapr projects come in whole, and Slovak.**

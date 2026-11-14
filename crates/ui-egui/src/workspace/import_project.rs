@@ -155,7 +155,7 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     let go = can
         && (ws.import_go
             || ui.interact(import, ui.scope_id().with("import-go"), Sense::click()).clicked()
-            || ui.input(|i| i.key_pressed(egui::Key::Enter)));
+            || ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)));
     ws.import_go = false;
     if cancelled {
         return;
