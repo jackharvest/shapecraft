@@ -1117,6 +1117,153 @@ fn name_from_calls(
         }
     }
     resolve_transformed_items(c, steps, items, folders, gone, bodies)?;
+    name_by_topology(c, steps, items, gone, bodies)?;
+    Ok(())
+}
+
+/// A body a step changes is told apart by its faces, not by its place in the call: each changed-body record lists the
+/// topology names the step gave that partition (`[partition, [true, [before, after, tags, names, n, _, lineage]]]`)
+/// and, under tag 0 of `lineage`, the bodies in the same call it carries on from (a Subtract's target, both halves of
+/// a Union). An item's anchor lists the face names of the body it means, so the partition holding those names is
+/// that item's body, and the newest name and visibility set on it are the ones Shapr3D shows.
+fn name_by_topology(
+    c: &rusqlite::Connection,
+    steps: &[Step],
+    items: &[Item],
+    gone: &std::collections::HashSet<i64>,
+    bodies: &mut [Body],
+) -> Result<()> {
+    use std::collections::{HashMap, HashSet};
+    if !has_table(c, "HistoryNames") || !has_table(c, "PersistedCalls") || !has_table(c, "MetadataAssignments") {
+        return Ok(());
+    }
+    let order: HashMap<i64, usize> = steps.iter().enumerate().map(|(i, s)| (s.node, i)).collect();
+    let mut calls: Vec<(usize, i64, Value)> = Vec::new();
+    {
+        let mut q = c.prepare("SELECT CallKey, CallData FROM PersistedCalls")?;
+        for (k, d) in q.query_map([], |r| Ok((blob(r.get(0)?), blob(r.get(1)?))))?.flatten() {
+            let (Some(k), Some(d)) = (unpack(&k), unpack(&d)) else { continue };
+            let Some(key) = k.as_array() else { continue };
+            let Some(at) = key.first().and_then(Value::as_i64).and_then(|n| order.get(&n)) else { continue };
+            let sub = key.get(1).and_then(Value::as_array).and_then(|a| a.first()).and_then(Value::as_i64).unwrap_or(0);
+            calls.push((*at, sub, d));
+        }
+    }
+    calls.sort_by_key(|(at, sub, _)| (*at, *sub));
+    let mut carried: HashMap<i64, HashSet<i64>> = HashMap::new(); // partition → topology names on its faces
+    for (_, _, data) in &calls {
+        let changed = data
+            .as_array()
+            .and_then(|a| a.get(2))
+            .and_then(Value::as_array)
+            .filter(|a| a.first().and_then(Value::as_bool) == Some(true))
+            .and_then(|a| a.get(1))
+            .and_then(Value::as_array)
+            .and_then(|a| a.get(1))
+            .and_then(Value::as_array);
+        let Some(changed) = changed else { continue };
+        let pids: Vec<Option<i64>> = changed.iter().map(|e| e.as_array().and_then(|a| a.first()).and_then(Value::as_i64)).collect();
+        let mut gained: Vec<(i64, HashSet<i64>)> = Vec::new();
+        for (e, pid) in changed.iter().zip(&pids) {
+            let Some(pid) = *pid else { continue };
+            let Some(detail) =
+                e.as_array().and_then(|a| a.get(1)).and_then(Value::as_array).and_then(|a| a.get(1)).and_then(Value::as_array)
+            else {
+                continue;
+            };
+            let mut names: HashSet<i64> = detail
+                .get(3)
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(Value::as_i64).take(100_000).collect())
+                .unwrap_or_default();
+            // Tag 0 is the body itself: `[0, [own], [[index of a body in this call, [0]], …]]`.
+            let whole = detail
+                .get(6)
+                .and_then(Value::as_array)
+                .and_then(|l| l.iter().filter_map(Value::as_array).find(|el| el.first().and_then(Value::as_i64) == Some(0)));
+            for from in whole.and_then(|el| el.get(2)).and_then(Value::as_array).into_iter().flatten() {
+                let index = from.as_array().and_then(|f| f.first()).and_then(Value::as_u64).and_then(|i| usize::try_from(i).ok());
+                if let Some(names_of) = index.and_then(|i| pids.get(i).copied().flatten()).and_then(|p| carried.get(&p)) {
+                    names.extend(names_of.iter().copied());
+                }
+            }
+            gained.push((pid, names));
+        }
+        for (pid, names) in gained {
+            carried.entry(pid).or_default().extend(names);
+        }
+    }
+    let alive: HashSet<i64> = bodies.iter().filter_map(|b| b.partition).filter(|p| !gone.contains(p)).collect();
+    let mut holders: HashMap<i64, Vec<i64>> = HashMap::new(); // topology name → the current partitions carrying it
+    for (pid, names) in carried.iter().filter(|(pid, _)| alive.contains(pid)) {
+        for n in names {
+            holders.entry(*n).or_default().push(*pid);
+        }
+    }
+    if holders.is_empty() {
+        return Ok(());
+    }
+    // Names and visibility, newest last, by the name they were set on.
+    let mut set_on: BTreeMap<i64, Vec<(i64, i64, String)>> = BTreeMap::new();
+    {
+        let mut q = c.prepare(
+            "SELECT a.NameID, m.MetadataID, m.MetadataTypeID, m.Data FROM MetadataAssignments a JOIN Metadata m ON m.MetadataID = a.MetadataID \
+             WHERE m.MetadataTypeID IN (0, 1) ORDER BY m.MetadataID",
+        )?;
+        let rows = q.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?, text(r.get(3)?))))?;
+        for (name, mid, ty, data) in rows.flatten().take(1_000_000) {
+            set_on.entry(name).or_default().push((mid, ty, data));
+        }
+    }
+    let mut row = c.prepare("SELECT Type, Data FROM HistoryNames WHERE NameID = ?1")?;
+    let mut json = |id: i64| -> Option<(i64, serde_json::Value)> {
+        let (ty, data) = row.query_row([id], |r| Ok((r.get::<_, i64>(0)?, text(r.get(1)?)))).ok()?;
+        Some((ty, serde_json::from_str(&data).ok()?))
+    };
+    // partition → (newest name's metadata id, the name it hangs off), (newest visibility's metadata id, hidden)
+    type Newest = (Option<(i64, i64)>, Option<(i64, bool)>);
+    let mut newest: HashMap<i64, Newest> = HashMap::new();
+    for (name_id, metas) in &set_on {
+        let Some((18, anchor)) = json(*name_id) else { continue };
+        let Some((ty, target)) = anchor["nameToAnchor"].as_i64().and_then(&mut json) else { continue };
+        let faces = match ty {
+            8 => &target["faceNames"],
+            5 => &target["originals"],
+            _ => continue,
+        };
+        let mut votes: HashMap<i64, usize> = HashMap::new();
+        for n in faces.as_array().into_iter().flatten().filter_map(serde_json::Value::as_i64).take(100_000) {
+            for pid in holders.get(&n).into_iter().flatten() {
+                *votes.entry(*pid).or_default() += 1;
+            }
+        }
+        // Only a clear answer counts: one partition holding more of the item's faces than any other.
+        let best = votes.values().copied().max().unwrap_or(0);
+        let mut winners = votes.iter().filter(|(_, v)| **v == best).map(|(p, _)| *p);
+        let (Some(pid), None) = (winners.next(), winners.next()) else { continue };
+        let entry = newest.entry(pid).or_default();
+        for (mid, ty, data) in metas {
+            if *ty == 0 && entry.0.is_none_or(|v| *mid > v.0) {
+                entry.0 = Some((*mid, *name_id));
+            }
+            if *ty == 1 && entry.1.is_none_or(|v| *mid > v.0) {
+                entry.1 = Some((*mid, data.trim() == "1"));
+            }
+        }
+    }
+    for b in bodies.iter_mut() {
+        let Some((named, shown)) = b.partition.and_then(|p| newest.get(&p)) else { continue };
+        if let Some(item) = named.and_then(|(_, name_id)| items.iter().find(|i| i.name_id == name_id)) {
+            b.name = Some(item.name.clone());
+            b.item_name_id = Some(item.name_id);
+            b.folder = item.folder.clone();
+            b.hidden = item.hidden;
+            b.color = item.color.or(b.color);
+        }
+        if let Some((_, hidden)) = shown {
+            b.hidden = *hidden || b.hidden && named.is_none();
+        }
+    }
     Ok(())
 }
 
