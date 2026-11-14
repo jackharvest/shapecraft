@@ -21,6 +21,11 @@ pub struct HistoryUi {
     pub editing: Option<(usize, &'static str, String, bool)>,
     /// "Related to Selection": the steps found for a selection at a revision (cached, it replays the history).
     related: Option<(u64, Vec<shapecraft_doc::Pick>, Option<Vec<bool>>)>,
+    /// What each step makes or changes, for the history as it was then: found on another thread, since it replays the
+    /// history (an import reads its file again, which can take a minute); selections are then looked up in it.
+    touches: Option<(Replayed, Touches)>,
+    /// The revision at which the history was last compared with the one `touches` is for.
+    touches_checked: u64,
     /// The selection whose filter was cleared.
     cleared: Option<Vec<shapecraft_doc::Pick>>,
     /// Merge Modeling Steps' popover under the header: keep sketches, keep variables, and when it opened.
@@ -31,6 +36,75 @@ pub struct HistoryUi {
     bp_drag: bool,
     /// The Import step whose Shapr3D steps are listed out.
     shapr_open: Option<usize>,
+}
+
+enum Touches {
+    Finding(std::sync::mpsc::Receiver<Option<Vec<Vec<shapecraft_doc::ItemId>>>>),
+    Found(Option<Vec<Vec<shapecraft_doc::ItemId>>>),
+}
+
+/// What a replay of the history depends on. A change of selection is a revision too, but replays the same.
+#[derive(PartialEq)]
+struct Replayed {
+    steps: Vec<HistoryStep>,
+    variables: Vec<shapecraft_doc::Variable>,
+    editing_past: bool,
+}
+
+/// Whether the steps' touches are found for the history as it is now, starting the search when they aren't. A
+/// replay left running for an older history is waited out before the next begins, so only one goes at a time.
+fn touches_found(ws: &mut Workspace, ctx: &egui::Context) -> bool {
+    let rev = ws.session.revision;
+    if ws.history.touches.is_some() && ws.history.touches_checked == rev {
+        if let Some((_, Touches::Finding(rx))) = &ws.history.touches {
+            match rx.try_recv() {
+                Ok(found) => {
+                    if let Some((_, state)) = &mut ws.history.touches {
+                        *state = Touches::Found(found);
+                    }
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => ws.history.touches = None,
+                Err(std::sync::mpsc::TryRecvError::Empty) => {}
+            }
+        }
+    } else {
+        let now = Replayed {
+            steps: ws.session.doc.history.clone(),
+            variables: ws.session.doc.variables.clone(),
+            editing_past: ws.session.editing_past(),
+        };
+        match &ws.history.touches {
+            Some((was, _)) if *was == now => {}
+            // The replay for the old history is let finish (its answer is dropped) before the new one starts.
+            Some((_, Touches::Finding(rx))) if matches!(rx.try_recv(), Err(std::sync::mpsc::TryRecvError::Empty)) => {
+                ctx.request_repaint_after(std::time::Duration::from_millis(200));
+                return false;
+            }
+            _ => ws.history.touches = None,
+        }
+        ws.history.touches_checked = rev;
+        if ws.history.touches.is_none() {
+            let fork = ws.session.fork();
+            let (tx, rx) = std::sync::mpsc::channel();
+            let spawned = std::thread::Builder::new().name("history-touches".into()).spawn(move || {
+                let _ = tx.send(fork.step_touches());
+            });
+            let state = match spawned {
+                // A history of ordinary steps replays in a moment: no frame goes by without the filter.
+                Ok(_) => match rx.recv_timeout(std::time::Duration::from_millis(50)) {
+                    Ok(found) => Touches::Found(found),
+                    Err(_) => Touches::Finding(rx),
+                },
+                Err(_) => Touches::Found(ws.session.step_touches()),
+            };
+            ws.history.touches = Some((now, state));
+        }
+    }
+    let found = matches!(&ws.history.touches, Some((_, Touches::Found(_))));
+    if !found {
+        ctx.request_repaint_after(std::time::Duration::from_millis(200));
+    }
+    found
 }
 
 /// Measured (s14-005): the breakpoint's grey row and the dimmed steps after it.
@@ -48,7 +122,7 @@ fn error_panel() -> Color32 {
 const ERROR_H: f32 = 46.0;
 
 /// With something selected, History lists only the steps that made it (as observed); `None` shows everything.
-fn related_filter(ws: &mut Workspace, busy: bool) -> Option<Vec<bool>> {
+fn related_filter(ws: &mut Workspace, busy: bool, ctx: &egui::Context) -> Option<Vec<bool>> {
     use shapecraft_doc::Pick;
     // While a result waits for Done the filter stays as it was when the tool began, dimmed (26.202, s40-010): the
     // live step and whatever the tool did to the selection don't change it.
@@ -71,8 +145,19 @@ fn related_filter(ws: &mut Workspace, busy: bool) -> Option<Vec<bool>> {
                 _ => None,
             })
             .collect();
-        let rel = if bodies.is_empty() && sketches.is_empty() { None } else { ws.session.related_steps(&bodies, &sketches) };
-        ws.history.related = Some((rev, sel.clone(), rel));
+        let rel = if bodies.is_empty() && sketches.is_empty() {
+            None
+        } else {
+            // Until the steps' touches are found, everything is listed.
+            if !touches_found(ws, ctx) {
+                return None;
+            }
+            match &ws.history.touches {
+                Some((_, Touches::Found(Some(touches)))) => Some(ws.session.related_among(touches, &bodies, &sketches)),
+                _ => None,
+            }
+        };
+        ws.history.related = Some((rev, ws.session.selection.clone(), rel));
     }
     ws.history.related.as_ref().and_then(|(_, _, r)| r.clone()).filter(|r| r.iter().any(|x| *x))
 }
@@ -282,7 +367,7 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     let mut y = r.top() + 62.0 - ROW_H / 2.0;
     let left = r.left() + 9.0;
     let right = r.right() - 9.0;
-    let filter = related_filter(ws, busy);
+    let filter = related_filter(ws, busy, ui.ctx());
     if filter.is_some() {
         // The filter's row: dark blue, a blue filter badge, the title, and Clear on the right.
         let bar = Rect::from_min_size(pos2(left, r.top() + 34.0), vec2(right - left, 26.0));
