@@ -163,6 +163,8 @@ pub struct ShapeCraftApp {
     /// When the first unsaved change was made.
     last_change: Option<std::time::Instant>,
     saved_generation: u64,
+    /// An autosave being written on another thread (a project of thousands of bodies takes seconds to write).
+    saving: Option<Saving>,
     /// The window had the keyboard as of the last look.
     was_focused: bool,
     /// A screenshot was asked for and isn't back yet: who to answer, and since when.
@@ -309,6 +311,7 @@ impl ShapeCraftApp {
             control,
             last_change: None,
             saved_generation: 0,
+            saving: None,
             was_focused: true,
             capture: None,
             styled: false,
@@ -451,6 +454,10 @@ impl ShapeCraftApp {
 
     /// Projects save themselves, like the reference app; ours go to a folder on disk.
     fn save(&mut self) {
+        // One writer at a time: an autosave still being written is waited for, and may already be this save.
+        if self.finish_saving(true) {
+            return;
+        }
         let root = self.new_parent.clone().unwrap_or_else(|| self.landing.default_dir());
         let folder_ready = self.folder.is_ready();
         let Some(ws) = self.ws.as_deref_mut() else { return };
@@ -473,6 +480,68 @@ impl ShapeCraftApp {
         self.saved_generation = ws.session.revision;
         self.landing.rescan();
         crate::backup::backups().changed();
+    }
+
+    /// Autosave's write, on another thread so the window keeps answering: the document as it is now (its shapes are
+    /// shared, not copied) goes to the project's folder; [`Self::finish_saving`] takes the result in. A project that
+    /// writes in a moment is done before this returns.
+    fn save_in_background(&mut self) {
+        if self.finish_saving(false) || self.saving.is_some() {
+            return;
+        }
+        let root = self.new_parent.clone().unwrap_or_else(|| self.landing.default_dir());
+        let folder_ready = self.folder.is_ready();
+        let Some(ws) = self.ws.as_deref() else { return };
+        if ws.session.path.is_none() && !folder_ready {
+            return;
+        }
+        if ws.session.doc.is_empty() && ws.session.path.is_none() || ws.tutorial.is_some() {
+            return;
+        }
+        let dir = ws.session.path.clone().unwrap_or_else(|| project::unique_dir(&root, &ws.session.doc.name));
+        let (doc, kernel, to) = (ws.session.doc.clone(), ws.session.kernel.clone(), dir.clone());
+        let (tx, rx) = std::sync::mpsc::channel();
+        let spawned = std::thread::Builder::new().name("autosave".into()).spawn(move || {
+            let _ = tx.send(project::save(&doc, kernel.as_ref(), &to).map_err(|e| e.to_string()));
+        });
+        if spawned.is_err() {
+            return self.save();
+        }
+        let early = rx.recv_timeout(std::time::Duration::from_millis(30)).ok();
+        self.saving = Some(Saving { rx, early, dir, from: ws.session.path.clone(), revision: ws.session.revision });
+        self.finish_saving(false);
+    }
+
+    /// Takes a finished background save in (`wait`: however long it still needs). Returns whether the project as it
+    /// is now is what was saved.
+    fn finish_saving(&mut self, wait: bool) -> bool {
+        let Some(saving) = &mut self.saving else { return false };
+        let result = match saving.early.take() {
+            Some(r) => r,
+            None if wait => saving.rx.recv().unwrap_or_else(|_| Err("the save stopped without a result".into())),
+            None => match saving.rx.try_recv() {
+                Ok(r) => r,
+                Err(std::sync::mpsc::TryRecvError::Empty) => return false,
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => Err("the save stopped without a result".into()),
+            },
+        };
+        let Some(saving) = self.saving.take() else { return false };
+        // Only the project the save was started for takes its result (another may be open by now).
+        let Some(ws) = self.ws.as_deref_mut().filter(|ws| ws.session.path == saving.from) else { return false };
+        if let Err(e) = result {
+            ws.toast(format!("Couldn't save: {e}"));
+            return false;
+        }
+        ws.session.path = Some(saving.dir.clone());
+        let current = ws.session.revision == saving.revision;
+        if current {
+            ws.session.dirty = false;
+        }
+        write_thumbnail(ws, &saving.dir);
+        self.saved_generation = saving.revision;
+        self.landing.rescan();
+        crate::backup::backups().changed();
+        current
     }
 
     /// Opens a project, asking first when another computer sharing the folder has it open (both saving it makes two
@@ -659,6 +728,14 @@ impl ShapeCraftApp {
     /// Saves a moment after the last change, or as soon as the window loses the keyboard: leaving for a slicer or a file
     /// manager shouldn't find the project a change behind.
     fn autosave(&mut self, ctx: &egui::Context) {
+        if self.saving.is_some() {
+            self.finish_saving(false);
+            if self.saving.is_some() {
+                // Still writing: the next save waits for this one.
+                ctx.request_repaint_after(std::time::Duration::from_millis(200));
+                return;
+            }
+        }
         let focused = ctx.input(|i| i.focused);
         let left = std::mem::replace(&mut self.was_focused, focused) && !focused;
         let Some(ws) = self.ws.as_deref() else { return };
@@ -668,7 +745,7 @@ impl ShapeCraftApp {
         let first = *self.last_change.get_or_insert_with(std::time::Instant::now);
         if left || first.elapsed().as_secs_f32() > 1.5 {
             self.last_change = None;
-            self.save();
+            self.save_in_background();
         } else {
             ctx.request_repaint_after(std::time::Duration::from_millis(500));
         }
@@ -730,6 +807,7 @@ impl ShapeCraftApp {
     }
 
     fn close_project(&mut self) {
+        self.finish_saving(true);
         if self.ws.as_ref().is_some_and(|w| w.session.dirty) {
             self.save();
         }
@@ -2212,6 +2290,16 @@ fn picture(ws: &mut Workspace, doc: &shapecraft_doc::Document, px: (u32, u32)) -
 
 /// The project card's picture: see-through around the model (rendered over black and over white, then unmixed),
 /// so the card shows it on either theme's background.
+/// A save on its way to disk: the folder, the project's folder when it began (none for a first save), the revision
+/// that was saved, and the result when it came at once.
+struct Saving {
+    rx: std::sync::mpsc::Receiver<Result<(), String>>,
+    early: Option<Result<(), String>>,
+    dir: PathBuf,
+    from: Option<PathBuf>,
+    revision: u64,
+}
+
 fn write_thumbnail(ws: &mut Workspace, dir: &std::path::Path) {
     let camera = ws.thumbnail_camera();
     let mut over = |background: u32| {
@@ -2313,6 +2401,7 @@ impl eframe::App for ShapeCraftApp {
     }
 
     fn on_exit(&mut self) {
+        self.finish_saving(true);
         if self.ws.as_ref().is_some_and(|w| w.session.dirty) {
             self.save();
         }
