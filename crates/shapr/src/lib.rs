@@ -369,11 +369,20 @@ impl Project {
         let unreadable;
         (p.bodies, unreadable) = current_bodies(c)?;
         let gone = drop_removed(c, &p.steps, &mut Vec::new())?;
+        // Imported bodies the file keeps no revision data for (it keeps revision blocks only for bodies that were
+        // rebuilt): they come from their prototypes, beside the cached ones, so the project opens complete.
+        let (extra_bodies, extra_unreadable) = uncovered_import_bodies(c, &p.steps, &gone)?;
+        p.bodies.extend(extra_bodies);
         name_bodies(c, &p.steps, &p.items, &p.folders, &gone, &mut p.bodies)?;
         apply_moves(c, &p.steps, &mut p.bodies)?;
         p.bodies.retain(|b| b.partition.is_none_or(|id| !gone.contains(&id)));
         // Only bodies still in the model count as lost: a deleted body's partition stays in the file.
-        p.unreadable = unreadable.into_iter().filter(|(pid, _)| pid.is_none_or(|pid| !gone.contains(&pid))).map(|(_, e)| e).collect();
+        p.unreadable = unreadable
+            .into_iter()
+            .filter(|(pid, _)| pid.is_none_or(|pid| !gone.contains(&pid)))
+            .map(|(_, e)| e)
+            .chain(extra_unreadable.into_iter().map(|(_, e)| e))
+            .collect();
         Ok(p)
     }
 }
@@ -903,11 +912,18 @@ fn call_partitions(c: &rusqlite::Connection, bodies: &[Body]) -> Result<BTreeMap
                         .cloned()
                         .unwrap_or_default()
                 };
-                for c in list(5).iter().flat_map(|g| g.as_array().cloned().unwrap_or_default()) {
-                    if let Some(pid) = c.as_array().and_then(|c| c.get(1)).and_then(Value::as_i64) {
-                        found.push(pid);
-                    }
-                }
+                // Sorted by their index field, so the k-th partition lines up with the k-th name anchor even when
+                // the file lists them out of creation order.
+                let mut indexed: Vec<(i64, i64)> = list(5)
+                    .iter()
+                    .flat_map(|g| g.as_array().cloned().unwrap_or_default())
+                    .filter_map(|c| {
+                        let c = c.as_array()?;
+                        Some((c.first()?.as_i64()?, c.get(1)?.as_i64()?))
+                    })
+                    .collect();
+                indexed.sort_unstable_by_key(|&(idx, _)| idx);
+                found.extend(indexed.into_iter().map(|(_, pid)| pid));
                 if let Some(Value::Array(changed)) = list(2).get(1) {
                     found.extend(changed.iter().filter_map(|e| e.as_array().and_then(|e| e.first()).and_then(Value::as_i64)));
                 }
@@ -1099,6 +1115,153 @@ fn name_from_calls(
         }
     }
     resolve_transformed_items(c, steps, items, folders, gone, bodies)?;
+    name_by_topology(c, steps, items, gone, bodies)?;
+    Ok(())
+}
+
+/// A body a step changes is told apart by its faces, not by its place in the call: each changed-body record lists the
+/// topology names the step gave that partition (`[partition, [true, [before, after, tags, names, n, _, lineage]]]`)
+/// and, under tag 0 of `lineage`, the bodies in the same call it carries on from (a Subtract's target, both halves of
+/// a Union). An item's anchor lists the face names of the body it means, so the partition holding those names is
+/// that item's body, and the newest name and visibility set on it are the ones that count.
+fn name_by_topology(
+    c: &rusqlite::Connection,
+    steps: &[Step],
+    items: &[Item],
+    gone: &std::collections::HashSet<i64>,
+    bodies: &mut [Body],
+) -> Result<()> {
+    use std::collections::{HashMap, HashSet};
+    if !has_table(c, "HistoryNames") || !has_table(c, "PersistedCalls") || !has_table(c, "MetadataAssignments") {
+        return Ok(());
+    }
+    let order: HashMap<i64, usize> = steps.iter().enumerate().map(|(i, s)| (s.node, i)).collect();
+    let mut calls: Vec<(usize, i64, Value)> = Vec::new();
+    {
+        let mut q = c.prepare("SELECT CallKey, CallData FROM PersistedCalls")?;
+        for (k, d) in q.query_map([], |r| Ok((blob(r.get(0)?), blob(r.get(1)?))))?.flatten() {
+            let (Some(k), Some(d)) = (unpack(&k), unpack(&d)) else { continue };
+            let Some(key) = k.as_array() else { continue };
+            let Some(at) = key.first().and_then(Value::as_i64).and_then(|n| order.get(&n)) else { continue };
+            let sub = key.get(1).and_then(Value::as_array).and_then(|a| a.first()).and_then(Value::as_i64).unwrap_or(0);
+            calls.push((*at, sub, d));
+        }
+    }
+    calls.sort_by_key(|(at, sub, _)| (*at, *sub));
+    let mut carried: HashMap<i64, HashSet<i64>> = HashMap::new(); // partition → topology names on its faces
+    for (_, _, data) in &calls {
+        let changed = data
+            .as_array()
+            .and_then(|a| a.get(2))
+            .and_then(Value::as_array)
+            .filter(|a| a.first().and_then(Value::as_bool) == Some(true))
+            .and_then(|a| a.get(1))
+            .and_then(Value::as_array)
+            .and_then(|a| a.get(1))
+            .and_then(Value::as_array);
+        let Some(changed) = changed else { continue };
+        let pids: Vec<Option<i64>> = changed.iter().map(|e| e.as_array().and_then(|a| a.first()).and_then(Value::as_i64)).collect();
+        let mut gained: Vec<(i64, HashSet<i64>)> = Vec::new();
+        for (e, pid) in changed.iter().zip(&pids) {
+            let Some(pid) = *pid else { continue };
+            let Some(detail) =
+                e.as_array().and_then(|a| a.get(1)).and_then(Value::as_array).and_then(|a| a.get(1)).and_then(Value::as_array)
+            else {
+                continue;
+            };
+            let mut names: HashSet<i64> = detail
+                .get(3)
+                .and_then(Value::as_array)
+                .map(|a| a.iter().filter_map(Value::as_i64).take(100_000).collect())
+                .unwrap_or_default();
+            // Tag 0 is the body itself: `[0, [own], [[index of a body in this call, [0]], …]]`.
+            let whole = detail
+                .get(6)
+                .and_then(Value::as_array)
+                .and_then(|l| l.iter().filter_map(Value::as_array).find(|el| el.first().and_then(Value::as_i64) == Some(0)));
+            for from in whole.and_then(|el| el.get(2)).and_then(Value::as_array).into_iter().flatten() {
+                let index = from.as_array().and_then(|f| f.first()).and_then(Value::as_u64).and_then(|i| usize::try_from(i).ok());
+                if let Some(names_of) = index.and_then(|i| pids.get(i).copied().flatten()).and_then(|p| carried.get(&p)) {
+                    names.extend(names_of.iter().copied());
+                }
+            }
+            gained.push((pid, names));
+        }
+        for (pid, names) in gained {
+            carried.entry(pid).or_default().extend(names);
+        }
+    }
+    let alive: HashSet<i64> = bodies.iter().filter_map(|b| b.partition).filter(|p| !gone.contains(p)).collect();
+    let mut holders: HashMap<i64, Vec<i64>> = HashMap::new(); // topology name → the current partitions carrying it
+    for (pid, names) in carried.iter().filter(|(pid, _)| alive.contains(pid)) {
+        for n in names {
+            holders.entry(*n).or_default().push(*pid);
+        }
+    }
+    if holders.is_empty() {
+        return Ok(());
+    }
+    // Names and visibility, newest last, by the name they were set on.
+    let mut set_on: BTreeMap<i64, Vec<(i64, i64, String)>> = BTreeMap::new();
+    {
+        let mut q = c.prepare(
+            "SELECT a.NameID, m.MetadataID, m.MetadataTypeID, m.Data FROM MetadataAssignments a JOIN Metadata m ON m.MetadataID = a.MetadataID \
+             WHERE m.MetadataTypeID IN (0, 1) ORDER BY m.MetadataID",
+        )?;
+        let rows = q.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?, text(r.get(3)?))))?;
+        for (name, mid, ty, data) in rows.flatten().take(1_000_000) {
+            set_on.entry(name).or_default().push((mid, ty, data));
+        }
+    }
+    let mut row = c.prepare("SELECT Type, Data FROM HistoryNames WHERE NameID = ?1")?;
+    let mut json = |id: i64| -> Option<(i64, serde_json::Value)> {
+        let (ty, data) = row.query_row([id], |r| Ok((r.get::<_, i64>(0)?, text(r.get(1)?)))).ok()?;
+        Some((ty, serde_json::from_str(&data).ok()?))
+    };
+    // partition → (newest name's metadata id, the name it hangs off), (newest visibility's metadata id, hidden)
+    type Newest = (Option<(i64, i64)>, Option<(i64, bool)>);
+    let mut newest: HashMap<i64, Newest> = HashMap::new();
+    for (name_id, metas) in &set_on {
+        let Some((18, anchor)) = json(*name_id) else { continue };
+        let Some((ty, target)) = anchor["nameToAnchor"].as_i64().and_then(&mut json) else { continue };
+        let faces = match ty {
+            8 => &target["faceNames"],
+            5 => &target["originals"],
+            _ => continue,
+        };
+        let mut votes: HashMap<i64, usize> = HashMap::new();
+        for n in faces.as_array().into_iter().flatten().filter_map(serde_json::Value::as_i64).take(100_000) {
+            for pid in holders.get(&n).into_iter().flatten() {
+                *votes.entry(*pid).or_default() += 1;
+            }
+        }
+        // Only a clear answer counts: one partition holding more of the item's faces than any other.
+        let best = votes.values().copied().max().unwrap_or(0);
+        let mut winners = votes.iter().filter(|(_, v)| **v == best).map(|(p, _)| *p);
+        let (Some(pid), None) = (winners.next(), winners.next()) else { continue };
+        let entry = newest.entry(pid).or_default();
+        for (mid, ty, data) in metas {
+            if *ty == 0 && entry.0.is_none_or(|v| *mid > v.0) {
+                entry.0 = Some((*mid, *name_id));
+            }
+            if *ty == 1 && entry.1.is_none_or(|v| *mid > v.0) {
+                entry.1 = Some((*mid, data.trim() == "1"));
+            }
+        }
+    }
+    for b in bodies.iter_mut() {
+        let Some((named, shown)) = b.partition.and_then(|p| newest.get(&p)) else { continue };
+        if let Some(item) = named.and_then(|(_, name_id)| items.iter().find(|i| i.name_id == name_id)) {
+            b.name = Some(item.name.clone());
+            b.item_name_id = Some(item.name_id);
+            b.folder = item.folder.clone();
+            b.hidden = item.hidden;
+            b.color = item.color.or(b.color);
+        }
+        if let Some((_, hidden)) = shown {
+            b.hidden = *hidden || b.hidden && named.is_none();
+        }
+    }
     Ok(())
 }
 
@@ -1448,6 +1611,142 @@ fn current_bodies(c: &rusqlite::Connection) -> Result<(Vec<Body>, Unreadable)> {
     Ok((out, unreadable))
 }
 
+/// The imports whose body the file keeps no revision data for, so it has to come from its prototype: the file keeps
+/// revision blocks only for bodies that were rebuilt, and an import nothing touched afterwards has none.
+///
+/// An import step's k-th created partition (by creation index) belongs to its k-th import. Only a partition that
+/// shows up nowhere counts: not in the revision tables under any state, and not among the removed ones (`gone`). A
+/// body deleted later, or edited later into a newer partition, still has its first partition there, and bringing
+/// its prototype back would resurrect or duplicate it. An import with no partition recorded is left alone too.
+///
+/// Only calls in the newer layout (more than three slots) are read; files in the older one keep every imported
+/// body in `BodyRevisionPartitions`.
+fn uncovered_imports(c: &rusqlite::Connection, steps: &[Step], gone: &std::collections::HashSet<i64>) -> Result<Vec<i64>> {
+    if !has_table(c, "PersistedCalls") {
+        return Ok(Vec::new());
+    }
+    let mut known: std::collections::HashSet<i64> = gone.clone();
+    for table in ["BodyRevisionBlocks", "BodyRevisionPartitions"] {
+        if has_table(c, table) {
+            let mut q = c.prepare(&format!("SELECT DISTINCT PartitionID FROM {table}"))?;
+            known.extend(q.query_map([], |r| r.get::<_, i64>(0))?.flatten().take(10_000_000));
+        }
+    }
+    let mut step_parts: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
+    {
+        let mut q = c.prepare("SELECT CallKey, CallData FROM PersistedCalls")?;
+        for (k, d) in q.query_map([], |r| Ok((blob(r.get(0)?), blob(r.get(1)?))))?.flatten() {
+            let (Some(k), Some(d)) = (unpack(&k), unpack(&d)) else { continue };
+            let Some(node) = k.as_array().and_then(|a| a.first()).and_then(Value::as_i64) else { continue };
+            let Some(a) = d.as_array() else { continue };
+            if a.len() <= 3 {
+                continue;
+            }
+            let created = a
+                .get(5)
+                .and_then(Value::as_array)
+                .filter(|x| x.first().and_then(Value::as_bool) == Some(true))
+                .and_then(|x| x.get(1))
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            let mut indexed: Vec<(i64, i64)> = created
+                .iter()
+                .flat_map(|g| g.as_array().cloned().unwrap_or_default())
+                .filter_map(|c| {
+                    let c = c.as_array()?;
+                    Some((c.first()?.as_i64()?, c.get(1)?.as_i64()?))
+                })
+                .collect();
+            if !indexed.is_empty() {
+                indexed.sort_unstable_by_key(|&(idx, _)| idx);
+                step_parts.entry(node).or_default().extend(indexed.into_iter().map(|(_, pid)| pid));
+            }
+        }
+    }
+    fn import_id(v: &Value, out: &mut Vec<i64>) {
+        if let Value::Array(a) = v {
+            if let [Value::Integer(k), Value::Integer(n)] = a.as_slice()
+                && k.as_i64() == Some(11)
+            {
+                out.extend(n.as_i64());
+            }
+            a.iter().for_each(|x| import_id(x, out));
+        }
+    }
+    let mut out = Vec::new();
+    for step in steps.iter().filter(|s| s.op == "MaterializeImportedBodies") {
+        let Some(partitions) = step_parts.get(&step.node) else { continue };
+        let mut ids = Vec::new();
+        step.params.iter().for_each(|(_, v)| import_id(v, &mut ids));
+        for (k, id) in ids.into_iter().enumerate() {
+            if partitions.get(k).is_some_and(|pid| !known.contains(pid)) {
+                out.push(id);
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// The bodies of [`uncovered_imports`], each from its prototype and placed by the import's transform.
+fn uncovered_import_bodies(
+    c: &rusqlite::Connection,
+    steps: &[Step],
+    gone: &std::collections::HashSet<i64>,
+) -> Result<(Vec<Body>, Unreadable)> {
+    if !has_table(c, "HistoryImportedPrototypes") || !has_table(c, "HistoryImportedBodies") {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    let wanted = uncovered_imports(c, steps, gone)?;
+    if wanted.is_empty() {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    // ImportedBodyID → (transform bytes, body bytes)
+    let mut proto: BTreeMap<i64, (Vec<u8>, Vec<u8>)> = BTreeMap::new();
+    {
+        let mut q = c.prepare(
+            "SELECT b.ImportedBodyID, b.Transform, p.BodyData \
+             FROM HistoryImportedBodies b JOIN HistoryImportedPrototypes p \
+             ON p.ImportedPrototypeID = b.ImportedPrototypeID",
+        )?;
+        for (id, t, data) in q.query_map([], |r| Ok((r.get::<_, i64>(0)?, blob(r.get(1)?), blob(r.get(2)?))))?.flatten() {
+            proto.insert(id, (t, data));
+        }
+    }
+    let mut out = Vec::new();
+    let mut unreadable: Unreadable = Vec::new();
+    for import_id in wanted {
+        let Some((t, data)) = proto.get(&import_id) else { continue };
+        let motion = rigid(t);
+        match shapecraft_xt::parse(data).and_then(|f| shapecraft_xt::bodies(&f)) {
+            Ok(bodies) => {
+                for mut body in bodies {
+                    if let Some((rot, shift)) = motion {
+                        body.brep.transform_rigid(rot, shift);
+                        if let Some(m) = &mut body.mesh {
+                            m.points.iter_mut().for_each(|p| *p = rot * *p + shift);
+                        }
+                    }
+                    out.push(Body {
+                        partition: None,
+                        import: Some(import_id),
+                        folder: Vec::new(),
+                        step: None,
+                        name: body.name,
+                        item_name_id: None,
+                        brep: body.brep,
+                        color: body.color,
+                        hidden: false,
+                        mesh: body.mesh,
+                    });
+                }
+            }
+            Err(e) => unreadable.push((None, e.to_string())),
+        }
+    }
+    Ok((out, unreadable))
+}
+
 /// An import's placement (MessagePack, 16 doubles, column-major 4×4 in meters) as a rotation and a shift in
 /// millimeters; None for the identity, or for anything that isn't a rigid motion.
 fn rigid(t: &[u8]) -> Option<(glam::DMat3, glam::DVec3)> {
@@ -1470,6 +1769,42 @@ fn rigid_matrix(m: &[f64]) -> Option<(glam::DMat3, glam::DVec3)> {
 #[cfg(test)]
 mod identity_tests {
     use super::*;
+
+    /// An import comes from its prototype only when its partition is nowhere in the file: not when the body was
+    /// deleted later, replaced by an edit, or is simply there.
+    #[test]
+    fn only_imports_without_any_revision_data_fall_back_to_their_prototypes() -> Result<()> {
+        let c = rusqlite::Connection::open_in_memory()?;
+        c.execute_batch(
+            "CREATE TABLE PersistedCalls (CallKey BLOB, CallData BLOB);
+             CREATE TABLE BodyRevisionBlocks (PartitionID INTEGER, ChunkIndex INTEGER, Block BLOB, Phase INTEGER, IsDeleted BOOL);
+             INSERT INTO BodyRevisionBlocks VALUES (300, 0, x'00', 2, 1), (400, 0, x'00', 2, 0), (500, 0, x'00', 0, 0);",
+        )?;
+        let int = |n: i64| Value::Integer(n.into());
+        let entry = |index: i64, partition: i64| Value::Array(vec![int(index), int(partition), int(3), int(index)]);
+        // Listed out of creation order: imports 1 to 5 made partitions 100 to 500.
+        let created = vec![entry(2, 300), entry(0, 100), entry(4, 500), entry(1, 200), entry(3, 400)];
+        let no = || Value::Array(vec![Value::Boolean(false)]);
+        let data = Value::Array(vec![
+            int(0),
+            Value::Array(vec![int(0)]),
+            no(),
+            no(),
+            int(0),
+            Value::Array(vec![Value::Boolean(true), Value::Array(vec![Value::Array(created)])]),
+        ]);
+        c.execute("INSERT INTO PersistedCalls VALUES (?1, ?2)", (pack(&Value::Array(vec![int(10)])), pack(&data)))?;
+        let imports = Value::Array((1..=5).map(|id| Value::Array(vec![int(11), int(id)])).collect());
+        let steps = vec![Step { node: 10, name: "Import".into(), op: "MaterializeImportedBodies".into(), params: vec![(11, imports)] }];
+        // 100: no revision data. 200: removed by a later step. 300: a deleted block (an edit made a newer partition).
+        // 400: there. 500: a block still being written.
+        let gone = std::collections::HashSet::from([200]);
+        assert_eq!(uncovered_imports(&c, &steps, &gone)?, [1]);
+        // A file in the older layout keeps whole partitions in their own table.
+        c.execute_batch("CREATE TABLE BodyRevisionPartitions (PartitionID INTEGER, Block BLOB); INSERT INTO BodyRevisionPartitions VALUES (100, x'00');")?;
+        assert!(uncovered_imports(&c, &steps, &gone)?.is_empty());
+        Ok(())
+    }
 
     #[test]
     fn imported_siblings_keep_distinct_item_name_ids() -> Result<()> {
