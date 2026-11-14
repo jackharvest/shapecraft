@@ -604,6 +604,13 @@ impl Session {
     /// is related when a related step used its sketch. Found by replaying the history on the side; `None` when it
     /// can't be (old steps, or a sketch being edited in the past).
     pub fn related_steps(&self, bodies: &[ItemId], sketches: &[ItemId]) -> Option<Vec<bool>> {
+        Some(self.related_among(&self.step_touches()?, bodies, sketches))
+    }
+
+    /// The bodies each history step makes or changes, found by replaying the history on the side: as slow as the
+    /// steps were (an import reads its file again), so a caller that asks often keeps the answer for the revision
+    /// and asks [`Session::related_among`]. `None` when the history can't be replayed.
+    pub fn step_touches(&self) -> Option<Vec<Vec<ItemId>>> {
         let steps = &self.doc.history;
         if self.editing_past() || steps.iter().any(|h| h.entries.is_empty()) {
             return None;
@@ -613,11 +620,11 @@ impl Session {
         fresh.doc.units = self.doc.units;
         fresh.doc.legacy_face_axes = self.doc.legacy_face_axes;
         fresh.doc.variables = self.doc.variables.clone();
-        let mut related = vec![false; steps.len()];
-        for (i, step) in steps.iter().enumerate() {
+        let mut touches = Vec::with_capacity(steps.len());
+        for step in steps {
             // By the display mesh, which every change makes anew (a mesh body's shape is empty and never changes).
-            let before: Vec<(ItemId, std::sync::Arc<shapecraft_kernel::Mesh>)> =
-                fresh.doc.bodies.iter().filter(|b| bodies.contains(&b.id)).map(|b| (b.id, b.mesh.clone())).collect();
+            let before: std::collections::HashMap<ItemId, std::sync::Arc<shapecraft_kernel::Mesh>> =
+                fresh.doc.bodies.iter().map(|b| (b.id, b.mesh.clone())).collect();
             if !step.suppressed && step.error.is_none() {
                 for e in &step.entries {
                     fresh.selection = e.selection.clone();
@@ -626,13 +633,30 @@ impl Session {
                 }
             }
             fresh.doc.reserve_ids(step.ids);
-            let touched = fresh
-                .doc
-                .bodies
-                .iter()
-                .any(|b| bodies.contains(&b.id) && !before.iter().any(|(id, m)| *id == b.id && std::sync::Arc::ptr_eq(m, &b.mesh)));
-            related[i] = !step.quiet && (touched || step.sketch.is_some_and(|s| sketches.contains(&s)));
+            touches.push(
+                fresh
+                    .doc
+                    .bodies
+                    .iter()
+                    .filter(|b| !before.get(&b.id).is_some_and(|m| std::sync::Arc::ptr_eq(m, &b.mesh)))
+                    .map(|b| b.id)
+                    .collect(),
+            );
         }
+        Some(touches)
+    }
+
+    /// [`Session::related_steps`] from what [`Session::step_touches`] found for this history.
+    pub fn related_among(&self, touches: &[Vec<ItemId>], bodies: &[ItemId], sketches: &[ItemId]) -> Vec<bool> {
+        let steps = &self.doc.history;
+        let mut related: Vec<bool> = steps
+            .iter()
+            .enumerate()
+            .map(|(i, step)| {
+                let touched = touches.get(i).is_some_and(|t| t.iter().any(|id| bodies.contains(id)));
+                !step.quiet && (touched || step.sketch.is_some_and(|s| sketches.contains(&s)))
+            })
+            .collect();
         // The sketches the related steps were made from.
         for i in (0..steps.len()).rev() {
             if !related[i] || steps[i].sketch.is_some() {
@@ -656,7 +680,7 @@ impl Session {
                 }
             }
         }
-        Some(related)
+        related
     }
 }
 

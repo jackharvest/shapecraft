@@ -5,7 +5,7 @@ use serde_json::{Value, json};
 use shapecraft_doc::{Pick, Sketch, SketchEntity, SketchPlane};
 
 use super::export::write_file;
-use super::import::{add_bodies, read_capped};
+use super::import::{add_bodies, add_meshed_body, read_capped};
 use super::path_param;
 use crate::{EngineError, Params, Result, Session};
 
@@ -30,6 +30,10 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
     let linking = s.doc.shapr.is_none();
     let made_by = |node: i64| project.bodies.iter().filter(|b| b.step == Some(node)).count();
     let mut deferred = Vec::new();
+    // The kernel's work on each body (rebuilding, triangulating, measuring) is most of an import's time and each
+    // body's is its own: done ahead, on several cores.
+    let mut ready = prepare(s, &project.bodies, linking);
+    let mut prints = std::collections::HashMap::new();
     let mut sketch_ids = Vec::new();
     let mut sketch_links = Vec::new();
     let mut construction_ids = Vec::new();
@@ -37,13 +41,13 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
     let mut curve_entity: std::collections::HashMap<i64, (shapecraft_doc::ItemId, u32)> = std::collections::HashMap::new();
     // Items come in the order their steps made them, so the Items list (newest first) reads as Shapr3D's does.
     let at = |node: Option<i64>| node.and_then(|n| project.steps.iter().position(|st| st.node == n)).unwrap_or(usize::MAX);
-    let mut order: Vec<(usize, std::result::Result<&shapecraft_shapr::Body, &shapecraft_shapr::Sketch>)> =
-        project.bodies.iter().map(|b| (at(b.step), Ok(b))).collect();
+    type Item<'a> = std::result::Result<(usize, &'a shapecraft_shapr::Body), &'a shapecraft_shapr::Sketch>;
+    let mut order: Vec<(usize, Item)> = project.bodies.iter().enumerate().map(|(i, b)| (at(b.step), Ok((i, b)))).collect();
     order.extend(project.sketches.iter().take(10_000).map(|k| (at(project.sketch_step(k.id)), Err(k))));
     order.sort_by_key(|(i, _)| *i);
     for (_, item) in order {
         match item {
-            Ok(body) => {
+            Ok((index, body)) => {
                 let op = body.step.and_then(|n| project.steps.iter().find(|st| st.node == n)).map(|st| st.op.as_str());
                 if let Some(id) = import_construction(s, body, op) {
                     construction_ids.push(id.0);
@@ -57,11 +61,13 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
                     .filter(|_| linking && body.folder.is_empty())
                     .and_then(|n| project.extrudes.iter().find(|e| e.node == n && made_by(n) == 1));
                 match extrude {
-                    Some(e) => deferred.push((body, e)),
-                    None => match add_shapr_body(s, body, &mut folders, &mut links) {
-                        Ok(made) => ids.extend(made),
-                        Err(e) => failed.push(format!("{}: {e}", body.name.as_deref().unwrap_or("a body"))),
-                    },
+                    Some(e) => deferred.push((index, body, e)),
+                    None => {
+                        match add_shapr_body(s, body, ready.get_mut(index).and_then(Option::take), &mut folders, &mut links, &mut prints) {
+                            Ok(made) => ids.extend(made),
+                            Err(e) => failed.push(format!("{}: {e}", body.name.as_deref().unwrap_or("a body"))),
+                        }
+                    }
                 }
             }
             Err(sk) => {
@@ -89,7 +95,7 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
     let made_folders = import_folder_tree(s, folders);
     s.refresh_regions();
     let mut redone = 0;
-    for (body, e) in deferred {
+    for (index, body, e) in deferred {
         let sketch = sketch_links.iter().find(|l| l.id == e.sketch).map(|l| l.sketch);
         match sketch.and_then(|k| matching_region(s, k, body, e).map(|r| (k, r))) {
             Some((sketch, (region, subs, size))) => {
@@ -115,7 +121,7 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
                     });
                 }
             }
-            None => match add_shapr_body(s, body, &mut Vec::new(), &mut links) {
+            None => match add_shapr_body(s, body, ready.get_mut(index).and_then(Option::take), &mut Vec::new(), &mut links, &mut prints) {
                 Ok(made) => ids.extend(made),
                 Err(e) => failed.push(format!("{}: {e}", body.name.as_deref().unwrap_or("a body"))),
             },
@@ -151,7 +157,10 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
         for (id, step, item_name_id) in links {
             let Some(b) = s.doc.body(id) else { continue };
             let (color, hidden) = (b.appearance.as_ref().map(|a| a.color), !b.visible);
-            let print = fingerprint_within(s, &b.shape.clone())?;
+            let print = match prints.remove(&id) {
+                Some(print) => print,
+                None => fingerprint_within(s, &b.shape.clone())?,
+            };
             refs.push(shapecraft_doc::ShaprBody {
                 body: id,
                 step,
@@ -185,8 +194,10 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
 fn add_shapr_body(
     s: &mut Session,
     body: &shapecraft_shapr::Body,
+    ready: Option<shapecraft_kernel::Result<Ready>>,
     folders: &mut Vec<(Vec<String>, Vec<shapecraft_doc::ItemId>)>,
     links: &mut Vec<(shapecraft_doc::ItemId, i64, Option<i64>)>,
+    prints: &mut std::collections::HashMap<shapecraft_doc::ItemId, (Vec<f64>, bool)>,
 ) -> Result<Vec<shapecraft_doc::ItemId>> {
     let made = match &body.mesh {
         // A facet body (an imported STL kept as a mesh in the file): it stays a mesh body here too.
@@ -200,7 +211,17 @@ fn add_shapr_body(
                 None => Vec::new(),
             }
         }
-        _ => add_bodies(s, vec![s.kernel.from_brep(&body.brep)?], body.name.as_deref())?,
+        _ => match ready {
+            Some(ready) => {
+                let ready = ready?;
+                let id = add_meshed_body(s, ready.shape, ready.mesh, body.name.as_deref());
+                if let Some(print) = ready.print {
+                    prints.insert(id, print);
+                }
+                vec![id]
+            }
+            None => add_bodies(s, vec![s.kernel.from_brep(&body.brep)?], body.name.as_deref())?,
+        },
     };
     if let (Some(step), [id]) = (body.step, made.as_slice()) {
         links.push((*id, step, body.item_name_id));
@@ -221,6 +242,60 @@ fn add_shapr_body(
         }
     }
     Ok(made)
+}
+
+/// A body the kernel has rebuilt and triangulated, with its fingerprint when it was asked for and could be had.
+struct Ready {
+    shape: shapecraft_kernel::Shape,
+    mesh: shapecraft_kernel::Mesh,
+    print: Option<(Vec<f64>, bool)>,
+}
+
+/// Each exact body rebuilt, triangulated and (with `prints`, those a step made) measured, on up to eight cores: one
+/// slot per body, empty for a mesh body.
+fn prepare(s: &Session, bodies: &[shapecraft_shapr::Body], prints: bool) -> Vec<Option<shapecraft_kernel::Result<Ready>>> {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let kernel: &dyn shapecraft_kernel::Kernel = s.kernel.as_ref();
+    let deflection = shapecraft_doc::project::deflection();
+    let build = |body: &shapecraft_shapr::Body| -> shapecraft_kernel::Result<Ready> {
+        let shape = kernel.from_brep(&body.brep)?;
+        let mesh = kernel.tessellate(&shape, deflection)?;
+        let print = (prints && body.step.is_some())
+            .then(|| {
+                kernel.mass_props_within(&shape, EXACT_SECONDS).ok().and_then(|(m, mesh)| Some((print_with(kernel, &shape, m).ok()?, mesh)))
+            })
+            .flatten();
+        Ok(Ready { shape, mesh, print })
+    };
+    let wanted = |body: &shapecraft_shapr::Body| !(body.mesh.is_some() && body.brep.faces.is_empty());
+    let mut out: Vec<Option<shapecraft_kernel::Result<Ready>>> = bodies.iter().map(|_| None).collect();
+    let workers = std::thread::available_parallelism().map_or(1, std::num::NonZero::get).min(8).min(bodies.len());
+    if workers < 2 {
+        return out;
+    }
+    let next = AtomicUsize::new(0);
+    let (tx, rx) = std::sync::mpsc::channel();
+    std::thread::scope(|scope| {
+        for _ in 0..workers {
+            let (tx, next, build) = (tx.clone(), &next, &build);
+            scope.spawn(move || {
+                loop {
+                    let i = next.fetch_add(1, Ordering::Relaxed);
+                    let Some(body) = bodies.get(i) else { break };
+                    if wanted(body) && tx.send((i, build(body))).is_err() {
+                        break;
+                    }
+                }
+            });
+        }
+        drop(tx);
+        for (i, built) in rx {
+            if let Some(slot) = out.get_mut(i) {
+                *slot = Some(built);
+            }
+        }
+    });
+    out
 }
 
 /// Construction partitions share the file's B-rep storage, but are planes/axes in Items, never solid bodies.
@@ -652,8 +727,16 @@ fn fingerprint_like(s: &Session, shape: &shapecraft_kernel::Shape, mesh: bool) -
 }
 
 fn print_of(s: &Session, shape: &shapecraft_kernel::Shape, m: shapecraft_kernel::MassProps) -> Result<Vec<f64>> {
-    let faces = s.kernel.face_count(shape)? as f64;
-    let b = s.kernel.bounds(shape)?;
+    Ok(print_with(s.kernel.as_ref(), shape, m)?)
+}
+
+fn print_with(
+    kernel: &dyn shapecraft_kernel::Kernel,
+    shape: &shapecraft_kernel::Shape,
+    m: shapecraft_kernel::MassProps,
+) -> shapecraft_kernel::Result<Vec<f64>> {
+    let faces = kernel.face_count(shape)? as f64;
+    let b = kernel.bounds(shape)?;
     Ok([m.volume, m.area, faces].into_iter().chain(m.centroid.to_array()).chain(b.min.to_array()).chain(b.max.to_array()).collect())
 }
 

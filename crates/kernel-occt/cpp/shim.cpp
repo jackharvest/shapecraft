@@ -132,6 +132,7 @@
 #include <Quantity_Color.hxx>
 #include <TCollection_ExtendedString.hxx>
 #include <STEPControl_Writer.hxx>
+#include <XSControl_WorkSession.hxx>
 #include <DESTEP_Parameters.hxx>
 #include <StepData_StepModel.hxx>
 #include <IGESControl_Reader.hxx>
@@ -559,8 +560,9 @@ int sk_write_step_schema(const SkShape* const* shapes, size_t n, const char* pat
     STEPControl_Writer writer;
     writer.Model(true)->InternalParameters = params;
     for (size_t i = 0; i < n; ++i) {
-      if (writer.Transfer(shapes[i]->shape, STEPControl_AsIs, params) != IFSelect_RetDone) return fail("STEP transfer failed");
+      if (writer.Transfer(shapes[i]->shape, STEPControl_AsIs, params, Standard_False) != IFSelect_RetDone) return fail("STEP transfer failed");
     }
+    writer.WS()->ComputeGraph(Standard_True);
     if (writer.Write(path) != IFSelect_RetDone) return fail("could not write STEP file");
     return 0;
   });
@@ -569,9 +571,12 @@ int sk_write_step_schema(const SkShape* const* shapes, size_t n, const char* pat
 int sk_write_step(const SkShape* const* shapes, size_t n, const char* path) {
   return guard([&] {
     STEPControl_Writer writer;
+    // The graph of the whole model is worked out once, after the last shape: doing it after each (the default)
+    // goes over everything written so far every time, minutes for a project of a couple of thousand bodies.
     for (size_t i = 0; i < n; ++i) {
-      if (writer.Transfer(shapes[i]->shape, STEPControl_AsIs) != IFSelect_RetDone) return fail("STEP transfer failed");
+      if (writer.Transfer(shapes[i]->shape, STEPControl_AsIs, Standard_False) != IFSelect_RetDone) return fail("STEP transfer failed");
     }
+    writer.WS()->ComputeGraph(Standard_True);
     if (writer.Write(path) != IFSelect_RetDone) return fail("could not write STEP file");
     return 0;
   });
