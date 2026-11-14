@@ -369,11 +369,9 @@ impl Project {
         let unreadable;
         (p.bodies, unreadable) = current_bodies(c)?;
         let gone = drop_removed(c, &p.steps, &mut Vec::new())?;
-        // Imported prototypes whose partition was never materialized into a revision block (e.g. the
-        // body was never edited, so Shapr3D skipped rebuilding it). Include them beside the already-
-        // cached bodies so the project opens complete.
-        let alive: std::collections::HashSet<i64> = p.bodies.iter().filter_map(|b| b.partition).filter(|id| !gone.contains(id)).collect();
-        let (extra_bodies, extra_unreadable) = uncovered_import_bodies(c, &p.steps, &alive)?;
+        // Imported bodies the file keeps no revision data for (it keeps revision blocks only for bodies that were
+        // rebuilt): they come from their prototypes, beside the cached ones, so the project opens complete.
+        let (extra_bodies, extra_unreadable) = uncovered_import_bodies(c, &p.steps, &gone)?;
         p.bodies.extend(extra_bodies);
         name_bodies(c, &p.steps, &p.items, &p.folders, &gone, &mut p.bodies)?;
         apply_moves(c, &p.steps, &mut p.bodies)?;
@@ -914,8 +912,8 @@ fn call_partitions(c: &rusqlite::Connection, bodies: &[Body]) -> Result<BTreeMap
                         .cloned()
                         .unwrap_or_default()
                 };
-                // Sort created-partition entries by their index field so the k-th partition lines up with
-                // the k-th name anchor even when Shapr3D stores them out of creation order.
+                // Sorted by their index field, so the k-th partition lines up with the k-th name anchor even when
+                // the file lists them out of creation order.
                 let mut indexed: Vec<(i64, i64)> = list(5)
                     .iter()
                     .flat_map(|g| g.as_array().cloned().unwrap_or_default())
@@ -1125,7 +1123,7 @@ fn name_from_calls(
 /// topology names the step gave that partition (`[partition, [true, [before, after, tags, names, n, _, lineage]]]`)
 /// and, under tag 0 of `lineage`, the bodies in the same call it carries on from (a Subtract's target, both halves of
 /// a Union). An item's anchor lists the face names of the body it means, so the partition holding those names is
-/// that item's body, and the newest name and visibility set on it are the ones Shapr3D shows.
+/// that item's body, and the newest name and visibility set on it are the ones that count.
 fn name_by_topology(
     c: &rusqlite::Connection,
     steps: &[Step],
@@ -1613,38 +1611,27 @@ fn current_bodies(c: &rusqlite::Connection) -> Result<(Vec<Body>, Unreadable)> {
     Ok((out, unreadable))
 }
 
-/// Bodies from `HistoryImportedPrototypes` for imports that were never rebuilt into a revision-block
-/// partition. When a Shapr3D project has cached partitions for *some* of its imported bodies (because
-/// those were edited) but not for others (never touched), `current_bodies` skips the prototype table;
-/// this function fills the gap so the project opens complete.
+/// The imports whose body the file keeps no revision data for, so it has to come from its prototype: the file keeps
+/// revision blocks only for bodies that were rebuilt, and an import nothing touched afterwards has none.
 ///
-/// Only runs for new-format `PersistedCalls` files (array length > 3); old-format files always store
-/// every imported body in `BodyRevisionPartitions`, so they need no extra pass.
-fn uncovered_import_bodies(
-    c: &rusqlite::Connection,
-    steps: &[Step],
-    alive: &std::collections::HashSet<i64>,
-) -> Result<(Vec<Body>, Unreadable)> {
-    if !has_table(c, "HistoryImportedPrototypes") || !has_table(c, "HistoryImportedBodies") || !has_table(c, "PersistedCalls") {
-        return Ok((Vec::new(), Vec::new()));
+/// An import step's k-th created partition (by creation index) belongs to its k-th import. Only a partition that
+/// shows up nowhere counts: not in the revision tables under any state, and not among the removed ones (`gone`). A
+/// body deleted later, or edited later into a newer partition, still has its first partition there, and bringing
+/// its prototype back would resurrect or duplicate it. An import with no partition recorded is left alone too.
+///
+/// Only calls in the newer layout (more than three slots) are read; files in the older one keep every imported
+/// body in `BodyRevisionPartitions`.
+fn uncovered_imports(c: &rusqlite::Connection, steps: &[Step], gone: &std::collections::HashSet<i64>) -> Result<Vec<i64>> {
+    if !has_table(c, "PersistedCalls") {
+        return Ok(Vec::new());
     }
-    // ImportedBodyID → (transform bytes, BRep bytes)
-    let mut proto: BTreeMap<i64, (Vec<u8>, Vec<u8>)> = BTreeMap::new();
-    {
-        let mut q = c.prepare(
-            "SELECT b.ImportedBodyID, b.Transform, p.BodyData \
-             FROM HistoryImportedBodies b JOIN HistoryImportedPrototypes p \
-             ON p.ImportedPrototypeID = b.ImportedPrototypeID",
-        )?;
-        for (id, t, data) in q.query_map([], |r| Ok((r.get::<_, i64>(0)?, blob(r.get(1)?), blob(r.get(2)?))))?.flatten() {
-            proto.insert(id, (t, data));
+    let mut known: std::collections::HashSet<i64> = gone.clone();
+    for table in ["BodyRevisionBlocks", "BodyRevisionPartitions"] {
+        if has_table(c, table) {
+            let mut q = c.prepare(&format!("SELECT DISTINCT PartitionID FROM {table}"))?;
+            known.extend(q.query_map([], |r| r.get::<_, i64>(0))?.flatten().take(10_000_000));
         }
     }
-    if proto.is_empty() {
-        return Ok((Vec::new(), Vec::new()));
-    }
-    // For each MaterializeImportedBodies step, the k-th slot-5 partition (sorted by creation index)
-    // corresponds to the k-th import ID extracted from the step params via [11, id] tags.
     let mut step_parts: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
     {
         let mut q = c.prepare("SELECT CallKey, CallData FROM PersistedCalls")?;
@@ -1654,7 +1641,7 @@ fn uncovered_import_bodies(
             let Some(a) = d.as_array() else { continue };
             if a.len() <= 3 {
                 continue;
-            } // old format; all imported bodies already in BodyRevisionPartitions
+            }
             let created = a
                 .get(5)
                 .and_then(Value::as_array)
@@ -1688,43 +1675,73 @@ fn uncovered_import_bodies(
         }
     }
     let mut out = Vec::new();
-    let mut unreadable: Unreadable = Vec::new();
     for step in steps.iter().filter(|s| s.op == "MaterializeImportedBodies") {
         let Some(partitions) = step_parts.get(&step.node) else { continue };
         let mut ids = Vec::new();
         step.params.iter().for_each(|(_, v)| import_id(v, &mut ids));
-        for (k, &import_id) in ids.iter().enumerate() {
-            let covered = partitions.get(k).is_some_and(|&pid| alive.contains(&pid));
-            if covered {
-                continue;
+        for (k, id) in ids.into_iter().enumerate() {
+            if partitions.get(k).is_some_and(|pid| !known.contains(pid)) {
+                out.push(id);
             }
-            let Some((t, data)) = proto.get(&import_id) else { continue };
-            let motion = rigid(t);
-            match shapecraft_xt::parse(data).and_then(|f| shapecraft_xt::bodies(&f)) {
-                Ok(bodies) => {
-                    for mut body in bodies {
-                        if let Some((rot, shift)) = motion {
-                            body.brep.transform_rigid(rot, shift);
-                            if let Some(m) = &mut body.mesh {
-                                m.points.iter_mut().for_each(|p| *p = rot * *p + shift);
-                            }
+        }
+    }
+    Ok(out)
+}
+
+/// The bodies of [`uncovered_imports`], each from its prototype and placed by the import's transform.
+fn uncovered_import_bodies(
+    c: &rusqlite::Connection,
+    steps: &[Step],
+    gone: &std::collections::HashSet<i64>,
+) -> Result<(Vec<Body>, Unreadable)> {
+    if !has_table(c, "HistoryImportedPrototypes") || !has_table(c, "HistoryImportedBodies") {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    let wanted = uncovered_imports(c, steps, gone)?;
+    if wanted.is_empty() {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    // ImportedBodyID → (transform bytes, body bytes)
+    let mut proto: BTreeMap<i64, (Vec<u8>, Vec<u8>)> = BTreeMap::new();
+    {
+        let mut q = c.prepare(
+            "SELECT b.ImportedBodyID, b.Transform, p.BodyData \
+             FROM HistoryImportedBodies b JOIN HistoryImportedPrototypes p \
+             ON p.ImportedPrototypeID = b.ImportedPrototypeID",
+        )?;
+        for (id, t, data) in q.query_map([], |r| Ok((r.get::<_, i64>(0)?, blob(r.get(1)?), blob(r.get(2)?))))?.flatten() {
+            proto.insert(id, (t, data));
+        }
+    }
+    let mut out = Vec::new();
+    let mut unreadable: Unreadable = Vec::new();
+    for import_id in wanted {
+        let Some((t, data)) = proto.get(&import_id) else { continue };
+        let motion = rigid(t);
+        match shapecraft_xt::parse(data).and_then(|f| shapecraft_xt::bodies(&f)) {
+            Ok(bodies) => {
+                for mut body in bodies {
+                    if let Some((rot, shift)) = motion {
+                        body.brep.transform_rigid(rot, shift);
+                        if let Some(m) = &mut body.mesh {
+                            m.points.iter_mut().for_each(|p| *p = rot * *p + shift);
                         }
-                        out.push(Body {
-                            partition: None,
-                            import: Some(import_id),
-                            folder: Vec::new(),
-                            step: None,
-                            name: body.name,
-                            item_name_id: None,
-                            brep: body.brep,
-                            color: body.color,
-                            hidden: false,
-                            mesh: body.mesh,
-                        });
                     }
+                    out.push(Body {
+                        partition: None,
+                        import: Some(import_id),
+                        folder: Vec::new(),
+                        step: None,
+                        name: body.name,
+                        item_name_id: None,
+                        brep: body.brep,
+                        color: body.color,
+                        hidden: false,
+                        mesh: body.mesh,
+                    });
                 }
-                Err(e) => unreadable.push((None, e.to_string())),
             }
+            Err(e) => unreadable.push((None, e.to_string())),
         }
     }
     Ok((out, unreadable))
@@ -1752,6 +1769,42 @@ fn rigid_matrix(m: &[f64]) -> Option<(glam::DMat3, glam::DVec3)> {
 #[cfg(test)]
 mod identity_tests {
     use super::*;
+
+    /// An import comes from its prototype only when its partition is nowhere in the file: not when the body was
+    /// deleted later, replaced by an edit, or is simply there.
+    #[test]
+    fn only_imports_without_any_revision_data_fall_back_to_their_prototypes() -> Result<()> {
+        let c = rusqlite::Connection::open_in_memory()?;
+        c.execute_batch(
+            "CREATE TABLE PersistedCalls (CallKey BLOB, CallData BLOB);
+             CREATE TABLE BodyRevisionBlocks (PartitionID INTEGER, ChunkIndex INTEGER, Block BLOB, Phase INTEGER, IsDeleted BOOL);
+             INSERT INTO BodyRevisionBlocks VALUES (300, 0, x'00', 2, 1), (400, 0, x'00', 2, 0), (500, 0, x'00', 0, 0);",
+        )?;
+        let int = |n: i64| Value::Integer(n.into());
+        let entry = |index: i64, partition: i64| Value::Array(vec![int(index), int(partition), int(3), int(index)]);
+        // Listed out of creation order: imports 1 to 5 made partitions 100 to 500.
+        let created = vec![entry(2, 300), entry(0, 100), entry(4, 500), entry(1, 200), entry(3, 400)];
+        let no = || Value::Array(vec![Value::Boolean(false)]);
+        let data = Value::Array(vec![
+            int(0),
+            Value::Array(vec![int(0)]),
+            no(),
+            no(),
+            int(0),
+            Value::Array(vec![Value::Boolean(true), Value::Array(vec![Value::Array(created)])]),
+        ]);
+        c.execute("INSERT INTO PersistedCalls VALUES (?1, ?2)", (pack(&Value::Array(vec![int(10)])), pack(&data)))?;
+        let imports = Value::Array((1..=5).map(|id| Value::Array(vec![int(11), int(id)])).collect());
+        let steps = vec![Step { node: 10, name: "Import".into(), op: "MaterializeImportedBodies".into(), params: vec![(11, imports)] }];
+        // 100: no revision data. 200: removed by a later step. 300: a deleted block (an edit made a newer partition).
+        // 400: there. 500: a block still being written.
+        let gone = std::collections::HashSet::from([200]);
+        assert_eq!(uncovered_imports(&c, &steps, &gone)?, [1]);
+        // A file in the older layout keeps whole partitions in their own table.
+        c.execute_batch("CREATE TABLE BodyRevisionPartitions (PartitionID INTEGER, Block BLOB); INSERT INTO BodyRevisionPartitions VALUES (100, x'00');")?;
+        assert!(uncovered_imports(&c, &steps, &gone)?.is_empty());
+        Ok(())
+    }
 
     #[test]
     fn imported_siblings_keep_distinct_item_name_ids() -> Result<()> {
