@@ -789,6 +789,9 @@ pub struct ShaprBody {
     pub body: ItemId,
     /// The history step (tree node id) that created the body in Shapr3D.
     pub step: i64,
+    /// The anchored item name that distinguishes bodies made by the same step.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub item_name_id: Option<i64>,
     /// Its name in Shapr3D's Items list when it came over.
     pub name: String,
     /// Volume, area, face count, centroid and bounding box (min, max) when it came over.

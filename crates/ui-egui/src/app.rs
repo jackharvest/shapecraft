@@ -783,18 +783,9 @@ impl ShapeCraftApp {
             if crate::workspace::import_prefs::wants_sheet(&path) {
                 params["heal"] = heal;
             }
-            if let Some(done) = ws.run("import_file", params) {
-                ws.standard_view(StandardView::Default);
-                // Solids with geometry we can't read yet are left out; say so rather than lose them quietly.
-                let skipped = done["unreadable"].as_array().map_or(0, Vec::len);
-                if skipped > 0 {
-                    ws.toast(format!(
-                        "{skipped} {} in this file couldn't be read yet and {} left out",
-                        if skipped == 1 { "solid" } else { "solids" },
-                        if skipped == 1 { "was" } else { "were" }
-                    ));
-                }
-            }
+            // On its own thread, so a big file keeps the window answering (#22).
+            let file = path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
+            ws.start_import(params, file);
         }
     }
 
@@ -1978,6 +1969,10 @@ impl ShapeCraftApp {
                 }
                 other => {
                     let Some(ws) = self.ws.as_deref_mut() else { continue };
+                    // The project waits while an import runs on its own thread (#22).
+                    if ws.importing.is_some() {
+                        continue;
+                    }
                     match other {
                         MenuAction::Command(id) => {
                             let _ = ws.run(id, json!({}));

@@ -55,6 +55,32 @@ fn point_of(f: &XtFile, vertex: u32) -> DVec3 {
     DVec3::from_array(get(f, get(f, vertex, "point").ptr(), "pvec").vec3().unwrap())
 }
 
+#[test]
+fn wire_body_edges_are_read_from_the_shell_without_faces() {
+    let k = OcctKernel::new();
+    let (mut f, _) = box_file(&k);
+    let body = f.nodes.iter().find(|n| f.type_name(n.ty) == "BODY").unwrap().index;
+    let edge = f.nodes.iter().find(|n| f.type_name(n.ty) == "EDGE").unwrap().index;
+    set(&mut f, body, "body_type", Val::Int(2));
+    set(&mut f, edge, "next", Val::Ptr(0));
+    set(&mut f, edge, "previous", Val::Ptr(0));
+    let shells: Vec<u32> = f.nodes.iter().filter(|n| f.type_name(n.ty) == "SHELL").map(|n| n.index).collect();
+    for (i, shell) in shells.into_iter().enumerate() {
+        set(&mut f, shell, "face", Val::Ptr(0));
+        set(&mut f, shell, "front_face", Val::Ptr(0));
+        set(&mut f, shell, "edge", Val::Ptr(if i == 0 { edge } else { 0 }));
+    }
+    let bodies = shapecraft_xt::bodies(&f).unwrap();
+    let b = &bodies[0].brep;
+    assert_eq!(b.kind, shapecraft_kernel::brep::BodyKind::Wire);
+    assert!(b.faces.is_empty());
+    assert_eq!(b.edges.len(), 1);
+    assert_eq!(b.vertices.len(), 2);
+    let shape = k.from_brep(b).unwrap();
+    let bounds = k.bounds(&shape).unwrap();
+    assert!((bounds.max - bounds.min).length() > 1.0);
+}
+
 /// A straight edge: (edge, its positive fin, its negative fin, start, end) with start/end in meters.
 fn an_edge(f: &XtFile) -> (u32, u32, u32, DVec3, DVec3) {
     let edge = f.nodes.iter().find(|n| f.type_name(n.ty) == "EDGE").unwrap().index;

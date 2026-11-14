@@ -121,12 +121,15 @@ fn nurbs_d1(s: &NurbsSurface, fu: &[f64], fv: &[f64], u: f64, v: f64) -> Option<
     let (su, sv) = (span(fu, pu, s.nu, u), span(fv, pv, s.nv, v));
     let (nu, du) = basis_ders(fu, pu, su, u);
     let (nv, dv) = basis_ders(fv, pv, sv, v);
+    // Keep accumulation local to the active poles; extrapolated basis functions can
+    // be very large, so multiplying them by a global origin loses precision.
+    let anchor = *s.poles.get((su - pu) * s.nv + (sv - pv))?;
     let (mut a, mut au, mut av) = (DVec3::ZERO, DVec3::ZERO, DVec3::ZERO);
     let (mut w, mut wu, mut wv) = (0.0, 0.0, 0.0);
     for i in 0..=pu {
         for j in 0..=pv {
             let k = (su - pu + i) * s.nv + (sv - pv + j);
-            let pole = *s.poles.get(k)?;
+            let pole = *s.poles.get(k)? - anchor;
             let wt = s.weights.as_ref().map_or(Some(1.0), |ws| ws.get(k).copied())?;
             let (b, bu, bv) = (nu[i] * nv[j] * wt, du[i] * nv[j] * wt, nu[i] * dv[j] * wt);
             a += b * pole;
@@ -140,8 +143,8 @@ fn nurbs_d1(s: &NurbsSurface, fu: &[f64], fv: &[f64], u: f64, v: f64) -> Option<
     if w.abs() < 1e-300 {
         return None;
     }
-    let p = a / w;
-    Some((p, (au - wu * p) / w, (av - wv * p) / w))
+    let local = a / w;
+    Some((anchor + local, (au - wu * local) / w, (av - wv * local) / w))
 }
 
 /// Closest point on a spline surface (best of a grid of samples, then Gauss–Newton steps) and the unit natural
@@ -168,11 +171,50 @@ fn project_nurbs(s: &NurbsSurface, p: DVec3) -> Option<(DVec3, DVec3)> {
             }
         }
     }
+    // Include each knot-span midpoint: a uniform grid can miss a short span entirely.
+    for uw in s.u_knots.windows(2).take(16) {
+        for vw in s.v_knots.windows(2).take(16) {
+            for u in [uw[0], (uw[0] + uw[1]) * 0.5, uw[1]] {
+                for v in [vw[0], (vw[0] + vw[1]) * 0.5, vw[1]] {
+                    let d = nurbs_d1(s, &fu, &fv, u, v)?.0.distance_squared(p);
+                    if d < best.0 {
+                        best = (d, u, v);
+                    }
+                }
+            }
+        }
+    }
     let (_, mut u, mut v) = best;
     for _ in 0..50 {
         let (q, su, sv) = nurbs_d1(s, &fu, &fv, u, v)?;
         let d = p - q;
-        let (a, b, c, r1, r2) = (su.dot(su), su.dot(sv), sv.dot(sv), su.dot(d), sv.dot(d));
+        let (r1, r2) = (su.dot(d), sv.dot(d));
+        let (ga, gb, gc) = (su.dot(su), su.dot(sv), sv.dot(sv));
+        // Differentiate the first derivatives within the current knot spans. The distance
+        // Hessian includes curvature, which matters when the point is far off the surface.
+        let difference = |full: &[f64], degree: usize, count: usize, t: f64| {
+            let i = span(full, degree, count, t);
+            let h = (full[i + 1] - full[i]).abs() * 1e-5;
+            let h = h.max((full[count] - full[degree]).abs() * 1e-10);
+            if t - h < full[i] {
+                (t, t + h)
+            } else if t + h > full[i + 1] {
+                (t - h, t)
+            } else {
+                (t - h, t + h)
+            }
+        };
+        let (ul, ur) = difference(&fu, pu, s.nu, u);
+        let (vl, vr) = difference(&fv, pv, s.nv, v);
+        let (_, sul, svul) = nurbs_d1(s, &fu, &fv, ul, v)?;
+        let (_, sur, svur) = nurbs_d1(s, &fu, &fv, ur, v)?;
+        let (_, _, svvl) = nurbs_d1(s, &fu, &fv, u, vl)?;
+        let (_, _, svvr) = nurbs_d1(s, &fu, &fv, u, vr)?;
+        let (mut a, mut b, mut c) =
+            (ga - d.dot((sur - sul) / (ur - ul)), gb - d.dot((svur - svul) / (ur - ul)), gc - d.dot((svvr - svvl) / (vr - vl)));
+        if a <= 0.0 || c <= 0.0 || a * c - b * b <= 1e-12 * ga * gc {
+            (a, b, c) = (ga, gb, gc);
+        }
         let det = a * c - b * b;
         if det.abs() < 1e-300 {
             break;
@@ -181,7 +223,27 @@ fn project_nurbs(s: &NurbsSurface, p: DVec3) -> Option<(DVec3, DVec3)> {
         // (A straight direction extends exactly, so further.)
         let reach = |deg: usize, range: f64| range * if deg == 1 { 10.0 } else { 1.0 };
         let (eu, ev) = (reach(pu, u1 - u0), reach(pv, v1 - v0));
-        let (nu, nv) = (((r1 * c - r2 * b) / det + u).clamp(u0 - eu, u1 + eu), ((a * r2 - b * r1) / det + v).clamp(v0 - ev, v1 + ev));
+        let (du, dv) = ((r1 * c - r2 * b) / det, (a * r2 - b * r1) / det);
+        let mut scale = 1.0;
+        let mut next = None;
+        // Near a repeated knot a full Newton step can jump onto the polynomial extension of another span.
+        // Only accept a step that improves the actual distance, rather than trusting the tangent plane alone.
+        // At tiny steps the distance comparison loses precision; let the iteration settle.
+        for _ in 0..14 {
+            let nu = (u + scale * du).clamp(u0 - eu, u1 + eu);
+            let nv = (v + scale * dv).clamp(v0 - ev, v1 + ev);
+            if let Some((at, tu, tv)) = nurbs_d1(s, &fu, &fv, nu, nv)
+                && (at.distance_squared(p) <= q.distance_squared(p)
+                    || ((du * su + dv * sv).length() < 1e-6
+                        && (tu.dot(p - at).abs() / tu.length() + tv.dot(p - at).abs() / tv.length())
+                            < (r1.abs() / su.length() + r2.abs() / sv.length())))
+            {
+                next = Some((nu, nv));
+                break;
+            }
+            scale *= 0.5;
+        }
+        let Some((nu, nv)) = next else { break };
         let done = (nu - u).abs() < 1e-14 * (u1 - u0) && (nv - v).abs() < 1e-14 * (v1 - v0);
         (u, v) = (nu, nv);
         if done {
@@ -207,11 +269,12 @@ pub fn on_both(surfaces: &[Surface], a: (usize, f64), b: (usize, f64), mut p: DV
         }
         let (ra, rb) = ((fa - p).dot(na), (fb - p).dot(nb));
         let step = (ra - c * rb) / det * na + (rb - c * ra) / det * nb;
-        p += step;
-        if step.length() < 1e-9 {
-            let ok = |s: (usize, f64)| project(surfaces, s.0, p).is_some_and(|(f, n)| (f + s.1 * n - p).length() < 1e-7);
-            return (ok(a) && ok(b)).then_some(p);
+        // Check the residuals at the point actually used to calculate these projections.
+        // Reprojecting after a negligible step can magnify rounding on extrapolated spans.
+        if step.length() < 1e-9 && (fa - p).length() < 1e-7 && (fb - p).length() < 1e-7 {
+            return Some(p);
         }
+        p += step;
     }
     None
 }
@@ -241,62 +304,65 @@ pub type Support = (usize, f64);
 
 /// The rolling-ball blend between two supports along `spine` (ball centers in the spine's own order), as a
 /// rational surface: u along the spine, v around the ball from the first support to the second.
-pub fn rolling_ball(surfaces: &[Surface], s: [Support; 2], spine: &[DVec3]) -> Option<NurbsSurface> {
-    let spine = densify(spine, 32, |p| on_both(surfaces, s[0], s[1], p))?;
+pub fn rolling_ball(surfaces: &[Surface], s: [Support; 2], spine: &[DVec3]) -> Result<NurbsSurface, &'static str> {
+    let spine = densify(spine, 32, |p| on_both(surfaces, s[0], s[1], p)).ok_or("ball centers do not meet the offset supports")?;
     // One extra station past each end, so the face's end arcs sit inside the surface.
     let n = spine.len();
-    let before = on_both(surfaces, s[0], s[1], spine[0] * 2.0 - spine[1])?;
-    let after = on_both(surfaces, s[0], s[1], spine[n - 1] * 2.0 - spine[n - 2])?;
+    let before = on_both(surfaces, s[0], s[1], spine[0] * 2.0 - spine[1]).ok_or("cannot extend the start of the blend")?;
+    let after = on_both(surfaces, s[0], s[1], spine[n - 1] * 2.0 - spine[n - 2]).ok_or("cannot extend the end of the blend")?;
     let centers: Vec<DVec3> = std::iter::once(before).chain(spine.iter().copied()).chain(std::iter::once(after)).collect();
-    let mut rows: Vec<[[f64; 4]; 3]> = Vec::with_capacity(centers.len());
+    let mut rows: Vec<[[f64; 4]; 5]> = Vec::with_capacity(centers.len());
     for c in &centers {
-        let (f0, _) = project(surfaces, s[0].0, *c)?;
-        let (f1, _) = project(surfaces, s[1].0, *c)?;
+        let (f0, _) = project(surfaces, s[0].0, *c).ok_or("cannot project to the first blend support")?;
+        let (f1, _) = project(surfaces, s[1].0, *c).ok_or("cannot project to the second blend support")?;
         let (d0, d1) = (f0 - *c, f1 - *c);
         let r = (d0.length() + d1.length()) / 2.0;
         let mid = d0.normalize_or_zero() + d1.normalize_or_zero();
         if r < 1e-9 || mid.length() < 1e-6 {
-            return None;
+            return Err("degenerate circular section of a blend");
         }
-        let half = d0.angle_between(d1) / 2.0;
-        let w = half.cos();
-        let m = *c + mid.normalize() * (r / w);
+        // Two circular arcs keep each weight near one, even where a blend opens almost 180 degrees. A
+        // single arc's near-zero middle weights can become negative when interpolated along the spine.
+        let w = (d0.angle_between(d1) / 4.0).cos();
+        let middle = mid.normalize();
+        let m0 = *c + (d0.normalize() + middle).normalize() * (r / w);
+        let m1 = *c + (middle + d1.normalize()).normalize() * (r / w);
         let h = |p: DVec3, w: f64| [p.x * w, p.y * w, p.z * w, w];
-        rows.push([h(f0, 1.0), h(m, w), h(f1, 1.0)]);
+        rows.push([h(f0, 1.0), h(m0, w), h(*c + middle * r, 1.0), h(m1, w), h(f1, 1.0)]);
     }
     // Ball centers parametrize u (chord length); every pole row is interpolated in homogeneous coordinates so
     // the surface goes through each station's arc exactly.
     let params = chord_params(&centers);
-    let (knots, mults, full) = averaged_knots(&params, 3)?;
+    let (knots, mults, full) = averaged_knots(&params, 3).ok_or("not enough distinct blend stations")?;
     let mut cols: Vec<Vec<[f64; 4]>> = Vec::new();
-    for j in 0..3 {
+    for j in 0..5 {
         let pts: Vec<[f64; 4]> = rows.iter().map(|r| r[j]).collect();
-        cols.push(interpolate(&params, &full, 3, &pts)?);
+        cols.push(interpolate(&params, &full, 3, &pts).ok_or("cannot interpolate the blend stations")?);
     }
     let nu = cols[0].len();
-    let mut poles = Vec::with_capacity(nu * 3);
-    let mut weights = Vec::with_capacity(nu * 3);
+    let mut poles = Vec::with_capacity(nu * 5);
+    let mut weights = Vec::with_capacity(nu * 5);
     for i in 0..nu {
         for col in &cols {
             let [x, y, z, w] = col[i];
-            if w.abs() < 1e-9 {
-                return None;
+            if w < 1e-9 {
+                return Err("nonpositive rational blend weight");
             }
             poles.push(DVec3::new(x / w, y / w, z / w));
             weights.push(w);
         }
     }
-    Some(NurbsSurface {
+    Ok(NurbsSurface {
         u_degree: 3,
         v_degree: 2,
         nu,
-        nv: 3,
+        nv: 5,
         poles,
         weights: Some(weights),
         u_knots: knots,
         u_mults: mults,
-        v_knots: vec![0.0, 1.0],
-        v_mults: vec![3, 3],
+        v_knots: vec![0.0, 0.5, 1.0],
+        v_mults: vec![3, 2, 3],
         u_periodic: false,
         v_periodic: false,
     })
@@ -441,6 +507,33 @@ mod tests {
     }
 
     #[test]
+    fn projection_finds_a_short_knot_span() {
+        // A narrow triangular ridge in an extrusion; uniform parameter samples miss it.
+        let mut poles = Vec::new();
+        for x in [0.0, 0.0, 10.0, 0.0, 0.0] {
+            for y in [0.0, 2.0] {
+                poles.push(DVec3::new(x, y, 0.0));
+            }
+        }
+        let s = NurbsSurface {
+            u_degree: 1,
+            v_degree: 1,
+            nu: 5,
+            nv: 2,
+            poles,
+            weights: None,
+            u_knots: vec![0.0, 0.172, 0.173, 0.174, 1.0],
+            u_mults: vec![2, 1, 1, 1, 2],
+            v_knots: vec![0.0, 1.0],
+            v_mults: vec![2, 2],
+            u_periodic: false,
+            v_periodic: false,
+        };
+        let (q, _) = project_nurbs(&s, DVec3::new(9.0, 1.0, 0.2)).expect("projection");
+        assert!(q.distance(DVec3::new(9.0, 1.0, 0.0)) < 1e-8, "{q:?}");
+    }
+
+    #[test]
     fn a_cone_and_a_plane_meet_on_their_exact_curve() {
         let surfaces = vec![
             Surface::Cone { origin: DVec3::ZERO, axis: DVec3::Z, x: DVec3::X, radius: 5.0, half_angle: 0.1 },
@@ -487,6 +580,44 @@ mod tests {
         assert!(((pv - p) / h - sv).length() < 1e-4, "{sv} vs {}", (pv - p) / h);
         // On the parabola: z = x².
         assert!((p.z - p.x * p.x).abs() < 1e-12);
+    }
+
+    #[test]
+    fn far_extrapolation_preserves_a_translated_linear_bezier() {
+        let origin = DVec3::new(143.123456789, -97.123456789, 63.123456789);
+        let mut poles = Vec::new();
+        for i in 0..5 {
+            for j in 0..2 {
+                poles.push(origin + DVec3::new(i as f64 / 512.0, j as f64, 0.0));
+            }
+        }
+        let s = NurbsSurface {
+            u_degree: 4,
+            v_degree: 1,
+            nu: 5,
+            nv: 2,
+            poles,
+            weights: None,
+            u_knots: vec![0.0, 1.0],
+            u_mults: vec![5, 5],
+            v_knots: vec![0.0, 1.0],
+            v_mults: vec![2, 2],
+            u_periodic: false,
+            v_periodic: false,
+        };
+        let (fu, fv) = (full_knots(&s.u_knots, &s.u_mults), full_knots(&s.v_knots, &s.v_mults));
+        let (q, su, sv) = nurbs_d1(&s, &fu, &fv, 60.3, 0.4).expect("evaluation");
+        assert!(q.distance(origin + DVec3::new(4.0 * 60.3 / 512.0, 0.4, 0.0)) < 1e-8, "{q:?}");
+        assert!(su.distance(DVec3::new(4.0 / 512.0, 0.0, 0.0)) < 1e-9, "{su:?}");
+        assert!(sv.distance(DVec3::Y) < 1e-8, "{sv:?}");
+    }
+
+    #[test]
+    fn projection_near_the_curvature_center_converges_to_the_known_foot() {
+        let foot = DVec3::new(0.4, 1.2, 0.16);
+        let normal = DVec3::new(-0.8, 0.0, 1.0).normalize();
+        let (q, _) = project_nurbs(&parabola_sheet(), foot + 0.5 * normal).expect("projection");
+        assert!(q.distance(foot) < 1e-9, "{q:?}");
     }
 
     #[test]

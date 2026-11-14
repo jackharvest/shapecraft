@@ -209,8 +209,7 @@ impl<'a> Cx<'a> {
                     }
                     _ => return Err(bad(format!("blend #{p} has a spine we can't follow yet"))),
                 };
-                let s = blend::rolling_ball(&self.b.surfaces, supports, &centers)
-                    .ok_or_else(|| bad(format!("blend #{p}: its supports are not supported yet")))?;
+                let s = blend::rolling_ball(&self.b.surfaces, supports, &centers).map_err(|e| bad(format!("blend #{p}: {e}")))?;
                 (Surface::BSpline(s), reversed)
             }
             other => return Err(bad(format!("surface type {other} (#{p}) is not supported yet"))),
@@ -738,6 +737,18 @@ fn body(f: &XtFile, n: &Node) -> Result<Body> {
                     if guard > 1 << 22 {
                         return Err(bad("face chain runaway"));
                     }
+                }
+            }
+            // Wire bodies (including construction axes) carry their edges directly on the shell, with no faces.
+            if cx.b.kind == BodyKind::Wire {
+                let mut edge = cx.ptr(shell, "edge");
+                let mut visited = std::collections::HashSet::new();
+                while let Some(e) = cx.node(edge) {
+                    if !visited.insert(edge) || visited.len() > 1 << 22 {
+                        return Err(bad("wire edge chain runaway"));
+                    }
+                    cx.edge(edge, 0)?;
+                    edge = cx.ptr(e, "next");
                 }
             }
             sp = cx.ptr(shell, "next");

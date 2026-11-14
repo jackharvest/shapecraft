@@ -48,7 +48,7 @@ fn main() {
             meshes += 1;
             continue;
         }
-        let who = format!("{:?} part {:?} ({} faces)", b.name, b.partition, b.brep.faces.len());
+        let who = format!("{:?} part {:?}, step {:?} ({:?}, {} faces)", b.name, b.partition, b.step, b.brep.kind, b.brep.faces.len());
         let tb = Instant::now();
         let built = k.from_brep(&b.brep);
         let secs = tb.elapsed().as_secs_f64();
@@ -70,6 +70,18 @@ fn main() {
                 }
             }
             Err(e) => {
+                if a.iter().any(|a| a == "--surfaces") {
+                    for (i, surface) in b.brep.surfaces.iter().enumerate() {
+                        if let shapecraft_kernel::brep::Surface::BSpline(n) = surface {
+                            let (lo, hi) =
+                                n.weights.iter().flatten().fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), &w| (lo.min(w), hi.max(w)));
+                            println!(
+                                "  {who} surface {i}: {}x{} poles, degree {}/{}, weights {lo}..{hi}",
+                                n.nu, n.nv, n.u_degree, n.v_degree
+                            );
+                        }
+                    }
+                }
                 groups.entry(format!("occt: {}", squash(&e.to_string()))).or_default().push(who);
                 failed_parts.extend(b.partition);
             }

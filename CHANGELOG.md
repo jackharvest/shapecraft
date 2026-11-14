@@ -2,6 +2,31 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.8.1-alpha
+**Big imports no longer freeze the window, more .shapr projects come in whole, and Slovak.**
+### New
+- **Imports run in the background.** A big STEP, IGES, Parasolid or .shapr file no longer freezes ShapeCraft while it
+  comes in: a card shows the file and the time so far, and **Cancel** stops it and leaves the project as it was.
+  Thanks [@chickey](https://github.com/chickey) (#22).
+- **Slovenčina** in Preferences ▸ Language. Thanks [@Hardo12](https://github.com/Hardo12) (#17).
+### Changed
+- **Faster orbiting on big models.** Bodies outside the view aren't drawn, and closed solids skip the back of their
+  faces (sheets, open meshes and Section View still show both sides). Thanks [@chickey](https://github.com/chickey)
+  (#24).
+### Fixed
+- **Box selection in a sketch takes its regions with Faces (F).** Dragging a box over a sketch you're drawing and
+  pressing F used to pick nothing. Thanks [@leo-smi](https://github.com/leo-smi) (#19).
+- **Importing a .shapr file with very dense free-form surfaces no longer hangs** working out their volume: such a body
+  is measured from its triangles in seconds. Thanks [@chickey](https://github.com/chickey) (#20).
+- **STEP import with Quality healing can't hang on one bad shape any more.** A repair that runs past 20 seconds is
+  tried again without its slowest step, and after that the shape comes in unrepaired, with a note saying how many.
+  Thanks [@chickey](https://github.com/chickey) (#21).
+- **.shapr projects come in whole more often:** lemon-shaped tori (an enclosure lost 6 of its 29 parts), offset
+  surfaces on smooth B-spline faces (a chair lost 3 parts), a torus face that came in inside out, and construction
+  planes made from a face offset all read correctly now.
+- **Exporting back into a .shapr project says when an edit can't be kept in that file** (a rename or color change
+  on a body it can't place) instead of quietly dropping it.
+
 ## 0.8.0-alpha
 **STL and OBJ files stay light mesh bodies, .shapr projects with meshes open in seconds, and new ways to install.**
 ### New

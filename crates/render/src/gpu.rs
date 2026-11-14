@@ -137,6 +137,49 @@ struct BodyGpu {
     written: Vec<u8>,
     bind: wgpu::BindGroup,
     used: bool,
+    /// The triangles close up, each edge shared once each way, around a positive volume: its back faces never
+    /// show (unless a section cuts it open), so they can be skipped (#24).
+    closed_outward: bool,
+}
+
+/// Whether a mesh is a closed surface wound outwards: every edge (between points at the very same place) is used once
+/// in each direction, and the enclosed volume is positive. Faces meshed apart share their edges' points exactly, so a
+/// solid's mesh passes; a sheet, an open mesh or one with a flipped face doesn't, and keeps both sides drawn (#24).
+pub fn closed_outward(mesh: &Mesh) -> bool {
+    let key = |i: u32| mesh.positions.get(i as usize).map(|p| p.map(f32::to_bits));
+    let mut edges: HashMap<([u32; 3], [u32; 3]), i32> = HashMap::with_capacity(mesh.indices.len());
+    let mut volume = 0.0f64;
+    for t in mesh.indices.as_chunks::<3>().0 {
+        let (Some(a), Some(b), Some(c)) = (key(t[0]), key(t[1]), key(t[2])) else { return false };
+        if a == b || b == c || c == a {
+            continue;
+        }
+        for (u, v) in [(a, b), (b, c), (c, a)] {
+            // +1 one way, -1 the other: a closed, consistently wound mesh sums every edge to 0.
+            let (k, d) = if u < v { ((u, v), 1) } else { ((v, u), -1) };
+            *edges.entry(k).or_insert(0) += d;
+        }
+        let p = |k: [u32; 3]| glam::DVec3::from_array(k.map(|b| f32::from_bits(b) as f64));
+        volume += p(a).dot(p(b).cross(p(c)));
+    }
+    !edges.is_empty() && edges.values().all(|&n| n == 0) && volume > 0.0
+}
+
+/// Whether the box (corners low, high) lies wholly outside the view: all eight corners beyond one side of the clip
+/// volume. Bodies off screen aren't drawn at all (#24).
+pub(crate) fn off_screen(view_proj: &glam::Mat4, (lo, hi): ([f32; 3], [f32; 3])) -> bool {
+    let corners: Vec<glam::Vec4> = (0..8)
+        .map(|i| {
+            let c = glam::Vec3::new(
+                if i & 1 == 0 { lo[0] } else { hi[0] },
+                if i & 2 == 0 { lo[1] } else { hi[1] },
+                if i & 4 == 0 { lo[2] } else { hi[2] },
+            );
+            *view_proj * c.extend(1.0)
+        })
+        .collect();
+    let all = |f: &dyn Fn(&glam::Vec4) -> bool| corners.iter().all(f);
+    all(&|c| c.x < -c.w) || all(&|c| c.x > c.w) || all(&|c| c.y < -c.w) || all(&|c| c.y > c.w) || all(&|c| c.z < 0.0) || all(&|c| c.z > c.w)
 }
 
 /// Two triangles per segment, as (the depth-tested ones, the ones on top).
@@ -222,6 +265,7 @@ pub struct Renderer {
     device: wgpu::Device,
     queue: wgpu::Queue,
     mesh_pipeline: wgpu::RenderPipeline,
+    mesh_cull_pipeline: wgpu::RenderPipeline,
     xray_pipeline: wgpu::RenderPipeline,
     ghost_pipeline: wgpu::RenderPipeline,
     /// The hidden part of what's selected (or hovered in the Items list), faintly over what hides it.
@@ -384,7 +428,7 @@ impl Renderer {
             immediate_size: 0,
         });
 
-        let make = |layout: &wgpu::PipelineLayout, spec: PipelineSpec| {
+        let make_culled = |layout: &wgpu::PipelineLayout, spec: PipelineSpec, cull_mode: Option<wgpu::Face>| {
             device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
                 label: Some(spec.label),
                 layout: Some(layout),
@@ -394,7 +438,7 @@ impl Renderer {
                     compilation_options: Default::default(),
                     buffers: &spec.buffers.iter().cloned().map(Some).collect::<Vec<_>>(),
                 },
-                primitive: wgpu::PrimitiveState { topology: spec.topology, cull_mode: None, ..Default::default() },
+                primitive: wgpu::PrimitiveState { topology: spec.topology, cull_mode, ..Default::default() },
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: DEPTH_FORMAT,
                     depth_write_enabled: Some(spec.depth_write),
@@ -427,23 +471,24 @@ impl Renderer {
         let line_buf = [layout_of(std::mem::size_of::<LineVertex>(), &LINE_ATTRS)];
         let dot_buf = [layout_of(std::mem::size_of::<DotVertex>(), &DOT_ATTRS)];
         let fill_buf = [layout_of(std::mem::size_of::<FillVertex>(), &FILL_ATTRS)];
+        let make = |layout: &wgpu::PipelineLayout, spec: PipelineSpec| make_culled(layout, spec, None);
         let alpha = Some(wgpu::BlendState::ALPHA_BLENDING);
         let tri = wgpu::PrimitiveTopology::TriangleList;
         use wgpu::CompareFunction::{Always, LessEqual};
 
-        let mesh_pipeline = make(
-            &mesh_layout,
-            PipelineSpec {
-                label: "mesh",
-                vs: "vs_mesh",
-                fs: "fs_mesh",
-                buffers: &mesh_buf,
-                topology: tri,
-                depth_write: true,
-                depth_compare: LessEqual,
-                blend: None,
-            },
-        );
+        let mesh_spec = || PipelineSpec {
+            label: "mesh",
+            vs: "vs_mesh",
+            fs: "fs_mesh",
+            buffers: &mesh_buf,
+            topology: tri,
+            depth_write: true,
+            depth_compare: LessEqual,
+            blend: None,
+        };
+        let mesh_pipeline = make(&mesh_layout, mesh_spec());
+        // Closed bodies whose triangles all face outwards skip their back faces (#24).
+        let mesh_cull_pipeline = make_culled(&mesh_layout, mesh_spec(), Some(wgpu::Face::Back));
         let xray_pipeline = make(
             &mesh_layout,
             PipelineSpec {
@@ -681,6 +726,7 @@ impl Renderer {
             device,
             queue,
             mesh_pipeline,
+            mesh_cull_pipeline,
             xray_pipeline,
             through_pipeline,
             ghost_pipeline,
@@ -852,6 +898,7 @@ impl Renderer {
             written: Vec::new(),
             bind,
             used: true,
+            closed_outward: closed_outward(mesh),
         }
     }
 
@@ -921,6 +968,7 @@ impl Renderer {
             b.used = false;
         }
         let sketching = scene.active_sketch.is_some() && !scene.presentation && scene.display.solid();
+        let view_proj = camera.view_proj(px);
         let mut draws = Vec::new();
         let mut ghost_draws = Vec::new();
         let mut see_draws = Vec::new();
@@ -994,6 +1042,9 @@ impl Renderer {
                 uni.flags[3] = 1;
             }
             let Some(gpu) = self.body_gpu(key, &body.mesh) else { continue };
+            if body.mesh.bounds().is_some_and(|b| off_screen(&view_proj, b)) {
+                continue;
+            }
             let bytes = bytemuck::bytes_of(&uni);
             if gpu.written != bytes {
                 gpu.written = bytes.to_vec();
@@ -1085,14 +1136,24 @@ impl Renderer {
                 Some(mp) => vec![mp],
                 None => Vec::new(),
             };
+            // Shaded closed bodies skip their back faces, unless a section opens them up (#24).
+            let cull = scene.section.is_none();
             for mp in mesh_passes {
-                pass.set_pipeline(mp);
-                for key in &draws {
-                    if let Some(b) = self.bodies.get(key) {
-                        pass.set_bind_group(1, &b.bind, &[]);
-                        pass.set_vertex_buffer(0, b.vertices.slice(..));
-                        pass.set_index_buffer(b.indices.slice(..), wgpu::IndexFormat::Uint32);
-                        pass.draw_indexed(0..b.count, 0, 0..1);
+                let culling = cull && std::ptr::eq(mp, &self.mesh_pipeline);
+                for (pipeline, closed) in [(mp, false), (&self.mesh_cull_pipeline, true)] {
+                    if closed && !culling {
+                        continue;
+                    }
+                    pass.set_pipeline(pipeline);
+                    for key in &draws {
+                        if let Some(b) = self.bodies.get(key)
+                            && (!culling || b.closed_outward == closed)
+                        {
+                            pass.set_bind_group(1, &b.bind, &[]);
+                            pass.set_vertex_buffer(0, b.vertices.slice(..));
+                            pass.set_index_buffer(b.indices.slice(..), wgpu::IndexFormat::Uint32);
+                            pass.draw_indexed(0..b.count, 0, 0..1);
+                        }
                     }
                 }
             }
@@ -1416,4 +1477,55 @@ fn gaussian_curvature(mesh: &Mesh, tri: &[u32]) -> f32 {
     }
     let k = (n1 - n0).cross(n2 - n0).dot(area) / len2;
     if k.is_finite() { k } else { 0.0 }
+}
+
+#[cfg(test)]
+mod cull_tests {
+    use super::*;
+
+    /// A unit cube, its triangles wound outwards (counter-clockwise seen from outside).
+    fn cube() -> Mesh {
+        let positions = vec![
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [1.0, 1.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, 1.0],
+            [1.0, 0.0, 1.0],
+            [1.0, 1.0, 1.0],
+            [0.0, 1.0, 1.0],
+        ];
+        let quads = [[0, 3, 2, 1], [4, 5, 6, 7], [0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7]];
+        let indices = quads.iter().flat_map(|q| [q[0], q[1], q[2], q[0], q[2], q[3]]).collect();
+        Mesh { positions, indices, ..Default::default() }
+    }
+
+    #[test]
+    fn only_a_closed_outward_mesh_skips_its_back_faces() {
+        let m = cube();
+        assert!(closed_outward(&m));
+        let mut flipped = m.clone();
+        flipped.indices.swap(0, 1);
+        assert!(!closed_outward(&flipped), "one face wound the other way");
+        let mut inside_out = m.clone();
+        for t in inside_out.indices.chunks_mut(3) {
+            t.swap(0, 1);
+        }
+        assert!(!closed_outward(&inside_out), "wound inwards: negative volume");
+        let mut open = m;
+        open.indices.truncate(30);
+        assert!(!closed_outward(&open), "a missing face leaves edges used once");
+        assert!(!closed_outward(&Mesh::default()));
+    }
+
+    #[test]
+    fn a_box_beside_the_view_is_off_screen() {
+        let mut cam = Camera::default();
+        cam.fit(glam::DVec3::ZERO, glam::DVec3::splat(10.0));
+        let vp = cam.view_proj(DVec2::new(800.0, 600.0));
+        assert!(!off_screen(&vp, ([0.0; 3], [10.0; 3])));
+        assert!(off_screen(&vp, ([1.0e5, 1.0e5, 1.0e5], [1.0e5 + 1.0; 3])));
+        // A big box around the eye is never culled.
+        assert!(!off_screen(&vp, ([-1.0e5; 3], [1.0e5; 3])));
+    }
 }

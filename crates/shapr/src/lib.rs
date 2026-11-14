@@ -134,6 +134,8 @@ pub struct Body {
     /// The history step (tree node id) that created it, when known.
     pub step: Option<i64>,
     pub name: Option<String>,
+    /// The assigned Items-list name identifier, when known.
+    pub item_name_id: Option<i64>,
     pub brep: Brep,
     pub color: Option<[f32; 3]>,
     /// Hidden in Shapr3D's Items list.
@@ -287,6 +289,44 @@ pub fn pack(v: &Value) -> Vec<u8> {
     out
 }
 
+fn history_steps(c: &rusqlite::Connection) -> Result<Vec<Step>> {
+    let mut steps = Vec::new();
+    let mut nodes: BTreeMap<i64, (i64, Value)> = BTreeMap::new();
+    {
+        let mut q = c.prepare("SELECT HistoryTreeNodeID, HistoryTreeNodeType, Properties FROM HistoryTreeNodes")?;
+        let rows = q.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, blob(r.get(2)?))))?;
+        for (id, ty, props) in rows.flatten() {
+            if let Some(v) = unpack(&props) {
+                nodes.insert(id, (ty, v));
+            }
+        }
+    }
+    // The root (type 0) lists the steps in order: `['<root>', [ids]]`, or just `[[ids]]` in releases up to early 2025.
+    let root_children = nodes
+        .values()
+        .find(|(ty, _)| *ty == 0)
+        .and_then(|(_, v)| v.as_array()?.iter().find_map(|x| x.as_array().cloned()))
+        .unwrap_or_default();
+    for child in root_children {
+        let Some(id) = child.as_i64() else { continue };
+        let Some((_, v)) = nodes.get(&id) else { continue };
+        let Some(a) = v.as_array() else { continue };
+        // A step is `[_, _, name, op, [params]]`, or `[_, name, op, [params]]` in the older files: the name and
+        // operation are the two strings, the parameter nodes the list after them.
+        let at = a.iter().position(Value::is_str).unwrap_or(2);
+        let a: Vec<Value> =
+            std::iter::repeat_n(Value::Nil, 2usize.saturating_sub(at)).chain(a[at.saturating_sub(2)..].iter().cloned()).collect();
+        let s = |i: usize| a.get(i).and_then(|x| x.as_str()).unwrap_or("").to_string();
+        let params = a
+            .get(4)
+            .and_then(|x| x.as_array())
+            .map(|ps| ps.iter().filter_map(|x| x.as_i64()).filter_map(|pid| nodes.get(&pid).map(|(_, pv)| (pid, pv.clone()))).collect())
+            .unwrap_or_default();
+        steps.push(Step { node: id, name: s(2), op: s(3), params });
+    }
+    Ok(steps)
+}
+
 impl Project {
     pub fn read(file: &ShaprFile) -> Result<Self> {
         let db = file.db()?;
@@ -299,39 +339,7 @@ impl Project {
                 p.settings.insert(row.0, row.1);
             }
         }
-        let mut nodes: BTreeMap<i64, (i64, Value)> = BTreeMap::new();
-        {
-            let mut q = c.prepare("SELECT HistoryTreeNodeID, HistoryTreeNodeType, Properties FROM HistoryTreeNodes")?;
-            let rows = q.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, blob(r.get(2)?))))?;
-            for (id, ty, props) in rows.flatten() {
-                if let Some(v) = unpack(&props) {
-                    nodes.insert(id, (ty, v));
-                }
-            }
-        }
-        // The root (type 0) lists the steps in order: `['<root>', [ids]]`, or just `[[ids]]` in releases up to early 2025.
-        let root_children = nodes
-            .values()
-            .find(|(ty, _)| *ty == 0)
-            .and_then(|(_, v)| v.as_array()?.iter().find_map(|x| x.as_array().cloned()))
-            .unwrap_or_default();
-        for child in root_children {
-            let Some(id) = child.as_i64() else { continue };
-            let Some((_, v)) = nodes.get(&id) else { continue };
-            let Some(a) = v.as_array() else { continue };
-            // A step is `[_, _, name, op, [params]]`, or `[_, name, op, [params]]` in the older files: the name and
-            // operation are the two strings, the parameter nodes the list after them.
-            let at = a.iter().position(Value::is_str).unwrap_or(2);
-            let a: Vec<Value> =
-                std::iter::repeat_n(Value::Nil, 2usize.saturating_sub(at)).chain(a[at.saturating_sub(2)..].iter().cloned()).collect();
-            let s = |i: usize| a.get(i).and_then(|x| x.as_str()).unwrap_or("").to_string();
-            let params = a
-                .get(4)
-                .and_then(|x| x.as_array())
-                .map(|ps| ps.iter().filter_map(|x| x.as_i64()).filter_map(|pid| nodes.get(&pid).map(|(_, pv)| (pid, pv.clone()))).collect())
-                .unwrap_or_default();
-            p.steps.push(Step { node: id, name: s(2), op: s(3), params });
-        }
+        p.steps = history_steps(c)?;
         {
             let mut q = c.prepare("SELECT FolderID, FolderName, Hidden, NamedChildren FROM HistoryFolders")?;
             let rows = q.query_map([], |r| Ok((text(r.get(0)?), text(r.get(1)?), r.get::<_, Option<bool>>(2)?, text(r.get(3)?))))?;
@@ -360,9 +368,10 @@ impl Project {
         p.extrudes = extrudes(c, &p.steps, &p.items)?;
         let unreadable;
         (p.bodies, unreadable) = current_bodies(c)?;
-        name_bodies(c, &p.steps, &p.items, &mut p.bodies)?;
+        let gone = drop_removed(c, &p.steps, &mut Vec::new())?;
+        name_bodies(c, &p.steps, &p.items, &p.folders, &gone, &mut p.bodies)?;
         apply_moves(c, &p.steps, &mut p.bodies)?;
-        let gone = drop_removed(c, &p.steps, &mut p.bodies)?;
+        p.bodies.retain(|b| b.partition.is_none_or(|id| !gone.contains(&id)));
         // Only bodies still in the model count as lost: a deleted body's partition stays in the file.
         p.unreadable = unreadable.into_iter().filter(|(pid, _)| pid.is_none_or(|pid| !gone.contains(&pid))).map(|(_, e)| e).collect();
         Ok(p)
@@ -753,8 +762,8 @@ fn items(c: &rusqlite::Connection, folders: &[Folder]) -> Result<Vec<Item>> {
     };
     let mut out = Vec::new();
     for (name_id, metas) in &by_meta {
-        let Some(name) = metas.iter().find(|m| m.1 == 0).map(|m| m.2.clone()) else { continue };
-        let own_hidden = metas.iter().any(|m| m.1 == 1 && m.2.trim() == "1");
+        let Some(name) = metas.iter().filter(|m| m.1 == 0).max_by_key(|m| m.0).map(|m| m.2.clone()) else { continue };
+        let own_hidden = metas.iter().filter(|m| m.1 == 1).max_by_key(|m| m.0).is_some_and(|m| m.2.trim() == "1");
         let color = wrapped(*name_id).and_then(|w| materials.get(&w)).and_then(|m| colour(m.1));
         let (folder, hidden) = folders
             .iter()
@@ -860,9 +869,16 @@ fn drop_removed(c: &rusqlite::Connection, steps: &[Step], bodies: &mut Vec<Body>
 }
 
 /// Each body's item: the step whose cached call first produced its partition anchors the item's name.
-fn name_bodies(c: &rusqlite::Connection, steps: &[Step], items: &[Item], bodies: &mut [Body]) -> Result<()> {
+fn name_bodies(
+    c: &rusqlite::Connection,
+    steps: &[Step],
+    items: &[Item],
+    folders: &[Folder],
+    gone: &std::collections::HashSet<i64>,
+    bodies: &mut [Body],
+) -> Result<()> {
     let calls = call_partitions(c, bodies)?;
-    name_from_calls(c, steps, items, bodies, &calls)
+    name_from_calls(c, steps, items, folders, gone, bodies, &calls)
 }
 
 /// Step node → the cached partitions its call made or changed.
@@ -974,6 +990,8 @@ fn name_from_calls(
     c: &rusqlite::Connection,
     steps: &[Step],
     items: &[Item],
+    folders: &[Folder],
+    gone: &std::collections::HashSet<i64>,
     bodies: &mut [Body],
     calls: &BTreeMap<i64, Vec<i64>>,
 ) -> Result<()> {
@@ -1004,6 +1022,7 @@ fn name_from_calls(
                         b.step = *creator;
                         if let Some(item) = item {
                             b.name = Some(item.name.clone());
+                            b.item_name_id = Some(item.name_id);
                             b.folder = item.folder.clone();
                             b.hidden = item.hidden;
                             b.color = b.color.or(item.color);
@@ -1027,6 +1046,7 @@ fn name_from_calls(
                 b.step = Some(step.node);
                 if let Some(item) = named.get(k) {
                     b.name = Some(item.name.clone());
+                    b.item_name_id = Some(item.name_id);
                     b.folder = item.folder.clone();
                     b.hidden = item.hidden;
                     b.color = b.color.or(item.color);
@@ -1041,6 +1061,7 @@ fn name_from_calls(
         let named = anchors.get(&node).and_then(|ns| ns.iter().find_map(|n| items.iter().find(|i| i.name_id == *n)));
         if let Some(item) = named {
             b.name = Some(item.name.clone());
+            b.item_name_id = Some(item.name_id);
             b.folder = item.folder.clone();
             b.hidden = item.hidden;
             b.color = b.color.or(item.color);
@@ -1070,10 +1091,248 @@ fn name_from_calls(
             b.step = Some(step.node);
             if let Some(item) = named.get(k) {
                 b.name = Some(item.name.clone());
+                b.item_name_id = Some(item.name_id);
                 b.folder = item.folder.clone();
                 b.hidden = item.hidden;
                 b.color = b.color.or(item.color);
             }
+        }
+    }
+    resolve_transformed_items(c, steps, items, folders, gone, bodies)?;
+    Ok(())
+}
+
+/// A transform's explicit topology selector can identify an item created after the partition's first call.
+/// Only use it when the call modifies exactly one current partition and the selector identifies one item.
+fn resolve_transformed_items(
+    c: &rusqlite::Connection,
+    steps: &[Step],
+    items: &[Item],
+    folders: &[Folder],
+    gone: &std::collections::HashSet<i64>,
+    bodies: &mut [Body],
+) -> Result<()> {
+    if !has_table(c, "HistoryNames") || !has_table(c, "PersistedCalls") || !has_table(c, "MetadataAssignments") {
+        return Ok(());
+    }
+    let mut names = BTreeMap::new();
+    let mut q = c.prepare("SELECT NameID, Data FROM HistoryNames WHERE Type IN (18, 19)")?;
+    for (id, data) in q.query_map([], |r| Ok((r.get::<_, i64>(0)?, text(r.get(1)?))))?.flatten().take(1_000_000) {
+        names.insert(id, serde_json::from_str::<serde_json::Value>(&data).unwrap_or_default());
+    }
+    let root = |mut id: i64| {
+        for _ in 0..16 {
+            let Some(next) = names.get(&id).and_then(|n| n["nameToAnchor"].as_i64().or_else(|| n["wrappedName"].as_i64())) else { break };
+            if next == id {
+                break;
+            }
+            id = next;
+        }
+        id
+    };
+    // Metadata assignments on sibling anchors are successive edits to the same topology name.
+    type LatestMetadata = (Option<(i64, i64)>, Option<(i64, bool)>);
+    let mut latest: BTreeMap<i64, LatestMetadata> = BTreeMap::new();
+    let mut q = c.prepare("SELECT a.NameID, m.MetadataID, m.MetadataTypeID, m.Data FROM MetadataAssignments a JOIN Metadata m ON m.MetadataID = a.MetadataID WHERE m.MetadataTypeID IN (0, 1)")?;
+    for (id, mid, ty, data) in
+        q.query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, i64>(2)?, text(r.get(3)?))))?.flatten().take(1_000_000)
+    {
+        let entry = latest.entry(root(id)).or_default();
+        if ty == 0 && entry.0.is_none_or(|v| mid > v.0) {
+            entry.0 = Some((mid, id));
+        }
+        if ty == 1 && entry.1.is_none_or(|v| mid > v.0) {
+            entry.1 = Some((mid, data.trim() == "1"));
+        }
+    }
+    let mut modified: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
+    let mut unchanged: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
+    let mut surviving: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
+    let mut q = c.prepare("SELECT CallKey, CallData FROM PersistedCalls")?;
+    for (key, data) in q.query_map([], |r| Ok((blob(r.get(0)?), blob(r.get(1)?))))?.flatten() {
+        let (Some(key), Some(data)) = (unpack(&key), unpack(&data)) else { continue };
+        let Some(node) = key.as_array().and_then(|a| a.first()).and_then(Value::as_i64) else { continue };
+        let changed = data
+            .as_array()
+            .and_then(|a| a.get(2))
+            .and_then(Value::as_array)
+            .filter(|a| a.first().and_then(Value::as_bool) == Some(true))
+            .and_then(|a| a.get(1))
+            .and_then(Value::as_array)
+            .and_then(|a| a.get(1))
+            .and_then(Value::as_array);
+        if let Some(changed) = changed {
+            for e in changed {
+                let Some(a) = e.as_array() else { continue };
+                let Some(pid) = a.first().and_then(Value::as_i64) else { continue };
+                match a.get(1).and_then(Value::as_array).and_then(|a| a.first()).and_then(Value::as_bool) {
+                    Some(true) => {
+                        modified.entry(node).or_default().push(pid);
+                        let after = a
+                            .get(1)
+                            .and_then(Value::as_array)
+                            .and_then(|a| a.get(1))
+                            .and_then(Value::as_array)
+                            .and_then(|a| a.get(1))
+                            .and_then(Value::as_array)
+                            .and_then(|a| a.first())
+                            .and_then(Value::as_bool);
+                        if after == Some(true) {
+                            surviving.entry(node).or_default().push(pid);
+                        }
+                    }
+                    Some(false) => unchanged.entry(node).or_default().push(pid),
+                    None => {}
+                }
+            }
+        }
+    }
+    fn selectors(v: &Value, out: &mut Vec<i64>, depth: usize) {
+        if depth >= 64 || out.len() >= 1024 {
+            return;
+        }
+        if let Value::Array(a) = v {
+            if let [Value::Integer(k), Value::Integer(n)] = a.as_slice()
+                && k.as_i64() == Some(7)
+            {
+                out.extend(n.as_i64());
+            }
+            for v in a {
+                selectors(v, out, depth + 1);
+            }
+        }
+    }
+    let mut outputs: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
+    let mut q = c.prepare("SELECT NameID, Data FROM HistoryNames WHERE Type = 1")?;
+    for (id, data) in q.query_map([], |r| Ok((r.get::<_, i64>(0)?, text(r.get(1)?))))?.flatten().take(1_000_000) {
+        let data: serde_json::Value = serde_json::from_str(&data).unwrap_or_default();
+        if data["qualifier"].as_i64() == Some(4)
+            && let Some(node) = data["callKeyPrefix"]["nodeID"].as_i64()
+            && latest.get(&id).is_some_and(|v| v.0.is_some())
+        {
+            outputs.entry(node).or_default().push(id);
+        }
+    }
+    let mut associations = Vec::new();
+    for step in steps.iter().filter(|s| matches!(s.op.as_str(), "Transform" | "Rotate" | "Mirror")) {
+        let pids = if step.op == "Mirror" { &unchanged } else { &modified };
+        if let (Some(pids), Some((_, target))) = (pids.get(&step.node), step.params.first()) {
+            let mut pids = pids.clone();
+            pids.sort_unstable();
+            pids.dedup();
+            let mut refs = Vec::new();
+            selectors(target, &mut refs, 0);
+            let mut refs: Vec<i64> = refs.into_iter().map(root).filter(|id| latest.get(id).is_some_and(|v| v.0.is_some())).collect();
+            refs.sort_unstable();
+            refs.dedup();
+            if let ([pid], [id]) = (pids.as_slice(), refs.as_slice()) {
+                associations.push((*pid, *id));
+            }
+        }
+        // Mirror has one unchanged source and one modified result. The latter has its own call-prefix name.
+        if step.op == "Mirror"
+            && let (Some(pids), Some(ids)) = (modified.get(&step.node), outputs.get(&step.node))
+        {
+            let mut pids = pids.clone();
+            pids.sort_unstable();
+            pids.dedup();
+            if let ([pid], [id]) = (pids.as_slice(), ids.as_slice()) {
+                associations.push((*pid, *id));
+            }
+        }
+    }
+    // A Boolean can retain one partition while consuming several inputs. When only one of its retained
+    // partitions is still current, a single newly anchored, named result identifies that partition.
+    let mut first_anchor: BTreeMap<i64, (i64, i64)> = BTreeMap::new();
+    for (&anchor, data) in &names {
+        let (Some(target), Some(node)) = (data["nameToAnchor"].as_i64(), data["callKey"]["nodeID"].as_i64()) else { continue };
+        let target = root(target);
+        if first_anchor.get(&target).is_none_or(|(first, _)| anchor < *first) {
+            first_anchor.insert(target, (anchor, node));
+        }
+    }
+    let mut boolean_outputs: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
+    let mut q = c.prepare("SELECT NameID FROM HistoryNames WHERE Type = 5")?;
+    for id in q.query_map([], |r| r.get::<_, i64>(0))?.flatten().take(1_000_000) {
+        if let Some(&(anchor, node)) = first_anchor.get(&id)
+            && latest.get(&id).and_then(|v| v.0).is_some_and(|(_, name_id)| name_id == anchor)
+        {
+            boolean_outputs.entry(node).or_default().push(id);
+        }
+    }
+    let current: std::collections::HashSet<i64> = bodies.iter().filter_map(|b| b.partition).filter(|id| !gone.contains(id)).collect();
+    let mut topology = c.prepare("SELECT Type, Data FROM HistoryNames WHERE NameID = ?1")?;
+    for step in steps.iter().filter(|s| s.op == "Intersect") {
+        let Some(pids) = surviving.get(&step.node) else { continue };
+        let mut pids: Vec<_> = pids.iter().copied().filter(|p| current.contains(p)).collect();
+        pids.sort_unstable();
+        pids.dedup();
+        let ids = boolean_outputs.get(&step.node).cloned().unwrap_or_default();
+        let mut target = Vec::new();
+        if let Some((_, value)) = step.params.first() {
+            selectors(value, &mut target, 0);
+        }
+        target = target.into_iter().map(root).filter(|id| latest.get(id).is_some_and(|v| v.0.is_some())).collect();
+        target.sort_unstable();
+        target.dedup();
+        let selected = if ids.len() == 1 {
+            ids.first().copied()
+        } else if let [id] = target.as_slice() {
+            let target_mid = latest.get(id).and_then(|v| v.0).map(|v| v.0);
+            let newest_output = ids.iter().filter_map(|id| latest.get(id).and_then(|v| v.0).map(|v| v.0)).max();
+            let references = ids
+                .iter()
+                .take(64)
+                .filter(|output| {
+                    let data = topology
+                        .query_row([*output], |r| Ok(text(r.get(1)?)))
+                        .ok()
+                        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok());
+                    data.as_ref().and_then(|d| d["originals"].as_array()).is_some_and(|originals| {
+                        originals.iter().take(64).filter_map(serde_json::Value::as_i64).any(|original| {
+                            if root(original) == *id {
+                                return true;
+                            }
+                            let node = topology.query_row([original], |r| Ok((r.get::<_, i64>(0)?, text(r.get(1)?)))).ok();
+                            let Some((0, data)) = node else { return false };
+                            serde_json::from_str::<serde_json::Value>(&data)
+                                .ok()
+                                .and_then(|d| d["sourceTopologyNames"].as_array().cloned())
+                                .is_some_and(|sources| {
+                                    sources.iter().take(64).filter_map(serde_json::Value::as_i64).any(|source| root(source) == *id)
+                                })
+                        })
+                    })
+                })
+                .count();
+            (target_mid > newest_output && references == 1 && ids.len() <= 64).then_some(*id)
+        } else {
+            None
+        };
+        if let ([pid], Some(id)) = (pids.as_slice(), selected) {
+            associations.push((*pid, id));
+        }
+    }
+    for (pid, id) in associations {
+        let Some((Some((_, name_id)), hidden)) = latest.get(&id) else { continue };
+        let Some(item) = items.iter().find(|i| i.name_id == *name_id) else { continue };
+        if let Some(body) = bodies.iter_mut().find(|b| b.partition == Some(pid)) {
+            body.name = Some(item.name.clone());
+            body.item_name_id = Some(item.name_id);
+            body.folder = item.folder.clone();
+            let mut folder = folders.iter().find(|f| f.name == "root");
+            let mut folder_hidden = folder.is_some_and(|f| f.hidden);
+            for name in &body.folder {
+                folder = folder.and_then(|f| {
+                    f.children
+                        .iter()
+                        .filter(|(_, ty)| *ty == 0)
+                        .find_map(|(id, _)| folders.iter().find(|child| child.id == *id && child.name == *name))
+                });
+                folder_hidden |= folder.is_some_and(|f| f.hidden);
+            }
+            body.hidden = folder_hidden || hidden.is_some_and(|v| v.1);
+            body.color = body.color.or(item.color);
         }
     }
     Ok(())
@@ -1154,6 +1413,7 @@ fn current_bodies(c: &rusqlite::Connection) -> Result<(Vec<Body>, Unreadable)> {
                 folder: Vec::new(),
                 step: Some(node),
                 name: body.name,
+                item_name_id: None,
                 brep: body.brep,
                 color: body.color,
                 hidden: false,
@@ -1177,6 +1437,7 @@ fn current_bodies(c: &rusqlite::Connection) -> Result<(Vec<Body>, Unreadable)> {
                 folder: Vec::new(),
                 step: None,
                 name: body.name,
+                item_name_id: None,
                 brep: body.brep,
                 color: body.color,
                 hidden: false,
@@ -1204,4 +1465,216 @@ fn rigid_matrix(m: &[f64]) -> Option<(glam::DMat3, glam::DVec3)> {
     let orthonormal = (rot.transpose() * rot).abs_diff_eq(glam::DMat3::IDENTITY, 1e-9) && (rot.determinant() - 1.0).abs() < 1e-9;
     let identity = rot.abs_diff_eq(glam::DMat3::IDENTITY, 1e-12) && shift.length() < 1e-9;
     (orthonormal && !identity && shift.length() < 1e9).then_some((rot, shift))
+}
+
+#[cfg(test)]
+mod identity_tests {
+    use super::*;
+
+    #[test]
+    fn imported_siblings_keep_distinct_item_name_ids() -> Result<()> {
+        let c = rusqlite::Connection::open_in_memory()?;
+        c.execute_batch("CREATE TABLE HistoryNameAnchoringPoints (AnchoredNameID INTEGER, HistoryTreeNodeID INTEGER); INSERT INTO HistoryNameAnchoringPoints VALUES (100, 10), (101, 10);")?;
+        let steps = vec![Step { node: 10, name: "Import".into(), op: "MaterializeImportedBodies".into(), params: vec![] }];
+        let items: Vec<Item> = [100, 101]
+            .into_iter()
+            .map(|name_id| Item { name_id, name: format!("Body {name_id}"), folder: vec![], hidden: false, color: None })
+            .collect();
+        let mut bodies: Vec<Body> = [20, 21]
+            .into_iter()
+            .map(|partition| Body {
+                partition: Some(partition),
+                import: None,
+                folder: vec![],
+                step: None,
+                name: None,
+                item_name_id: None,
+                brep: Brep::default(),
+                color: None,
+                hidden: false,
+                mesh: None,
+            })
+            .collect();
+        let calls = BTreeMap::from([(10, vec![20, 21])]);
+        name_from_calls(&c, &steps, &items, &[], &Default::default(), &mut bodies, &calls)?;
+        assert_eq!(bodies.iter().map(|b| (b.step, b.item_name_id)).collect::<Vec<_>>(), vec![(Some(10), Some(100)), (Some(10), Some(101))]);
+        Ok(())
+    }
+    #[test]
+    fn latest_metadata_assignment_updates_item_name_and_visibility() -> Result<()> {
+        let c = rusqlite::Connection::open_in_memory()?;
+        c.execute_batch(
+            r#"CREATE TABLE MetadataAssignments (NameID INTEGER, MetadataID INTEGER);
+            CREATE TABLE Metadata (MetadataID INTEGER, MetadataTypeID INTEGER, Data TEXT);
+            CREATE TABLE HistoryNames (NameID INTEGER, Type INTEGER, Data TEXT);
+            CREATE TABLE MaterialInstances (InstanceID INTEGER, Properties BLOB);
+            INSERT INTO HistoryNames VALUES (10,18,'{"nameToAnchor":30}'), (11,18,'{"nameToAnchor":30}');
+            INSERT INTO Metadata VALUES (1,0,'Old'), (2,1,'1'), (3,0,'New'), (4,1,'0');
+            INSERT INTO MetadataAssignments VALUES (10,1), (10,2), (10,3), (10,4);"#,
+        )?;
+        let result = items(&c, &[])?;
+        let old_anchor = result.iter().find(|i| i.name_id == 10).ok_or_else(|| Error::Format("missing item".into()))?;
+        assert_eq!(old_anchor.name, "New");
+        assert!(!old_anchor.hidden);
+        Ok(())
+    }
+
+    #[test]
+    fn late_topology_identity_replaces_inherited_item() -> Result<()> {
+        let c = rusqlite::Connection::open_in_memory()?;
+        c.execute_batch(
+            r#"CREATE TABLE HistoryNameAnchoringPoints (AnchoredNameID INTEGER, HistoryTreeNodeID INTEGER);
+            CREATE TABLE HistoryNames (NameID INTEGER, Type INTEGER, Data TEXT);
+            CREATE TABLE MetadataAssignments (NameID INTEGER, MetadataID INTEGER);
+            CREATE TABLE Metadata (MetadataID INTEGER, MetadataTypeID INTEGER, Data TEXT);
+            CREATE TABLE PersistedCalls (CallKey BLOB, CallData BLOB);
+            INSERT INTO HistoryNames VALUES (10,18,'{"nameToAnchor":50}'), (11,18,'{"nameToAnchor":50}'),
+                (12,19,'{"wrappedName":50}');
+            INSERT INTO Metadata VALUES (1,0,'Current'), (2,1,'1'), (3,1,'0');
+            INSERT INTO MetadataAssignments VALUES (10,1), (10,2), (11,3);"#,
+        )?;
+        let encode = |v: &Value| -> Result<Vec<u8>> {
+            let mut bytes = Vec::new();
+            rmpv::encode::write_value(&mut bytes, v).map_err(|e| Error::Format(e.to_string()))?;
+            Ok(bytes)
+        };
+        let key = Value::Array(vec![Value::from(20), Value::Array(vec![])]);
+        let data = Value::Array(vec![
+            Value::Nil,
+            Value::Nil,
+            Value::Array(vec![
+                Value::from(true),
+                Value::Array(vec![
+                    Value::Nil,
+                    Value::Array(vec![Value::Array(vec![Value::from(100), Value::Array(vec![Value::from(true)])])]),
+                ]),
+            ]),
+        ]);
+        c.execute("INSERT INTO PersistedCalls VALUES (?1, ?2)", rusqlite::params![encode(&key)?, encode(&data)?])?;
+        let step = Step {
+            node: 20,
+            name: "Rotate".into(),
+            op: "Rotate".into(),
+            params: vec![(1, Value::Array(vec![Value::from(7), Value::from(12)]))],
+        };
+        let item = Item { name_id: 10, name: "Current".into(), folder: vec![], hidden: true, color: None };
+        let mut bodies = vec![Body {
+            partition: Some(100),
+            import: None,
+            folder: vec![],
+            step: Some(1),
+            name: Some("Inherited".into()),
+            item_name_id: None,
+            brep: Brep::default(),
+            color: None,
+            hidden: true,
+            mesh: None,
+        }];
+        resolve_transformed_items(&c, &[step], std::slice::from_ref(&item), &[], &Default::default(), &mut bodies)?;
+        assert_eq!(bodies[0].name.as_deref(), Some("Current"));
+        assert!(!bodies[0].hidden);
+        c.execute_batch(
+            r#"INSERT INTO HistoryNames VALUES
+            (60,1,'{"callKeyPrefix":{"nodeID":21},"qualifier":4}'), (61,18,'{"nameToAnchor":60}');
+            INSERT INTO Metadata VALUES (4,0,'Mirror'), (5,1,'1');
+            INSERT INTO MetadataAssignments VALUES (61,4), (61,5);"#,
+        )?;
+        let key = Value::Array(vec![Value::from(21), Value::Array(vec![])]);
+        let data = Value::Array(vec![
+            Value::Nil,
+            Value::Nil,
+            Value::Array(vec![
+                Value::from(true),
+                Value::Array(vec![
+                    Value::Nil,
+                    Value::Array(vec![
+                        Value::Array(vec![Value::from(100), Value::Array(vec![Value::from(false)])]),
+                        Value::Array(vec![Value::from(101), Value::Array(vec![Value::from(true)])]),
+                    ]),
+                ]),
+            ]),
+        ]);
+        c.execute("INSERT INTO PersistedCalls VALUES (?1, ?2)", rusqlite::params![encode(&key)?, encode(&data)?])?;
+        let mirror = Step {
+            node: 21,
+            name: "Mirror".into(),
+            op: "Mirror".into(),
+            params: vec![(1, Value::Array(vec![Value::from(7), Value::from(12)]))],
+        };
+        let mut copy = bodies[0].clone();
+        copy.partition = Some(101);
+        bodies.push(copy);
+        let output = Item { name_id: 61, name: "Mirror".into(), folder: vec![], hidden: true, color: None };
+        resolve_transformed_items(&c, &[mirror], &[item, output], &[], &Default::default(), &mut bodies)?;
+        assert_eq!((bodies[0].name.as_deref(), bodies[0].hidden), (Some("Current"), false));
+        assert_eq!((bodies[1].name.as_deref(), bodies[1].hidden), (Some("Mirror"), true));
+
+        c.execute_batch(
+            r#"INSERT INTO HistoryNames VALUES (70,5,'{"originals":[72]}'),
+            (71,18,'{"callKey":{"nodeID":22},"nameToAnchor":70}'),
+            (72,0,'{"sourceTopologyNames":[50]}'), (80,5,'{"originals":[999]}'),
+            (81,18,'{"callKey":{"nodeID":22},"nameToAnchor":80}');
+            INSERT INTO Metadata VALUES (6,0,'Boolean result'), (7,1,'1'), (8,0,'Other output');
+            INSERT INTO MetadataAssignments VALUES (71,6), (71,7), (81,8);"#,
+        )?;
+        let entry = |pid, after| {
+            Value::Array(vec![
+                Value::from(pid),
+                Value::Array(vec![
+                    Value::from(true),
+                    Value::Array(vec![Value::Array(vec![Value::from(true), Value::from(1)]), Value::Array(vec![Value::from(after)])]),
+                ]),
+            ])
+        };
+        let data = Value::Array(vec![
+            Value::Nil,
+            Value::Nil,
+            Value::Array(vec![
+                Value::from(true),
+                Value::Array(vec![Value::Nil, Value::Array(vec![entry(200, true), entry(201, true), entry(202, false)])]),
+            ]),
+        ]);
+        let key = Value::Array(vec![Value::from(22), Value::Array(vec![])]);
+        c.execute("INSERT INTO PersistedCalls VALUES (?1, ?2)", rusqlite::params![encode(&key)?, encode(&data)?])?;
+        let boolean = Step {
+            node: 22,
+            name: "Intersect".into(),
+            op: "Intersect".into(),
+            params: vec![(1, Value::Array(vec![Value::from(7), Value::from(12)]))],
+        };
+        let mut boolean_bodies: Vec<_> = [200, 201, 202]
+            .into_iter()
+            .map(|pid| {
+                let mut body = bodies[0].clone();
+                body.partition = Some(pid);
+                body
+            })
+            .collect();
+        let result = Item { name_id: 71, name: "Boolean result".into(), folder: vec![], hidden: true, color: None };
+        let input = Item { name_id: 10, name: "Current".into(), folder: vec![], hidden: false, color: None };
+        resolve_transformed_items(
+            &c,
+            std::slice::from_ref(&boolean),
+            &[input, result.clone()],
+            &[],
+            &std::collections::HashSet::from([201, 202]),
+            &mut boolean_bodies,
+        )?;
+        assert_eq!((boolean_bodies[0].name.as_deref(), boolean_bodies[0].hidden), (Some("Current"), false));
+        assert_eq!(boolean_bodies[1].name.as_deref(), Some("Current"));
+        c.execute_batch(
+            "INSERT INTO Metadata VALUES (9,0,'Renamed'), (10,1,'0'); INSERT INTO MetadataAssignments VALUES (11,9), (11,10);",
+        )?;
+        let renamed = Item { name_id: 11, name: "Renamed".into(), folder: vec![], hidden: false, color: None };
+        resolve_transformed_items(
+            &c,
+            &[boolean],
+            &[renamed, result],
+            &[],
+            &std::collections::HashSet::from([201, 202]),
+            &mut boolean_bodies,
+        )?;
+        assert_eq!((boolean_bodies[0].name.as_deref(), boolean_bodies[0].hidden), (Some("Renamed"), false));
+        Ok(())
+    }
 }

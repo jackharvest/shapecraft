@@ -53,6 +53,10 @@ impl Workspace {
         {
             map.insert("construction".into(), Value::Bool(true));
         }
+        // While an import runs on its own thread, its result replaces the project: nothing else may change it.
+        if self.importing.is_some() {
+            return None;
+        }
         match self.session.execute(id, &params) {
             Ok(out) => {
                 self.remember(id);

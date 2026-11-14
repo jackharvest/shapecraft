@@ -447,13 +447,30 @@ impl Kernel for OcctKernel {
     }
 
     fn heal(&self, shape: &Shape, opts: shapecraft_kernel::HealOptions) -> Result<Shape> {
+        self.heal_within(shape, opts, 0.0).map(|(s, _)| s)
+    }
+
+    fn heal_within(&self, shape: &Shape, opts: shapecraft_kernel::HealOptions, budget: f64) -> Result<(Shape, u8)> {
+        finite("heal", &[budget])?;
         let flags = i32::from(opts.repair) | i32::from(opts.edges) << 1 | i32::from(opts.sew) << 2 | i32::from(opts.simplify) << 3;
         if flags == 0 {
-            return Ok(shape.clone());
+            return Ok((shape.clone(), 0));
         }
         let s = raw(shape)?;
-        // SAFETY: plain values in.
-        shape_out("heal", |out| unsafe { ffi::sk_heal(s, flags, out) })
+        let mut cut = 0i32;
+        // SAFETY: plain values in; `cut` is a valid out-pointer.
+        let healed = shape_out("heal", |out| unsafe { ffi::sk_heal(s, flags, budget.max(0.0), &mut cut, out) })?;
+        Ok((healed, cut.clamp(0, 2) as u8))
+    }
+
+    fn cancellable(&self, on: bool) {
+        // SAFETY: sets a flag of the calling thread.
+        unsafe { ffi::sk_cancellable(i32::from(on)) }
+    }
+
+    fn cancel(&self, on: bool) {
+        // SAFETY: sets an atomic flag.
+        unsafe { ffi::sk_cancel(i32::from(on)) }
     }
 
     fn scale(&self, shape: &Shape, center: DVec3, factors: DVec3) -> Result<Shape> {

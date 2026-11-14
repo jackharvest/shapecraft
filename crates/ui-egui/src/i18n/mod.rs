@@ -7,8 +7,20 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 mod tables;
 
 /// The languages, by the names the Language menu shows (each in its own language), English first.
-pub const LANGUAGES: &[&str] =
-    &["English", "简体中文", "繁體中文", "Deutsch", "Español", "Français", "Italiano", "日本語", "한국어", "Português (Brasil)", "Русский", "Slovenčina"];
+pub const LANGUAGES: &[&str] = &[
+    "English",
+    "简体中文",
+    "繁體中文",
+    "Deutsch",
+    "Español",
+    "Français",
+    "Italiano",
+    "日本語",
+    "한국어",
+    "Português (Brasil)",
+    "Русский",
+    "Slovenčina",
+];
 
 static CURRENT: AtomicUsize = AtomicUsize::new(0);
 

@@ -380,7 +380,7 @@ fn body(s: &mut dyn Src, format: Format, header: String, modeller: String, schem
         let ty = u16::try_from(ty).map_err(|_| Error::Bad(format!("node type {ty} at {at}")))?;
         if let std::collections::hash_map::Entry::Vacant(e) = defs.entry(ty) {
             let def = if embedded {
-                declare(s, ty, base.get(&ty))?
+                declare(s, ty, base.get(&ty)).map_err(|e| Error::Bad(format!("schema for node type {ty} at {}: {e}", s.pos())))?
             } else {
                 base.get(&ty).cloned().ok_or_else(|| Error::Bad(format!("unknown node type {ty} at {at}")))?
             };
@@ -397,7 +397,7 @@ fn body(s: &mut dyn Src, format: Format, header: String, modeller: String, schem
         } else {
             0
         };
-        let index = s.ptr()?;
+        let index = s.ptr().map_err(|e| Error::Bad(format!("{} node index at {}: {e}", def.name, s.pos())))?;
         let mut fields = Vec::with_capacity(def.fields.len());
         for f in &def.fields {
             let n = if f.n == 1 { var } else { f.n as usize };
@@ -456,7 +456,7 @@ fn declare(s: &mut dyn Src, ty: u16, base: Option<&NodeDef>) -> Result<NodeDef> 
 fn field_def(s: &mut dyn Src) -> Result<FieldDef> {
     let name = s.short_string()?;
     let class = s.short()?;
-    let n = s.ptr()?;
+    let n = s.ptr().map_err(|e| Error::Bad(format!("field {name} count at {}: {e}", s.pos())))?;
     let kind = if class != 0 {
         b'p'
     } else {

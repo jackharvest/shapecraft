@@ -111,7 +111,9 @@ unsafe extern "C" {
     ) -> i32;
     pub fn sk_rotate(s: *const SkShape, axis: *const f64, angle: f64, out: *mut *mut SkShape) -> i32;
     pub fn sk_mirror(s: *const SkShape, ox: f64, oy: f64, oz: f64, nx: f64, ny: f64, nz: f64, out: *mut *mut SkShape) -> i32;
-    pub fn sk_heal(s: *const SkShape, flags: i32, out: *mut *mut SkShape) -> i32;
+    pub fn sk_heal(s: *const SkShape, flags: i32, budget: f64, cut: *mut i32, out: *mut *mut SkShape) -> i32;
+    pub fn sk_cancellable(on: i32);
+    pub fn sk_cancel(on: i32);
     pub fn sk_scale(s: *const SkShape, cx: f64, cy: f64, cz: f64, sx: f64, sy: f64, sz: f64, out: *mut *mut SkShape) -> i32;
     pub fn sk_map_edge(s: *const SkShape, edge: u32, m: *const f64, out: *mut *mut SkShape) -> i32;
     pub fn sk_offset_faces_way(s: *const SkShape, ids: *const u32, n: usize, distance: f64, way: i32, out: *mut *mut SkShape) -> i32;

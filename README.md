@@ -99,7 +99,7 @@ It's an **alpha**, so keep backups of anything precious, and tell us when someth
 - **Visualize:** materials you drag onto bodies, HDR panoramas, display modes, section views.
 - **Navigation presets** for twelve apps' mouse conventions, plus trackpad gestures; orbit and pan can be flipped
   per axis.
-- **Eleven interface languages**, light and dark themes, Vulkan, Metal, DirectX 12 and OpenGL, with a software
+- **Twelve interface languages**, light and dark themes, Vulkan, Metal, DirectX 12 and OpenGL, with a software
   fallback. If a GPU drops out mid-session, it saves and restarts on another.
 
 Status and plans are in [docs/roadmap.md](docs/roadmap.md); what changed in each version is in

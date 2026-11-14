@@ -293,3 +293,31 @@ impl Workspace {
         }
     }
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod cull_tests {
+    use glam::DVec3;
+    use shapecraft_kernel::{BoolOp, Kernel};
+
+    /// #24: solids as the kernel meshes them for display pass the closed-and-outwards check, so they skip their back
+    /// faces (holes, fillets and mirrored copies included); a single face doesn't.
+    #[test]
+    fn display_meshes_of_solids_are_closed_and_outward() {
+        let k = shapecraft_kernel_occt::OcctKernel::new();
+        let d = shapecraft_doc::project::deflection();
+        let cube = k.make_box(DVec3::ZERO, DVec3::splat(10.0)).unwrap();
+        let rod = k.make_box(DVec3::new(3.0, 3.0, -1.0), DVec3::new(4.0, 4.0, 12.0)).unwrap();
+        let holed = k.boolean(BoolOp::Subtract, &cube, &rod).unwrap();
+        let rounded = k.fillet_all_edges(&holed, 1.0).unwrap();
+        let mirrored = k.mirror(&rounded, DVec3::ZERO, DVec3::X).unwrap();
+        for (name, s) in [("box", &cube), ("box with a hole", &holed), ("filleted", &rounded), ("mirrored", &mirrored)] {
+            assert!(shapecraft_render::closed_outward(&k.tessellate(s, d).unwrap()), "{name}");
+        }
+        let square = [DVec3::ZERO, DVec3::X * 5.0, DVec3::new(5.0, 5.0, 0.0), DVec3::Y * 5.0];
+        let face = k.extrude_polygon(&square, DVec3::ZERO).ok();
+        if let Some(face) = face {
+            assert!(!shapecraft_render::closed_outward(&k.tessellate(&face, d).unwrap()), "a face is open");
+        }
+    }
+}

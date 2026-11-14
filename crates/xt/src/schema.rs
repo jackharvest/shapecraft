@@ -101,8 +101,8 @@ const BASE: &str = "
 136 NURBS_CURVE: degree n; n_vertices d; vertex_dim n; n_knots d; knot_type u; periodic l; closed l; rational l; curve_form u; bspline_vertices p; knot_mult p; knots p
 137 SP_CURVE: node_id d; attributes_groups p; owner p; next p; previous p; geometric_owner p; sense c; surface p; b_curve p; original p; tolerance_to_original f
 141 GEOMETRIC_OWNER: owner p; next p; previous p; shared_geometry p
-163 HELIX_CU_FORM: axis_pt v; axis_dir v; point v; hand c; turns i; pitch f; tol f
-184 HELIX_SU_FORM: axis_pt v; axis_dir v; hand c; turns i; pitch f; gap f; tol f
+163 HELIX_SU_FORM: axis_pt v; axis_dir v; hand c; turns i; pitch f; gap f; tol f
+184 HELIX_CU_FORM: axis_pt v; axis_dir v; point v; hand c; turns i; pitch f; tol f
 ";
 
 /// The base schema (13006), keyed by node type.

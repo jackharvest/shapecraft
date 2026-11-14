@@ -161,7 +161,8 @@ impl Workspace {
                     }
                 }
             }
-            if matches!(filter, 0 | 2) && self.session.active_sketch != Some(sk.id) {
+            // In the open sketch, All Items takes its curves only; Faces (F) takes its regions too (#19).
+            if filter == 2 || (filter == 0 && self.session.active_sketch != Some(sk.id)) {
                 for region in sk.regions() {
                     let pts: Vec<Option<Pos2>> = region.triangles.iter().flatten().map(|p| screen(sk.plane.to_world(*p))).collect();
                     let hit = if crossing {
@@ -324,4 +325,33 @@ fn in_triangle(p: Pos2, a: Pos2, b: Pos2, c: Pos2) -> bool {
     let s = |o: Pos2, q: Pos2| (q.x - o.x) * (p.y - o.y) - (q.y - o.y) * (p.x - o.x);
     let (d1, d2, d3) = (s(a, b), s(b, c), s(c, a));
     !((d1 < 0.0 || d2 < 0.0 || d3 < 0.0) && (d1 > 0.0 || d2 > 0.0 || d3 > 0.0))
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use std::sync::Arc;
+
+    /// #19: in the sketch just drawn, a box with the Faces filter (F) takes its regions; All Items still takes
+    /// only its curves there.
+    #[test]
+    fn faces_filter_takes_the_open_sketchs_regions() {
+        let session = shapecraft_engine::Session::new(Arc::new(shapecraft_kernel_occt::OcctKernel::new()), "Area");
+        let mut ws = Workspace::new(session, crate::settings::Settings::default());
+        ws.session.execute("sketch", &json!({"plane": "xy"})).unwrap();
+        ws.session.execute("rectangle", &json!({"corner": [0, 0], "opposite": [10, 10]})).unwrap();
+        ws.session.execute("line", &json!({"a": [5, 0], "b": [5, 10]})).unwrap();
+        assert!(ws.session.active_sketch.is_some());
+        ws.view_rect = Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0));
+        ws.camera.fit(DVec3::splat(-1.0), DVec3::splat(11.0));
+        let all = AreaSel { start: pos2(1.0, 1.0), end: pos2(799.0, 599.0) };
+        let regions = |p: &[Pick]| p.iter().filter(|p| matches!(p, Pick::Region { .. })).count();
+        ws.area_filter = 2;
+        assert_eq!(regions(&ws.area_picks(&all)), 2, "both halves of the split square");
+        ws.area_filter = 0;
+        let picks = ws.area_picks(&all);
+        assert_eq!(regions(&picks), 0);
+        assert!(picks.iter().any(|p| matches!(p, Pick::SketchEntity { .. })));
+    }
 }

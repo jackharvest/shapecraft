@@ -4,6 +4,7 @@
 //! writer only adds steps: `MaterializeImportedBodies` for a body (a Parasolid part), `Delete` for one that
 //! changed or went away. Steps Shapr3D made stay as they are, parametric.
 
+use std::collections::{BTreeMap, HashMap, HashSet};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use rmpv::Value;
@@ -110,6 +111,140 @@ pub struct Writer {
     next_meta: i64,
     next_import: i64,
     seq: u64,
+    /// Exact late topology selectors verified from the original cached calls, before they are cleared.
+    verified_targets: HashMap<(i64, i64), i64>,
+}
+
+/// Verify only transforms with one explicitly selected topology and one modified current partition.
+/// Build lightweight body records: the actual geometry is not needed to check this association.
+fn verified_cached_targets(c: &rusqlite::Connection) -> Result<HashMap<(i64, i64), i64>> {
+    if !["BodyRevisionBlocks", "PersistedCalls", "HistoryNames", "HistoryNameAnchoringPoints", "MetadataAssignments"]
+        .iter()
+        .all(|t| crate::has_table(c, t))
+    {
+        return Ok(HashMap::new());
+    }
+    let steps = crate::history_steps(c)?;
+    let items = crate::items(c, &[])?;
+    let gone = crate::drop_removed(c, &steps, &mut Vec::new())?;
+    let mut q = c.prepare("SELECT DISTINCT PartitionID FROM BodyRevisionBlocks WHERE Phase = 2 AND IsDeleted = 0")?;
+    let mut bodies: Vec<crate::Body> = q
+        .query_map([], |r| r.get::<_, i64>(0))?
+        .flatten()
+        .map(|partition| crate::Body {
+            partition: Some(partition),
+            import: None,
+            folder: Vec::new(),
+            step: None,
+            name: None,
+            item_name_id: None,
+            brep: Default::default(),
+            color: None,
+            hidden: false,
+            mesh: None,
+        })
+        .collect();
+    crate::name_bodies(c, &steps, &items, &[], &gone, &mut bodies)?;
+    let mut names = BTreeMap::new();
+    let mut q = c.prepare("SELECT NameID, Data FROM HistoryNames WHERE Type IN (18, 19)")?;
+    for (id, data) in q.query_map([], |r| Ok((r.get::<_, i64>(0)?, crate::text(r.get(1)?))))?.flatten().take(1_000_000) {
+        names.insert(id, serde_json::from_str::<serde_json::Value>(&data).unwrap_or_default());
+    }
+    let root = |mut id: i64| {
+        for _ in 0..16 {
+            let Some(next) = names.get(&id).and_then(|v| v["nameToAnchor"].as_i64().or_else(|| v["wrappedName"].as_i64())) else { break };
+            if next == id {
+                break;
+            }
+            id = next;
+        }
+        id
+    };
+    let mut modified: BTreeMap<i64, HashSet<i64>> = BTreeMap::new();
+    let mut q = c.prepare("SELECT CallKey, CallData FROM PersistedCalls")?;
+    for (key, data) in q.query_map([], |r| Ok((crate::blob(r.get(0)?), crate::blob(r.get(1)?))))?.flatten() {
+        let (Some(key), Some(data)) = (unpack(&key), unpack(&data)) else { continue };
+        let Some(node) = key.as_array().and_then(|a| a.first()).and_then(Value::as_i64) else { continue };
+        let changed = data
+            .as_array()
+            .and_then(|a| a.get(2))
+            .and_then(Value::as_array)
+            .filter(|a| a.first().and_then(Value::as_bool) == Some(true))
+            .and_then(|a| a.get(1))
+            .and_then(Value::as_array)
+            .and_then(|a| a.get(1))
+            .and_then(Value::as_array);
+        for e in changed.into_iter().flatten() {
+            let Some(a) = e.as_array() else { continue };
+            let Some(pid) = a.first().and_then(Value::as_i64) else { continue };
+            let after = a
+                .get(1)
+                .and_then(Value::as_array)
+                .filter(|a| a.first().and_then(Value::as_bool) == Some(true))
+                .and_then(|a| a.get(1))
+                .and_then(Value::as_array)
+                .and_then(|a| a.get(1))
+                .and_then(Value::as_array)
+                .and_then(|a| a.first())
+                .and_then(Value::as_bool);
+            if after == Some(true) {
+                modified.entry(node).or_default().insert(pid);
+            }
+        }
+    }
+    fn selectors(v: &Value, refs: &mut Vec<i64>, depth: usize) {
+        if depth >= 64 || refs.len() >= 1024 {
+            return;
+        }
+        if let Value::Array(a) = v {
+            if let [Value::Integer(k), Value::Integer(n)] = a.as_slice()
+                && k.as_i64() == Some(7)
+            {
+                refs.extend(n.as_i64());
+            }
+            for v in a {
+                selectors(v, refs, depth + 1);
+            }
+        }
+    }
+    let mut candidates = Vec::new();
+    for step in steps.iter().filter(|s| matches!(s.op.as_str(), "Rotate" | "Transform")) {
+        let Some(pids) = modified.get(&step.node) else { continue };
+        if pids.len() != 1 {
+            continue;
+        }
+        let Some(pid) = pids.iter().next().copied().filter(|pid| !gone.contains(pid)) else { continue };
+        let Some((_, value)) = step.params.first() else { continue };
+        let mut refs = Vec::new();
+        selectors(value, &mut refs, 0);
+        let mut refs: Vec<_> = refs.into_iter().map(root).collect();
+        refs.sort_unstable();
+        refs.dedup();
+        let [target] = refs.as_slice() else { continue };
+        let allowed: bool = c
+            .query_row("SELECT COUNT(*) FROM HistoryNames WHERE NameID = ?1 AND Type IN (0, 1, 5)", [target], |r| r.get::<_, i64>(0))?
+            == 1;
+        if !allowed {
+            continue;
+        }
+        let Some(body) = bodies.iter().find(|b| b.partition == Some(pid)) else { continue };
+        let (Some(creator), Some(item)) = (body.step, body.item_name_id) else { continue };
+        let count = bodies
+            .iter()
+            .filter(|b| b.partition.is_some_and(|p| !gone.contains(&p)) && b.step == Some(creator) && b.item_name_id == Some(item))
+            .count();
+        if count == 1 && root(item) == *target {
+            candidates.push(((creator, item), *target, pid));
+        }
+    }
+    // Neither a shared creator/item nor a selector naming several partitions is exact.
+    let mut verified = HashMap::new();
+    for &(key, target, pid) in &candidates {
+        if candidates.iter().all(|(k, t, p)| (*k != key || (*t == target && *p == pid)) && (*t != target || *p == pid)) {
+            verified.insert(key, target);
+        }
+    }
+    Ok(verified)
 }
 
 fn max_id(db: &Db, table: &str, column: &str) -> Result<i64> {
@@ -161,7 +296,7 @@ impl Writer {
             "INSERT INTO HistoryTreeNodes VALUES (1, 0, ?1)",
             [pack(&Value::Array(vec![Value::from("<root>"), Value::Array(Vec::new())]))],
         )?;
-        let mut w = Self { db, next_node: 2, next_name: 1, next_meta: 1, next_import: 0, seq: 0 };
+        let mut w = Self { db, next_node: 2, next_name: 1, next_meta: 1, next_import: 0, seq: 0, verified_targets: HashMap::new() };
         let nonce = w.uuid();
         w.db.conn.execute("INSERT INTO Settings (SettingName, SettingValue) VALUES ('ProjectStateNonce', ?1)", [nonce])?;
         let id = w.folder_id();
@@ -175,6 +310,7 @@ impl Writer {
     /// A project Shapr3D wrote, ready for more steps. Its caches go, so Shapr3D replays the whole history.
     pub fn patch(base: &ShaprFile) -> Result<Self> {
         let db = base.db()?;
+        let verified_targets = verified_cached_targets(&db.conn)?;
         db.conn.execute_batch("DELETE FROM BodyRevisionBlocks; DELETE FROM BodyRevisionDeltas; DELETE FROM PersistedCalls;")?;
         adopt_old_stash(&db.conn)?;
         let next_node = max_id(&db, "HistoryTreeNodes", "HistoryTreeNodeID")? + 1;
@@ -182,7 +318,7 @@ impl Writer {
         let next_meta = max_id(&db, "Metadata", "MetadataID")? + 1;
         let next_import = (max_id(&db, "HistoryImportedPrototypes", "ImportedPrototypeID")? + 1)
             .max(max_id(&db, "HistoryImportedBodies", "ImportedBodyID")? + 1);
-        Ok(Self { db, next_node, next_name, next_meta, next_import, seq: 0 })
+        Ok(Self { db, next_node, next_name, next_meta, next_import, seq: 0, verified_targets })
     }
 
     fn folder_id(&mut self) -> String {
@@ -384,6 +520,41 @@ impl Writer {
         self.node(3, param(list(vec![Value::from(9), list(vec![list(vec![list(vec![Value::from(7), Value::from(wrapped)])])])])))
     }
 
+    /// Resolve an item anchor to the exact body topology, checking its creating step.
+    fn item_body_name(&self, creator: i64, item: i64) -> Result<Option<i64>> {
+        if let Some(target) = self.verified_targets.get(&(creator, item)) {
+            return Ok(Some(*target));
+        }
+        let data: Option<String> = self.db.conn.query_row(
+            "SELECT n.Data FROM HistoryNames n JOIN HistoryNameAnchoringPoints p ON p.AnchoredNameID = n.NameID WHERE n.NameID = ?1 AND n.Type = 18 AND p.HistoryTreeNodeID = ?2",
+            (item, creator), |r| Ok(crate::text(r.get(0)?)),
+        ).ok();
+        let target = data.and_then(|d| serde_json::from_str::<serde_json::Value>(&d).ok()).and_then(|j| j["nameToAnchor"].as_i64());
+        let Some(target) = target else { return Ok(None) };
+        let data: Option<String> = self
+            .db
+            .conn
+            .query_row("SELECT Data FROM HistoryNames WHERE NameID = ?1 AND Type = 0", [target], |r| Ok(crate::text(r.get(0)?)))
+            .ok();
+        Ok(data
+            .and_then(|d| serde_json::from_str::<serde_json::Value>(&d).ok())
+            .filter(|j| j["qualifier"].as_i64() == Some(4) && j["callKey"]["nodeID"].as_i64() == Some(creator))
+            .map(|_| target))
+    }
+
+    fn named_body_param(&mut self, body_name: i64) -> Result<i64> {
+        let wrapped = self.name(19, serde_json::json!({ "wrappedName": body_name, "kind": 0 }))?;
+        self.node(3, param(list(vec![Value::from(9), list(vec![list(vec![list(vec![Value::from(7), Value::from(wrapped)])])])])))
+    }
+
+    /// Delete exactly the body identified by an item anchor. Invalid identities leave the file untouched.
+    pub fn delete_body_item(&mut self, creator: i64, item: i64) -> Result<bool> {
+        let Some(name) = self.item_body_name(creator, item)? else { return Ok(false) };
+        let body = self.named_body_param(name)?;
+        self.add_step("Delete", "Delete", vec![body])?;
+        Ok(true)
+    }
+
     /// A step named after its kind and number ("Delete 02") at the end of the history.
     fn add_step(&mut self, label: &str, op: &str, params: Vec<i64>) -> Result<i64> {
         let n = self.step_count(op)? + 1;
@@ -408,6 +579,16 @@ impl Writer {
     /// Moves the body made by step `creator` by `by` (mm) with a Move/Rotate step, as Shapr3D's Move does: the
     /// target frame's position is an offset from the start frame.
     pub fn move_body(&mut self, creator: i64, by: [f64; 3]) -> Result<bool> {
+        self.move_body_target(creator, None, by)
+    }
+
+    /// Move exactly the body identified by an item anchor.
+    pub fn move_body_item(&mut self, creator: i64, item: i64, by: [f64; 3]) -> Result<bool> {
+        let Some(name) = self.item_body_name(creator, item)? else { return Ok(false) };
+        self.move_body_target(creator, Some(name), by)
+    }
+
+    fn move_body_target(&mut self, creator: i64, exact: Option<i64>, by: [f64; 3]) -> Result<bool> {
         if by.iter().any(|v| !v.is_finite() || v.abs() > 1e9) {
             return Ok(false);
         }
@@ -428,10 +609,12 @@ impl Writer {
                 .map(|(id, t, d)| (id, t, serde_json::from_str(&d).unwrap_or_default()))
                 .collect()
         };
-        let body_name = names
-            .iter()
-            .find(|(_, t, j)| *t == 0 && j["callKey"]["nodeID"].as_i64() == Some(creator) && j["qualifier"].as_i64() == Some(4))
-            .map(|n| n.0);
+        let body_name = exact.or_else(|| {
+            names
+                .iter()
+                .find(|(_, t, j)| *t == 0 && j["callKey"]["nodeID"].as_i64() == Some(creator) && j["qualifier"].as_i64() == Some(4))
+                .map(|n| n.0)
+        });
         let Some(body_name) = body_name else { return Ok(false) };
         let prefix = names
             .iter()
@@ -442,11 +625,12 @@ impl Writer {
             .iter()
             .find(|(_, t, j)| *t == 19 && j["kind"].as_i64() == Some(0) && j["wrappedName"].as_i64().is_some_and(|w| prefix.contains(&w)))
             .map(|n| n.0);
-        let body = match wrapper {
-            Some(w) => {
+        let body = match (exact, wrapper) {
+            (Some(name), _) => self.named_body_param(name)?,
+            (None, Some(w)) => {
                 self.node(3, param(list(vec![Value::from(9), list(vec![list(vec![list(vec![Value::from(7), Value::from(w)])])])])))?
             }
-            None => self.body_param(creator)?,
+            (None, None) => self.body_param(creator)?,
         };
         let centre = self.name(5, serde_json::json!({ "originals": [body_name] }))?;
         let none = |w: &mut Self| w.node(3, param(list(vec![Value::from(9), list(Vec::new())])));
@@ -465,6 +649,25 @@ impl Writer {
             (name, creator),
         )?;
         Ok(n > 0)
+    }
+
+    /// Rename only the identified item, after verifying that it belongs to the creator.
+    pub fn rename_item_by_id(&mut self, creator: i64, item: i64, name: &str) -> Result<bool> {
+        if self.item_body_name(creator, item)?.is_none() {
+            return Ok(false);
+        }
+        self.meta(0, name, item)?;
+        Ok(true)
+    }
+
+    /// Set the visibility of only the identified item.
+    pub fn set_hidden_item(&mut self, creator: i64, item: i64, hidden: bool) -> Result<bool> {
+        if self.item_body_name(creator, item)?.is_none() {
+            return Ok(false);
+        }
+        let flag = if hidden { "1" } else { "0" };
+        self.meta(1, flag, item)?;
+        Ok(true)
     }
 
     /// Shows or hides the item anchored to step `creator` (its hidden flag sits beside its name); false when the
@@ -496,9 +699,19 @@ impl Writer {
     /// Recolours the body step `creator` made (`None` for the default grey), as Shapr3D does: a new anchor on the
     /// body's material name at the last step, carrying the material. False when the step has no material name.
     pub fn set_color(&mut self, creator: i64, color: Option<[f32; 3]>) -> Result<bool> {
+        self.set_color_target(creator, None, color)
+    }
+
+    /// Recolour only the identified body.
+    pub fn set_color_item(&mut self, creator: i64, item: i64, color: Option<[f32; 3]>) -> Result<bool> {
+        let Some(name) = self.item_body_name(creator, item)? else { return Ok(false) };
+        self.set_color_target(creator, Some(name), color)
+    }
+
+    fn set_color_target(&mut self, creator: i64, exact: Option<i64>, color: Option<[f32; 3]>) -> Result<bool> {
         let names: Vec<(i64, serde_json::Value)> = {
-            let mut q = self.db.conn.prepare("SELECT n.NameID, n.Data FROM HistoryNames n JOIN HistoryNameAnchoringPoints p ON p.AnchoredNameID = n.NameID WHERE n.Type = 18 AND p.HistoryTreeNodeID = ?1")?;
-            q.query_map([creator], |r| Ok((r.get::<_, i64>(0)?, crate::text(r.get(1)?))))?
+            let mut q = self.db.conn.prepare("SELECT n.NameID, n.Data FROM HistoryNames n JOIN HistoryNameAnchoringPoints p ON p.AnchoredNameID = n.NameID WHERE n.Type = 18 AND (?1 OR p.HistoryTreeNodeID = ?2)")?;
+            q.query_map((exact.is_some(), creator), |r| Ok((r.get::<_, i64>(0)?, crate::text(r.get(1)?))))?
                 .flatten()
                 .map(|(id, t)| (id, serde_json::from_str(&t).unwrap_or_default()))
                 .collect()
@@ -510,7 +723,8 @@ impl Writer {
                 .conn
                 .query_row("SELECT Data FROM HistoryNames WHERE NameID = ?1 AND Type = 19", [t], |r| Ok(crate::text(r.get(0)?)))
                 .ok();
-            data.and_then(|d| serde_json::from_str::<serde_json::Value>(&d).ok()).is_some_and(|j| j["kind"].as_i64() == Some(1))
+            data.and_then(|d| serde_json::from_str::<serde_json::Value>(&d).ok())
+                .is_some_and(|j| j["kind"].as_i64() == Some(1) && exact.is_none_or(|name| j["wrappedName"].as_i64() == Some(name)))
         });
         let Some(target) = target else { return Ok(false) };
         let (_, root): (i64, Vec<u8>) = self.db.conn.query_row(
@@ -928,7 +1142,7 @@ impl Writer {
     /// Keeps a copy of the body step `creator` made (a Parasolid part) where only we look ("ShapeCraftBodies"), so the
     /// file read here again before Shapr3D has rebuilt it still has that body. Shapr3D ignores the table (t6b).
     /// Imports are left out: their own placed prototype already gives the body. False when not kept.
-    pub fn stash_body(&mut self, creator: i64, xt: &[u8]) -> Result<bool> {
+    pub fn needs_body_copy(&self, creator: i64) -> bool {
         let op: Option<String> = self
             .db
             .conn
@@ -938,9 +1152,12 @@ impl Writer {
             .ok()
             .and_then(|b| unpack(&b))
             .and_then(|v| v.as_array()?.get(3)?.as_str().map(str::to_string));
-        match op.as_deref() {
-            None | Some("MaterializeImportedBodies") => return Ok(false),
-            Some(_) => {}
+        !matches!(op.as_deref(), None | Some("MaterializeImportedBodies"))
+    }
+
+    pub fn stash_body(&mut self, creator: i64, xt: &[u8]) -> Result<bool> {
+        if !self.needs_body_copy(creator) {
+            return Ok(false);
         }
         self.db.conn.execute_batch(crate::STASH_SCHEMA)?;
         self.db.conn.execute("INSERT INTO ShapeCraftBodies (HistoryTreeNodeID, Body) VALUES (?1, ?2)", (creator, xt))?;
@@ -1029,6 +1246,132 @@ mod tests {
         assert_eq!(nodes, [7, 8]);
         let old: i64 = conn.query_row("SELECT COUNT(*) FROM sqlite_master WHERE name = 'ShayperBodies'", [], |r| r.get(0)).unwrap();
         assert_eq!(old, 0);
+    }
+
+    #[test]
+    fn shared_creator_operations_target_only_the_selected_item() {
+        let mut w = Writer::fresh().unwrap();
+        let step = w.import_body("A", b"PS\0\0", &[], Default::default()).unwrap();
+        // Add a second synthetic body name and metadata under the same step.
+        let key = serde_json::json!({"nodeID": step, "entropy": [1]});
+        let named = w.name(0, serde_json::json!({"callKey": key, "qualifier": 4, "sourceTopologyNames": []})).unwrap();
+        let item = w.name(18, serde_json::json!({"callKey": key, "nameToAnchor": named})).unwrap();
+        let mat = w.name(19, serde_json::json!({"wrappedName": named, "kind": 1})).unwrap();
+        let mat_anchor = w.name(18, serde_json::json!({"callKey": key, "nameToAnchor": mat})).unwrap();
+        w.db.conn.execute("INSERT INTO HistoryNameAnchoringPoints VALUES (?1, ?2)", (item, step)).unwrap();
+        w.db.conn.execute("INSERT INTO HistoryNameAnchoringPoints VALUES (?1, ?2)", (mat_anchor, step)).unwrap();
+        w.meta(0, "B", item).unwrap();
+        w.meta(1, "0", item).unwrap();
+        assert!(!w.rename_item_by_id(step + 999, item, "wrong").unwrap());
+        assert!(w.rename_item_by_id(step, item, "renamed").unwrap());
+        assert!(w.set_hidden_item(step, item, true).unwrap());
+        assert!(w.set_color_item(step, item, Some([1.0, 0.0, 0.0])).unwrap());
+        assert!(w.move_body_item(step, item, [1.0, 0.0, 0.0]).unwrap());
+        assert!(w.delete_body_item(step, item).unwrap());
+        let names: Vec<String> = {
+            let mut q = w.db.conn.prepare("SELECT Data FROM Metadata WHERE MetadataTypeID = 0 ORDER BY MetadataID").unwrap();
+            q.query_map([], |r| Ok(crate::text(r.get(0)?))).unwrap().flatten().collect()
+        };
+        assert_eq!(names, ["A", "B", "renamed"]);
+        let flags: Vec<String> = {
+            let mut q = w.db.conn.prepare("SELECT Data FROM Metadata WHERE MetadataTypeID = 1 ORDER BY MetadataID").unwrap();
+            q.query_map([], |r| Ok(crate::text(r.get(0)?))).unwrap().flatten().collect()
+        };
+        assert_eq!(flags, ["0", "0", "1"]);
+        let wrappers: Vec<serde_json::Value> = {
+            let mut q = w.db.conn.prepare("SELECT Data FROM HistoryNames WHERE Type = 19 ORDER BY NameID").unwrap();
+            q.query_map([], |r| Ok(crate::text(r.get(0)?))).unwrap().flatten().filter_map(|d| serde_json::from_str(&d).ok()).collect()
+        };
+        assert_eq!(wrappers.iter().filter(|j| j["kind"] == 0 && j["wrappedName"] == named).count(), 2);
+        let latest_material: String = w.db.conn.query_row("SELECT n.Data FROM HistoryNames n JOIN MetadataAssignments a ON a.NameID = n.NameID JOIN Metadata m ON m.MetadataID = a.MetadataID WHERE n.Type = 18 AND m.MetadataTypeID = 2 ORDER BY n.NameID DESC LIMIT 1", [], |r| Ok(crate::text(r.get(0)?))).unwrap();
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&latest_material).unwrap()["nameToAnchor"], mat);
+    }
+
+    #[test]
+    fn late_item_is_verified_from_cached_transform_and_ambiguous_calls_are_rejected() -> crate::Result<()> {
+        use rmpv::Value;
+        let mut w = Writer::fresh()?;
+        let creator = w.import_body("Original", b"PS\0\0", &[], Default::default())?;
+        let original: i64 = w.db.conn.query_row(
+            "SELECT a.NameID FROM MetadataAssignments a JOIN Metadata m USING (MetadataID) WHERE m.MetadataTypeID=0 LIMIT 1",
+            [],
+            |r| r.get(0),
+        )?;
+        let data: String =
+            w.db.conn.query_row("SELECT Data FROM HistoryNames WHERE NameID=?1", [original], |r| Ok(crate::text(r.get(0)?)))?;
+        let target = serde_json::from_str::<serde_json::Value>(&data)
+            .ok()
+            .and_then(|v| v["nameToAnchor"].as_i64())
+            .ok_or_else(|| crate::Error::Format("missing test target".into()))?;
+        let param = w.named_body_param(target)?;
+        let transform = w.add_step("Move", "Transform", vec![param])?;
+        let late = w.name(18, serde_json::json!({"callKey":{"nodeID":transform,"entropy":[]},"nameToAnchor":target}))?;
+        w.db.conn.execute("INSERT INTO HistoryNameAnchoringPoints VALUES (?1,?2)", (late, transform))?;
+        w.meta(0, "Late", late)?;
+        w.meta(1, "1", late)?;
+        w.db.conn.execute("INSERT INTO BodyRevisionBlocks (PartitionID,ChunkIndex,Block,Phase,IsDeleted) VALUES (100,0,x'00',2,0)", [])?;
+        let entry = |pid| {
+            Value::Array(vec![
+                Value::from(pid),
+                Value::Array(vec![
+                    Value::from(true),
+                    Value::Array(vec![
+                        Value::Array(vec![Value::from(true), Value::from(1)]),
+                        Value::Array(vec![Value::from(true), Value::from(2)]),
+                    ]),
+                ]),
+            ])
+        };
+        let call = |entries: Vec<Value>| {
+            Value::Array(vec![
+                Value::Nil,
+                Value::Nil,
+                Value::Array(vec![Value::from(true), Value::Array(vec![Value::Nil, Value::Array(entries)])]),
+                Value::Array(vec![Value::from(false)]),
+                Value::Array(vec![Value::from(false)]),
+                Value::Array(vec![Value::from(false)]),
+            ])
+        };
+        let created = Value::Array(vec![
+            Value::Nil,
+            Value::Nil,
+            Value::Array(vec![Value::from(false)]),
+            Value::Array(vec![Value::from(false)]),
+            Value::Array(vec![Value::from(false)]),
+            Value::Array(vec![
+                Value::from(true),
+                Value::Array(vec![Value::Array(vec![Value::Array(vec![
+                    Value::from(0),
+                    Value::from(100),
+                    Value::from(3),
+                    Value::from(42),
+                ])])]),
+            ]),
+        ]);
+        let key = |node| Value::Array(vec![Value::from(node), Value::Array(vec![Value::from(0)])]);
+        w.db.conn
+            .execute("INSERT INTO PersistedCalls (CallKey,CallData) VALUES (?1,?2)", (crate::pack(&key(creator)), crate::pack(&created)))?;
+        w.db.conn.execute(
+            "INSERT INTO PersistedCalls (CallKey,CallData) VALUES (?1,?2)",
+            (crate::pack(&key(transform)), crate::pack(&call(vec![entry(100)]))),
+        )?;
+        w.verified_targets = super::verified_cached_targets(&w.db.conn)?;
+        assert_eq!(w.verified_targets.get(&(creator, late)), Some(&target));
+        assert!(!w.rename_item_by_id(creator + 999, late, "wrong")?);
+        assert!(w.rename_item_by_id(creator, late, "Renamed")?);
+        assert!(w.set_hidden_item(creator, late, false)?);
+        let values: Vec<String> = {
+            let mut q = w.db.conn.prepare("SELECT Data FROM Metadata WHERE MetadataTypeID=0 ORDER BY MetadataID")?;
+            q.query_map([], |r| Ok(crate::text(r.get(0)?)))?.flatten().collect()
+        };
+        assert_eq!(values, ["Original", "Late", "Renamed"]);
+        assert!(w.move_body_item(creator, late, [1.0, 0.0, 0.0])?);
+        w.db.conn.execute(
+            "UPDATE PersistedCalls SET CallData=?1 WHERE CallKey=?2",
+            (crate::pack(&call(vec![entry(100), entry(101)])), crate::pack(&key(transform))),
+        )?;
+        assert!(!super::verified_cached_targets(&w.db.conn)?.contains_key(&(creator, late)));
+        Ok(())
     }
 
     #[test]

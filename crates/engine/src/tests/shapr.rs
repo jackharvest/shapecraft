@@ -5,6 +5,42 @@ use serde_json::json;
 
 use super::{session, volume};
 
+#[test]
+fn imported_nested_folders_remain_a_tree_when_exported_again() {
+    let dir = std::env::temp_dir().join(format!("shapecraft-nested-shapr-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("nested.shapr");
+    let mut s = session();
+    let shape = s.kernel.make_box(glam::DVec3::ZERO, glam::DVec3::ONE).unwrap();
+    let brep = s.kernel.to_brep(&shape).unwrap().remove(0);
+    let xt = shapecraft_xt::write_body(&brep, shapecraft_xt::Format::Binary).unwrap();
+    let mut w = shapecraft_shapr::Writer::fresh().unwrap();
+    for name in ["Left", "Right"] {
+        w.import_body(name, &xt, &["Assembly".into(), name.into()], Default::default()).unwrap();
+    }
+    std::fs::write(&path, w.finish().unwrap()).unwrap();
+    s.execute("import_file", &json!({"path":path})).unwrap();
+    assert_eq!(s.doc.bodies.len(), 2);
+    assert_eq!(s.doc.folders.len(), 3);
+    let root = s.doc.folders.iter().find(|f| f.name == "Assembly").unwrap();
+    assert_eq!(root.items.len(), 2);
+    for child in ["Left", "Right"] {
+        let folder = s.doc.folders.iter().find(|f| f.name == child).unwrap();
+        assert!(root.items.contains(&folder.id));
+        assert_eq!(folder.items.len(), 1);
+        assert_eq!(s.doc.body(folder.items[0]).unwrap().name, child);
+    }
+    // Force a fresh export: passing the original workspace through would hide a broken folder traversal.
+    s.doc.shapr = None;
+    let out = dir.join("out.shapr");
+    s.execute("export_shapr", &json!({"path":out})).unwrap();
+    let back = shapecraft_shapr::Project::read(&shapecraft_shapr::ShaprFile::read(&out).unwrap()).unwrap();
+    for b in back.bodies {
+        assert_eq!(b.folder, vec!["Assembly".to_string(), b.name.unwrap()]);
+    }
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 /// A project written as a Shapr3D file reads back with the same solids and remembers the file; exporting the
 /// linked project again keeps unchanged bodies, and a changed body becomes a Delete step plus a new Import.
 #[test]
@@ -47,8 +83,16 @@ fn shapr_export_import_and_linked_round_trip() {
         .chain(b.max.to_array())
         .collect();
     let name = t.doc.bodies[0].name.clone();
-    t.doc.shapr.as_mut().unwrap().bodies =
-        vec![shapecraft_doc::ShaprBody { body: id, step, name, fingerprint: fp, color: None, hidden: false, extrude: None }];
+    t.doc.shapr.as_mut().unwrap().bodies = vec![shapecraft_doc::ShaprBody {
+        body: id,
+        step,
+        item_name_id: None,
+        name,
+        fingerprint: fp,
+        color: None,
+        hidden: false,
+        extrude: None,
+    }];
     let kept = t.execute("export_shapr", &json!({"path": dir.join("b.shapr")})).unwrap().value;
     assert_eq!((kept["kept"].as_u64(), kept["imported"].as_u64(), kept["deleted"].as_u64()), (Some(1), Some(0), Some(0)));
     // Moved only: the import's placement moves it, nothing is replaced.

@@ -22,7 +22,7 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
     // Bodies whose geometry the kernel couldn't rebuild: named in the result (the app says how many) rather than
     // losing the whole project to one of them.
     let mut failed: Vec<String> = project.unreadable.clone();
-    let mut folders: Vec<(String, Vec<shapecraft_doc::ItemId>)> = Vec::new();
+    let mut folders: Vec<(Vec<String>, Vec<shapecraft_doc::ItemId>)> = Vec::new();
     let mut links = Vec::new();
     // A body Shapr3D extruded from one of its sketches can come back as an Extrude step of ours (after this
     // import), so its distance and draft stay editable and go back into Shapr3D's step. Only for the project the
@@ -32,6 +32,7 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
     let mut deferred = Vec::new();
     let mut sketch_ids = Vec::new();
     let mut sketch_links = Vec::new();
+    let mut construction_ids = Vec::new();
     // Shapr3D curve id → (our sketch, entity index), to find an extrude's profile among our regions.
     let mut curve_entity: std::collections::HashMap<i64, (shapecraft_doc::ItemId, u32)> = std::collections::HashMap::new();
     // Items come in the order their steps made them, so the Items list (newest first) reads as Shapr3D's does.
@@ -43,6 +44,14 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
     for (_, item) in order {
         match item {
             Ok(body) => {
+                let op = body.step.and_then(|n| project.steps.iter().find(|st| st.node == n)).map(|st| st.op.as_str());
+                if let Some(id) = import_construction(s, body, op) {
+                    construction_ids.push(id.0);
+                    if !body.folder.is_empty() {
+                        folders.push((body.folder.clone(), vec![id]));
+                    }
+                    continue;
+                }
                 let extrude = body
                     .step
                     .filter(|_| linking && body.folder.is_empty())
@@ -77,12 +86,7 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
             }
         }
     }
-    let mut made_folders = Vec::new();
-    for (name, items) in folders {
-        let id = s.doc.alloc_id();
-        s.doc.folders.push(shapecraft_doc::Folder { id, name: name.chars().take(200).collect(), items });
-        made_folders.push(id.0);
-    }
+    let made_folders = import_folder_tree(s, folders);
     s.refresh_regions();
     let mut redone = 0;
     for (body, e) in deferred {
@@ -144,12 +148,13 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
     let linked = linking;
     if linked {
         let mut refs = Vec::new();
-        for (id, step) in links {
+        for (id, step, item_name_id) in links {
             let Some(b) = s.doc.body(id) else { continue };
             let (color, hidden) = (b.appearance.as_ref().map(|a| a.color), !b.visible);
             refs.push(shapecraft_doc::ShaprBody {
                 body: id,
                 step,
+                item_name_id,
                 name: b.name.clone(),
                 fingerprint: fingerprint(s, &b.shape.clone())?,
                 color,
@@ -170,7 +175,7 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
     s.shapr_steps =
         project.steps.iter().filter(|st| !st.name.is_empty()).take(100_000).map(|st| [st.name.clone(), st.op.clone()]).collect();
     Ok(
-        json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>(), "folders": made_folders, "sketches": sketch_ids, "steps": project.steps.len(), "linked": linked, "extrudes": redone, "unreadable": failed }),
+        json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>(), "folders": made_folders, "sketches": sketch_ids, "construction": construction_ids, "steps": project.steps.len(), "linked": linked, "extrudes": redone, "unreadable": failed }),
     )
 }
 
@@ -178,8 +183,8 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
 fn add_shapr_body(
     s: &mut Session,
     body: &shapecraft_shapr::Body,
-    folders: &mut Vec<(String, Vec<shapecraft_doc::ItemId>)>,
-    links: &mut Vec<(shapecraft_doc::ItemId, i64)>,
+    folders: &mut Vec<(Vec<String>, Vec<shapecraft_doc::ItemId>)>,
+    links: &mut Vec<(shapecraft_doc::ItemId, i64, Option<i64>)>,
 ) -> Result<Vec<shapecraft_doc::ItemId>> {
     let made = match &body.mesh {
         // A facet body (an imported STL kept as a mesh in the file): it stays a mesh body here too.
@@ -196,9 +201,9 @@ fn add_shapr_body(
         _ => add_bodies(s, vec![s.kernel.from_brep(&body.brep)?], body.name.as_deref())?,
     };
     if let (Some(step), [id]) = (body.step, made.as_slice()) {
-        links.push((*id, step));
+        links.push((*id, step, body.item_name_id));
     }
-    let folder = body.folder.join(" / ");
+    let folder = &body.folder;
     for &id in &made {
         if let (Some(c), Some(b)) = (body.color, s.doc.body_mut(id)) {
             b.appearance = Some(imported_colour(c));
@@ -207,13 +212,90 @@ fn add_shapr_body(
             b.visible = false;
         }
         if !folder.is_empty() {
-            match folders.iter_mut().find(|f| f.0 == folder) {
+            match folders.iter_mut().find(|f| f.0 == *folder) {
                 Some(f) => f.1.push(id),
                 None => folders.push((folder.clone(), vec![id])),
             }
         }
     }
     Ok(made)
+}
+
+/// Construction partitions share the file's B-rep storage, but are planes/axes in Items, never solid bodies.
+fn import_construction(s: &mut Session, body: &shapecraft_shapr::Body, op: Option<&str>) -> Option<shapecraft_doc::ItemId> {
+    use shapecraft_kernel::brep::Surface;
+    let name = body.name.as_deref().unwrap_or("Construction").chars().take(200).collect();
+    match op? {
+        op if op.starts_with("CreateCGPlane") => {
+            let Surface::Plane { origin, normal, x } = body.brep.surfaces.first()? else { return None };
+            let n = normal.try_normalize()?;
+            let x = (*x - n * x.dot(n)).try_normalize()?;
+            let origin = if body.brep.vertices.is_empty() {
+                *origin
+            } else {
+                body.brep.vertices.iter().sum::<glam::DVec3>() / body.brep.vertices.len() as f64
+            };
+            let size = body.brep.vertices.iter().map(|p| (*p - origin).length() * 2.0).fold(1.0, f64::max) / 2.0_f64.sqrt();
+            let id = s.doc.alloc_id();
+            s.doc.planes.push(shapecraft_doc::ConstructionPlane {
+                id,
+                name,
+                plane: SketchPlane { origin, x, y: n.cross(x) },
+                size: size.clamp(1.0, 1e6),
+                visible: !body.hidden,
+            });
+            Some(id)
+        }
+        op if op.starts_with("CreateCGAxis") => {
+            let a = *body.brep.vertices.first()?;
+            let b = *body.brep.vertices.get(1)?;
+            let dir = (b - a).try_normalize()?;
+            let id = s.doc.alloc_id();
+            s.doc.axes.push(shapecraft_doc::ConstructionAxis {
+                id,
+                name,
+                origin: (a + b) / 2.0,
+                dir,
+                length: a.distance(b).clamp(1.0, 1e6),
+                visible: !body.hidden,
+            });
+            Some(id)
+        }
+        _ => None,
+    }
+}
+
+fn import_folder_tree(s: &mut Session, folders: Vec<(Vec<String>, Vec<shapecraft_doc::ItemId>)>) -> Vec<u64> {
+    let mut paths = std::collections::BTreeMap::<Vec<String>, shapecraft_doc::ItemId>::new();
+    let mut made = Vec::new();
+    for (path, items) in folders {
+        let mut parent = None;
+        for depth in 1..=path.len() {
+            let key = path[..depth].to_vec();
+            let id = match paths.get(&key) {
+                Some(id) => *id,
+                None => {
+                    let id = s.doc.alloc_id();
+                    s.doc.folders.push(shapecraft_doc::Folder { id, name: path[depth - 1].chars().take(200).collect(), items: Vec::new() });
+                    paths.insert(key, id);
+                    made.push(id.0);
+                    if let Some(parent) = parent
+                        && let Some(f) = s.doc.folders.iter_mut().find(|f| f.id == parent)
+                    {
+                        f.items.push(id);
+                    }
+                    id
+                }
+            };
+            parent = Some(id);
+        }
+        if let Some(parent) = parent
+            && let Some(f) = s.doc.folders.iter_mut().find(|f| f.id == parent)
+        {
+            f.items.extend(items);
+        }
+    }
+    made
 }
 
 fn imported_colour(c: [f32; 3]) -> shapecraft_doc::Appearance {
@@ -396,6 +478,7 @@ pub(crate) fn run_followups(s: &mut Session, todo: Vec<Followup>) {
             link.bodies.push(shapecraft_doc::ShaprBody {
                 body,
                 step: f.node,
+                item_name_id: None,
                 name: b.0,
                 fingerprint: fp,
                 color: b.2,
@@ -546,7 +629,18 @@ fn fingerprint(s: &Session, shape: &shapecraft_kernel::Shape) -> Result<Vec<f64>
 
 /// The Items folder path a body sits in ("A / B" folders from imports become nested folders).
 fn folder_path(s: &Session, body: shapecraft_doc::ItemId) -> Vec<String> {
-    s.doc.folders.iter().find(|f| f.items.contains(&body)).map(|f| f.name.split(" / ").map(str::to_string).collect()).unwrap_or_default()
+    let mut path = Vec::new();
+    let mut item = body;
+    let mut seen = std::collections::HashSet::new();
+    while let Some(f) = s.doc.folders.iter().find(|f| f.items.contains(&item)) {
+        if !seen.insert(f.id) {
+            break;
+        }
+        path.push(f.name.as_str());
+        item = f.id;
+    }
+    // Older imports stored a joined path as one folder name; those projects keep their export behavior.
+    path.into_iter().rev().flat_map(|name| name.split(" / ").map(str::to_string)).collect()
 }
 
 /// A body's solids as Parasolid parts (neutral binary).
@@ -576,9 +670,22 @@ pub(super) fn export_shapr(s: &mut Session, p: &Params) -> Result<Value> {
     let mut kept = std::collections::HashSet::new();
     let (mut deleted, mut renamed, mut moved, mut restyled) = (0, 0, 0, 0);
     for r in link.iter().flat_map(|l| &l.bodies) {
+        // Old saved links have no item identity. Only a unique creator is safe in that case.
+        let unique = link.iter().flat_map(|l| &l.bodies).filter(|b| b.step == r.step).count() == 1;
+        let delete = |w: &mut shapecraft_shapr::Writer| -> Result<()> {
+            let done = match r.item_name_id {
+                Some(item) => w.delete_body_item(r.step, item).map_err(bad)?,
+                None if unique => {
+                    w.delete_body(r.step).map_err(bad)?;
+                    true
+                }
+                None => false,
+            };
+            if done { Ok(()) } else { Err(EngineError::BadParams("cannot safely identify the body to replace in this project".into())) }
+        };
         match s.doc.body(r.body).map(|b| (b.name.clone(), b.shape.clone(), look(b))) {
             None => {
-                w.delete_body(r.step).map_err(bad)?;
+                delete(&mut w)?;
                 deleted += 1;
             }
             Some((name, shape, now_look)) => {
@@ -594,21 +701,45 @@ pub(super) fn export_shapr(s: &mut Session, p: &Params) -> Result<Value> {
                     })
                 };
                 if r.unchanged(&now)
-                    || moved_by.is_some_and(|t| w.translate_import(r.step, t).unwrap_or(false) || w.move_body(r.step, t).unwrap_or(false))
+                    || moved_by.is_some_and(|t| match r.item_name_id {
+                        Some(item) => w.move_body_item(r.step, item, t).unwrap_or(false),
+                        None if unique => w.translate_import(r.step, t).unwrap_or(false) || w.move_body(r.step, t).unwrap_or(false),
+                        None => false,
+                    })
                     || edited(&mut w)
                 {
                     kept.insert(r.body);
                     moved += usize::from(moved_by.is_some());
-                    if name != r.name && w.rename_item(r.step, &name).map_err(bad)? {
-                        renamed += 1;
-                    }
+                    let did_rename = name != r.name
+                        && match r.item_name_id {
+                            Some(item) => w.rename_item_by_id(r.step, item, &name).map_err(bad)?,
+                            None if unique => w.rename_item(r.step, &name).map_err(bad)?,
+                            None => false,
+                        };
+                    renamed += usize::from(did_rename);
                     // Compared as Shapr3D stores colours (a byte a channel), so a colour read back counts as unchanged.
                     let byte = |c: Option<[f32; 3]>| c.map(shapecraft_shapr::write::rgba);
-                    let recoloured = byte(now_look.color) != byte(r.color) && w.set_color(r.step, now_look.color).map_err(bad)?;
-                    let shown = now_look.hidden != r.hidden && w.set_hidden(r.step, now_look.hidden).map_err(bad)?;
+                    let recoloured = byte(now_look.color) != byte(r.color)
+                        && match r.item_name_id {
+                            Some(item) => w.set_color_item(r.step, item, now_look.color).map_err(bad)?,
+                            None if unique => w.set_color(r.step, now_look.color).map_err(bad)?,
+                            None => false,
+                        };
+                    let shown = now_look.hidden != r.hidden
+                        && match r.item_name_id {
+                            Some(item) => w.set_hidden_item(r.step, item, now_look.hidden).map_err(bad)?,
+                            None if unique => w.set_hidden(r.step, now_look.hidden).map_err(bad)?,
+                            None => false,
+                        };
+                    if (name != r.name && !did_rename)
+                        || (byte(now_look.color) != byte(r.color) && !recoloured)
+                        || (now_look.hidden != r.hidden && !shown)
+                    {
+                        return Err(EngineError::BadParams("cannot safely update this body's metadata in the linked project".into()));
+                    }
                     restyled += usize::from(recoloured || shown);
                 } else {
-                    w.delete_body(r.step).map_err(bad)?;
+                    delete(&mut w)?;
                     deleted += 1;
                 }
             }
@@ -616,7 +747,7 @@ pub(super) fn export_shapr(s: &mut Session, p: &Params) -> Result<Value> {
     }
     // Copies of the Shapr3D-made bodies kept as they are, for reading the file here again before Shapr3D rebuilds it.
     for r in link.iter().flat_map(|l| &l.bodies).filter(|r| kept.contains(&r.body)) {
-        if s.doc.body(r.body).is_none() {
+        if s.doc.body(r.body).is_none() || !w.needs_body_copy(r.step) {
             continue;
         }
         let shape = crate::cmd::model::working_shape(s, r.body, false)?;
@@ -667,7 +798,8 @@ pub(super) fn export_shapr(s: &mut Session, p: &Params) -> Result<Value> {
     for f in &s.doc.folders {
         let bodies: Vec<_> = f.items.iter().filter_map(|&i| s.doc.body(i)).collect();
         if !bodies.is_empty() && bodies.iter().all(|b| !b.visible) {
-            let path: Vec<String> = f.name.split(" / ").map(str::to_string).collect();
+            let mut path = folder_path(s, f.id);
+            path.extend(f.name.split(" / ").map(str::to_string));
             w.hide_folder(&path).map_err(bad)?;
         }
     }

@@ -64,6 +64,8 @@ pub enum Surface {
         x: DVec3,
         radius: f64,
     },
+    /// `(major + minor*cos(v)) * (x*cos(u) + y*sin(u)) + minor*axis*sin(v)` about `center`.
+    /// A negative major radius describes the inner (lemon) part of a spindle torus; `abs(major) < minor`.
     Torus {
         center: DVec3,
         axis: DVec3,

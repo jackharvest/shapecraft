@@ -473,6 +473,183 @@ fn front_view_shows_a_hole_as_hidden_lines() {
 /// A shape described as a B-rep and rebuilt keeps its volume and stays one valid solid (curved faces, seams,
 /// degenerate apex edges, left-handed frames).
 #[test]
+fn a_lemon_torus_keeps_its_signed_radius_and_surface_parameters() {
+    use shapecraft_kernel::DVec2;
+    use shapecraft_kernel::brep::{BodyKind, Brep, Curve, Edge, Face, Fin, Nurbs, Surface};
+    // An exact rectangular patch, drawn here from the published torus equation, not from an imported file.
+    // Its area integral is minor * (major * dv + minor * (sin(v1)-sin(v0))) * du.
+    let (major, minor) = (-2.0, 5.0);
+    let du = std::f64::consts::FRAC_PI_2;
+    let v: f64 = 0.7;
+    let uv = [DVec2::new(0.0, -v), DVec2::new(du, -v), DVec2::new(du, v), DVec2::new(0.0, v)];
+    let point = |p: DVec2| DVec3::new((major + minor * p.y.cos()) * p.x.cos(), (major + minor * p.y.cos()) * p.x.sin(), minor * p.y.sin());
+    let mut b = Brep {
+        kind: BodyKind::Sheet,
+        surfaces: vec![Surface::Torus { center: DVec3::ZERO, axis: DVec3::Z, x: DVec3::X, major, minor }],
+        vertices: uv.iter().copied().map(point).collect(),
+        ..Brep::default()
+    };
+    for i in 0..4 {
+        b.curves.push(Curve::OnSurface {
+            surface: 0,
+            uv: Nurbs {
+                degree: 1,
+                poles: vec![uv[i], uv[(i + 1) % 4]],
+                weights: None,
+                knots: vec![0.0, 1.0],
+                mults: vec![2, 2],
+                periodic: false,
+            },
+        });
+        b.edges.push(Edge { curve: Some(i), reversed: false, start: Some(i), end: Some((i + 1) % 4), tolerance: None });
+    }
+    b.faces.push(Face {
+        surface: 0,
+        flip: false,
+        loops: vec![(0..4).map(|i| Fin { edge: i, forward: true, pcurve: Some(i) }).collect()],
+        color: None,
+    });
+    b.shells.push(vec![0]);
+    let kernel = k();
+    let shape = kernel.from_brep(&b).unwrap();
+    let area = minor * (major * (2.0 * v) + minor * (2.0 * v.sin())) * du;
+    assert!((kernel.mass_props(&shape).unwrap().area - area).abs() < 1e-5);
+    let mesh = kernel.tessellate(&shape, 0.02).unwrap();
+    assert!(!mesh.indices.is_empty());
+    let back = kernel.to_brep(&shape).unwrap().remove(0);
+    assert!(
+        back.surfaces
+            .iter()
+            .any(|s| matches!(s, Surface::Torus { major: r, minor: t, .. } if (*r-major).abs()<1e-9 && (*t-minor).abs()<1e-9))
+    );
+    let rebuilt = kernel.from_brep(&back).unwrap();
+    assert!((kernel.mass_props(&rebuilt).unwrap().area - area).abs() < 1e-5);
+    for major in [0.0, -minor, -minor - 1.0] {
+        b.surfaces[0] = Surface::Torus { center: DVec3::ZERO, axis: DVec3::Z, x: DVec3::X, major, minor };
+        assert!(kernel.from_brep(&b).is_err());
+    }
+}
+
+#[test]
+fn unused_offset_of_a_creased_surface_does_not_block_a_solid() {
+    use shapecraft_kernel::brep::{NurbsSurface, Surface};
+    let kernel = k();
+    let solid = kernel.make_box(DVec3::ZERO, DVec3::splat(4.0)).unwrap();
+    let mut brep = kernel.to_brep(&solid).unwrap().remove(0);
+    let mut poles = Vec::new();
+    // Two quadratic patches meet with a sharp crease at u = 0.5.
+    for (x, z) in [(0.0, 0.0), (1.0, 0.0), (2.0, 0.0), (3.0, 1.0), (4.0, 2.0)] {
+        for y in [0.0, 1.0] {
+            poles.push(DVec3::new(x, y, z));
+        }
+    }
+    let basis = brep.surfaces.len();
+    brep.surfaces.push(Surface::BSpline(NurbsSurface {
+        u_degree: 2,
+        v_degree: 1,
+        nu: 5,
+        nv: 2,
+        poles,
+        weights: None,
+        u_knots: vec![0.0, 0.5, 1.0],
+        u_mults: vec![3, 2, 3],
+        v_knots: vec![0.0, 1.0],
+        v_mults: vec![2, 2],
+        u_periodic: false,
+        v_periodic: false,
+    }));
+    brep.surfaces.push(Surface::Offset { basis, distance: 0.25 });
+    let rebuilt = kernel.from_brep(&brep).unwrap();
+    assert!((kernel.mass_props(&rebuilt).unwrap().volume - 64.0).abs() < 1e-8);
+    // An actually used offset of this crease has no unique normal and is rejected.
+    brep.faces[0].surface = basis + 1;
+    assert!(kernel.from_brep(&brep).is_err());
+}
+
+#[test]
+fn used_offset_accepts_smooth_rational_joins_but_rejects_creases() {
+    use shapecraft_kernel::DVec2;
+    use shapecraft_kernel::brep::{BodyKind, Brep, Curve, Edge, Face, Fin, Nurbs, NurbsSurface, Surface};
+    // Two rational quarter circles form a smooth half-cylinder, but the
+    // double quadratic knot declares only C0 continuity.
+    let q = std::f64::consts::FRAC_1_SQRT_2;
+    let arc = [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (-1.0, 1.0), (-1.0, 0.0)];
+    let mut poles = Vec::new();
+    for z in [0.0, 2.0] {
+        poles.extend(arc.iter().map(|&(x, y)| DVec3::new(x, y, z)));
+    }
+    let basis = NurbsSurface {
+        u_degree: 1,
+        v_degree: 2,
+        nu: 2,
+        nv: 5,
+        poles,
+        weights: Some(vec![1.0, q, 1.0, q, 1.0, 1.0, q, 1.0, q, 1.0]),
+        u_knots: vec![0.0, 1.0],
+        u_mults: vec![2, 2],
+        v_knots: vec![0.0, 0.5, 1.0],
+        v_mults: vec![3, 2, 3],
+        u_periodic: false,
+        v_periodic: false,
+    };
+    let uv = [DVec2::new(0.0, 0.0), DVec2::new(1.0, 0.0), DVec2::new(1.0, 1.0), DVec2::new(0.0, 1.0)];
+    let points = [DVec3::new(0.75, 0.0, 0.0), DVec3::new(0.75, 0.0, 2.0), DVec3::new(-0.75, 0.0, 2.0), DVec3::new(-0.75, 0.0, 0.0)];
+    let mut b = Brep {
+        kind: BodyKind::Sheet,
+        surfaces: vec![Surface::BSpline(basis), Surface::Offset { basis: 0, distance: 0.25 }],
+        vertices: points.to_vec(),
+        ..Brep::default()
+    };
+    for i in 0..4 {
+        b.curves.push(Curve::OnSurface {
+            surface: 1,
+            uv: Nurbs {
+                degree: 1,
+                poles: vec![uv[i], uv[(i + 1) % 4]],
+                weights: None,
+                knots: vec![0.0, 1.0],
+                mults: vec![2, 2],
+                periodic: false,
+            },
+        });
+        b.edges.push(Edge { curve: Some(i), reversed: false, start: Some(i), end: Some((i + 1) % 4), tolerance: None });
+    }
+    b.faces.push(Face {
+        surface: 1,
+        flip: false,
+        loops: vec![(0..4).map(|i| Fin { edge: i, forward: true, pcurve: Some(i) }).collect()],
+        color: None,
+    });
+    b.shells.push(vec![0]);
+    let kernel = k();
+    let shape = kernel.from_brep(&b).unwrap();
+    let area = kernel.mass_props(&shape).unwrap().area;
+    // OCCT mass integration is approximate for this offset surface.
+    assert!((area - 1.5 * std::f64::consts::PI).abs() < 0.005, "{area}");
+    assert!(!kernel.tessellate(&shape, 0.02).unwrap().indices.is_empty());
+    // Keep an independent translated case: the continuity test must not lose
+    // its ability to detect the same crease far from the global origin.
+    let mut translated = b.clone();
+    let shift = DVec3::new(1.0e10, -1.0e10, 1.0e10);
+    for p in &mut translated.vertices {
+        *p += shift;
+    }
+    if let Surface::BSpline(ref mut n) = translated.surfaces[0] {
+        for p in &mut n.poles {
+            *p += shift;
+        }
+    }
+    kernel.from_brep(&translated).unwrap();
+    for model in [&mut b, &mut translated] {
+        if let Surface::BSpline(ref mut n) = model.surfaces[0] {
+            n.poles[3].y += 0.001;
+        }
+        let err = kernel.from_brep(model).unwrap_err().to_string();
+        assert!(err.contains("offset of a C0 surface"), "{err}");
+    }
+}
+
+#[test]
 fn brep_round_trip_keeps_curved_solids() {
     let k = k();
     let cyl = k.extrude_circle(DVec3::ZERO, 5.0, DVec3::new(0.0, 0.0, 12.0)).unwrap();
@@ -750,4 +927,153 @@ fn scaling_a_straight_edge_stretches_it_and_the_ends_follow() {
     let turned =
         kk.map_edge(&bx, edge, shapecraft_kernel::DMat3::from_rotation_z(0.3), c - shapecraft_kernel::DMat3::from_rotation_z(0.3) * c);
     assert!(turned.is_ok(), "{:?}", turned.err());
+}
+
+#[test]
+fn mixed_torus_ring_trims_at_period_seam() {
+    use shapecraft_kernel::DVec2;
+    use shapecraft_kernel::brep::{BodyKind, Brep, Curve, Edge, Face, Fin, Nurbs, Surface};
+    let (r, t) = (10.0_f64, 2.0_f64);
+    let lo = -2.0 * std::f64::consts::PI / 3.0;
+    let hi = -std::f64::consts::FRAC_PI_2;
+    let uv =
+        [DVec2::new(0.0, hi), DVec2::new(0.25, hi - 0.2), DVec2::new(1.4, hi), DVec2::new(1.7, hi), DVec2::new(std::f64::consts::TAU, hi)];
+    let point = |p: DVec2| DVec3::new((r + t * p.y.cos()) * p.x.cos(), (r + t * p.y.cos()) * p.x.sin(), t * p.y.sin());
+    let torus = Surface::Torus { center: DVec3::ZERO, axis: DVec3::Z, x: DVec3::X, major: r, minor: t };
+    let mut b = Brep {
+        kind: BodyKind::Sheet,
+        surfaces: vec![torus.clone(), torus],
+        vertices: uv[..4].iter().copied().map(point).collect(),
+        ..Brep::default()
+    };
+    for i in 0..4 {
+        if i < 2 {
+            b.curves.push(Curve::OnSurface {
+                surface: 1,
+                uv: Nurbs {
+                    degree: 1,
+                    poles: vec![uv[i + 1], uv[i]],
+                    weights: None,
+                    knots: vec![0.0, 1.0],
+                    mults: vec![2, 2],
+                    periodic: false,
+                },
+            });
+        } else {
+            b.curves.push(Curve::Circle {
+                center: DVec3::new(0., 0., t * hi.sin()),
+                normal: DVec3::Z,
+                x: DVec3::X,
+                radius: r + t * hi.cos(),
+            });
+        }
+        b.edges.push(Edge {
+            curve: Some(i),
+            reversed: i >= 2,
+            start: Some(if i >= 2 { (i + 1) % 4 } else { i }),
+            end: Some(if i >= 2 { i } else { (i + 1) % 4 }),
+            tolerance: None,
+        });
+    }
+    b.curves.push(Curve::Circle { center: DVec3::new(0., 0., t * lo.sin()), normal: DVec3::Z, x: DVec3::X, radius: r + t * lo.cos() });
+    b.edges.push(Edge { curve: Some(4), reversed: false, start: None, end: None, tolerance: None });
+    for i in 0..2 {
+        b.curves.push(Curve::OnSurface {
+            surface: 0,
+            uv: Nurbs {
+                degree: 1,
+                poles: vec![uv[i], uv[i + 1]],
+                weights: None,
+                knots: vec![0.0, 1.0],
+                mults: vec![2, 2],
+                periodic: false,
+            },
+        });
+    }
+    b.faces.push(Face {
+        surface: 0,
+        flip: true,
+        loops: vec![
+            (0..4).map(|edge| Fin { edge, forward: edge < 2, pcurve: if edge < 2 { Some(edge + 5) } else { None } }).collect(),
+            vec![Fin { edge: 4, forward: false, pcurve: None }],
+        ],
+        color: None,
+    });
+    b.shells.push(vec![0]);
+    let shape = k().from_brep(&b).unwrap();
+    let actual = k().mass_props(&shape).unwrap().area;
+    let expected: f64 = uv
+        .windows(2)
+        .map(|p| {
+            let du = p[1].x - p[0].x;
+            let dv = p[1].y - p[0].y;
+            let avg = if dv.abs() < 1e-12 { p[0].y.sin() } else { (p[0].y.cos() - p[1].y.cos()) / dv };
+            t * du * (r * ((p[0].y + p[1].y) / 2.0 - lo) + t * (avg - lo.sin()))
+        })
+        .sum();
+    assert!((actual - expected).abs() < 1e-4, "area {actual}, expected {expected}");
+}
+
+/// #21: a repair that runs past its time is cut short (here a deadline already gone), and the shape comes back
+/// unrepaired instead of the import hanging; with no limit nothing is cut.
+#[test]
+fn a_repair_past_its_budget_is_cut_short() {
+    let opts = shapecraft_kernel::HealOptions { repair: true, edges: false, sew: false, simplify: false };
+    let b = k().make_box(DVec3::ZERO, DVec3::splat(10.0)).unwrap();
+    let (_, cut) = k().heal_within(&b, opts, 0.0).unwrap();
+    assert_eq!(cut, 0);
+    let (same, cut) = k().heal_within(&b, opts, 1e-12).unwrap();
+    assert_eq!(cut, 2);
+    assert!((k().mass_props(&same).unwrap().volume - 1000.0).abs() < 1e-6);
+}
+
+/// #22: Cancel stops the repair of an import running on its own thread, and only there.
+#[test]
+fn cancel_stops_only_a_cancellable_thread() {
+    let opts = shapecraft_kernel::HealOptions { repair: true, edges: false, sew: false, simplify: false };
+    k().cancel(true);
+    let b = k().make_box(DVec3::ZERO, DVec3::splat(10.0)).unwrap();
+    let here = k().heal_within(&b, opts, 0.0);
+    let there = std::thread::spawn(move || {
+        k().cancellable(true);
+        k().heal_within(&b, opts, 0.0).map(|(_, c)| c)
+    })
+    .join()
+    .unwrap();
+    k().cancel(false);
+    assert!(here.is_ok_and(|(_, c)| c == 0), "a thread that isn't importing is never stopped");
+    assert!(there.is_err_and(|e| e.to_string().contains("canceled")));
+}
+
+/// #20: a body of very dense B-spline surfaces (a loft through many finely drawn sections) gets its volume in
+/// seconds from a triangulation, not after minutes of exact integration (237 s before), and still close to the
+/// true one.
+#[test]
+fn dense_bspline_body_mass_props_stay_quick() {
+    let section = |z: f64, i: usize| {
+        let n = 900;
+        let r = 10.0 + 0.2 * (i % 3) as f64;
+        let mut poles: Vec<DVec3> = (0..n)
+            .map(|k| {
+                let a = std::f64::consts::TAU * k as f64 / n as f64;
+                let w = r + 0.3 * (a * 40.0).sin();
+                DVec3::new(w * a.cos(), w * a.sin(), z)
+            })
+            .collect();
+        poles.push(poles[0]);
+        let f = PlaneFrame { origin: DVec3::new(0.0, 0.0, z), x: DVec3::X, y: DVec3::Y };
+        k().planar_regions(f, &[PlanarCurve::BSpline { poles }]).unwrap().remove(0)
+    };
+    let sections: Vec<Shape> = (0..40).map(|i| section(i as f64 * 1.5, i)).collect();
+    let started = std::time::Instant::now();
+    let body = k().loft(&sections).unwrap();
+    let made = started.elapsed();
+    let started = std::time::Instant::now();
+    let v = k().mass_props(&body).unwrap().volume;
+    let took = started.elapsed();
+    eprintln!("loft {made:?}, mass props {took:?}, volume {v}");
+    // About π r² h with r near 10.2 and h 58.5.
+    let expected = std::f64::consts::PI * 10.2f64.powi(2) * 58.5;
+    assert!((v - expected).abs() < 0.03 * expected, "{v} vs {expected}");
+    assert!(took.as_secs_f64() < 30.0, "{took:?}");
 }

@@ -107,6 +107,27 @@ impl Session {
         }
     }
 
+    /// A copy to run one long command on another thread (an import, #22) while this one stays on screen; the copy,
+    /// with that command in its undo history, then takes this one's place. Shapes and meshes are shared, not copied.
+    pub fn fork(&self) -> Self {
+        Self {
+            doc: self.doc.clone(),
+            kernel: self.kernel.clone(),
+            selection: self.selection.clone(),
+            active_sketch: self.active_sketch,
+            path: self.path.clone(),
+            dirty: self.dirty,
+            revision: self.revision,
+            undo: self.undo.clone(),
+            redo: self.redo.clone(),
+            followups: Vec::new(),
+            adopt: None,
+            shapr_steps: Vec::new(),
+            replaying: false,
+            log_params: None,
+        }
+    }
+
     pub fn with_document(kernel: Arc<dyn Kernel>, doc: Document, path: Option<PathBuf>) -> Self {
         let mut s = Self::new(kernel, "");
         s.doc = doc;

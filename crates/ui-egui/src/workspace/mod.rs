@@ -18,6 +18,7 @@ pub mod export;
 mod history;
 pub mod import_prefs;
 pub mod import_project;
+mod importing;
 mod keys;
 mod measure;
 mod numpad;
@@ -188,6 +189,8 @@ pub struct Workspace {
     /// Import Preferences, open over a file waiting to come in; then the file and its "heal" to import (app.rs).
     pub import_prefs: Option<import_prefs::ImportPrefs>,
     pub import_file_go: Option<(std::path::PathBuf, serde_json::Value)>,
+    /// An import running on its own thread (#22).
+    pub importing: Option<importing::Importing>,
     /// Set when Export was pressed: the app asks where to save, then writes each format.
     pub wants_export: Option<export::ExportDialog>,
     /// The Visualization workspace: materials on, edges off.
@@ -625,6 +628,7 @@ impl Workspace {
             import_go: false,
             import_prefs: None,
             import_file_go: None,
+            importing: None,
             wants_export: None,
             visualizing: false,
             vis_sidebar: true,
@@ -963,6 +967,7 @@ impl Workspace {
     pub fn ui(&mut self, ui: &mut egui::Ui, render_state: Option<&egui_wgpu::RenderState>) {
         shapecraft_doc::set_display_formats(self.feet_architectural, self.degrees_fractional);
         self.now = ui.input(|i| i.time);
+        self.poll_import(ui.ctx());
         self.note_selection();
         if self.step_animation() {
             ui.ctx().request_repaint();
@@ -1073,6 +1078,7 @@ impl Workspace {
             || self.export.is_some()
             || self.import_sheet.is_some()
             || self.import_prefs.is_some()
+            || self.importing.is_some()
             || self.prefs_open
             || self.nav_presets.is_some()
             || self.variables_dialog.is_some()
@@ -1095,6 +1101,7 @@ impl Workspace {
                 if self.import_prefs.is_some() {
                     import_prefs::dialog(self, ui, full);
                 }
+                importing::card(self, ui, full);
                 prefs::modals(self, ui, full);
             });
         }

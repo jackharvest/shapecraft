@@ -476,6 +476,23 @@ pub trait Kernel: Send + Sync {
         Ok(shape.clone())
     }
 
+    /// [`Kernel::heal`] with a time limit on the repair (seconds, 0 = none), so one bad shape can't hang an import
+    /// (#21). Also says how the repair was cut short: 0 not, 1 its slowest part left out, 2 no repair at all.
+    fn heal_within(&self, shape: &Shape, opts: HealOptions, budget: f64) -> Result<(Shape, u8)> {
+        let _ = budget;
+        Ok((self.heal(shape, opts)?, 0))
+    }
+
+    /// Marks the calling thread's long work (reading and repairing imports) as stoppable by [`Kernel::cancel`].
+    fn cancellable(&self, on: bool) {
+        let _ = on;
+    }
+
+    /// Asks stoppable work to stop at its next check (`true`), or clears that before the next import (`false`).
+    fn cancel(&self, on: bool) {
+        let _ = on;
+    }
+
     /// STEP with its product structure: each solid placed, with the name, color and assembly path it had in the
     /// file. Kernels without that fall back to the bare shapes.
     fn read_step_parts(&self, path: &Path) -> Result<Vec<(Shape, PartInfo)>> {

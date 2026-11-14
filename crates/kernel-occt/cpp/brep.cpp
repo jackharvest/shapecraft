@@ -90,6 +90,61 @@ struct Bad {
   std::string why;
 };
 
+// Prove C1 across each V join for a ruled rational surface. In homogeneous
+// coordinates the numerator of the difference of the two rational V
+// derivatives is quadratic in U. Its three Bernstein coefficients bound the
+// difference over the entire U interval, not just a set of sampled normals.
+static bool ruled_c1_joins(const Handle(Geom_BSplineSurface)& s) {
+  if (s->IsUPeriodic() || s->IsVPeriodic() || s->UDegree() != 1 ||
+      s->NbUPoles() != 2 || s->NbUKnots() != 2 || s->VDegree() < 2 ||
+      s->VMultiplicity(1) != s->VDegree() + 1 ||
+      s->VMultiplicity(s->NbVKnots()) != s->VDegree() + 1) return false;
+  struct H { double x[4]; };
+  auto pole = [&](int u, int v, const gp_Pnt& anchor) {
+    H h{}; const gp_Pnt p = s->Pole(u, v); const double w = s->Weight(u, v);
+    h.x[0] = (p.X()-anchor.X())*w; h.x[1] = (p.Y()-anchor.Y())*w;
+    h.x[2] = (p.Z()-anchor.Z())*w; h.x[3] = w;
+    return h;
+  };
+  int shared = 1;
+  for (int k = 2; k < s->NbVKnots(); ++k) {
+    const int mult = s->VMultiplicity(k); shared += mult;
+    if (mult < s->VDegree()) continue;
+    if (mult != s->VDegree() || shared <= 1 || shared >= s->NbVPoles()) return false;
+    const double dl = s->VKnot(k)-s->VKnot(k-1), dr = s->VKnot(k+1)-s->VKnot(k);
+    if (!(dl > 0 && dr > 0)) return false;
+    // Subtract a common local anchor before weighting. The proof must not
+    // become more permissive merely because a model is far from the origin.
+    const gp_Pnt anchor = s->Pole(1, shared);
+    H h[2], d[2], left[2], right[2];
+    for (int u = 0; u < 2; ++u) {
+      h[u] = pole(u+1, shared, anchor); H a = pole(u+1, shared-1, anchor), b = pole(u+1, shared+1, anchor);
+      if (!(h[u].x[3] > 0 && a.x[3] > 0 && b.x[3] > 0)) return false;
+      for (int c = 0; c < 4; ++c) {
+        if (!std::isfinite(h[u].x[c]) || !std::isfinite(a.x[c]) || !std::isfinite(b.x[c])) return false;
+        left[u].x[c] = (h[u].x[c]-a.x[c])/dl;
+        right[u].x[c] = (b.x[c]-h[u].x[c])/dr;
+        d[u].x[c] = left[u].x[c]-right[u].x[c];
+        if (!std::isfinite(left[u].x[c]) || !std::isfinite(right[u].x[c]) || !std::isfinite(d[u].x[c])) return false;
+      }
+    }
+    for (int c = 0; c < 3; ++c) {
+      auto cross = [&](const H& a, const H& b) { return a.x[c]*b.x[3]-a.x[3]*b.x[c]; };
+      const double q[3] = {cross(d[0],h[0]), (cross(d[0],h[1])+cross(d[1],h[0]))/2, cross(d[1],h[1])};
+      double scale = 0;
+      for (int a = 0; a < 2; ++a) for (int b = 0; b < 2; ++b) {
+        const double lscale = std::abs(left[a].x[c]*h[b].x[3])+std::abs(left[a].x[3]*h[b].x[c]);
+        const double rscale = std::abs(right[a].x[c]*h[b].x[3])+std::abs(right[a].x[3]*h[b].x[c]);
+        if (!std::isfinite(lscale) || !std::isfinite(rscale)) return false;
+        scale = std::max(scale, std::max(lscale, rscale));
+      }
+      if (!std::isfinite(scale)) return false;
+      for (double value : q) if (!std::isfinite(value) || std::abs(value) > 1e-11*std::max(scale, 1e-12)) return false;
+    }
+  }
+  return true;
+}
+
 struct Rd {
   const double* d;
   size_t n, at = 0;
@@ -488,6 +543,7 @@ TopoDS_Shape build(Rd& r) {
     std::vector<double> data;
   };
   std::vector<Handle(Geom_Surface)> surfaces(ns);
+  std::vector<bool> unchecked_offsets(ns, false);
   std::vector<std::pair<size_t, std::vector<double>>> later;  // index, (kind, curve, origin, axis…)
   std::vector<std::pair<size_t, std::pair<size_t, double>>> offsets;
   for (size_t i = 0; i < ns; ++i) {
@@ -527,8 +583,16 @@ TopoDS_Shape build(Rd& r) {
         gp_Pnt c = r.p();
         gp_Dir a = r.dir(), x = r.dir();
         double R = r.f(), rr = r.f();
-        if (!(R > 0 && rr > 0)) throw Bad{"torus radii"};
-        surfaces[i] = new Geom_ToroidalSurface(frame(c, a, x), R, rr);
+        if (!(rr > 0 && R != 0 && (R > 0 || -R < rr))) throw Bad{"torus radii"};
+        if (R < 0) {
+          // XT's lemon torus has a signed major radius (published format reference, TORUS). Revolving its
+          // generating circle preserves the exact same (u,v); taking abs(R) would move the fillet surface.
+          gp_Dir y = a.Crossed(x);
+          Handle(Geom_Circle) circle = new Geom_Circle(gp_Ax2(c.Translated(gp_Vec(x) * R), y.Reversed(), x), rr);
+          surfaces[i] = new Geom_SurfaceOfRevolution(circle, gp_Ax1(c, a));
+        } else {
+          surfaces[i] = new Geom_ToroidalSurface(frame(c, a, x), R, rr);
+        }
         break;
       }
       case 5: {
@@ -618,7 +682,15 @@ TopoDS_Shape build(Rd& r) {
       if (!surfaces[o.first].IsNull()) continue;
       size_t b = o.second.first;
       if (b >= ns || surfaces[b].IsNull()) continue;
-      surfaces[o.first] = new Geom_OffsetSurface(surfaces[b], o.second.second);
+      // Some files include offset support surfaces that no edge or face uses. OCCT
+      // refuses C0 bases because their normals may be ambiguous. Keep a placeholder
+      // for dependency resolution and reject it if actual topology refers to it.
+      Handle(Geom_BSplineSurface) spline = Handle(Geom_BSplineSurface)::DownCast(surfaces[b]);
+      const bool c0 = !spline.IsNull() && spline->Continuity() == GeomAbs_C0;
+      const bool proven_c1 = c0 && ruled_c1_joins(spline);
+      bool unchecked = unchecked_offsets[b] || (c0 && !proven_c1);
+      surfaces[o.first] = unchecked ? surfaces[b] : Handle(Geom_Surface)(new Geom_OffsetSurface(surfaces[b], o.second.second, proven_c1));
+      unchecked_offsets[o.first] = unchecked;
       progress = true;
     }
     if (!progress) break;
@@ -676,6 +748,7 @@ TopoDS_Shape build(Rd& r) {
     } else {
       Handle(Geom2d_Curve) g2 = c.c2;
       if (reversed) g2 = g2->Reversed();
+      if (unchecked_offsets[size_t(c.surface)]) throw Bad{"edge uses an offset of a C0 surface"};
       const Handle(Geom_Surface)& s = surfaces[size_t(c.surface)];
       BRepBuilderAPI_MakeEdge me = (v0 >= 0 && v1 >= 0) ? BRepBuilderAPI_MakeEdge(g2, s, verts[size_t(v0)], verts[size_t(v1)])
                                                         : BRepBuilderAPI_MakeEdge(g2, s);
@@ -713,6 +786,7 @@ TopoDS_Shape build(Rd& r) {
   for (size_t i = 0; i < nf; ++i) {
     size_t si = r.idx(ns);
     bool flip = r.b();
+    if (unchecked_offsets[si]) throw Bad{"face uses an offset of a C0 surface"};
     size_t nl = r.idx(CAP);
     if (nl == 0) {
       BRepBuilderAPI_MakeFace mf(surfaces[si], 1e-7);
@@ -730,7 +804,9 @@ TopoDS_Shape build(Rd& r) {
           long pc = r.opt();
           if (pc >= 0 && size_t(pc) < nc) given.push_back({e, size_t(pc)});
           TopoDS_Edge ed = edges[e];
-          ed.Orientation((forward != flip) ? TopAbs_FORWARD : TopAbs_REVERSED);
+          // MakeEdge may return a reversed edge when the vertex order opposes its curve.
+          // Compose the fin and face senses with that orientation instead of replacing it.
+          if (forward == flip) ed.Reverse();
           bb.Add(w, ed);
         }
         w.Closed(true);
@@ -770,7 +846,12 @@ TopoDS_Shape build(Rd& r) {
   } else {
     TopoDS_Compound co;
     bb.MakeCompound(co);
-    for (auto& sh : shells) bb.Add(co, sh);
+    if (kind == 2) {
+      for (auto& edge : edges) bb.Add(co, edge);
+      if (edges.empty()) for (auto& vertex : verts) bb.Add(co, vertex);
+    } else {
+      for (auto& sh : shells) bb.Add(co, sh);
+    }
     result = co;
   }
   pcurves_by_marching(bb, result);
@@ -885,6 +966,31 @@ bool write_surface(Wr& w, const TopoDS_Face& face) {
   if (s.IsNull()) throw Bad{"face without a surface"};
   while (s->IsKind(STANDARD_TYPE(Geom_RectangularTrimmedSurface)))
     s = Handle(Geom_RectangularTrimmedSurface)::DownCast(s)->BasisSurface();
+  // Preserve a lemon torus as an exact torus on export, including its parametrization. The generic adaptor
+  // recognizes a revolved circle geometrically but can choose a different parameter frame.
+  Handle(Geom_SurfaceOfRevolution) rev = Handle(Geom_SurfaceOfRevolution)::DownCast(s);
+  if (!rev.IsNull()) {
+    Handle(Geom_Circle) circle = Handle(Geom_Circle)::DownCast(rev->BasisCurve());
+    if (!circle.IsNull()) {
+      gp_Ax1 axis = rev->Axis();
+      gp_Dir x = circle->Position().XDirection();
+      gp_Vec delta(axis.Location(), circle->Location());
+      gp_Pnt center = axis.Location().Translated(gp_Vec(axis.Direction()) * delta.Dot(gp_Vec(axis.Direction())));
+      gp_Vec radial(center, circle->Location());
+      double major = radial.Dot(gp_Vec(x));
+      if (major < 0 && std::abs(x.Dot(axis.Direction())) < 1e-10 &&
+          circle->Position().YDirection().Dot(axis.Direction()) > 1 - 1e-10 &&
+          (radial - gp_Vec(x) * major).Magnitude() < 1e-7) {
+        w.n(4);
+        w.p(center);
+        w.v(axis.Direction());
+        w.v(x);
+        w.f(major);
+        w.f(circle->Radius());
+        return false;
+      }
+    }
+  }
   GeomAdaptor_Surface a(s);
   auto frame_out = [&](const gp_Ax3& ax) {
     w.p(ax.Location());

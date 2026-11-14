@@ -228,27 +228,29 @@ fn import_any(s: &mut Session, p: &Params) -> Result<Value> {
             let file = shapecraft_xt::parse(&bytes).map_err(|e| bad(e.to_string()))?;
             let bodies = shapecraft_xt::bodies(&file).map_err(|e| bad(e.to_string()))?;
             let mut ids = Vec::new();
+            let mut cut = 0;
             for (k, b) in bodies.into_iter().enumerate() {
-                let shape = s.kernel.heal(&s.kernel.from_brep(&b.brep)?, heal_options(p)?)?;
+                let shape = healed(s, &s.kernel.from_brep(&b.brep)?, heal_options(p)?, &mut cut)?;
                 let name = b.name.unwrap_or_else(|| format!("Imported {:02}", k + 1));
                 ids.extend(add_bodies(s, vec![shape], Some(&name))?);
             }
             let folder = file_folder(s, &path, &ids);
             s.selection.clear();
-            Ok(json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>(), "folder": folder }))
+            Ok(json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>(), "folder": folder, "repair_cut": cut }))
         }
         "iges" | "igs" => {
             let shapes = s.kernel.read_iges(&path)?;
             let mut ids = Vec::new();
+            let mut cut = 0;
             let heal = heal_options(p)?;
             for (k, shape) in shapes.into_iter().enumerate() {
-                let shape = s.kernel.heal(&shape, heal)?;
+                let shape = healed(s, &shape, heal, &mut cut)?;
                 let name = format!("Imported {:02}", k + 1);
                 ids.extend(add_bodies(s, vec![shape], Some(&name))?);
             }
             let folder = file_folder(s, &path, &ids);
             s.selection.clear();
-            Ok(json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>(), "folder": folder }))
+            Ok(json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>(), "folder": folder, "repair_cut": cut }))
         }
         "stl" | "obj" => {
             let bytes = read_capped(&path)?;
@@ -350,12 +352,13 @@ fn import_step(s: &mut Session, path: &std::path::Path, heal: shapecraft_kernel:
         return Err(EngineError::BadParams("that file has too many parts to import".into()));
     }
     let mut ids = Vec::new();
+    let mut cut = 0;
     let mut folders: Vec<(String, Vec<shapecraft_doc::ItemId>)> = Vec::new();
     // Everything lands in a folder named after the file, parts of assemblies in folders below it.
     let file = path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
     // Parts are "Imported 01", "02"… in each file, whatever the file calls them.
     for (k, (shape, mut info)) in parts.into_iter().enumerate() {
-        let shape = s.kernel.heal(&shape, heal)?;
+        let shape = healed(s, &shape, heal, &mut cut)?;
         let name = format!("Imported {:02}", k + 1);
         let made = add_bodies(s, vec![shape], Some(&name))?;
         info.path.insert(0, file.clone());
@@ -381,5 +384,22 @@ fn import_step(s: &mut Session, path: &std::path::Path, heal: shapecraft_kernel:
     }
     // Nothing is selected after an import.
     s.selection.clear();
-    Ok(json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>(), "folders": made_folders }))
+    Ok(json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>(), "folders": made_folders, "repair_cut": cut }))
+}
+
+/// Seconds the repair of one imported shape may take before it is cut short (#21).
+const REPAIR_SECONDS: f64 = 20.0;
+
+/// Heals one imported shape within [`REPAIR_SECONDS`], counting the shapes whose repair was cut short.
+fn healed(
+    s: &Session,
+    shape: &shapecraft_kernel::Shape,
+    heal: shapecraft_kernel::HealOptions,
+    cut: &mut usize,
+) -> Result<shapecraft_kernel::Shape> {
+    let (shape, how) = s.kernel.heal_within(shape, heal, REPAIR_SECONDS)?;
+    if how > 0 {
+        *cut += 1;
+    }
+    Ok(shape)
 }

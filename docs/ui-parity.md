@@ -93,7 +93,7 @@ History ⋯ step menu, the Help popover. The measured list is `bench/RESULTS.md`
    for Move and Rotate Around Axis. Fillet Overflow (Cliff/Smooth/Notch) and Y-Shaped Blend are listed, not built.
 4. G2 fillets and the Curvature profile beyond straight outside edges between flat faces (no corner blends).
    Chordal fillets keep their chord where the angle varies (2026-11-02); setback distance unobserved.
-5. Languages: 11 interface languages for the toolbar, right column, sidebars and cards (2026-11-02); hint banners,
+5. Languages: 12 interface languages (Slovak added 2026-11-14) for the toolbar, right column, sidebars and cards (2026-11-02); hint banners,
    menus, the projects screen and Preferences are still English.
 6. Section View caps as real geometry. (DWG export built 2026-11-01, checked with the ODA converter, not AutoCAD.)
 7. Icons: heavier, partly filled silhouettes closer to the reference's weight (Offset Edge, Project, Wrap & Emboss).

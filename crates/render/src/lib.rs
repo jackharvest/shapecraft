@@ -16,6 +16,6 @@ mod scene;
 
 pub use camera::{Camera, StandardView};
 pub use colors::{Rgba, SceneColors};
-pub use gpu::{Frame, RenderError, Renderer};
+pub use gpu::{Frame, RenderError, Renderer, closed_outward};
 pub use pick::{PickContext, pick, pick_through};
 pub use scene::{DisplayMode, Overlay, PlaneTile, SceneInput, Segment, grid_step};

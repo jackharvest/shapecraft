@@ -86,6 +86,11 @@
 #include <TColStd_HArray1OfBoolean.hxx>
 #include <ShapeFix_Solid.hxx>
 #include <ShapeFix_Shape.hxx>
+#include <ShapeFix_Wire.hxx>
+#include <Message_ProgressIndicator.hxx>
+#include <Message_ProgressScope.hxx>
+#include <atomic>
+#include <chrono>
 #include <gp_GTrsf.hxx>
 #include <gp_Mat.hxx>
 #include <gp_Lin.hxx>
@@ -222,6 +227,34 @@ int guard(F&& f) {
   }
 }
 
+// Stopping long OCCT work (#21, #22). An import running on its own thread marks itself cancellable; Cancel then sets
+// g_cancel. A deadline (per thread) bounds one step, such as repairing one shape. Only the calls that take a
+// progress range look at these, between their own pieces of work.
+std::atomic<bool> g_cancel{false};
+thread_local bool g_cancellable = false;
+thread_local double g_deadline = 0.0;
+
+double now_s() { return std::chrono::duration<double>(std::chrono::steady_clock::now().time_since_epoch()).count(); }
+
+bool stop_now() { return (g_cancellable && g_cancel.load()) || (g_deadline > 0.0 && now_s() > g_deadline); }
+
+class SkProgress : public Message_ProgressIndicator {
+ public:
+  Standard_Boolean UserBreak() override { return stop_now(); }
+  void Show(const Message_ProgressScope&, const Standard_Boolean) override {}
+};
+
+// Runs `f` with a deadline `seconds` from now (none when 0), restoring the one before.
+template <typename F>
+auto with_deadline(double seconds, F&& f) {
+  struct Restore {
+    double before;
+    ~Restore() { g_deadline = before; }
+  } restore{g_deadline};
+  if (seconds > 0.0) g_deadline = now_s() + seconds;
+  return f();
+}
+
 }  // namespace
 
 // For the other translation units (brep.cpp).
@@ -231,6 +264,12 @@ void sk_quiet_external() { quiet_messenger(); }
 extern "C" {
 
 const char* sk_last_error() { return g_error.c_str(); }
+
+// This thread's long OCCT work may be stopped by sk_cancel (an import on its own thread).
+void sk_cancellable(int on) { g_cancellable = on != 0; }
+
+// Asks cancellable work to stop at its next check (1), or clears that (0) before the next import.
+void sk_cancel(int on) { g_cancel.store(on != 0); }
 
 void sk_shape_free(SkShape* s) { delete s; }
 
@@ -324,6 +363,28 @@ int sk_fillet_all_edges(const SkShape* s, double radius, SkShape** out) {
   });
 }
 
+namespace {
+
+// Whether a shape's B-spline surfaces are so dense (knot spans times the points each span takes) that integrating
+// them exactly could run for minutes. The densest body of a large real-project corpus scores about 50,000; this is
+// eight times that, so ordinary bodies keep their exact values.
+bool dense_bsplines(const TopoDS_Shape& shape) {
+  const long long limit = 400000;
+  long long work = 0;
+  for (TopExp_Explorer fx(shape, TopAbs_FACE); fx.More(); fx.Next()) {
+    Handle(Geom_Surface) g = BRep_Tool::Surface(TopoDS::Face(fx.Current()));
+    while (!g.IsNull() && g->IsKind(STANDARD_TYPE(Geom_RectangularTrimmedSurface)))
+      g = Handle(Geom_RectangularTrimmedSurface)::DownCast(g)->BasisSurface();
+    Handle(Geom_BSplineSurface) b = Handle(Geom_BSplineSurface)::DownCast(g);
+    if (b.IsNull()) continue;
+    work += (long long)(b->NbUKnots() - 1) * (b->NbVKnots() - 1) * (b->UDegree() + 1) * (b->VDegree() + 1);
+    if (work > limit) return true;
+  }
+  return false;
+}
+
+}  // namespace
+
 int sk_mass_props(const SkShape* s, double* volume, double* area, double* centroid) {
   return guard([&] {
     GProp_GProps vol, surf;
@@ -341,7 +402,24 @@ int sk_mass_props(const SkShape* s, double* volume, double* area, double* centro
         suspect = t == GeomAbs_BSplineCurve || t == GeomAbs_BezierCurve || t == GeomAbs_OtherCurve;
       }
     }
-    if (suspect) {
+    if (dense_bsplines(s->shape)) {
+      // Integrating dense free-form surfaces exactly can take OCCT practically forever (#20): such a body's
+      // properties come from its display triangulation (one made here when it has none, at 1% of its size: its
+      // volume agrees with the display mesh's to 0.01%, and it takes seconds where 0.02 mm takes minutes).
+      bool meshed = true;
+      for (TopExp_Explorer fx(s->shape, TopAbs_FACE); fx.More() && meshed; fx.Next()) {
+        TopLoc_Location loc;
+        meshed = !BRep_Tool::Triangulation(TopoDS::Face(fx.Current()), loc).IsNull();
+      }
+      if (!meshed) {
+        Bnd_Box box;
+        BRepBndLib::Add(s->shape, box);
+        double size = box.IsVoid() ? 0.0 : std::sqrt(box.SquareExtent());
+        BRepMesh_IncrementalMesh(s->shape, std::max(0.02, size * 1e-2), Standard_False, 0.5, Standard_True);
+      }
+      BRepGProp::VolumeProperties(s->shape, vol, Standard_False, Standard_False, Standard_True);
+      BRepGProp::SurfaceProperties(s->shape, surf, Standard_False, Standard_True);
+    } else if (suspect) {
       // 1e-4 relative: the wrapped faces converge to the same volume from 1e-3 down; tighter only costs time.
       BRepGProp::VolumeProperties(s->shape, vol, 1e-4);
       BRepGProp::SurfaceProperties(s->shape, surf, 1e-4);
@@ -618,9 +696,10 @@ int sk_read_step_doc(const char* path, SkShape*** out, size_t* n) {
       app->Close(doc);
       return fail("could not read STEP file");
     }
-    if (!reader.Transfer(doc)) {
+    Handle(SkProgress) progress = new SkProgress();
+    if (!reader.Transfer(doc, progress->Start()) || stop_now()) {
       app->Close(doc);
-      return fail("STEP transfer failed");
+      return fail(stop_now() ? "import canceled" : "STEP transfer failed");
     }
     Handle(XCAFDoc_ShapeTool) st = XCAFDoc_DocumentTool::ShapeTool(doc->Main());
     Handle(XCAFDoc_ColorTool) ct = XCAFDoc_DocumentTool::ColorTool(doc->Main());
@@ -3264,8 +3343,12 @@ int sk_fillet_edges_ex(const SkShape* s, const uint32_t* ids, size_t n, double s
 // Cleans up a shape read from a file (the import options): flags 1 = repair (ShapeFix), 2 = rebuild edge curves and
 // make their tolerances agree, 4 = sew open faces into shells (closed ones into solids), 8 = merge faces and edges
 // that lie on the same surface or curve. Any step that fails leaves the shape as it was before that step.
-int sk_heal(const SkShape* s, int flags, SkShape** out) {
+// `budget`: seconds the repair may take (0 = no limit). Past it, the repair runs again without its slowest part
+// (fixing self-intersecting wires, #21) with the same budget, and past that too the shape stays unrepaired; `cut`
+// is then 1 (the faster repair was used) or 2 (no repair).
+int sk_heal(const SkShape* s, int flags, double budget, int* cut, SkShape** out) {
   return guard([&] {
+    *cut = 0;
     TopoDS_Shape r = s->shape;
     if (r.IsNull()) return fail("empty shape");
     if (flags & 4) {
@@ -3296,11 +3379,23 @@ int sk_heal(const SkShape* s, int flags, SkShape** out) {
       }
     }
     if (flags & 1) {
-      try {
-        Handle(ShapeFix_Shape) fix = new ShapeFix_Shape(r);
-        fix->Perform();
-        if (!fix->Shape().IsNull()) r = fix->Shape();
-      } catch (const Standard_Failure&) {
+      for (int pass = 0; pass < 2; ++pass) {
+        bool stopped = false;
+        try {
+          Handle(ShapeFix_Shape) fix = new ShapeFix_Shape(r);
+          if (pass == 1) fix->FixWireTool()->FixSelfIntersectionMode() = 0;
+          Handle(SkProgress) progress = new SkProgress();
+          with_deadline(budget, [&] {
+            fix->Perform(progress->Start());
+            stopped = stop_now();
+            return 0;
+          });
+          if (!stopped && !fix->Shape().IsNull()) r = fix->Shape();
+        } catch (const Standard_Failure&) {
+        }
+        if (!stopped) break;
+        *cut = pass + 1;
+        if (g_cancellable && g_cancel.load()) return fail("import canceled");
       }
     }
     if (flags & 8) {
