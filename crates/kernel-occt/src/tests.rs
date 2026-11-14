@@ -649,6 +649,87 @@ fn used_offset_accepts_smooth_rational_joins_but_rejects_creases() {
     }
 }
 
+/// A swept arc carried on by a straight piece keeps a knot of full multiplicity where the path's speed changes: the
+/// surface is smooth there (OCCT calls it C0), so a face on its offset comes in; with a real crease it is refused.
+#[test]
+fn used_offset_accepts_a_sweep_that_changes_speed_at_a_full_knot() {
+    use shapecraft_kernel::DVec2;
+    use shapecraft_kernel::brep::{BodyKind, Brep, Curve, Edge, Face, Fin, Nurbs, NurbsSurface, Surface};
+    let q = std::f64::consts::FRAC_1_SQRT_2;
+    // A quarter arc in x–z, moved along a path in y–z: straight for the first tenth of its parameter, then a curve.
+    let profile = [(DVec3::new(1.0, 0.0, 0.0), 1.0), (DVec3::new(1.0, 0.0, 1.0), q), (DVec3::new(0.0, 0.0, 1.0), 1.0)];
+    let path = [(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (2.0, 0.0), (3.0, 1.0)];
+    let mut poles = Vec::new();
+    let mut weights = Vec::new();
+    for (p, w) in profile {
+        for (y, z) in path {
+            poles.push(p + DVec3::new(0.0, y, z));
+            weights.push(w);
+        }
+    }
+    let basis = NurbsSurface {
+        u_degree: 2,
+        v_degree: 2,
+        nu: 3,
+        nv: 5,
+        poles,
+        weights: Some(weights),
+        u_knots: vec![0.0, 1.0],
+        u_mults: vec![3, 3],
+        v_knots: vec![0.0, 0.1, 1.0],
+        v_mults: vec![3, 2, 3],
+        u_periodic: false,
+        v_periodic: false,
+    };
+    let uv = [DVec2::new(0.0, 0.0), DVec2::new(1.0, 0.0), DVec2::new(1.0, 1.0), DVec2::new(0.0, 1.0)];
+    let d = 0.25;
+    let points = [
+        DVec3::new(1.0 - d, 0.0, 0.0),
+        DVec3::new(0.0, 0.0, 1.0 - d),
+        DVec3::new(0.0, 3.0 + d * q, 2.0 - d * q),
+        DVec3::new(1.0 - d, 3.0, 1.0),
+    ];
+    let mut b = Brep {
+        kind: BodyKind::Sheet,
+        surfaces: vec![Surface::BSpline(basis), Surface::Offset { basis: 0, distance: d }],
+        vertices: points.to_vec(),
+        ..Brep::default()
+    };
+    for i in 0..4 {
+        b.curves.push(Curve::OnSurface {
+            surface: 1,
+            uv: Nurbs {
+                degree: 1,
+                poles: vec![uv[i], uv[(i + 1) % 4]],
+                weights: None,
+                knots: vec![0.0, 1.0],
+                mults: vec![2, 2],
+                periodic: false,
+            },
+        });
+        b.edges.push(Edge { curve: Some(i), reversed: false, start: Some(i), end: Some((i + 1) % 4), tolerance: None });
+    }
+    b.faces.push(Face {
+        surface: 1,
+        flip: false,
+        loops: vec![(0..4).map(|i| Fin { edge: i, forward: true, pcurve: Some(i) }).collect()],
+        color: None,
+    });
+    b.shells.push(vec![0]);
+    let kernel = k();
+    let shape = kernel.from_brep(&b).unwrap();
+    assert!(kernel.mass_props(&shape).unwrap().area > 1.0);
+    assert!(!kernel.tessellate(&shape, 0.02).unwrap().indices.is_empty());
+    // The path turns a little at the knot: a crease along the whole arc.
+    if let Surface::BSpline(ref mut n) = b.surfaces[0] {
+        for row in 0..3 {
+            n.poles[row * 5 + 3].z += 0.001;
+        }
+    }
+    let err = kernel.from_brep(&b).unwrap_err().to_string();
+    assert!(err.contains("offset of a C0 surface"), "{err}");
+}
+
 #[test]
 fn brep_round_trip_keeps_curved_solids() {
     let k = k();

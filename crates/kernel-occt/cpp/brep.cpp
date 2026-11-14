@@ -90,6 +90,81 @@ struct Bad {
   std::string why;
 };
 
+// A surface whose normal carries on across each knot of full multiplicity (a sweep carried on by a straight piece
+// has one: the same direction on both sides, at a different speed, so OCCT calls it C0). Only where the other
+// direction is one Bézier piece (a swept arc), so the proof is exact: along the knot line the numerator of each
+// side's rational derivative is a polynomial of twice that degree, and the two sides' Bernstein coefficients must
+// agree up to one positive factor, which holds along the whole line and not just where sampled.
+static bool tangent_joins(const Handle(Geom_BSplineSurface)& s) {
+  if (s->IsUPeriodic() || s->IsVPeriodic()) return false;
+  for (int dir = 0; dir < 2; ++dir) {
+    const bool v = dir == 1;
+    const int deg = v ? s->VDegree() : s->UDegree();
+    const int nk = v ? s->NbVKnots() : s->NbUKnots();
+    const int np = v ? s->NbVPoles() : s->NbUPoles();
+    const int q = v ? s->UDegree() : s->VDegree();
+    const int rows = v ? s->NbUPoles() : s->NbVPoles();
+    auto mult = [&](int k) { return v ? s->VMultiplicity(k) : s->UMultiplicity(k); };
+    auto knot = [&](int k) { return v ? s->VKnot(k) : s->UKnot(k); };
+    if (mult(1) != deg + 1 || mult(nk) != deg + 1) return false;
+    int at = 1;
+    for (int k = 2; k < nk; ++k) {
+      at += mult(k);
+      if (mult(k) < deg) continue;
+      if (mult(k) != deg || at <= 1 || at >= np || rows != q + 1 || q > 25) return false;
+      const double dl = knot(k) - knot(k - 1), dr = knot(k + 1) - knot(k);
+      if (!(dl > 0 && dr > 0)) return false;
+      // Relative to a pole on the knot line, so a model far from the origin is judged the same.
+      const gp_Pnt anchor = v ? s->Pole(1, at) : s->Pole(at, 1);
+      auto h = [&](int row, int i, int c) {
+        const gp_Pnt p = v ? s->Pole(row, i) : s->Pole(i, row);
+        const double w = v ? s->Weight(row, i) : s->Weight(i, row);
+        return c == 3 ? w : (p.Coord(c + 1) - anchor.Coord(c + 1)) * w;
+      };
+      const size_t n = size_t(rows);
+      std::vector<double> on(n * 4), left(n * 4), right(n * 4);
+      for (size_t row = 0; row < n; ++row)
+        for (size_t c = 0; c < 4; ++c) {
+          const int r1 = int(row) + 1, ci = int(c);
+          if (!(h(r1, at, 3) > 0 && h(r1, at - 1, 3) > 0 && h(r1, at + 1, 3) > 0)) return false;
+          on[row * 4 + c] = h(r1, at, ci);
+          left[row * 4 + c] = (h(r1, at, ci) - h(r1, at - 1, ci)) / dl;
+          right[row * 4 + c] = (h(r1, at + 1, ci) - h(r1, at, ci)) / dr;
+        }
+      std::vector<double> choose(size_t(2 * q + 1) * size_t(2 * q + 1), 0.0);
+      auto bin = [&](int a, int b) -> double& { return choose[size_t(a) * size_t(2 * q + 1) + size_t(b)]; };
+      for (int a = 0; a <= 2 * q; ++a) {
+        bin(a, 0) = 1;
+        for (int b = 1; b <= a; ++b) bin(a, b) = bin(a - 1, b - 1) + (b < a ? bin(a - 1, b) : 0.0);
+      }
+      // Bernstein coefficients (degree 2q) of `side_xyz * w - side_w * xyz` along the knot line.
+      auto numerator = [&](const std::vector<double>& side) {
+        std::vector<double> out(size_t(2 * q + 1) * 3, 0.0);
+        for (int i = 0; i <= q; ++i)
+          for (int j = 0; j <= q; ++j) {
+            const double f = bin(q, i) * bin(q, j) / bin(2 * q, i + j);
+            for (size_t c = 0; c < 3; ++c)
+              out[size_t(i + j) * 3 + c] += f * (side[size_t(i) * 4 + c] * on[size_t(j) * 4 + 3] - side[size_t(i) * 4 + 3] * on[size_t(j) * 4 + c]);
+          }
+        return out;
+      };
+      const std::vector<double> nl = numerator(left), nr = numerator(right);
+      double lr = 0, rr = 0, scale = 0;
+      for (size_t i = 0; i < nl.size(); ++i) {
+        if (!std::isfinite(nl[i]) || !std::isfinite(nr[i])) return false;
+        lr += nl[i] * nr[i];
+        rr += nr[i] * nr[i];
+        scale = std::max(scale, std::abs(nl[i]));
+      }
+      const double factor = lr / rr;
+      if (!(rr > 0 && scale > 0) || !std::isfinite(factor) || !(factor > 0)) return false;
+      for (size_t i = 0; i < nl.size(); ++i)
+        if (!(std::abs(nl[i] - factor * nr[i]) <= 1e-9 * scale)) return false;
+    }
+  }
+  return true;
+}
+
 // Prove C1 across each V join for a ruled rational surface. In homogeneous
 // coordinates the numerator of the difference of the two rational V
 // derivatives is quadratic in U. Its three Bernstein coefficients bound the
@@ -687,9 +762,9 @@ TopoDS_Shape build(Rd& r) {
       // for dependency resolution and reject it if actual topology refers to it.
       Handle(Geom_BSplineSurface) spline = Handle(Geom_BSplineSurface)::DownCast(surfaces[b]);
       const bool c0 = !spline.IsNull() && spline->Continuity() == GeomAbs_C0;
-      const bool proven_c1 = c0 && ruled_c1_joins(spline);
-      bool unchecked = unchecked_offsets[b] || (c0 && !proven_c1);
-      surfaces[o.first] = unchecked ? surfaces[b] : Handle(Geom_Surface)(new Geom_OffsetSurface(surfaces[b], o.second.second, proven_c1));
+      const bool smooth = c0 && (ruled_c1_joins(spline) || tangent_joins(spline));
+      bool unchecked = unchecked_offsets[b] || (c0 && !smooth);
+      surfaces[o.first] = unchecked ? surfaces[b] : Handle(Geom_Surface)(new Geom_OffsetSurface(surfaces[b], o.second.second, smooth));
       unchecked_offsets[o.first] = unchecked;
       progress = true;
     }
