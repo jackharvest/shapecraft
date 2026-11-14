@@ -369,11 +369,22 @@ impl Project {
         let unreadable;
         (p.bodies, unreadable) = current_bodies(c)?;
         let gone = drop_removed(c, &p.steps, &mut Vec::new())?;
+        // Imported prototypes whose partition was never materialized into a revision block (e.g. the
+        // body was never edited, so Shapr3D skipped rebuilding it). Include them beside the already-
+        // cached bodies so the project opens complete.
+        let alive: std::collections::HashSet<i64> = p.bodies.iter().filter_map(|b| b.partition).filter(|id| !gone.contains(id)).collect();
+        let (extra_bodies, extra_unreadable) = uncovered_import_bodies(c, &p.steps, &alive)?;
+        p.bodies.extend(extra_bodies);
         name_bodies(c, &p.steps, &p.items, &p.folders, &gone, &mut p.bodies)?;
         apply_moves(c, &p.steps, &mut p.bodies)?;
         p.bodies.retain(|b| b.partition.is_none_or(|id| !gone.contains(&id)));
         // Only bodies still in the model count as lost: a deleted body's partition stays in the file.
-        p.unreadable = unreadable.into_iter().filter(|(pid, _)| pid.is_none_or(|pid| !gone.contains(&pid))).map(|(_, e)| e).collect();
+        p.unreadable = unreadable
+            .into_iter()
+            .filter(|(pid, _)| pid.is_none_or(|pid| !gone.contains(&pid)))
+            .map(|(_, e)| e)
+            .chain(extra_unreadable.into_iter().map(|(_, e)| e))
+            .collect();
         Ok(p)
     }
 }
@@ -903,11 +914,18 @@ fn call_partitions(c: &rusqlite::Connection, bodies: &[Body]) -> Result<BTreeMap
                         .cloned()
                         .unwrap_or_default()
                 };
-                for c in list(5).iter().flat_map(|g| g.as_array().cloned().unwrap_or_default()) {
-                    if let Some(pid) = c.as_array().and_then(|c| c.get(1)).and_then(Value::as_i64) {
-                        found.push(pid);
-                    }
-                }
+                // Sort created-partition entries by their index field so the k-th partition lines up with
+                // the k-th name anchor even when Shapr3D stores them out of creation order.
+                let mut indexed: Vec<(i64, i64)> = list(5)
+                    .iter()
+                    .flat_map(|g| g.as_array().cloned().unwrap_or_default())
+                    .filter_map(|c| {
+                        let c = c.as_array()?;
+                        Some((c.first()?.as_i64()?, c.get(1)?.as_i64()?))
+                    })
+                    .collect();
+                indexed.sort_unstable_by_key(|&(idx, _)| idx);
+                found.extend(indexed.into_iter().map(|(_, pid)| pid));
                 if let Some(Value::Array(changed)) = list(2).get(1) {
                     found.extend(changed.iter().filter_map(|e| e.as_array().and_then(|e| e.first()).and_then(Value::as_i64)));
                 }
@@ -1443,6 +1461,123 @@ fn current_bodies(c: &rusqlite::Connection) -> Result<(Vec<Body>, Unreadable)> {
                 hidden: false,
                 mesh: body.mesh,
             });
+        }
+    }
+    Ok((out, unreadable))
+}
+
+/// Bodies from `HistoryImportedPrototypes` for imports that were never rebuilt into a revision-block
+/// partition. When a Shapr3D project has cached partitions for *some* of its imported bodies (because
+/// those were edited) but not for others (never touched), `current_bodies` skips the prototype table;
+/// this function fills the gap so the project opens complete.
+///
+/// Only runs for new-format `PersistedCalls` files (array length > 3); old-format files always store
+/// every imported body in `BodyRevisionPartitions`, so they need no extra pass.
+fn uncovered_import_bodies(
+    c: &rusqlite::Connection,
+    steps: &[Step],
+    alive: &std::collections::HashSet<i64>,
+) -> Result<(Vec<Body>, Unreadable)> {
+    if !has_table(c, "HistoryImportedPrototypes") || !has_table(c, "HistoryImportedBodies") || !has_table(c, "PersistedCalls") {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    // ImportedBodyID → (transform bytes, BRep bytes)
+    let mut proto: BTreeMap<i64, (Vec<u8>, Vec<u8>)> = BTreeMap::new();
+    {
+        let mut q = c.prepare(
+            "SELECT b.ImportedBodyID, b.Transform, p.BodyData \
+             FROM HistoryImportedBodies b JOIN HistoryImportedPrototypes p \
+             ON p.ImportedPrototypeID = b.ImportedPrototypeID",
+        )?;
+        for (id, t, data) in q.query_map([], |r| Ok((r.get::<_, i64>(0)?, blob(r.get(1)?), blob(r.get(2)?))))?.flatten() {
+            proto.insert(id, (t, data));
+        }
+    }
+    if proto.is_empty() {
+        return Ok((Vec::new(), Vec::new()));
+    }
+    // For each MaterializeImportedBodies step, the k-th slot-5 partition (sorted by creation index)
+    // corresponds to the k-th import ID extracted from the step params via [11, id] tags.
+    let mut step_parts: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
+    {
+        let mut q = c.prepare("SELECT CallKey, CallData FROM PersistedCalls")?;
+        for (k, d) in q.query_map([], |r| Ok((blob(r.get(0)?), blob(r.get(1)?))))?.flatten() {
+            let (Some(k), Some(d)) = (unpack(&k), unpack(&d)) else { continue };
+            let Some(node) = k.as_array().and_then(|a| a.first()).and_then(Value::as_i64) else { continue };
+            let Some(a) = d.as_array() else { continue };
+            if a.len() <= 3 {
+                continue;
+            } // old format; all imported bodies already in BodyRevisionPartitions
+            let created = a
+                .get(5)
+                .and_then(Value::as_array)
+                .filter(|x| x.first().and_then(Value::as_bool) == Some(true))
+                .and_then(|x| x.get(1))
+                .and_then(Value::as_array)
+                .cloned()
+                .unwrap_or_default();
+            let mut indexed: Vec<(i64, i64)> = created
+                .iter()
+                .flat_map(|g| g.as_array().cloned().unwrap_or_default())
+                .filter_map(|c| {
+                    let c = c.as_array()?;
+                    Some((c.first()?.as_i64()?, c.get(1)?.as_i64()?))
+                })
+                .collect();
+            if !indexed.is_empty() {
+                indexed.sort_unstable_by_key(|&(idx, _)| idx);
+                step_parts.entry(node).or_default().extend(indexed.into_iter().map(|(_, pid)| pid));
+            }
+        }
+    }
+    fn import_id(v: &Value, out: &mut Vec<i64>) {
+        if let Value::Array(a) = v {
+            if let [Value::Integer(k), Value::Integer(n)] = a.as_slice()
+                && k.as_i64() == Some(11)
+            {
+                out.extend(n.as_i64());
+            }
+            a.iter().for_each(|x| import_id(x, out));
+        }
+    }
+    let mut out = Vec::new();
+    let mut unreadable: Unreadable = Vec::new();
+    for step in steps.iter().filter(|s| s.op == "MaterializeImportedBodies") {
+        let Some(partitions) = step_parts.get(&step.node) else { continue };
+        let mut ids = Vec::new();
+        step.params.iter().for_each(|(_, v)| import_id(v, &mut ids));
+        for (k, &import_id) in ids.iter().enumerate() {
+            let covered = partitions.get(k).is_some_and(|&pid| alive.contains(&pid));
+            if covered {
+                continue;
+            }
+            let Some((t, data)) = proto.get(&import_id) else { continue };
+            let motion = rigid(t);
+            match shapecraft_xt::parse(data).and_then(|f| shapecraft_xt::bodies(&f)) {
+                Ok(bodies) => {
+                    for mut body in bodies {
+                        if let Some((rot, shift)) = motion {
+                            body.brep.transform_rigid(rot, shift);
+                            if let Some(m) = &mut body.mesh {
+                                m.points.iter_mut().for_each(|p| *p = rot * *p + shift);
+                            }
+                        }
+                        out.push(Body {
+                            partition: None,
+                            import: Some(import_id),
+                            folder: Vec::new(),
+                            step: None,
+                            name: body.name,
+                            item_name_id: None,
+                            brep: body.brep,
+                            color: body.color,
+                            hidden: false,
+                            mesh: body.mesh,
+                        });
+                    }
+                }
+                Err(e) => unreadable.push((None, e.to_string())),
+            }
         }
     }
     Ok((out, unreadable))
