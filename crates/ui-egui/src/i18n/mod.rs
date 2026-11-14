@@ -8,7 +8,7 @@ mod tables;
 
 /// The languages, by the names the Language menu shows (each in its own language), English first.
 pub const LANGUAGES: &[&str] =
-    &["English", "简体中文", "繁體中文", "Deutsch", "Español", "Français", "Italiano", "日本語", "한국어", "Português (Brasil)", "Русский"];
+    &["English", "简体中文", "繁體中文", "Deutsch", "Español", "Français", "Italiano", "日本語", "한국어", "Português (Brasil)", "Русский", "Slovenčina"];
 
 static CURRENT: AtomicUsize = AtomicUsize::new(0);
 
@@ -24,6 +24,7 @@ fn table(i: usize) -> &'static [(&'static str, &'static str)] {
         8 => tables::KO,
         9 => tables::PT_BR,
         10 => tables::RU,
+        11 => tables::SK,
         _ => &[],
     }
 }
@@ -43,6 +44,7 @@ pub fn set(name: &str) -> bool {
         "korean",
         "portuguese (brazil)",
         "russian",
+        "slovak",
     ];
     let lower = name.trim().to_lowercase();
     let found = LANGUAGES.iter().position(|l| l.to_lowercase() == lower).or_else(|| ENGLISH_NAMES.iter().position(|l| *l == lower));
