@@ -33,6 +33,10 @@ impl AreaSel {
 /// The filter row: label and its key.
 pub const FILTERS: [(&str, &str); 4] = [("All Items", ""), ("Bodies", "B"), ("Faces", "F"), ("Edges", "E")];
 
+/// The filter row while a sketch is open: its curves, their points, or its constraints; no faces, so a box
+/// in a sketch never takes its regions (they're taken from outside it, with Faces).
+pub const SKETCH_FILTERS: [(&str, &str); 4] = [("All Items", ""), ("Edges", "E"), ("Points", "P"), ("Constraints", "C")];
+
 fn cyan() -> Color32 {
     theme::c(0x0dabd3)
 }
@@ -60,6 +64,12 @@ impl Workspace {
             && let Some(p) = self.pen_held.filter(|_| self.pen_input).or_else(|| ui.input(|i| i.pointer.press_origin()))
         {
             self.area = Some(AreaSel { start: p, end: p });
+            // A filter picked in a sketch means something else outside it (and the other way round).
+            let in_sketch = self.session.active_sketch.is_some();
+            if self.area_filter_in_sketch != in_sketch {
+                self.area_filter = 0;
+                self.area_filter_in_sketch = in_sketch;
+            }
         }
         let Some(mut a) = self.area else { return };
         if let Some(p) = ui.input(|i| i.pointer.interact_pos()) {
@@ -81,8 +91,24 @@ impl Workspace {
         }
     }
 
+    /// The filter row for where the box is: the sketch being edited has its own.
+    pub(super) fn area_filters(&self) -> &'static [(&'static str, &'static str); 4] {
+        if self.session.active_sketch.is_some() { &SKETCH_FILTERS } else { &FILTERS }
+    }
+
+    /// A filter's key pressed while a box is dragged (B / F / E outside a sketch, E / P / C in one).
+    pub(super) fn area_filter_key(&mut self, key: &str) {
+        if let Some(i) = self.area_filters().iter().position(|(_, k)| *k == key) {
+            self.area_filter = i;
+            self.area_filter_in_sketch = self.session.active_sketch.is_some();
+        }
+    }
+
     /// What the box takes, with the current filter.
     pub(super) fn area_picks(&self, a: &AreaSel) -> Vec<Pick> {
+        if let Some(sk) = self.session.active_sketch() {
+            return self.area_sketch_picks(a, sk);
+        }
         let r = a.rect();
         let crossing = a.crossing();
         let filter = self.area_filter;
@@ -161,8 +187,7 @@ impl Workspace {
                     }
                 }
             }
-            // In the open sketch, All Items takes its curves only; Faces (F) takes its regions too (#19).
-            if filter == 2 || (filter == 0 && self.session.active_sketch != Some(sk.id)) {
+            if matches!(filter, 0 | 2) {
                 for region in sk.regions() {
                     let pts: Vec<Option<Pos2>> = region.triangles.iter().flatten().map(|p| screen(sk.plane.to_world(*p))).collect();
                     let hit = if crossing {
@@ -191,6 +216,45 @@ impl Workspace {
                     out.push(Pick::Plane { plane: pl.id });
                 }
             }
+        }
+        out
+    }
+
+    /// In the sketch being edited: its curves (All Items, Edges) or their key points (Points);
+    /// Constraints takes nothing yet (constraint badges can't be picked).
+    fn area_sketch_picks(&self, a: &AreaSel, sk: &shapecraft_doc::Sketch) -> Vec<Pick> {
+        let r = a.rect();
+        let crossing = a.crossing();
+        let screen = |p: glam::DVec2| self.to_screen(sk.plane.to_world(p));
+        let mut out = Vec::new();
+        match self.area_filter {
+            0 | 1 => {
+                for (i, e) in sk.entities.iter().enumerate() {
+                    let pts: Vec<Option<Pos2>> = e.outline().iter().map(|p| screen(*p)).collect();
+                    let hit = if crossing {
+                        pts.iter().any(|p| p.is_some_and(|p| r.contains(p)))
+                            || pts.windows(2).any(|w| matches!((w[0], w[1]), (Some(a), Some(b)) if segment_hits_rect(a, b, r)))
+                    } else {
+                        !pts.is_empty() && pts.iter().all(|p| p.is_some_and(|p| r.contains(p)))
+                    };
+                    if hit {
+                        out.push(Pick::SketchEntity { sketch: sk.id, entity: i as u32 });
+                    }
+                }
+            }
+            2 => {
+                for (entity, e) in sk.entities.iter().enumerate() {
+                    if matches!(e, shapecraft_doc::SketchEntity::Text { .. }) {
+                        continue;
+                    }
+                    for (index, q) in shapecraft_doc::constraints::points(e).into_iter().enumerate() {
+                        if screen(q).is_some_and(|p| r.contains(p)) {
+                            out.push(Pick::SketchPoint { sketch: sk.id, entity: entity as u32, index: index as u32 });
+                        }
+                    }
+                }
+            }
+            _ => {}
         }
         out
     }
@@ -289,9 +353,14 @@ impl Workspace {
         // The filter row: a dark strip with the chosen filter raised.
         let row = Rect::from_min_size(r.left_bottom() + vec2(8.0, -30.0), vec2(r.width() - 16.0, 24.0));
         p.rect_filled(row, radius(6), theme::c(0x1f1f21));
-        let w = row.width() / FILTERS.len() as f32;
-        let icons = [Icon::DeselectAll, Icon::Body, Icon::OffsetFace, Icon::Fillet];
-        for (i, ((label, key), icon)) in FILTERS.iter().zip(icons).enumerate() {
+        let filters = self.area_filters();
+        let w = row.width() / filters.len() as f32;
+        let icons = if self.session.active_sketch.is_some() {
+            [Icon::DeselectAll, Icon::OffsetEdge, Icon::CCoincident, Icon::CParallel]
+        } else {
+            [Icon::DeselectAll, Icon::Body, Icon::OffsetFace, Icon::Fillet]
+        };
+        for (i, ((label, key), icon)) in filters.iter().zip(icons).enumerate() {
             let cell = Rect::from_min_size(row.min + vec2(w * i as f32, 0.0), vec2(w, row.height())).shrink(2.0);
             if i == self.area_filter {
                 p.rect_filled(cell, radius(5), theme::c(0x3a3a3c));
@@ -333,10 +402,10 @@ mod tests {
     use super::*;
     use std::sync::Arc;
 
-    /// #19: in the sketch just drawn, a box with the Faces filter (F) takes its regions; All Items still takes
-    /// only its curves there.
+    /// #19: in the sketch being edited the filters are All Items / Edges /
+    /// Points / Constraints and no box takes its regions; out of the sketch, Faces (F) takes them.
     #[test]
-    fn faces_filter_takes_the_open_sketchs_regions() {
+    fn a_box_takes_regions_only_outside_the_sketch() {
         let session = shapecraft_engine::Session::new(Arc::new(shapecraft_kernel_occt::OcctKernel::new()), "Area");
         let mut ws = Workspace::new(session, crate::settings::Settings::default());
         ws.session.execute("sketch", &json!({"plane": "xy"})).unwrap();
@@ -347,11 +416,20 @@ mod tests {
         ws.camera.fit(DVec3::splat(-1.0), DVec3::splat(11.0));
         let all = AreaSel { start: pos2(1.0, 1.0), end: pos2(799.0, 599.0) };
         let regions = |p: &[Pick]| p.iter().filter(|p| matches!(p, Pick::Region { .. })).count();
-        ws.area_filter = 2;
+        let count = |p: &[Pick], f: fn(&Pick) -> bool| p.iter().filter(|p| f(p)).count();
+        ws.area_filter_key("F");
+        assert_eq!(ws.area_filter, 0, "F isn't a filter in a sketch");
+        assert_eq!(regions(&ws.area_picks(&all)), 0);
+        assert_eq!(count(&ws.area_picks(&all), |p| matches!(p, Pick::SketchEntity { .. })), 5);
+        ws.area_filter_key("P");
+        assert_eq!(ws.area_filter, 2);
+        let points = ws.area_picks(&all);
+        assert!(!points.is_empty() && points.iter().all(|p| matches!(p, Pick::SketchPoint { .. })));
+        ws.area_filter_key("C");
+        assert!(ws.area_picks(&all).is_empty());
+        ws.session.execute("exit_sketching", &json!({})).unwrap();
+        ws.area_filter_key("F");
+        assert_eq!(ws.area_filter, 2);
         assert_eq!(regions(&ws.area_picks(&all)), 2, "both halves of the split square");
-        ws.area_filter = 0;
-        let picks = ws.area_picks(&all);
-        assert_eq!(regions(&picks), 0);
-        assert!(picks.iter().any(|p| matches!(p, Pick::SketchEntity { .. })));
     }
 }

@@ -82,6 +82,10 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
     let mut banner_bottom = vp.top();
     ws.numpad(ui);
     ws.paint_area_banner(ui);
+    // Under the Area Selection banner, not over it.
+    if ws.area.is_some() && !crate::tablet::touch_ui() {
+        banner_bottom = vp.top() + 8.0 + 102.0;
+    }
     // A cycled option's bubble takes the banner's place for a moment.
     let bubble = crate::workspace::badges::cycle_bubble(ws, ui);
     let held = ws.pen_input && ws.pen_held.is_some() && ws.area_open();

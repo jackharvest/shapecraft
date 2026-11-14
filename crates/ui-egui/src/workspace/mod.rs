@@ -257,6 +257,8 @@ pub struct Workspace {
     /// An Area Selection box being dragged, and its filter (All Items, Bodies, Faces, Edges).
     pub(crate) area: Option<area::AreaSel>,
     pub(crate) area_filter: usize,
+    /// Whether `area_filter` was chosen in a sketch (its row differs there).
+    pub(crate) area_filter_in_sketch: bool,
     pub hover: Option<Pick>,
     /// The pointer over the viewport, if it is there.
     pub(crate) cursor: Option<Pos2>,
@@ -669,6 +671,7 @@ impl Workspace {
             items_focus: false,
             area: None,
             area_filter: 0,
+            area_filter_in_sketch: false,
             hover: None,
             cursor: None,
             // A phone keeps its view clear: Items opens from its button (#9).

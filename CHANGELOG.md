@@ -2,6 +2,17 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.8.2-alpha
+**Box selection in a sketch picks its curves and points, and picked profiles are easier to read.**
+### Changed
+- **A box dragged inside a sketch filters by All Items, Edges (E), Points (P) and Constraints (C).** It picks the
+  sketch's curves or their points, not its regions; to pick regions with a box, exit the sketch and use Faces (F).
+  This replaces the 0.8.1 change for #19. Thanks [@leo-smi](https://github.com/leo-smi) (#19).
+- **Picked sketch profiles are a darker orange,** brighter while the pointer is over them and fainter while a box is
+  still choosing them, so the lines and the Extrude arrow stay easy to see.
+### Fixed
+- **Normal to Sketch no longer sits on top of the Area Selection banner;** it moves below it while you drag a box.
+
 ## 0.8.1-alpha
 **Big imports no longer freeze the window, more .shapr projects come in whole, and Slovak.**
 ### New

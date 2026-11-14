@@ -2201,6 +2201,7 @@ fn picture(ws: &mut Workspace, doc: &shapecraft_doc::Document, px: (u32, u32)) -
             tints: &[],
             drawn: &[],
             defined: &[],
+            boxing: false,
         };
         ws.gpu.thumbnail(&scene, &camera, px)
     };
@@ -2236,6 +2237,7 @@ fn write_thumbnail(ws: &mut Workspace, dir: &std::path::Path) {
             tints: &[],
             drawn: &[],
             defined: &[],
+            boxing: false,
         };
         ws.gpu.thumbnail(&scene, &camera, (400, 296))
     };

@@ -155,6 +155,7 @@ fn plain_scene(s: &Session) -> SceneInput<'_> {
         tints: &[],
         drawn: &[],
         defined: &[],
+        boxing: false,
     }
 }
 

@@ -121,6 +121,8 @@ pub struct SceneInput<'a> {
     pub drawn: &'a [Pick],
     /// For the sketch being edited: which of its elements the constraints pin down (drawn green, s14-145).
     pub defined: &'a [bool],
+    /// `selection` is what a box being dragged would take, not what's picked: regions show it fainter.
+    pub boxing: bool,
 }
 
 #[derive(Default)]
@@ -387,8 +389,16 @@ fn sketch_geometry(out: &mut Built, scene: &SceneInput, sketch: &Sketch, active:
     let plane = sketch.plane;
     for region in sketch.regions() {
         let pick = Pick::Region { sketch: sketch.id, region: region.index };
+        // Fills blend in linear light: a picked region is the orange at 22% over the navy tint (#64420e on screen),
+        // 74% while the pointer is on it (#ab7529), 12% while a box only proposes it.
         let color = if scene.selection.contains(&pick) {
-            Some(c.selected_pre.with_alpha(235))
+            Some(c.selected_pre.with_alpha(if scene.boxing {
+                31
+            } else if scene.hover == Some(pick) {
+                189
+            } else {
+                57
+            }))
         } else if scene.hover == Some(pick) {
             Some(c.region_hover)
         } else {

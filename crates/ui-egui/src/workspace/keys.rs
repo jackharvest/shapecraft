@@ -119,9 +119,11 @@ impl Workspace {
         if self.area.is_some() {
             match key {
                 Key::Tab => self.area_filter = (self.area_filter + 1) % area::FILTERS.len(),
-                Key::B => self.area_filter = 1,
-                Key::F => self.area_filter = 2,
-                Key::E => self.area_filter = 3,
+                Key::B => self.area_filter_key("B"),
+                Key::F => self.area_filter_key("F"),
+                Key::E => self.area_filter_key("E"),
+                Key::P => self.area_filter_key("P"),
+                Key::C => self.area_filter_key("C"),
                 _ => {}
             }
             return;
