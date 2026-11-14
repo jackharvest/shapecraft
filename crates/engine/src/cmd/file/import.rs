@@ -127,13 +127,32 @@ pub(super) fn add_bodies(
 ) -> Result<Vec<shapecraft_doc::ItemId>> {
     let mut ids = Vec::new();
     for shape in shapes {
-        let mesh = Arc::new(s.kernel.tessellate(&shape, project::deflection())?);
-        let id = s.doc.alloc_id();
-        let name = mesh_name.filter(|n| !n.is_empty()).map_or_else(|| s.doc.next_body_name(), str::to_string);
-        s.doc.bodies.push(Body { id, name, shape, mesh, visible: true, appearance: None, face_colors: Vec::new(), facets: None });
-        ids.push(id);
+        let mesh = s.kernel.tessellate(&shape, project::deflection())?;
+        ids.push(add_meshed_body(s, shape, mesh, mesh_name));
     }
     Ok(ids)
+}
+
+/// A body whose display triangles are already made.
+pub(super) fn add_meshed_body(
+    s: &mut Session,
+    shape: shapecraft_kernel::Shape,
+    mesh: shapecraft_kernel::Mesh,
+    name: Option<&str>,
+) -> shapecraft_doc::ItemId {
+    let id = s.doc.alloc_id();
+    let name = name.filter(|n| !n.is_empty()).map_or_else(|| s.doc.next_body_name(), str::to_string);
+    s.doc.bodies.push(Body {
+        id,
+        name,
+        shape,
+        mesh: Arc::new(mesh),
+        visible: true,
+        appearance: None,
+        face_colors: Vec::new(),
+        facets: None,
+    });
+    id
 }
 
 /// Import Project (observed s14-150..152): the other project's items come in with new ids, in an Items folder
