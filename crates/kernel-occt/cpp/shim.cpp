@@ -77,6 +77,7 @@
 #include <TColStd_Array1OfInteger.hxx>
 #include <algorithm>
 #include <BRepBuilderAPI_Sewing.hxx>
+#include <BRepBuilderAPI_Copy.hxx>
 #include <BRepBuilderAPI_MakeSolid.hxx>
 #include <BRepOffsetAPI_MakeOffsetShape.hxx>
 #include <BRepLib.hxx>
@@ -385,7 +386,9 @@ bool dense_bsplines(const TopoDS_Shape& shape) {
 
 }  // namespace
 
-int sk_mass_props(const SkShape* s, double* volume, double* area, double* centroid) {
+// `mode` 0: exact, or from the triangles for very dense free-form bodies; 1: always from the triangles. `meshed` says
+// which it was.
+int sk_mass_props(const SkShape* s, int mode, double* volume, double* area, double* centroid, int* meshed) {
   return guard([&] {
     GProp_GProps vol, surf;
     // The fixed Gauss rule is exact on faces bounded by lines and conics, but percents off on a round analytic face
@@ -402,16 +405,17 @@ int sk_mass_props(const SkShape* s, double* volume, double* area, double* centro
         suspect = t == GeomAbs_BSplineCurve || t == GeomAbs_BezierCurve || t == GeomAbs_OtherCurve;
       }
     }
-    if (dense_bsplines(s->shape)) {
+    *meshed = mode == 1 || dense_bsplines(s->shape);
+    if (*meshed) {
       // Integrating dense free-form surfaces exactly can take OCCT practically forever (#20): such a body's
       // properties come from its display triangulation (one made here when it has none, at 1% of its size: its
       // volume agrees with the display mesh's to 0.01%, and it takes seconds where 0.02 mm takes minutes).
-      bool meshed = true;
-      for (TopExp_Explorer fx(s->shape, TopAbs_FACE); fx.More() && meshed; fx.Next()) {
+      bool has_mesh = true;
+      for (TopExp_Explorer fx(s->shape, TopAbs_FACE); fx.More() && has_mesh; fx.Next()) {
         TopLoc_Location loc;
-        meshed = !BRep_Tool::Triangulation(TopoDS::Face(fx.Current()), loc).IsNull();
+        has_mesh = !BRep_Tool::Triangulation(TopoDS::Face(fx.Current()), loc).IsNull();
       }
-      if (!meshed) {
+      if (!has_mesh) {
         Bnd_Box box;
         BRepBndLib::Add(s->shape, box);
         double size = box.IsVoid() ? 0.0 : std::sqrt(box.SquareExtent());
@@ -435,6 +439,14 @@ int sk_mass_props(const SkShape* s, double* volume, double* area, double* centro
     centroid[1] = c.Y();
     centroid[2] = c.Z();
     return 0;
+  });
+}
+
+// An independent copy of the shape's geometry, for work on another thread that may outlive this one's use of it.
+int sk_copy(const SkShape* s, SkShape** out) {
+  return guard([&] {
+    BRepBuilderAPI_Copy copy(s->shape, Standard_True, Standard_False);
+    return put(out, copy.Shape());
   });
 }
 

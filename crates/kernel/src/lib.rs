@@ -476,6 +476,19 @@ pub trait Kernel: Send + Sync {
         Ok(shape.clone())
     }
 
+    /// Volume, area and centroid from the shape's display triangles (made if it has none): quick on any shape, and
+    /// always the same for the same shape. Kernels without it measure exactly.
+    fn mass_props_mesh(&self, shape: &Shape) -> Result<MassProps> {
+        self.mass_props(shape)
+    }
+
+    /// [`Kernel::mass_props`] within `budget` seconds: past it (exact integration of some free-form bodies can take
+    /// minutes, #26) the result comes from [`Kernel::mass_props_mesh`] instead. Also says whether it did that.
+    fn mass_props_within(&self, shape: &Shape, budget: f64) -> Result<(MassProps, bool)> {
+        let _ = budget;
+        Ok((self.mass_props(shape)?, false))
+    }
+
     /// [`Kernel::heal`] with a time limit on the repair (seconds, 0 = none), so one bad shape can't hang an import
     /// (#21). Also says how the repair was cut short: 0 not, 1 its slowest part left out, 2 no repair at all.
     fn heal_within(&self, shape: &Shape, opts: HealOptions, budget: f64) -> Result<(Shape, u8)> {

@@ -151,12 +151,14 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
         for (id, step, item_name_id) in links {
             let Some(b) = s.doc.body(id) else { continue };
             let (color, hidden) = (b.appearance.as_ref().map(|a| a.color), !b.visible);
+            let print = fingerprint_within(s, &b.shape.clone())?;
             refs.push(shapecraft_doc::ShaprBody {
                 body: id,
                 step,
                 item_name_id,
                 name: b.name.clone(),
-                fingerprint: fingerprint(s, &b.shape.clone())?,
+                fingerprint: print.0,
+                mesh_fingerprint: print.1,
                 color,
                 hidden,
                 extrude: None,
@@ -314,7 +316,11 @@ fn matching_region(
     use shapecraft_shapr::Finish;
     let sk = s.doc.sketch(sketch)?;
     let target = s.kernel.from_brep(&body.brep).ok()?;
-    let want = fingerprint(s, &target).ok()?;
+    // A body too slow to measure exactly can't be matched within 0.1%: it comes in as it is.
+    let (want, mesh) = fingerprint_within(s, &target).ok()?;
+    if mesh {
+        return None;
+    }
     let dir = sk.plane.normal() * e.distance;
     // Shapr3D's drafted curved walls come out a little leaner than an exact taper (n4: 394.212 mm³ against
     // 394.237), so close within 0.1% counts.
@@ -467,7 +473,7 @@ pub(crate) fn run_followups(s: &mut Session, todo: Vec<Followup>) {
         };
         let Ok(shape) = crate::cmd::model::working_shape(s, body, false) else { continue };
         let b = (b.0, shape, b.1, b.2);
-        let Ok(fp) = fingerprint(s, &b.1) else { continue };
+        let Ok((fp, mesh_fingerprint)) = fingerprint_within(s, &b.1) else { continue };
         if let Some(link) = s.doc.shapr.as_mut() {
             let extrude = (f.fillet.is_none() || fillet.is_some()).then_some(shapecraft_doc::ShaprExtrude {
                 node: f.node,
@@ -481,6 +487,7 @@ pub(crate) fn run_followups(s: &mut Session, todo: Vec<Followup>) {
                 item_name_id: None,
                 name: b.0,
                 fingerprint: fp,
+                mesh_fingerprint,
                 color: b.2,
                 hidden: b.3,
                 extrude,
@@ -621,7 +628,30 @@ fn look(b: &shapecraft_doc::Body) -> shapecraft_shapr::Look {
 
 /// Volume, area, face count, centroid and bounding box: enough to tell whether a body changed or moved.
 fn fingerprint(s: &Session, shape: &shapecraft_kernel::Shape) -> Result<Vec<f64>> {
-    let m = s.kernel.mass_props(shape)?;
+    print_of(s, shape, s.kernel.mass_props(shape)?)
+}
+
+/// Seconds a body may take to measure exactly for its fingerprint (the slowest of 2,082 bodies in large real
+/// projects took 4 s); past that its triangles are measured instead (#26).
+const EXACT_SECONDS: f64 = 8.0;
+
+/// [`fingerprint`] within [`EXACT_SECONDS`], and whether it had to come from the triangles.
+fn fingerprint_within(s: &Session, shape: &shapecraft_kernel::Shape) -> Result<(Vec<f64>, bool)> {
+    let (m, mesh) = s.kernel.mass_props_within(shape, EXACT_SECONDS)?;
+    Ok((print_of(s, shape, m)?, mesh))
+}
+
+/// A fingerprint measured the way an earlier one was (`mesh`: from the triangles), to compare with it; `None` when an
+/// exact one can't be had in time any more.
+fn fingerprint_like(s: &Session, shape: &shapecraft_kernel::Shape, mesh: bool) -> Result<Option<Vec<f64>>> {
+    if mesh {
+        return print_of(s, shape, s.kernel.mass_props_mesh(shape)?).map(Some);
+    }
+    let (print, meshed) = fingerprint_within(s, shape)?;
+    Ok((!meshed).then_some(print))
+}
+
+fn print_of(s: &Session, shape: &shapecraft_kernel::Shape, m: shapecraft_kernel::MassProps) -> Result<Vec<f64>> {
     let faces = s.kernel.face_count(shape)? as f64;
     let b = s.kernel.bounds(shape)?;
     Ok([m.volume, m.area, faces].into_iter().chain(m.centroid.to_array()).chain(b.min.to_array()).chain(b.max.to_array()).collect())
@@ -689,7 +719,8 @@ pub(super) fn export_shapr(s: &mut Session, p: &Params) -> Result<Value> {
                 deleted += 1;
             }
             Some((name, shape, now_look)) => {
-                let now = fingerprint(s, &shape)?;
+                // Measured as it was when it came over; one that now needs its triangles counts as changed.
+                let now: Vec<f64> = fingerprint_like(s, &shape, r.mesh_fingerprint)?.unwrap_or_default();
                 let moved_by = if r.unchanged(&now) { None } else { r.moved_by(&now) };
                 let edited = |w: &mut shapecraft_shapr::Writer| {
                     extrude_edit(s, r).zip(r.extrude.as_ref()).is_some_and(|((d, draft, radius), x)| {
@@ -902,15 +933,24 @@ impl Session {
 /// each sketch by its name and curves), so exports still go back into that file. What finds no match is left out.
 fn relink(s: &Session, imported: &shapecraft_doc::Document) -> Option<shapecraft_doc::ShaprLink> {
     let mut link = imported.shapr.clone()?;
-    let prints: Vec<(shapecraft_doc::ItemId, Vec<f64>)> =
-        s.doc.bodies.iter().filter_map(|b| fingerprint(s, &b.shape).ok().map(|f| (b.id, f))).collect();
+    // Each body measured exactly when that's quick, else from its triangles; a link body measured the other way is
+    // compared with a print made its way.
+    let prints: Vec<(shapecraft_doc::ItemId, Vec<f64>, bool)> =
+        s.doc.bodies.iter().filter_map(|b| fingerprint_within(s, &b.shape).ok().map(|(f, m)| (b.id, f, m))).collect();
     let mut taken = std::collections::HashSet::new();
     link.bodies.retain_mut(|r| {
         let same = |f: &[f64]| {
             f.len() == r.fingerprint.len() && f.iter().zip(&r.fingerprint).all(|(a, b)| (a - b).abs() <= 1e-6 * a.abs().max(1.0))
         };
-        match prints.iter().find(|(id, f)| !taken.contains(id) && same(f)) {
-            Some((id, _)) => {
+        let matches = |(id, f, mesh): &(shapecraft_doc::ItemId, Vec<f64>, bool)| {
+            if *mesh == r.mesh_fingerprint {
+                return same(f);
+            }
+            let shape = s.doc.body(*id).map(|b| b.shape.clone());
+            shape.and_then(|sh| fingerprint_like(s, &sh, r.mesh_fingerprint).ok().flatten()).is_some_and(|f| same(&f))
+        };
+        match prints.iter().find(|p| !taken.contains(&p.0) && matches(p)) {
+            Some((id, _, _)) => {
                 taken.insert(*id);
                 r.body = *id;
                 true

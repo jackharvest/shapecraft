@@ -89,6 +89,7 @@ fn shapr_export_import_and_linked_round_trip() {
         item_name_id: None,
         name,
         fingerprint: fp,
+        mesh_fingerprint: false,
         color: None,
         hidden: false,
         extrude: None,

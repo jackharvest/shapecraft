@@ -89,9 +89,11 @@ pub fn rows(ws: &mut Workspace) -> Vec<Measured> {
                     });
                 }
                 if let Some(v) = item["volume_mm3"].as_f64() {
+                    // Measured from the triangles (exact would take minutes): shown as about that much.
+                    let about = if item["approximate"].as_bool() == Some(true) { "≈ " } else { "" };
                     out.push(Measured {
                         icon: Icon::MVolume,
-                        value: format!("{:.4} {suffix}³", v / (k * k * k)),
+                        value: format!("{about}{:.4} {suffix}³", v / (k * k * k)),
                         sub: format!("Volume - {name}"),
                         anchor: center,
                     });

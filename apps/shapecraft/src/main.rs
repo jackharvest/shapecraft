@@ -17,6 +17,13 @@ use shapecraft_ui::settings::Settings;
 use shapecraft_ui::{Options, ShapeCraftApp, crash_log, graphics, system_theme, window_chrome};
 
 fn main() -> anyhow::Result<()> {
+    let result = run();
+    // A measurement left running past its budget would crash the normal way out (OCCT's statics go first).
+    shapecraft_kernel_occt::finish_process(i32::from(result.is_err()));
+    result
+}
+
+fn run() -> anyhow::Result<()> {
     crash_log::install();
     let args: Vec<String> = std::env::args().skip(1).collect();
     let value = |flag: &str| args.iter().position(|a| a == flag).and_then(|i| args.get(i + 1)).cloned();

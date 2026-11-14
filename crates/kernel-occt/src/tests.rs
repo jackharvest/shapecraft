@@ -1077,3 +1077,27 @@ fn dense_bspline_body_mass_props_stay_quick() {
     assert!((v - expected).abs() < 0.03 * expected, "{v} vs {expected}");
     assert!(took.as_secs_f64() < 30.0, "{took:?}");
 }
+
+/// #26: measuring with a time budget gives the exact value when there's time, and the triangles' value (close to
+/// it) when the exact one can't be had in time, saying which it was.
+#[test]
+fn mass_props_within_a_budget_falls_back_to_triangles() {
+    let cube = k().make_box(DVec3::ZERO, DVec3::splat(10.0)).unwrap();
+    let rod = k().make_box(DVec3::new(3.0, 3.0, -1.0), DVec3::new(4.0, 4.0, 12.0)).unwrap();
+    let part = k().fillet_all_edges(&k().boolean(BoolOp::Subtract, &cube, &rod).unwrap(), 1.0).unwrap();
+    let exact = k().mass_props(&part).unwrap();
+    let (m, mesh) = k().mass_props_within(&part, 30.0).unwrap();
+    assert!(!mesh);
+    assert!((m.volume - exact.volume).abs() < 1e-9);
+    let (m, mesh) = k().mass_props_within(&part, 1e-9).unwrap();
+    assert!(mesh, "no time for the exact one");
+    assert!((m.volume - exact.volume).abs() < 0.01 * exact.volume, "{} vs {}", m.volume, exact.volume);
+    let again = k().mass_props_mesh(&part).unwrap();
+    assert_eq!(again.volume, m.volume, "the same shape measures the same from its triangles");
+    // The helper left running finishes on its own and is counted off.
+    let until = std::time::Instant::now() + std::time::Duration::from_secs(30);
+    while overrunning() > 0 && std::time::Instant::now() < until {
+        std::thread::sleep(std::time::Duration::from_millis(10));
+    }
+    assert_eq!(overrunning(), 0);
+}

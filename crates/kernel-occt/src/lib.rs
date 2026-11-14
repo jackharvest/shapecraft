@@ -115,6 +115,35 @@ impl OcctKernel {
     }
 }
 
+/// Exact measurements that ran past their budget and are still going.
+static OVERRUNNING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// How many measurements are still running past their budget.
+pub fn overrunning() -> usize {
+    OVERRUNNING.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Call last in `main`: while a measurement still runs past its budget, the process ends here at once, since tearing
+/// down OCCT's statics under it would crash on the way out. Otherwise it returns and the process ends as usual.
+pub fn finish_process(code: i32) {
+    use std::io::Write;
+    if overrunning() > 0 {
+        let _ = std::io::stdout().flush();
+        let _ = std::io::stderr().flush();
+        // SAFETY: ends the process; nothing after it runs.
+        unsafe { ffi::_exit(code) }
+    }
+}
+
+/// Volume, area and centroid (`mode` 0 exact unless very dense, 1 from the triangles), and whether triangles were used.
+fn mass_props_mode(shape: &Shape, mode: i32) -> Result<(MassProps, bool)> {
+    let s = raw(shape)?;
+    let (mut volume, mut area, mut c, mut meshed) = (0.0, 0.0, [0.0; 3], 0);
+    // SAFETY: out-pointers valid; `c` has 3 slots.
+    check("mass properties", unsafe { ffi::sk_mass_props(s, mode, &mut volume, &mut area, c.as_mut_ptr(), &mut meshed) })?;
+    Ok((MassProps { volume, area, centroid: DVec3::from_array(c) }, meshed != 0))
+}
+
 impl Kernel for OcctKernel {
     fn name(&self) -> &'static str {
         "OpenCASCADE"
@@ -174,11 +203,46 @@ impl Kernel for OcctKernel {
     }
 
     fn mass_props(&self, shape: &Shape) -> Result<MassProps> {
+        mass_props_mode(shape, 0).map(|(m, _)| m)
+    }
+
+    fn mass_props_mesh(&self, shape: &Shape) -> Result<MassProps> {
+        mass_props_mode(shape, 1).map(|(m, _)| m)
+    }
+
+    fn mass_props_within(&self, shape: &Shape, budget: f64) -> Result<(MassProps, bool)> {
+        use std::sync::atomic::Ordering;
+        finite("mass properties", &[budget])?;
+        // Measurements left running past their budget still hold a core each: with two of them going, go straight
+        // to the triangles.
+        if budget <= 0.0 || OVERRUNNING.load(Ordering::Relaxed) >= 2 {
+            return if budget <= 0.0 { mass_props_mode(shape, 0) } else { Ok((self.mass_props_mesh(shape)?, true)) };
+        }
+        // The helper works on its own copy, so it may finish (and be ignored) long after this shape changed.
         let s = raw(shape)?;
-        let (mut volume, mut area, mut c) = (0.0, 0.0, [0.0; 3]);
-        // SAFETY: out-pointers valid; `c` has 3 slots.
-        check("mass properties", unsafe { ffi::sk_mass_props(s, &mut volume, &mut area, c.as_mut_ptr()) })?;
-        Ok(MassProps { volume, area, centroid: DVec3::from_array(c) })
+        let mut copy = ptr::null_mut();
+        // SAFETY: shape alive; out-pointer valid.
+        check("copy", unsafe { ffi::sk_copy(s, &mut copy) })?;
+        let copy = Shape::new(OcctShape(copy));
+        let (tx, rx) = std::sync::mpsc::channel();
+        let spawned = std::thread::Builder::new().name("mass-props".into()).spawn(move || {
+            let _ = tx.send(mass_props_mode(&copy, 0));
+        });
+        if spawned.is_err() {
+            return mass_props_mode(shape, 0);
+        }
+        match rx.recv_timeout(std::time::Duration::from_secs_f64(budget.min(3600.0))) {
+            Ok(r) => r,
+            Err(_) => {
+                OVERRUNNING.fetch_add(1, Ordering::Relaxed);
+                // Counted down when the helper finally answers (or gives up).
+                let _ = std::thread::Builder::new().name("mass-props-wait".into()).spawn(move || {
+                    let _ = rx.recv();
+                    OVERRUNNING.fetch_sub(1, Ordering::Relaxed);
+                });
+                Ok((self.mass_props_mesh(shape)?, true))
+            }
+        }
     }
 
     fn bounds(&self, shape: &Shape) -> Result<Aabb> {

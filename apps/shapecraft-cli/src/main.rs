@@ -21,6 +21,13 @@ use shapecraft_kernel_occt::OcctKernel;
 use shapecraft_render::{Camera, Renderer, SceneColors, SceneInput, StandardView};
 
 fn main() -> Result<()> {
+    let result = cli();
+    // A measurement left running past its budget would crash the normal way out (OCCT's statics go first).
+    shapecraft_kernel_occt::finish_process(i32::from(result.is_err()));
+    result
+}
+
+fn cli() -> Result<()> {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let arg = |i: usize| args.get(i).map(String::as_str);
     match arg(0) {

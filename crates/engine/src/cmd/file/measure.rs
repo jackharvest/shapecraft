@@ -158,14 +158,24 @@ fn measure(s: &mut Session, p: &Params) -> Result<Value> {
     for pick in &picks {
         let Some((body, sub)) = sub_of(pick) else { continue };
         let Some(b) = measurable(s, body) else { continue };
-        let (value, center) = s.kernel.measure(&b.shape, sub)?;
+        // A whole body is measured within a few seconds, from its triangles when exact integration would take
+        // minutes (#26); the result then says it's approximate.
+        let whole = if matches!(sub, SubShape::Whole) { Some(s.kernel.mass_props_within(&b.shape, 8.0)?) } else { None };
+        let (value, center) = match &whole {
+            Some((mp, _)) => (mp.volume, mp.centroid),
+            None => s.kernel.measure(&b.shape, sub)?,
+        };
         let mut v = json!({ "pick": pick, "center": center.to_array() });
         match sub {
             SubShape::Whole => {
                 let bb = s.kernel.bounds(&b.shape)?;
-                let mp = s.kernel.mass_props(&b.shape)?;
+                if let Some((mp, approximate)) = whole {
+                    v["area_mm2"] = json!(mp.area);
+                    if approximate {
+                        v["approximate"] = json!(true);
+                    }
+                }
                 v["volume_mm3"] = json!(value);
-                v["area_mm2"] = json!(mp.area);
                 v["size"] = json!((bb.max - bb.min).to_array());
             }
             SubShape::Face(f) => {

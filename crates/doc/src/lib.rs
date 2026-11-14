@@ -796,6 +796,10 @@ pub struct ShaprBody {
     pub name: String,
     /// Volume, area, face count, centroid and bounding box (min, max) when it came over.
     pub fingerprint: Vec<f64>,
+    /// The fingerprint's volume, area and centroid came from the body's triangles (measuring it exactly took too
+    /// long, #26); it is compared the same way.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub mesh_fingerprint: bool,
     /// Its colour then (`None` for Shapr3D's default grey).
     #[serde(default)]
     pub color: Option<[f32; 3]>,

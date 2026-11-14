@@ -25,7 +25,10 @@ unsafe extern "C" {
     pub fn sk_extrude_circle(cx: f64, cy: f64, cz: f64, r: f64, dx: f64, dy: f64, dz: f64, out: *mut *mut SkShape) -> i32;
     pub fn sk_boolean(op: i32, a: *const SkShape, b: *const SkShape, out: *mut *mut SkShape) -> i32;
     pub fn sk_fillet_all_edges(s: *const SkShape, radius: f64, out: *mut *mut SkShape) -> i32;
-    pub fn sk_mass_props(s: *const SkShape, volume: *mut f64, area: *mut f64, centroid: *mut f64) -> i32;
+    pub fn sk_mass_props(s: *const SkShape, mode: i32, volume: *mut f64, area: *mut f64, centroid: *mut f64, meshed: *mut i32) -> i32;
+    pub fn sk_copy(s: *const SkShape, out: *mut *mut SkShape) -> i32;
+    /// The C runtime's immediate exit: no atexit handlers, no static destructors.
+    pub fn _exit(status: i32) -> !;
     pub fn sk_bounds(s: *const SkShape, min: *mut f64, max: *mut f64) -> i32;
     pub fn sk_tessellate(s: *const SkShape, deflection: f64, out: *mut *mut SkMesh) -> i32;
     pub fn sk_mesh_free(m: *mut SkMesh);

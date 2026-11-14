@@ -2,6 +2,16 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.8.4-alpha
+**.shapr imports with slow free-form bodies finish in seconds, not minutes.**
+### Fixed
+- **Importing a .shapr file no longer spends minutes measuring free-form bodies.** Each body gets a few seconds to be
+  measured exactly; one that would take longer is measured from its triangles instead, so the import finishes. Exports
+  back into the file still recognise it. Measure does the same, and says when a volume is approximate. Thanks
+  [@chickey](https://github.com/chickey) (#26).
+- **Quitting while such a measurement was still running in the background could crash on the way out;** it now
+  closes cleanly.
+
 ## 0.8.3-alpha
 **Box selection in a sketch picks its curves and points, picked profiles are easier to read, and imports get a proper
 screen.**
