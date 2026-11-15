@@ -191,11 +191,13 @@ fn step_keeps_part_names_and_colors_both_ways() {
     s.execute("export_step", &json!({"path": path})).unwrap();
     let mut t = session();
     t.execute("import_file", &json!({"path": path})).unwrap();
-    // Everything lands in a folder named after the file (as Shapr3D's Import File does), assemblies below it.
+    // Everything lands in a folder named after the file (as Shapr3D's Import File does), assemblies as folders
+    // below it, nested like the assembly.
     let names: Vec<&str> = t.doc.folders.iter().map(|f| f.name.as_str()).collect();
-    assert_eq!(names, ["assembly.step", "assembly.step / Hinge"]);
+    assert_eq!(names, ["assembly.step", "Hinge"]);
     let pin = t.doc.bodies.iter().find(|b| b.appearance.is_some()).unwrap();
     assert_eq!(t.doc.folders[1].items, vec![pin.id]);
+    assert!(t.doc.folders[0].items.contains(&t.doc.folders[1].id), "Hinge sits inside the file's folder");
     let c = pin.appearance.as_ref().map(|a| a.color).unwrap_or([0.0; 3]);
     assert!((c[0] - 1.0).abs() < 0.01, "the color survives the assembly: {c:?}");
     let _ = std::fs::remove_dir_all(&dir);

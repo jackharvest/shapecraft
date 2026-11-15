@@ -372,7 +372,7 @@ fn import_step(s: &mut Session, path: &std::path::Path, heal: shapecraft_kernel:
     }
     let mut ids = Vec::new();
     let mut cut = 0;
-    let mut folders: Vec<(String, Vec<shapecraft_doc::ItemId>)> = Vec::new();
+    let mut folders: Vec<(Vec<String>, Vec<shapecraft_doc::ItemId>)> = Vec::new();
     // Everything lands in a folder named after the file, parts of assemblies in folders below it.
     let file = path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default();
     // Parts are "Imported 01", "02"… in each file, whatever the file calls them.
@@ -385,22 +385,16 @@ fn import_step(s: &mut Session, path: &std::path::Path, heal: shapecraft_kernel:
             if let (Some(c), Some(b)) = (info.color, s.doc.body_mut(id)) {
                 b.appearance = Some(shapecraft_doc::Appearance { name: "Imported Color".into(), color: c, ..Default::default() });
             }
-            {
-                let key = info.path.join(" / ");
-                match folders.iter_mut().find(|f| f.0 == key) {
-                    Some(f) => f.1.push(id),
-                    None => folders.push((key, vec![id])),
-                }
+            match folders.iter_mut().find(|f| f.0 == info.path) {
+                Some(f) => f.1.push(id),
+                None => folders.push((info.path.clone(), vec![id])),
             }
         }
         ids.extend(made);
     }
-    let mut made_folders = Vec::new();
-    for (name, items) in folders {
-        let id = s.doc.alloc_id();
-        s.doc.folders.push(shapecraft_doc::Folder { id, name: name.chars().take(200).collect(), items });
-        made_folders.push(id.0);
-    }
+    // One nested folder per assembly step in the path (as Shapr3D's Items list shows them), not one flat folder
+    // wearing the whole path as its name.
+    let made_folders = super::shapr::import_folder_tree(s, folders);
     // Nothing is selected after an import.
     s.selection.clear();
     Ok(json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>(), "folders": made_folders, "repair_cut": cut }))

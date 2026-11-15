@@ -163,6 +163,8 @@ pub struct Project {
     pub folders: Vec<Folder>,
     /// Item names from the metadata table, in id order.
     pub item_names: Vec<(i64, String)>,
+    /// A folder's item reference (a metadata id, as `NamedChildren` writes it) → the item's `HistoryNames` id.
+    pub item_by_meta: std::collections::BTreeMap<String, i64>,
     /// Items (named things in the Items list) with the folder path they sit in.
     pub items: Vec<Item>,
     pub sketches: Vec<Sketch>,
@@ -363,7 +365,7 @@ impl Project {
                 .ok()
                 .and_then(|b| String::from_utf8(b).ok());
         }
-        p.items = items(c, &p.folders)?;
+        p.items = items(c, &p.folders, &mut p.item_by_meta)?;
         p.sketches = sketches(c)?;
         p.extrudes = extrudes(c, &p.steps, &p.items)?;
         let unreadable;
@@ -707,7 +709,7 @@ fn sketches(c: &rusqlite::Connection) -> Result<Vec<Sketch>> {
 
 /// Items: a name (metadata type 0) assigned to a `HistoryNames` id; folders list an item by the id of another
 /// metadata row (type 3) assigned to the same name id.
-fn items(c: &rusqlite::Connection, folders: &[Folder]) -> Result<Vec<Item>> {
+fn items(c: &rusqlite::Connection, folders: &[Folder], item_by_meta: &mut std::collections::BTreeMap<String, i64>) -> Result<Vec<Item>> {
     let mut by_meta: BTreeMap<i64, Vec<(i64, i64, String)>> = BTreeMap::new(); // name id → (metadata id, type, data)
     {
         let mut q = c.prepare("SELECT a.NameID, m.MetadataID, m.MetadataTypeID, m.Data FROM MetadataAssignments a JOIN Metadata m ON m.MetadataID = a.MetadataID")?;
@@ -771,6 +773,9 @@ fn items(c: &rusqlite::Connection, folders: &[Folder]) -> Result<Vec<Item>> {
     };
     let mut out = Vec::new();
     for (name_id, metas) in &by_meta {
+        for m in metas {
+            item_by_meta.insert(m.0.to_string(), *name_id);
+        }
         let Some(name) = metas.iter().filter(|m| m.1 == 0).max_by_key(|m| m.0).map(|m| m.2.clone()) else { continue };
         let own_hidden = metas.iter().filter(|m| m.1 == 1).max_by_key(|m| m.0).is_some_and(|m| m.2.trim() == "1");
         let color = wrapped(*name_id).and_then(|w| materials.get(&w)).and_then(|m| colour(m.1));
@@ -1847,7 +1852,8 @@ mod identity_tests {
             INSERT INTO Metadata VALUES (1,0,'Old'), (2,1,'1'), (3,0,'New'), (4,1,'0');
             INSERT INTO MetadataAssignments VALUES (10,1), (10,2), (10,3), (10,4);"#,
         )?;
-        let result = items(&c, &[])?;
+        let mut by_meta = std::collections::BTreeMap::new();
+        let result = items(&c, &[], &mut by_meta)?;
         let old_anchor = result.iter().find(|i| i.name_id == 10).ok_or_else(|| Error::Format("missing item".into()))?;
         assert_eq!(old_anchor.name, "New");
         assert!(!old_anchor.hidden);

@@ -125,7 +125,7 @@ fn verified_cached_targets(c: &rusqlite::Connection) -> Result<HashMap<(i64, i64
         return Ok(HashMap::new());
     }
     let steps = crate::history_steps(c)?;
-    let items = crate::items(c, &[])?;
+    let items = crate::items(c, &[], &mut Default::default())?;
     let gone = crate::drop_removed(c, &steps, &mut Vec::new())?;
     let mut q = c.prepare("SELECT DISTINCT PartitionID FROM BodyRevisionBlocks WHERE Phase = 2 AND IsDeleted = 0")?;
     let mut bodies: Vec<crate::Body> = q

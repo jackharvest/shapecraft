@@ -22,7 +22,8 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
     // Bodies whose geometry the kernel couldn't rebuild: named in the result (the app says how many) rather than
     // losing the whole project to one of them.
     let mut failed: Vec<String> = project.unreadable.clone();
-    let mut folders: Vec<(Vec<String>, Vec<shapecraft_doc::ItemId>)> = Vec::new();
+    // Imported bodies by the `HistoryNames` id of their Items-list name, for the folder tree to place them.
+    let mut by_name = std::collections::HashMap::<i64, shapecraft_doc::ItemId>::new();
     let mut links = Vec::new();
     // A body Shapr3D extruded from one of its sketches can come back as an Extrude step of ours (after this
     // import), so its distance and draft stay editable and go back into Shapr3D's step. Only for the project the
@@ -51,8 +52,8 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
                 let op = body.step.and_then(|n| project.steps.iter().find(|st| st.node == n)).map(|st| st.op.as_str());
                 if let Some(id) = import_construction(s, body, op) {
                     construction_ids.push(id.0);
-                    if !body.folder.is_empty() {
-                        folders.push((body.folder.clone(), vec![id]));
+                    if let Some(name_id) = body.item_name_id {
+                        by_name.insert(name_id, id);
                     }
                     continue;
                 }
@@ -62,12 +63,10 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
                     .and_then(|n| project.extrudes.iter().find(|e| e.node == n && made_by(n) == 1));
                 match extrude {
                     Some(e) => deferred.push((index, body, e)),
-                    None => {
-                        match add_shapr_body(s, body, ready.get_mut(index).and_then(Option::take), &mut folders, &mut links, &mut prints) {
-                            Ok(made) => ids.extend(made),
-                            Err(e) => failed.push(format!("{}: {e}", body.name.as_deref().unwrap_or("a body"))),
-                        }
-                    }
+                    None => match add_shapr_body(s, body, ready.get_mut(index).and_then(Option::take), &mut links, &mut prints) {
+                        Ok(made) => ids.extend(made),
+                        Err(e) => failed.push(format!("{}: {e}", body.name.as_deref().unwrap_or("a body"))),
+                    },
                 }
             }
             Err(sk) => {
@@ -92,7 +91,12 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
             }
         }
     }
-    let made_folders = import_folder_tree(s, folders);
+    for (name_id, id) in links.iter().filter_map(|(id, _, name_id)| name_id.map(|n| (n, *id))) {
+        by_name.insert(name_id, id);
+    }
+    // The file's own folder tree, in the order Shapr3D shows it — not the paths each body carries, which only know
+    // where it sits, and came out in step order.
+    let made_folders = import_named_folders(s, &project, &by_name);
     s.refresh_regions();
     let mut redone = 0;
     for (index, body, e) in deferred {
@@ -121,7 +125,7 @@ pub(super) fn import_shapr(s: &mut Session, path: &std::path::Path) -> Result<Va
                     });
                 }
             }
-            None => match add_shapr_body(s, body, ready.get_mut(index).and_then(Option::take), &mut Vec::new(), &mut links, &mut prints) {
+            None => match add_shapr_body(s, body, ready.get_mut(index).and_then(Option::take), &mut links, &mut prints) {
                 Ok(made) => ids.extend(made),
                 Err(e) => failed.push(format!("{}: {e}", body.name.as_deref().unwrap_or("a body"))),
             },
@@ -195,7 +199,6 @@ fn add_shapr_body(
     s: &mut Session,
     body: &shapecraft_shapr::Body,
     ready: Option<shapecraft_kernel::Result<Ready>>,
-    folders: &mut Vec<(Vec<String>, Vec<shapecraft_doc::ItemId>)>,
     links: &mut Vec<(shapecraft_doc::ItemId, i64, Option<i64>)>,
     prints: &mut std::collections::HashMap<shapecraft_doc::ItemId, (Vec<f64>, bool)>,
 ) -> Result<Vec<shapecraft_doc::ItemId>> {
@@ -226,7 +229,6 @@ fn add_shapr_body(
     if let (Some(step), [id]) = (body.step, made.as_slice()) {
         links.push((*id, step, body.item_name_id));
     }
-    let folder = &body.folder;
     for &id in &made {
         if let (Some(c), Some(b)) = (body.color, s.doc.body_mut(id)) {
             b.appearance = Some(imported_colour(c));
@@ -234,14 +236,73 @@ fn add_shapr_body(
         if let (true, Some(b)) = (body.hidden, s.doc.body_mut(id)) {
             b.visible = false;
         }
-        if !folder.is_empty() {
-            match folders.iter_mut().find(|f| f.0 == *folder) {
-                Some(f) => f.1.push(id),
-                None => folders.push((folder.clone(), vec![id])),
-            }
-        }
     }
     Ok(made)
+}
+
+/// The file's own folder tree, read straight from the root's `NamedChildren`: a folder's children are its
+/// subfolders and its items, in the order Shapr3D shows them, and that order is kept. A child names an item by one
+/// of its metadata rows; the imported body with that name carries on. Bodies no folder child names stay loose at
+/// the top, and a body two folders both list sits in the first that does.
+fn import_named_folders(
+    s: &mut Session,
+    project: &shapecraft_shapr::Project,
+    by_name: &std::collections::HashMap<i64, shapecraft_doc::ItemId>,
+) -> Vec<u64> {
+    let mut made = Vec::new();
+    let root = project.folders.iter().find(|f| f.name == "root");
+    if let Some(root) = root {
+        let mut placed = std::collections::HashSet::new();
+        for (id, ty) in &root.children {
+            import_named_child(s, project, by_name, &mut placed, id, *ty, None, &mut made, 0);
+        }
+    }
+    made
+}
+
+fn import_named_child(
+    s: &mut Session,
+    project: &shapecraft_shapr::Project,
+    by_name: &std::collections::HashMap<i64, shapecraft_doc::ItemId>,
+    placed: &mut std::collections::HashSet<shapecraft_doc::ItemId>,
+    id: &str,
+    ty: i64,
+    parent: Option<shapecraft_doc::ItemId>,
+    made: &mut Vec<u64>,
+    depth: usize,
+) {
+    if depth > 100 {
+        return;
+    }
+    match ty {
+        // A subfolder: made, hung under its parent, and its children walked.
+        0 => {
+            let Some(f) = project.folders.iter().find(|f| f.id == id) else { return };
+            let fid = s.doc.alloc_id();
+            s.doc.folders.push(shapecraft_doc::Folder { id: fid, name: f.name.chars().take(200).collect(), items: Vec::new() });
+            made.push(fid.0);
+            if let Some(parent) = parent
+                && let Some(pf) = s.doc.folders.iter_mut().find(|f| f.id == parent)
+            {
+                pf.items.push(fid);
+            }
+            for (child, child_ty) in &f.children {
+                import_named_child(s, project, by_name, placed, child, *child_ty, Some(fid), made, depth + 1);
+            }
+        }
+        // An item: the imported body whose Items-list name the reference points at, placed in order.
+        6 => {
+            let Some(name_id) = project.item_by_meta.get(id) else { return };
+            let Some(item) = by_name.get(name_id) else { return };
+            if placed.insert(*item)
+                && let Some(parent) = parent
+                && let Some(pf) = s.doc.folders.iter_mut().find(|f| f.id == parent)
+            {
+                pf.items.push(*item);
+            }
+        }
+        _ => {}
+    }
 }
 
 /// A body the kernel has rebuilt and triangulated, with its fingerprint when it was asked for and could be had.
@@ -342,7 +403,7 @@ fn import_construction(s: &mut Session, body: &shapecraft_shapr::Body, op: Optio
     }
 }
 
-fn import_folder_tree(s: &mut Session, folders: Vec<(Vec<String>, Vec<shapecraft_doc::ItemId>)>) -> Vec<u64> {
+pub(super) fn import_folder_tree(s: &mut Session, folders: Vec<(Vec<String>, Vec<shapecraft_doc::ItemId>)>) -> Vec<u64> {
     let mut paths = std::collections::BTreeMap::<Vec<String>, shapecraft_doc::ItemId>::new();
     let mut made = Vec::new();
     for (path, items) in folders {
