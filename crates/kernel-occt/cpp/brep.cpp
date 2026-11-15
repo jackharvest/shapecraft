@@ -90,11 +90,65 @@ struct Bad {
   std::string why;
 };
 
-// A surface whose normal carries on across each knot of full multiplicity (a sweep carried on by a straight piece
-// has one: the same direction on both sides, at a different speed, so OCCT calls it C0). Only where the other
-// direction is one Bézier piece (a swept arc), so the proof is exact: along the knot line the numerator of each
-// side's rational derivative is a polynomial of twice that degree, and the two sides' Bernstein coefficients must
-// agree up to one positive factor, which holds along the whole line and not just where sampled.
+// A homogeneous pole: the position relative to a local anchor, times the weight, and the weight.
+struct H4 {
+  double x[4];
+};
+
+static double binom(int n, int k) {
+  if (k < 0 || k > n) return 0;
+  double r = 1;
+  for (int i = 0; i < k; ++i) r = r * (n - i) / (i + 1);
+  return r;
+}
+
+// Bernstein coefficients of the product of two polynomials given by their coefficients.
+static std::vector<double> bern_mul(const std::vector<double>& f, const std::vector<double>& g) {
+  std::vector<double> out(f.size() + g.size() - 1, 0.0);
+  const int p = int(f.size()) - 1, q = int(g.size()) - 1;
+  for (int i = 0; i <= p; ++i)
+    for (int j = 0; j <= q; ++j) out[i + j] += binom(p, i) * binom(q, j) / binom(p + q, i + j) * f[i] * g[j];
+  return out;
+}
+
+// Insert a knot once (Boehm).
+static void insert_knot(std::vector<H4>& cp, int q, std::vector<double>& flat, double t) {
+  const size_t np = cp.size();
+  size_t k = 0;
+  while (k + 1 < flat.size() && flat[k + 1] <= t) ++k;
+  const size_t s = size_t(std::count(flat.begin(), flat.end(), t));
+  std::vector<H4> out(np + 1);
+  for (size_t i = 0; i <= k - size_t(q); ++i) out[i] = cp[i];
+  for (size_t i = k - size_t(q) + 1; i <= k - s; ++i) {
+    const double a = (t - flat[i]) / (flat[i + size_t(q)] - flat[i]);
+    for (int c = 0; c < 4; ++c) out[i].x[c] = a * cp[i].x[c] + (1 - a) * cp[i - 1].x[c];
+  }
+  for (size_t i = k - s + 1; i <= np; ++i) out[i] = cp[i - 1];
+  flat.insert(flat.begin() + long(k) + 1, t);
+  cp = std::move(out);
+}
+
+// A pole row of the surface (degree q over the given knots) split at every interior knot: the Bézier
+// coefficients of each segment, in order.
+static std::vector<std::vector<H4>> bezier_split(std::vector<H4> row, int q, const std::vector<double>& knots, const std::vector<int>& mults) {
+  std::vector<double> flat;
+  for (int k = 0; k < int(knots.size()); ++k)
+    for (int m = 0; m < mults[k]; ++m) flat.push_back(knots[k]);
+  for (int k = 1; k + 1 < int(knots.size()); ++k)
+    while (size_t(std::count(flat.begin(), flat.end(), knots[k])) < size_t(q)) insert_knot(row, q, flat, knots[k]);
+  std::vector<std::vector<H4>> out;
+  for (size_t at = 0; at + size_t(q) + 1 <= row.size(); at += size_t(q)) out.emplace_back(row.begin() + long(at), row.begin() + long(at + size_t(q)) + 1);
+  return out;
+}
+
+// The tangent planes on both sides of a C0 knot line carry on when, on every Bézier segment of that
+// line, the two sides' normal-numerator polynomials are parallel — their cross products vanish,
+// Bernstein coefficient by coefficient, so along the whole segment and not just where sampled — and
+// equally directed, their dot reading non-negative off its own coefficients. The line may run
+// through several Bézier segments (a sweep whose profile has several pieces, or whose knots are
+// nowhere at the ends); the single-segment proportionality this check used before refused those
+// outright. The construction is homogeneous (position relative to a pole on the line, times the
+// weight), so a model far from the origin is judged the same.
 static bool tangent_joins(const Handle(Geom_BSplineSurface)& s) {
   if (s->IsUPeriodic() || s->IsVPeriodic()) return false;
   for (int dir = 0; dir < 2; ++dir) {
@@ -106,60 +160,121 @@ static bool tangent_joins(const Handle(Geom_BSplineSurface)& s) {
     const int rows = v ? s->NbUPoles() : s->NbVPoles();
     auto mult = [&](int k) { return v ? s->VMultiplicity(k) : s->UMultiplicity(k); };
     auto knot = [&](int k) { return v ? s->VKnot(k) : s->UKnot(k); };
+    auto line_mult = [&](int k) { return v ? s->UMultiplicity(k) : s->VMultiplicity(k); };
+    auto line_knot = [&](int k) { return v ? s->UKnot(k) : s->VKnot(k); };
+    const int nk_line = v ? s->NbUKnots() : s->NbVKnots();
     if (mult(1) != deg + 1 || mult(nk) != deg + 1) return false;
+    if (q > 25 || deg > 25) return false;
+    // The line's own knots: the other direction's, whose Bézier segments the proof walks.
+    std::vector<double> aknots;
+    std::vector<int> amults;
+    for (int kk = 1; kk <= nk_line; ++kk) {
+      aknots.push_back(line_knot(kk));
+      amults.push_back(line_mult(kk));
+    }
     int at = 1;
     for (int k = 2; k < nk; ++k) {
       at += mult(k);
       if (mult(k) < deg) continue;
-      if (mult(k) != deg || at <= 1 || at >= np || rows != q + 1 || q > 25) return false;
+      if (mult(k) != deg || at <= 1 || at >= np) {
+        return false;
+      }
       const double dl = knot(k) - knot(k - 1), dr = knot(k + 1) - knot(k);
-      if (!(dl > 0 && dr > 0)) return false;
-      // Relative to a pole on the knot line, so a model far from the origin is judged the same.
+      if (!(dl > 0 && dr > 0)) {
+        return false;
+      }
       const gp_Pnt anchor = v ? s->Pole(1, at) : s->Pole(at, 1);
-      auto h = [&](int row, int i, int c) {
-        const gp_Pnt p = v ? s->Pole(row, i) : s->Pole(i, row);
-        const double w = v ? s->Weight(row, i) : s->Weight(i, row);
+      auto h = [&](int r1, int i, int c) {
+        const gp_Pnt p = v ? s->Pole(r1, i) : s->Pole(i, r1);
+        const double w = v ? s->Weight(r1, i) : s->Weight(i, r1);
         return c == 3 ? w : (p.Coord(c + 1) - anchor.Coord(c + 1)) * w;
       };
-      const size_t n = size_t(rows);
-      std::vector<double> on(n * 4), left(n * 4), right(n * 4);
-      for (size_t row = 0; row < n; ++row)
-        for (size_t c = 0; c < 4; ++c) {
-          const int r1 = int(row) + 1, ci = int(c);
-          if (!(h(r1, at, 3) > 0 && h(r1, at - 1, 3) > 0 && h(r1, at + 1, 3) > 0)) return false;
-          on[row * 4 + c] = h(r1, at, ci);
-          left[row * 4 + c] = (h(r1, at, ci) - h(r1, at - 1, ci)) / dl;
-          right[row * 4 + c] = (h(r1, at + 1, ci) - h(r1, at, ci)) / dr;
+      // The three across-the-join pole rows, as polynomials of the line's parameter, split into
+      // their Bézier segments.
+      const size_t rn = size_t(rows);
+      std::vector<H4> r0(rn);
+      std::vector<H4> r1(rn);
+      std::vector<H4> r2(rn);
+      for (int i = 1; i <= rows; ++i)
+        for (int c = 0; c < 4; ++c) {
+          if (!(h(i, at - 1, 3) > 0 && h(i, at, 3) > 0 && h(i, at + 1, 3) > 0)) return false;
+          r0[size_t(i) - 1].x[c] = h(i, at - 1, c);
+          r1[size_t(i) - 1].x[c] = h(i, at, c);
+          r2[size_t(i) - 1].x[c] = h(i, at + 1, c);
         }
-      std::vector<double> choose(size_t(2 * q + 1) * size_t(2 * q + 1), 0.0);
-      auto bin = [&](int a, int b) -> double& { return choose[size_t(a) * size_t(2 * q + 1) + size_t(b)]; };
-      for (int a = 0; a <= 2 * q; ++a) {
-        bin(a, 0) = 1;
-        for (int b = 1; b <= a; ++b) bin(a, b) = bin(a - 1, b - 1) + (b < a ? bin(a - 1, b) : 0.0);
-      }
-      // Bernstein coefficients (degree 2q) of `side_xyz * w - side_w * xyz` along the knot line.
-      auto numerator = [&](const std::vector<double>& side) {
-        std::vector<double> out(size_t(2 * q + 1) * 3, 0.0);
-        for (int i = 0; i <= q; ++i)
-          for (int j = 0; j <= q; ++j) {
-            const double f = bin(q, i) * bin(q, j) / bin(2 * q, i + j);
-            for (size_t c = 0; c < 3; ++c)
-              out[size_t(i + j) * 3 + c] += f * (side[size_t(i) * 4 + c] * on[size_t(j) * 4 + 3] - side[size_t(i) * 4 + 3] * on[size_t(j) * 4 + c]);
+      const auto b0 = bezier_split(r0, q, aknots, amults);
+      const auto b1 = bezier_split(r1, q, aknots, amults);
+      const auto b2 = bezier_split(r2, q, aknots, amults);
+      for (size_t seg = 0; seg < b1.size(); ++seg) {
+        // On this segment: the two one-sided u-derivatives (degree q) and the line's own v-derivative
+        // (degree q - 1, coefficients from the shared row's differences; its span scale drops out of
+        // the parallel test, which is blind to a positive rescaling of either factor).
+        const size_t nc = b1[seg].size();
+        std::vector<H4> dle(nc), dre(nc), dv(nc > 0 ? nc - 1 : 0);
+        for (size_t i = 0; i < nc; ++i)
+          for (int c = 0; c < 4; ++c) {
+            dle[i].x[c] = (b1[seg][i].x[c] - b0[seg][i].x[c]) / dl;
+            dre[i].x[c] = (b2[seg][i].x[c] - b1[seg][i].x[c]) / dr;
+            if (!std::isfinite(dle[i].x[c]) || !std::isfinite(dre[i].x[c])) {
+              return false;
+            }
+            if (i + 1 < nc) dv[i].x[c] = double(q) * (b1[seg][size_t(i) + 1].x[c] - b1[seg][i].x[c]);
           }
-        return out;
-      };
-      const std::vector<double> nl = numerator(left), nr = numerator(right);
-      double lr = 0, rr = 0, scale = 0;
-      for (size_t i = 0; i < nl.size(); ++i) {
-        if (!std::isfinite(nl[i]) || !std::isfinite(nr[i])) return false;
-        lr += nl[i] * nr[i];
-        rr += nr[i] * nr[i];
-        scale = std::max(scale, std::abs(nl[i]));
+        // The normals' numerators on the segment: cross of each u-derivative with the line's
+        // v-derivative, component by component (degree 2q - 1; the weights only scale, so the xyz
+        // parts carry the direction).
+        const int dn = 2 * q - 1;
+        std::vector<std::vector<double>> A(3, std::vector<double>(size_t(dn) + 1)), B(3, std::vector<double>(size_t(dn) + 1));
+        double scale = 0;
+        for (int c = 0; c < 3; ++c) {
+          const int c1 = (c + 1) % 3, c2 = (c + 2) % 3;
+          for (int i = 0; i < q + 1; ++i)
+            for (int j = 0; j < q; ++j) {
+              const double f = binom(q, i) * binom(q - 1, j) / binom(dn, i + j);
+              const size_t k = size_t(i + j);
+              A[c][k] += f * (dle[size_t(i)].x[c1] * dv[size_t(j)].x[c2] - dle[size_t(i)].x[c2] * dv[size_t(j)].x[c1]);
+              B[c][k] += f * (dre[size_t(i)].x[c1] * dv[size_t(j)].x[c2] - dre[size_t(i)].x[c2] * dv[size_t(j)].x[c1]);
+            }
+          for (int k = 0; k <= dn; ++k) {
+            if (!std::isfinite(A[c][size_t(k)]) || !std::isfinite(B[c][size_t(k)])) {
+              return false;
+            }
+            scale = std::max(scale, std::max(std::abs(A[c][size_t(k)]), std::abs(B[c][size_t(k)])));
+          }
+        }
+        if (!(scale > 0)) {
+          return false;
+        }
+        // Parallel: the cross product of the two numerators vanishes identically. Equally directed:
+        // their dot's Bernstein coefficients read non-negative, and not all of it zero.
+        const int dd = 2 * dn;
+        std::vector<double> dot(size_t(dd) + 1, 0.0);
+        for (int c = 0; c < 3; ++c) {
+          const auto cx = bern_mul(A[(c + 1) % 3], B[(c + 2) % 3]);
+          const auto cy = bern_mul(A[(c + 2) % 3], B[(c + 1) % 3]);
+          for (int k = 0; k <= dd; ++k) {
+            const double w = cx[size_t(k)] - cy[size_t(k)];
+            if (!std::isfinite(w) || std::abs(w) > 1e-6 * scale) {
+              return false;
+            }
+          }
+          const auto d = bern_mul(A[c], B[c]);
+          for (int k = 0; k <= dd; ++k) dot[size_t(k)] += d[size_t(k)];
+        }
+        double dscale = 0, top = 0;
+        for (int k = 0; k <= dd; ++k) {
+          if (!std::isfinite(dot[size_t(k)])) return false;
+          dscale = std::max(dscale, std::abs(dot[size_t(k)]));
+          top = std::max(top, dot[size_t(k)]);
+        }
+        if (!(dscale > 0) || top < 1e-9 * dscale) {
+          return false;
+        }
+        for (int k = 0; k <= dd; ++k)
+          if (dot[size_t(k)] < -1e-9 * dscale) {
+            return false;
+          }
       }
-      const double factor = lr / rr;
-      if (!(rr > 0 && scale > 0) || !std::isfinite(factor) || !(factor > 0)) return false;
-      for (size_t i = 0; i < nl.size(); ++i)
-        if (!(std::abs(nl[i] - factor * nr[i]) <= 1e-9 * scale)) return false;
     }
   }
   return true;
@@ -825,8 +940,15 @@ TopoDS_Shape build(Rd& r) {
       if (reversed) g2 = g2->Reversed();
       if (unchecked_offsets[size_t(c.surface)]) throw Bad{"edge uses an offset of a C0 surface"};
       const Handle(Geom_Surface)& s = surfaces[size_t(c.surface)];
-      BRepBuilderAPI_MakeEdge me = (v0 >= 0 && v1 >= 0) ? BRepBuilderAPI_MakeEdge(g2, s, verts[size_t(v0)], verts[size_t(v1)])
-                                                        : BRepBuilderAPI_MakeEdge(g2, s);
+      // The vertex projection inside MakeEdge can wander onto the join the offset may not evaluate across
+      // (a C0 knot's line): an exception there falls to the tolerant path below, which starts from the
+      // pcurve's own parameters instead.
+      BRepBuilderAPI_MakeEdge me;
+      try {
+        me = (v0 >= 0 && v1 >= 0) ? BRepBuilderAPI_MakeEdge(g2, s, verts[size_t(v0)], verts[size_t(v1)]) : BRepBuilderAPI_MakeEdge(g2, s);
+      } catch (Standard_Failure&) {
+        if (!(v0 >= 0 && v1 >= 0)) throw;
+      }
       if (me.IsDone()) {
         edges[i] = me.Edge();
       } else if (v0 >= 0 && v1 >= 0) {
@@ -843,9 +965,10 @@ TopoDS_Shape build(Rd& r) {
           if (gap > BRep_Tool::Tolerance(*vv[k])) bb.UpdateVertex(*vv[k], gap * 1.01 + 1e-7);
         }
         BRepBuilderAPI_MakeEdge me2(g2, s, *vv[0], *vv[1], p[0], p[1]);
-        if (!me2.IsDone())
+        if (!me2.IsDone()) {
           throw Bad{std::string("could not build an edge on its surface (edge ") + std::to_string(i) + " on a " + s->DynamicType()->Name() +
                     ", error " + std::to_string(int(me2.Error())) + ")"};
+        }
         edges[i] = me2.Edge();
       } else {
         throw Bad{"could not build an edge on its surface"};

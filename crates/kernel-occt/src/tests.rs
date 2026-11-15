@@ -649,6 +649,108 @@ fn used_offset_accepts_smooth_rational_joins_but_rejects_creases() {
     }
 }
 
+/// The same, with the line's own direction running through several Bézier segments — the case a real Shapr3D
+/// sweep hits: the profile is carried on by a straight piece (a C0 knot of full multiplicity in U, here with a
+/// sliver span beside it, as the file had), while the sweep direction has knots of its own (C1, so they don't
+/// count). The offset's normal carries on, so the face comes in; with a real crease it is refused, also far from
+/// the origin.
+#[test]
+fn used_offset_accepts_a_sweep_whose_line_runs_through_several_segments() {
+    use shapecraft_kernel::DVec2;
+    use shapecraft_kernel::brep::{BodyKind, Brep, Curve, Edge, Face, Fin, Nurbs, NurbsSurface, Surface};
+    let q = std::f64::consts::FRAC_1_SQRT_2;
+    // A quarter arc in x–z, split at mid (two pieces, tangent-continuous: the poles stay collinear), swept along
+    // a path in y–z whose own direction has interior knots. 5 poles in U: the arc's two pieces share the middle.
+    let profile = [
+        DVec3::new(1.0, 0.0, 0.0),
+        DVec3::new(1.0, 0.0, 0.5),
+        DVec3::new(0.75, 0.0, 0.75),
+        DVec3::new(0.5, 0.0, 1.0),
+        DVec3::new(0.0, 0.0, 1.0),
+    ];
+    let path = [(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (2.0, 0.0), (3.0, 1.0)];
+    let mut poles = Vec::new();
+    for p in &profile {
+        for (y, z) in path {
+            poles.push(*p + DVec3::new(0.0, y, z));
+        }
+    }
+    let basis = NurbsSurface {
+        u_degree: 2,
+        v_degree: 2,
+        nu: 5,
+        nv: 5,
+        poles,
+        weights: None,
+        // U: a sliver span by the start, then the join of the arc's two pieces at C0 (multiplicity == degree).
+        u_knots: vec![0.0, 0.4, 1.0],
+        u_mults: vec![3, 2, 3],
+        // V: the path's own knots, C1 (multiplicity < degree): none of them is a join to prove.
+        v_knots: vec![0.0, 0.25, 0.6, 1.0],
+        v_mults: vec![3, 1, 1, 3],
+        u_periodic: false,
+        v_periodic: false,
+    };
+    // The face sits on the far half of the sweep, clear of the join's line (a real file splits its faces at
+    // it), with the vertices at the offset surface's own corners.
+    let uv = [DVec2::new(0.5, 0.0), DVec2::new(1.0, 0.0), DVec2::new(1.0, 1.0), DVec2::new(0.5, 1.0)];
+    let d = 0.25;
+    let points = [
+        DVec3::new(0.514413, 0.0, 0.622956),
+        DVec3::new(0.0, 0.0, 0.75),
+        DVec3::new(0.0, 3.17678, 1.82322),
+        DVec3::new(0.547014, 3.15779, 1.6686),
+    ];
+    let mut b = Brep {
+        kind: BodyKind::Sheet,
+        surfaces: vec![Surface::BSpline(basis), Surface::Offset { basis: 0, distance: d }],
+        vertices: points.to_vec(),
+        ..Brep::default()
+    };
+    for i in 0..4 {
+        b.curves.push(Curve::OnSurface {
+            surface: 1,
+            uv: Nurbs {
+                degree: 1,
+                poles: vec![uv[i], uv[(i + 1) % 4]],
+                weights: None,
+                knots: vec![0.0, 1.0],
+                mults: vec![2, 2],
+                periodic: false,
+            },
+        });
+        b.edges.push(Edge { curve: Some(i), reversed: false, start: Some(i), end: Some((i + 1) % 4), tolerance: None });
+    }
+    b.faces.push(Face {
+        surface: 1,
+        flip: false,
+        loops: vec![(0..4).map(|i| Fin { edge: i, forward: true, pcurve: Some(i) }).collect()],
+        color: None,
+    });
+    b.shells.push(vec![0]);
+    let kernel = k();
+    let shape = kernel.from_brep(&b).unwrap();
+    assert!(kernel.mass_props(&shape).unwrap().area > 1.0);
+    assert!(!kernel.tessellate(&shape, 0.02).unwrap().indices.is_empty());
+    // The arc's two pieces stop being collinear: a crease along the whole join, and it is refused again — at the
+    // original position and translated far away (the proof must not loosen with the model's distance).
+    for shift in [DVec3::new(0.0, 0.0, 0.0), DVec3::new(1.0e10, -1.0e10, 1.0e10)] {
+        let mut c = b.clone();
+        if let Surface::BSpline(ref mut n) = c.surfaces[0] {
+            for p in &mut n.poles {
+                *p += shift;
+            }
+            // Break the collinearity of the arc's two pieces at the join: the join's left neighbour is U pole
+            // column 1 (flat 5..10), and tipping it alone turns the left tangent off the right one.
+            for b in 0..5 {
+                n.poles[5 + b].y -= 0.001;
+            }
+        }
+        let err = kernel.from_brep(&c).unwrap_err().to_string();
+        assert!(err.contains("offset of a C0 surface"), "{err}");
+    }
+}
+
 /// A swept arc carried on by a straight piece keeps a knot of full multiplicity where the path's speed changes: the
 /// surface is smooth there (OCCT calls it C0), so a face on its offset comes in; with a real crease it is refused.
 #[test]
@@ -681,13 +783,15 @@ fn used_offset_accepts_a_sweep_that_changes_speed_at_a_full_knot() {
         u_periodic: false,
         v_periodic: false,
     };
-    let uv = [DVec2::new(0.0, 0.0), DVec2::new(1.0, 0.0), DVec2::new(1.0, 1.0), DVec2::new(0.0, 1.0)];
+    // The face sits on the far half of the sweep, clear of the join's line (a real file splits its faces at
+    // it), with the vertices at the offset surface's own corners.
+    let uv = [DVec2::new(0.5, 0.0), DVec2::new(1.0, 0.0), DVec2::new(1.0, 1.0), DVec2::new(0.5, 1.0)];
     let d = 0.25;
     let points = [
-        DVec3::new(1.0 - d, 0.0, 0.0),
-        DVec3::new(0.0, 0.0, 1.0 - d),
-        DVec3::new(0.0, 3.0 + d * q, 2.0 - d * q),
-        DVec3::new(1.0 - d, 3.0, 1.0),
+        DVec3::new(0.514413, 0.0, 0.622956),
+        DVec3::new(0.0, 0.0, 0.75),
+        DVec3::new(0.0, 3.17678, 1.82322),
+        DVec3::new(0.547014, 3.15779, 1.6686),
     ];
     let mut b = Brep {
         kind: BodyKind::Sheet,
