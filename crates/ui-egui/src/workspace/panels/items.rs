@@ -170,6 +170,35 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
     let mut y = rows_top;
     let mut row_hover = None;
     let waiting = tool_mode(ws).is_some();
+    // Folders on the way to anything picked, filled dark blue as in the reference: the whole containing chain
+    // lights up when an item inside is picked, at any depth.
+    let mut containing = std::collections::BTreeSet::new();
+    let mut parents = std::collections::BTreeMap::new();
+    for f in &ws.session.doc.folders {
+        for i in &f.items {
+            parents.insert(*i, f.id);
+        }
+    }
+    let picked_items: Vec<shapecraft_doc::ItemId> = ws
+        .session
+        .selection
+        .iter()
+        .filter_map(|p| match p {
+            Pick::Body { body } => Some(*body),
+            Pick::Sketch { sketch } => Some(*sketch),
+            Pick::Face { body, .. } => Some(*body),
+            _ => None,
+        })
+        .collect();
+    for item in &picked_items {
+        let mut up = parents.get(item).copied();
+        while let Some(f) = up {
+            if !containing.insert(f) {
+                break;
+            }
+            up = parents.get(&f).copied();
+        }
+    }
     let mut dragged_row: Option<(String, Icon)> = None;
     for (id, name, visible, kind, depth) in rows {
         if y + row_h > footer_y - 26.0 {
@@ -190,24 +219,31 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             p.rect_stroke(row, radius(5), Stroke::new(1.5, Color32::WHITE), StrokeKind::Inside);
         }
         let selected = ws.item_selected(id);
-        // A folder with everything in it picked fills like a picked item, and a blue dot marks a folder with
-        // something in it picked, as in the reference (a click on a folder picks everything in it).
-        let (folder_full, folder_dot) = if kind == ItemKind::Folder {
+        // A folder with everything in it picked fills like a picked item, and a folder on the way to something
+        // picked fills dark blue, as in the reference.
+        let (folder_full, _) = if kind == ItemKind::Folder {
             let deep = ws.session.doc.folder_items_deep(id);
             let picked_n = deep.iter().filter(|i| ws.item_selected(**i)).count();
-            (!deep.is_empty() && picked_n == deep.len(), picked_n > 0 && picked_n < deep.len())
+            (!deep.is_empty() && picked_n == deep.len(), picked_n > 0)
         } else {
             (false, false)
         };
-        // The whole item selected (not just a face or edge of it) fills the row: blue while the list has focus,
-        // grey once a tool starts or the view is clicked, as observed.
-        let whole = ws.session.selection.iter().any(|p| {
+        let contains_picked = containing.contains(&id);
+        // The whole item picked (from the list or the view, a tool running or not) fills its row bright blue;
+        // a picked face or edge fills its body's row lighter; and every folder containing a picked item fills
+        // dark blue — as in the reference.
+        let on_item = ws.session.selection.iter().any(|p| {
             matches!(*p, Pick::Body { body } if body == id)
                 || matches!(*p, Pick::Sketch { sketch } if sketch == id)
+                || matches!(*p, Pick::Face { body, .. } if body == id)
+                || matches!(*p, Pick::Edge { body, .. } if body == id)
                 || *p == Pick::Plane { plane: id }
                 || *p == Pick::Axis { axis: id }
                 || *p == Pick::Image { image: id }
         });
+        let face_on_item =
+            ws.session.selection.iter().any(|p| matches!(*p, Pick::Face { body, .. } | Pick::Edge { body, .. } if body == id));
+        let whole = on_item && !face_on_item;
         // Hovering a row lights its item up in the view.
         if resp.hovered() {
             row_hover = match kind {
@@ -219,23 +255,22 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
                 ItemKind::Folder => None,
             };
         }
-        if whole || folder_full {
-            p.rect_filled(row, radius(5), if ws.items_focus { theme::c(0x2e68ff) } else { theme::c(0x454548) });
+        if on_item {
+            let fill = if face_on_item && !whole { theme::c(0x1e5aa8) } else { theme::c(0x2e68ff) };
+            p.rect_filled(row, radius(5), fill);
+        } else if contains_picked {
+            p.rect_filled(row, radius(5), theme::c(0x1e3c78));
         } else if selected {
-            p.rect_filled(row, radius(5), Tokens::row_selected());
+            p.rect_filled(row, radius(5), theme::c(0x2e68ff));
         } else if resp.hovered() {
             p.rect_filled(row, radius(5), Tokens::row_hover());
-        }
-        // A blue dot on a folder with something in it picked, as in the reference.
-        if folder_dot {
-            p.circle_filled(pos2(r.left() + 12.0 + indent, row.center().y), 3.0, theme::c(0x2e68ff));
         }
         // While a tool waits for picks in the view, the list goes dim except what it can still take: Mirror and
         // Split Body take more bodies (as observed, 324–334).
         let takes = kind == ItemKind::Body && matches!(ws.tool, Tool::Mirror(_) | Tool::Boolean(_));
         // Measured (s22-002): names #DFDFDF, hidden ones #818181; icons a grey hairline, #9D9D9F or #5F5F5F hidden.
         let lit = visible && (!waiting || takes) && !dragging_this;
-        let color = if whole && ws.items_focus || drop_on_this {
+        let color = if on_item || drop_on_this {
             Color32::WHITE
         } else if lit {
             Tokens::text()
