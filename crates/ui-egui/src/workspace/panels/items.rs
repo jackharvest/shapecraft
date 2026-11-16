@@ -205,7 +205,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             break;
         }
         let indent = 13.0 * depth as f32;
-        let row = Rect::from_min_size(pos2(r.left() + 9.0, y), vec2(r.width() - 18.0, row_h - 2.0));
+        let row = Rect::from_min_size(pos2(r.left(), y), vec2(r.width(), row_h));
         let resp = ui.interact(row, ui.scope_id().with(("item", id.0)), Sense::click_and_drag());
         // Dragging a row onto another lights it up blue (a folder takes it in, an item makes a folder with it);
         // between rows a blue line shows where it goes (s24-022, s24-025).
@@ -255,17 +255,27 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
                 ItemKind::Folder => None,
             };
         }
+        // Measured on the reference (video 2026-11-16): a picked row fills #2b53ba, and a folder on the way to a
+        // picked row fills #2b3b66 — the whole containing chain lights up, at any depth.
         if on_item {
-            let fill = if face_on_item && !whole { theme::c(0x1e5aa8) } else { theme::c(0x2e68ff) };
+            let fill = if face_on_item && !whole { theme::c(0x1e5aa8) } else { theme::c(0x2b53ba) };
             p.rect_filled(row, radius(5), fill);
         } else if folder_full {
-            p.rect_filled(row, radius(5), theme::c(0x2e68ff));
+            p.rect_filled(row, radius(5), theme::c(0x2b53ba));
         } else if contains_picked {
-            p.rect_filled(row, radius(5), theme::c(0x1e448c));
+            p.rect_filled(row, radius(5), theme::c(0x2b3b66));
         } else if selected {
-            p.rect_filled(row, radius(5), theme::c(0x2e68ff));
-        } else if resp.hovered() {
-            p.rect_filled(row, radius(5), Tokens::row_hover());
+            p.rect_filled(row, radius(5), theme::c(0x2b53ba));
+        }
+        // The pointer lays a white veil (alpha 18, fading in and out) over whatever the row already shows: over
+        // nothing it reads as a grey, over a picked row as a lighter blue — as in the reference.
+        let hover_t = if drop_on_this || dragging_this {
+            0.0
+        } else {
+            ui.ctx().animate_value_with_time(ui.scope_id().with(("row-hover", id.0)), if resp.hovered() { 1.0 } else { 0.0 }, 0.12)
+        };
+        if hover_t > 0.0 {
+            p.rect_filled(row, radius(5), Color32::from_white_alpha((18.0 * hover_t) as u8));
         }
         // While a tool waits for picks in the view, the list goes dim except what it can still take: Mirror and
         // Split Body take more bodies (as observed, 324–334).
@@ -281,13 +291,9 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         } else {
             theme::c(0x818181)
         };
-        let icon_color = if color == Color32::WHITE {
-            color
-        } else if lit {
-            Tokens::text_dim()
-        } else {
-            theme::c(0x5f5f5f)
-        };
+        // The icon wears the same colour as the name, in every state — white when visible and picked, grey when
+        // hidden — as in the reference.
+        let icon_color = color;
         let icon = match kind {
             ItemKind::Body if ws.session.doc.body(id).is_some_and(|b| b.is_mesh()) => Icon::MeshBody,
             ItemKind::Body => Icon::Body,
@@ -356,11 +362,10 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             (e, e)
         };
         let eye_resp = ui.interact(eye_hit, ui.scope_id().with(("eye", id.0)), Sense::click());
-        if touch || !visible || resp.hovered() || eye_resp.hovered() {
-            // A hidden row's eye stays dim, as in the reference (s20-030).
-            let tint = if visible || eye_resp.hovered() { Tokens::text_dim() } else { egui::Color32::from_rgb(0x3e, 0x3d, 0x3d) };
-            icons::paint(&p, eye, if visible { Icon::Eye } else { Icon::EyeOff }, tint);
-        }
+        // The eye is always shown: open on visible rows, crossed on hidden ones (as in the reference).
+        // A hidden row's eye stays dim, as in the reference (s20-030).
+        let tint = if visible || eye_resp.hovered() { Tokens::text_dim() } else { egui::Color32::from_rgb(0x3e, 0x3d, 0x3d) };
+        icons::paint(&p, eye, if visible { Icon::Eye } else { Icon::EyeOff }, tint);
         let on_chevron = kind == ItemKind::Folder && resp.interact_pointer_pos().is_some_and(|q| q.x < r.left() + 36.0 + indent);
         if eye_resp.clicked() {
             let _ = ws.run("show_hide", json!({ "items": [id.0] }));
