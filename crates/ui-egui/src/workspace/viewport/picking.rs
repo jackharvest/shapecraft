@@ -64,7 +64,7 @@ impl Workspace {
         if self.session.active_sketch.is_some() {
             return None;
         }
-        self.session.doc.sketches.iter().filter(|s| s.visible && !s.entities.is_empty()).find_map(|sk| self.point_in_sketch(sk, c))
+        self.session.doc.sketches.iter().filter(|s| s.visible && !s.entities.is_empty() && self.session.doc.item_shown(s.id)).find_map(|sk| self.point_in_sketch(sk, c))
     }
 
     fn point_in_sketch(&self, sk: &shapecraft_doc::Sketch, c: Pos2) -> Option<Pick> {

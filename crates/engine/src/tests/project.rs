@@ -143,7 +143,7 @@ fn saved_views_are_kept_with_the_project() {
 }
 
 #[test]
-fn folders_hold_items_hide_them_and_go_with_them() {
+fn folders_carry_their_own_visibility_and_leave_items_alone() {
     let mut s = session();
     s.execute("sketch", &json!({"plane": "xy"})).unwrap();
     s.execute("rectangle", &json!({"corner": [0, 0], "opposite": [10, 10]})).unwrap();
@@ -153,8 +153,12 @@ fn folders_hold_items_hide_them_and_go_with_them() {
     assert_eq!(s.doc.folders[0].name, "Folder 01");
     s.execute("move_to_folder", &json!({"items": [body], "folder": folder})).unwrap();
     assert_eq!(s.doc.folder_of(shapecraft_doc::ItemId(body)), Some(shapecraft_doc::ItemId(folder)));
+    // Hiding the folder hides what's in it in the view, without touching the items' own flags: showing it
+    // brings their own states back, as they were left.
     s.execute("show_hide", &json!({"items": [folder]})).unwrap();
-    assert!(!s.doc.bodies[0].visible, "hiding the folder hides what's in it");
+    assert!(!s.doc.folders[0].visible, "the folder carries its own flag");
+    assert!(s.doc.bodies[0].visible, "the body keeps its own flag");
+    assert!(!s.doc.item_shown(shapecraft_doc::ItemId(body)), "but nothing shows: the folder above it is hidden");
     s.execute("rename", &json!({"item": folder, "name": "Parts"})).unwrap();
     assert_eq!(s.doc.folders[0].name, "Parts");
     assert!(s.doc.history.iter().filter(|h| h.kind.contains("folder")).all(|h| h.quiet), "folders are bookkeeping");
@@ -164,8 +168,16 @@ fn folders_hold_items_hide_them_and_go_with_them() {
     assert!(s.execute("move_to_folder", &json!({"items": [folder], "folder": inner})).is_err());
     assert!(s.execute("place_item", &json!({"item": folder, "folder": inner})).is_err());
     s.execute("place_item", &json!({"item": body, "folder": inner})).unwrap();
+    // Showing the folder brings the body's own state back: it was visible all along.
     s.execute("show_hide", &json!({"items": [folder]})).unwrap();
-    assert!(s.doc.bodies[0].visible, "showing the outer folder reaches inside the inner one");
+    assert!(s.doc.folders[0].visible, "the folder is shown again");
+    assert!(s.doc.bodies[0].visible, "the body kept its own flag the whole time");
+    assert!(s.doc.item_shown(shapecraft_doc::ItemId(body)), "shown again with the folder");
+    // The body hides and shows on its own, no folder in the way.
+    s.execute("show_hide", &json!({"items": [body]})).unwrap();
+    assert!(!s.doc.bodies[0].visible && !s.doc.item_shown(shapecraft_doc::ItemId(body)));
+    s.execute("show_hide", &json!({"items": [body]})).unwrap();
+    assert!(s.doc.bodies[0].visible && s.doc.item_shown(shapecraft_doc::ItemId(body)));
     // Placed between two rows: its key falls between theirs.
     s.execute("place_item", &json!({"item": inner, "folder": null, "after": body, "before": folder})).unwrap();
     let k = |i: u64| s.doc.item_key(shapecraft_doc::ItemId(i));

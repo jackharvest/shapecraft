@@ -228,6 +228,9 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         } else {
             false
         };
+        // The row's own flag drives its eye; the effective one (own flag and the folders above it) drives the
+        // dimming — a visible item inside a hidden folder shows through neither.
+        let shown = ws.session.doc.item_shown(id);
         let contains_picked = containing.contains(&id);
         // The whole item picked (from the list or the view, a tool running or not) fills its row bright blue;
         // a picked face or edge fills its body's row lighter; and every folder containing a picked item fills
@@ -281,10 +284,10 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         // Split Body take more bodies (as observed, 324–334).
         let takes = kind == ItemKind::Body && matches!(ws.tool, Tool::Mirror(_) | Tool::Boolean(_));
         // Measured (s22-002): names #DFDFDF, hidden ones #818181; icons a grey hairline, #9D9D9F or #5F5F5F hidden.
-        let lit = visible && (!waiting || takes) && !dragging_this;
+        let lit = shown && (!waiting || takes) && !dragging_this;
         // Hidden names keep their grey even when picked (the eye-crossed row reads as hidden at a glance, as in the
-        // reference), and so does a row a tool can't take right now.
-        let color = if (on_item || drop_on_this) && visible {
+        // reference), and so does a row a tool can't take right now — a visible row under a hidden folder dims too.
+        let color = if (on_item || drop_on_this) && shown {
             Color32::WHITE
         } else if lit {
             Tokens::text()
@@ -363,10 +366,13 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             (e, e)
         };
         let eye_resp = ui.interact(eye_hit, ui.scope_id().with(("eye", id.0)), Sense::click());
-        // The eye is always shown: open on visible rows, crossed on hidden ones (as in the reference).
-        // A hidden row's eye stays dim, as in the reference (s20-030).
-        let tint = if visible || eye_resp.hovered() { Tokens::text_dim() } else { egui::Color32::from_rgb(0x3e, 0x3d, 0x3d) };
-        icons::paint(&p, eye, if visible { Icon::Eye } else { Icon::EyeOff }, tint);
+        // Only hidden rows carry the eye (an open eye on every row was visual noise); a visible item is hidden
+        // from its row's menu.
+        if touch || !visible {
+            // A hidden row's eye stays dim, as in the reference (s20-030).
+            let tint = if eye_resp.hovered() { Tokens::text_dim() } else { egui::Color32::from_rgb(0x3e, 0x3d, 0x3d) };
+            icons::paint(&p, eye, if visible { Icon::Eye } else { Icon::EyeOff }, tint);
+        }
         let on_chevron = kind == ItemKind::Folder && resp.interact_pointer_pos().is_some_and(|q| q.x < r.left() + 36.0 + indent);
         if eye_resp.clicked() {
             let _ = ws.run("show_hide", json!({ "items": [id.0] }));

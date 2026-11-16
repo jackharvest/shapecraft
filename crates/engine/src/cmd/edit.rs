@@ -312,7 +312,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
                     f.items.retain(|i| !items.contains(i));
                 }
                 let items: Vec<_> = items.into_iter().filter(|i| s.doc.has_item(*i) || s.doc.folder(*i).is_some()).collect();
-                s.doc.folders.push(shapecraft_doc::Folder { id, name, items });
+                s.doc.folders.push(shapecraft_doc::Folder { id, name, items, visible: true });
                 // As observed (s24-021): with a folder picked, the new one goes inside it.
                 if let Some(f) = parent.and_then(|f| s.doc.folder_mut(f)) {
                     f.items.push(id);
@@ -723,34 +723,31 @@ fn show_hide(s: &mut Session, p: &Params) -> Result<Value> {
     if ids.is_empty() {
         return Err(EngineError::BadParams("select something to show or hide".into()));
     }
-    let mut explicit = p.has("visible").then(|| p.bool_or("visible", true));
-    // A folder shows or hides everything in it (hidden when anything in it shows).
-    let mut expanded = Vec::new();
+    let explicit = p.has("visible").then(|| p.bool_or("visible", true));
+    // Each id carries its own flag: a folder's eye is the folder's own flag — what is inside keeps its own
+    // states, and the view combines them (an item is shown only if it and its folders are).
     for id in ids {
-        match s.doc.folder(id) {
-            Some(_) => {
-                let inside = s.doc.folder_items_deep(id);
-                let any_visible = inside.iter().any(|i| item_visible(&s.doc, *i));
-                explicit = explicit.or(Some(!any_visible));
-                expanded.extend(inside);
+        let hide = explicit.unwrap_or(match s.doc.folder(id) {
+            Some(_) => !s.doc.folder(id).is_some_and(|f| f.visible),
+            None => !item_visible(&s.doc, id),
+        });
+        if s.doc.folder(id).is_some() {
+            if let Some(folder) = s.doc.folder_mut(id) {
+                folder.visible = hide;
             }
-            None => expanded.push(id),
-        }
-    }
-    for id in expanded {
-        if let Some(b) = s.doc.body_mut(id) {
-            b.visible = explicit.unwrap_or(!b.visible);
+        } else if let Some(b) = s.doc.body_mut(id) {
+            b.visible = hide;
         } else if let Some(sk) = s.doc.sketch_mut(id) {
-            sk.visible = explicit.unwrap_or(!sk.visible);
+            sk.visible = hide;
         } else if let Some(pl) = s.doc.plane_mut(id) {
-            pl.visible = explicit.unwrap_or(!pl.visible);
+            pl.visible = hide;
         } else if let Some(ax) = s.doc.axis_mut(id) {
-            ax.visible = explicit.unwrap_or(!ax.visible);
+            ax.visible = hide;
         } else if let Some(im) = s.doc.image_mut(id) {
-            im.visible = explicit.unwrap_or(!im.visible);
+            im.visible = hide;
         }
     }
-    s.selection.retain(|pick| pick.body().is_none_or(|b| s.doc.body(b).is_some_and(|b| b.visible)));
+    s.selection.retain(|pick| pick.body().is_none_or(|b| s.doc.item_shown(b)));
     Ok(Value::Null)
 }
 

@@ -202,7 +202,7 @@ impl Workspace {
             .doc
             .sketches
             .iter()
-            .filter(|s| s.visible && (self.session.active_sketch.is_none() || self.session.active_sketch == Some(s.id)))
+            .filter(|s| s.visible && self.session.doc.item_shown(s.id) && (self.session.active_sketch.is_none() || self.session.active_sketch == Some(s.id)))
         {
             let s = |p: DVec2| self.to_screen(sk.plane.to_world(p));
             for c in &sk.constraints {
@@ -325,7 +325,7 @@ impl Workspace {
             .doc
             .sketches
             .iter()
-            .filter(|s| s.visible && (self.session.active_sketch.is_none() || self.session.active_sketch == Some(s.id)))
+            .filter(|s| s.visible && self.session.doc.item_shown(s.id) && (self.session.active_sketch.is_none() || self.session.active_sketch == Some(s.id)))
         {
             let mut pairs: Vec<(u32, u32)> = sk
                 .constraints
@@ -398,7 +398,7 @@ impl Workspace {
             .doc
             .sketches
             .iter()
-            .filter(|s| s.visible && (self.session.active_sketch.is_none() || self.session.active_sketch == Some(s.id)))
+            .filter(|s| s.visible && self.session.doc.item_shown(s.id) && (self.session.active_sketch.is_none() || self.session.active_sketch == Some(s.id)))
         {
             let mut pairs: Vec<(Element, Element, bool)> = sk
                 .constraints

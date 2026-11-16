@@ -45,7 +45,7 @@ impl Workspace {
         for v in [plane.origin, plane.x, plane.y] {
             v.to_array().map(f64::to_bits).hash(&mut h);
         }
-        for body in self.session.doc.bodies.iter().filter(|b| b.visible) {
+        for body in self.session.doc.bodies.iter().filter(|b| self.session.doc.item_shown(b.id)) {
             (body.id.0, std::sync::Arc::as_ptr(&body.mesh) as usize).hash(&mut h);
         }
         let key = h.finish();
@@ -77,7 +77,7 @@ impl Workspace {
                 out.push((q, name, corner));
             }
         };
-        for body in self.session.doc.bodies.iter().filter(|b| b.visible) {
+        for body in self.session.doc.bodies.iter().filter(|b| self.session.doc.item_shown(b.id)) {
             let m = &body.mesh;
             // Most bodies have nothing on the plane: a look at their vertices settles it before their edges and
             // triangles are walked.
@@ -302,7 +302,7 @@ impl Workspace {
     pub(in crate::workspace) fn snap_point(&self, c: Pos2) -> Option<DVec3> {
         let mut best: Option<(f32, f64, DVec3)> = None;
         let eye = self.camera.eye();
-        for body in self.session.doc.bodies.iter().filter(|b| b.visible) {
+        for body in self.session.doc.bodies.iter().filter(|b| self.session.doc.item_shown(b.id)) {
             for line in &body.mesh.edges {
                 let (Some(a), Some(b)) = (line.first(), line.last()) else { continue };
                 let (a, b) = (DVec3::from(a.map(f64::from)), DVec3::from(b.map(f64::from)));

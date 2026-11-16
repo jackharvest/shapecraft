@@ -304,6 +304,10 @@ pub struct Folder {
     pub id: ItemId,
     pub name: String,
     pub items: Vec<ItemId>,
+    /// The folder's own flag: hiding it dims and empties the view of everything inside without touching the
+    /// items' own flags — showing it brings their own states back. Independent per item, as asked.
+    #[serde(default = "yes")]
+    pub visible: bool,
 }
 
 /// A construction axis: drawn as a line, used to revolve, rotate or pattern around.
@@ -981,6 +985,28 @@ impl Document {
             }
         }
         out
+    }
+
+    /// Whether an item is shown in the view: its own flag and those of the folders above it — all independent,
+    /// so hiding a folder never rewrites what is inside it.
+    pub fn item_shown(&self, id: ItemId) -> bool {
+        let own = self.body(id).map(|b| b.visible)
+            .or_else(|| self.sketch(id).map(|s| s.visible))
+            .or_else(|| self.plane(id).map(|p| p.visible))
+            .or_else(|| self.axes.iter().find(|a| a.id == id).map(|a| a.visible))
+            .or_else(|| self.image(id).map(|i| i.visible));
+        if !own.unwrap_or(false) {
+            return false;
+        }
+        let mut at = self.folder_of(id);
+        while let Some(f) = at {
+            let Some(folder) = self.folder(f) else { return true };
+            if !folder.visible {
+                return false;
+            }
+            at = self.folder_of(folder.id);
+        }
+        true
     }
 
     /// Whether `item` is `folder` or somewhere inside it.

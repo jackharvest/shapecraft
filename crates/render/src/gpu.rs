@@ -1009,7 +1009,7 @@ impl Renderer {
         let mut see_draws = Vec::new();
         let mut through_draws = Vec::new();
         let chosen = crate::scene::Chosen::of(scene.selection);
-        for body in scene.doc.bodies.iter().filter(|b| b.visible) {
+        for body in scene.doc.bodies.iter().filter(|b| scene.doc.item_shown(b.id)) {
             let key = body.id.0 as usize;
             // A body with no triangles (an import can arrive with one) has nothing to draw, and slicing its empty
             // vertex and index buffers panics: skip it before anything is uploaded or queued (#39).
@@ -1122,7 +1122,7 @@ impl Renderer {
             let mut spans = Vec::with_capacity(self.body_spans.len());
             let mut remade = Vec::new();
             let mut segments = Vec::new();
-            for body in scene.doc.bodies.iter().filter(|b| b.visible) {
+            for body in scene.doc.bodies.iter().filter(|b| scene.doc.item_shown(b.id)) {
                 let key = edges_of_key(scene, body, &chosen);
                 let made = match kept.remove(&body.id) {
                     Some(made) if made.0 == key => made,
@@ -1400,7 +1400,7 @@ impl Renderer {
             img.used = false;
         }
         let mut draws = Vec::new();
-        for im in scene.doc.images.iter().filter(|i| i.visible) {
+        for im in scene.doc.images.iter().filter(|i| scene.doc.item_shown(i.id)) {
             let (w, h, ref px) = *im.pixels;
             if w == 0 || h == 0 || px.len() != (w * h * 4) as usize {
                 continue;

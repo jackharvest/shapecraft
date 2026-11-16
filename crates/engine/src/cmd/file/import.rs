@@ -194,7 +194,7 @@ fn import_project(s: &mut Session, p: &Params) -> Result<Value> {
     }
     let folder = s.doc.alloc_id();
     let name = format!("{} (Imported)", other.name);
-    s.doc.folders.push(shapecraft_doc::Folder { id: folder, name, items });
+    s.doc.folders.push(shapecraft_doc::Folder { id: folder, name, items, visible: true });
     s.selection = bodies.iter().map(|&body| Pick::Body { body }).collect();
     Ok(json!({ "folder": folder.0, "bodies": bodies.iter().map(|i| i.0).collect::<Vec<_>>() }))
 }
@@ -333,7 +333,7 @@ fn file_folder(s: &mut Session, path: &std::path::Path, items: &[shapecraft_doc:
     }
     let name: String = path.file_name().map(|f| f.to_string_lossy().into_owned()).unwrap_or_default().chars().take(200).collect();
     let id = s.doc.alloc_id();
-    s.doc.folders.push(shapecraft_doc::Folder { id, name, items: items.to_vec() });
+    s.doc.folders.push(shapecraft_doc::Folder { id, name, items: items.to_vec(), visible: true });
     Some(id.0)
 }
 
