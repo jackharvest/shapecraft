@@ -76,7 +76,10 @@ pub struct Session {
 
 #[derive(Clone)]
 struct Snapshot {
-    doc: Document,
+    /// The document as it was — unless the step only changed the selection (a pick can't alter it): then there is
+    /// nothing to copy and nothing to restore. The full copy here was seconds of memcpy per click on projects with
+    /// imported meshes.
+    doc: Option<Document>,
     active_sketch: Option<ItemId>,
     /// What was selected at that point: undo and redo bring the selection back too, as observed.
     selection: Vec<Pick>,
@@ -194,7 +197,9 @@ impl Session {
             return Err(EngineError::NotAvailable(format!("{} isn't available right now", spec.label)));
         }
         let before = Snapshot {
-            doc: self.doc.clone(),
+            // Only a step that can change the document carries it; a read-only one (a pick, a query) would copy
+            // the whole project for nothing.
+            doc: spec.modifies.then(|| self.doc.clone()),
             active_sketch: self.active_sketch,
             selection: self.selection.clone(),
             label: spec.label.into(),
@@ -214,18 +219,22 @@ impl Session {
         {
             result = Ok(Err(EngineError::BadParams(format!("unknown parameter '{k}' for {id}"))));
         }
-        if matches!(result, Ok(Ok(_))) && params.get("construction").and_then(Value::as_bool) == Some(true) {
-            self.mark_construction(&before.doc);
+        if matches!(result, Ok(Ok(_)))
+            && params.get("construction").and_then(Value::as_bool) == Some(true)
+            && let Some(before_doc) = &before.doc
+        {
+            self.mark_construction(before_doc);
         }
-        if matches!(result, Ok(Ok(_))) {
-            match self.keep_constraints(&before.doc) {
+        if matches!(result, Ok(Ok(_))) && let Some(before_doc) = &before.doc {
+            match self.keep_constraints(before_doc) {
                 Ok(()) => self.refresh_regions(),
                 Err(e) => result = Ok(Err(e)),
             }
         }
         match result {
             Ok(Ok(value)) => {
-                let mut changed = spec.modifies && self.doc_changed(&before.doc);
+                let mut changed = spec.modifies
+                    && before.doc.as_ref().is_some_and(|before_doc| self.doc_changed(before_doc));
                 if changed && !history::UNLOGGED.contains(&spec.id) {
                     let logged = self.log_params.take().unwrap_or_else(|| params.clone());
                     self.record(spec.id, spec.label, &logged, selection_before.clone(), before.active_sketch, refs);
@@ -289,7 +298,10 @@ impl Session {
     pub fn amend(&mut self, id: &str, params: &Value) -> Result<Outcome> {
         let snap = self.undo.pop().ok_or_else(|| EngineError::NotAvailable("nothing to amend".into()))?;
         let now = (self.doc.clone(), self.active_sketch, self.selection.clone(), self.revision);
-        self.doc = snap.doc.clone();
+        // A selection-only step carries no document: it is the same on both sides of it.
+        if let Some(doc) = snap.doc.clone() {
+            self.doc = doc;
+        }
         self.active_sketch = snap.active_sketch;
         match self.execute(id, params) {
             Ok(o) if o.changed => Ok(o),
@@ -324,14 +336,17 @@ impl Session {
 
     /// The document before the last step: what a live tool started from (to draw the edges a live fillet rounds).
     pub fn before_last_step(&self) -> Option<&Document> {
-        self.undo.last().map(|s| &s.doc)
+        self.undo.last().and_then(|s| s.doc.as_ref()).or(Some(&self.doc))
     }
 
     /// [`Session::preview`] as if the last step hadn't happened: the live preview of an [`Session::amend`].
     pub fn preview_amend(&mut self, id: &str, params: &Value) -> Result<Document> {
         let Some(snap) = self.undo.last() else { return self.preview(id, params) };
-        let (doc, sketch) = (snap.doc.clone(), snap.active_sketch);
-        let now = (std::mem::replace(&mut self.doc, doc), std::mem::replace(&mut self.active_sketch, sketch));
+        let now = (self.doc.clone(), self.active_sketch);
+        if let Some(doc) = snap.doc.clone() {
+            self.doc = doc;
+        }
+        self.active_sketch = snap.active_sketch;
         let out = self.preview(id, params);
         (self.doc, self.active_sketch) = now;
         out
@@ -362,7 +377,10 @@ impl Session {
     }
 
     fn restore(&mut self, snap: Snapshot, selection: Vec<Pick>) {
-        self.doc = snap.doc;
+        // A selection-only step carries no document: it is identical on both sides of it.
+        if let Some(doc) = snap.doc {
+            self.doc = doc;
+        }
         self.active_sketch = snap.active_sketch;
         self.selection = selection;
     }
@@ -406,7 +424,9 @@ impl Session {
         if before == self.selection && before_sketch == self.active_sketch {
             return;
         }
-        self.undo.push(Snapshot { doc: self.doc.clone(), active_sketch: before_sketch, selection: before, label: "Selection".into() });
+        // The document can't change across a selection step: there is nothing to copy and nothing to restore — the
+        // full clone here was seconds of memcpy per click on projects with imported meshes.
+        self.undo.push(Snapshot { doc: None, active_sketch: before_sketch, selection: before, label: "Selection".into() });
         if self.undo.len() > UNDO_LIMIT {
             self.undo.remove(0);
         }
@@ -434,13 +454,15 @@ impl Session {
     pub(crate) fn undo_step(&mut self) -> bool {
         let Some(prev) = self.undo.pop() else { return false };
         let current = Snapshot {
-            doc: self.doc.clone(),
+            doc: prev.doc.is_some().then(|| self.doc.clone()),
             active_sketch: self.active_sketch,
             selection: self.selection.clone(),
             label: prev.label.clone(),
         };
         self.redo.push(current);
-        self.doc = prev.doc;
+        if let Some(doc) = prev.doc {
+            self.doc = doc;
+        }
         self.active_sketch = prev.active_sketch;
         self.selection = prev.selection;
         self.dirty = true;
@@ -452,13 +474,15 @@ impl Session {
     pub(crate) fn redo_step(&mut self) -> bool {
         let Some(next) = self.redo.pop() else { return false };
         let current = Snapshot {
-            doc: self.doc.clone(),
+            doc: next.doc.is_some().then(|| self.doc.clone()),
             active_sketch: self.active_sketch,
             selection: self.selection.clone(),
             label: next.label.clone(),
         };
         self.undo.push(current);
-        self.doc = next.doc;
+        if let Some(doc) = next.doc {
+            self.doc = doc;
+        }
         self.active_sketch = next.active_sketch;
         self.selection = next.selection;
         self.dirty = true;
