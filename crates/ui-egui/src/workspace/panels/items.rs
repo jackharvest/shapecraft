@@ -190,6 +190,15 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             p.rect_stroke(row, radius(5), Stroke::new(1.5, Color32::WHITE), StrokeKind::Inside);
         }
         let selected = ws.item_selected(id);
+        // A folder with everything in it picked fills like a picked item, and a blue dot marks a folder with
+        // something in it picked, as in the reference (a click on a folder picks everything in it).
+        let (folder_full, folder_dot) = if kind == ItemKind::Folder {
+            let deep = ws.session.doc.folder_items_deep(id);
+            let picked_n = deep.iter().filter(|i| ws.item_selected(**i)).count();
+            (!deep.is_empty() && picked_n == deep.len(), picked_n > 0 && picked_n < deep.len())
+        } else {
+            (false, false)
+        };
         // The whole item selected (not just a face or edge of it) fills the row: blue while the list has focus,
         // grey once a tool starts or the view is clicked, as observed.
         let whole = ws.session.selection.iter().any(|p| {
@@ -210,12 +219,16 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
                 ItemKind::Folder => None,
             };
         }
-        if whole {
+        if whole || folder_full {
             p.rect_filled(row, radius(5), if ws.items_focus { theme::c(0x2e68ff) } else { theme::c(0x454548) });
         } else if selected {
             p.rect_filled(row, radius(5), Tokens::row_selected());
         } else if resp.hovered() {
             p.rect_filled(row, radius(5), Tokens::row_hover());
+        }
+        // A blue dot on a folder with something in it picked, as in the reference.
+        if folder_dot {
+            p.circle_filled(pos2(r.left() + 12.0 + indent, row.center().y), 3.0, theme::c(0x2e68ff));
         }
         // While a tool waits for picks in the view, the list goes dim except what it can still take: Mirror and
         // Split Body take more bodies (as observed, 324–334).
