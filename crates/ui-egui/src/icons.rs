@@ -1202,8 +1202,8 @@ fn paint_dark(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
                 pen.line(&[(x + ux * r, y + uy * r), (nx - ux * r, ny - uy * r)]);
             }
         }
-        // A solid almond with a dark pupil, as in the reference's Items list (s20-030); hidden ones are struck through
-        // with the stroke cut out of the eye.
+        // A linear eye — an almond outline with a pupil dot, in the same line style as the folder and cube icons;
+        // the hidden ones are crossed out with a slash.
         Eye | EyeOff => {
             let lens = |cy: f32, a0: f32| {
                 (0..=12).map(move |i| {
@@ -1212,13 +1212,11 @@ fn paint_dark(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
                 })
             };
             let almond: Vec<(f32, f32)> = lens(16.44, 203.9).chain(lens(7.56, 23.9)).collect();
-            pen.fill(&almond, pen.stroke.color);
-            let cut = theme::c(0x232325);
-            pen.p.circle_filled(pen.at(12.0, 12.0), 3.0 * pen.s, cut);
-            if icon == EyeOff {
-                let slash = |w: f32, c: Color32| pen.p.line_segment([pen.at(5.0, 4.5), pen.at(19.0, 19.5)], Stroke::new(w * pen.s, c));
-                slash(3.0, cut);
-                slash(1.0, pen.stroke.color);
+            pen.closed(&almond);
+            if icon == Eye {
+                pen.dot(12.0, 12.0, 1.7);
+            } else {
+                pen.line(&[(5.0, 4.5), (19.0, 19.5)]);
             }
         }
         Tablet => {
