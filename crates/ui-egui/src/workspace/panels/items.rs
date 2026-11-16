@@ -215,8 +215,8 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         let dragging_this = ws.items_dragging == Some(id);
         let drop_on_this = matches!(drop, Some(Drop::Onto(t)) if t == id);
         if drop_on_this {
-            p.rect_filled(row, radius(5), theme::c(0x2e68ff));
-            p.rect_stroke(row, radius(5), Stroke::new(1.5, Color32::WHITE), StrokeKind::Inside);
+            p.rect_filled(row, radius(0), theme::c(0x2e68ff));
+            p.rect_stroke(row, radius(0), Stroke::new(1.5, Color32::WHITE), StrokeKind::Inside);
         }
         let selected = ws.item_selected(id);
         // A folder with everything in it picked fills like a picked item, and a folder on the way to something
@@ -259,13 +259,13 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         // picked row fills #2b3b66 — the whole containing chain lights up, at any depth.
         if on_item {
             let fill = if face_on_item && !whole { theme::c(0x1e5aa8) } else { theme::c(0x2b53ba) };
-            p.rect_filled(row, radius(5), fill);
+            p.rect_filled(row, radius(0), fill);
         } else if folder_full {
-            p.rect_filled(row, radius(5), theme::c(0x2b53ba));
+            p.rect_filled(row, radius(0), theme::c(0x2b53ba));
         } else if contains_picked {
-            p.rect_filled(row, radius(5), theme::c(0x2b3b66));
+            p.rect_filled(row, radius(0), theme::c(0x2b3b66));
         } else if selected {
-            p.rect_filled(row, radius(5), theme::c(0x2b53ba));
+            p.rect_filled(row, radius(0), theme::c(0x2b53ba));
         }
         // The pointer lays a white veil (alpha 18, fading in and out) over whatever the row already shows: over
         // nothing it reads as a grey, over a picked row as a lighter blue — as in the reference.
@@ -275,7 +275,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             ui.ctx().animate_value_with_time(ui.scope_id().with(("row-hover", id.0)), if resp.hovered() { 1.0 } else { 0.0 }, 0.12)
         };
         if hover_t > 0.0 {
-            p.rect_filled(row, radius(5), Color32::from_white_alpha((18.0 * hover_t) as u8));
+            p.rect_filled(row, radius(0), Color32::from_white_alpha((18.0 * hover_t) as u8));
         }
         // While a tool waits for picks in the view, the list goes dim except what it can still take: Mirror and
         // Split Body take more bodies (as observed, 324–334).
