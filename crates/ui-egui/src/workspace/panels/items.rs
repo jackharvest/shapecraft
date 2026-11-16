@@ -338,6 +338,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
                     let new = text.clone();
                     ws.renaming = None;
                     let _ = ws.run("rename", json!({ "item": id.0, "name": new }));
+                    ui.ctx().request_discard("an item was renamed");
                 } else if esc {
                     ws.renaming = None;
                 }
@@ -369,6 +370,8 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         let on_chevron = kind == ItemKind::Folder && resp.interact_pointer_pos().is_some_and(|q| q.x < r.left() + 36.0 + indent);
         if eye_resp.clicked() {
             let _ = ws.run("show_hide", json!({ "items": [id.0] }));
+            // show_hide toggles, so it must not re-fire on a discarded pass; one repaint paints it in.
+            ui.ctx().request_repaint();
         } else if resp.clicked() && on_chevron {
             if !ws.items_expanded.remove(&id) {
                 ws.items_expanded.insert(id);
@@ -404,17 +407,22 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
                 if open {
                     let all: Vec<Pick> = (0..n as u32).map(|entity| Pick::SketchEntity { sketch: id, entity }).collect();
                     let _ = ws.run("select", json!({ "picks": all }));
+                    ui.ctx().request_discard("a sketch was opened and its curves picked");
                 }
                 open
             });
             if !opened {
                 let _ = ws.run("select", json!({ "picks": picks, "add": shift }));
                 ws.predict_tool();
+                // The rows above the picked one were painted before the pick landed; discarding the pass re-runs
+                // the whole list with the pick in, instead of leaving it half stale until the pointer moves again.
+                ui.ctx().request_discard("a row was picked");
             }
             ws.items_focus = true;
         }
         if resp.double_clicked() {
             ws.renaming = Some((Some(id), name.clone(), true));
+            ui.ctx().request_discard("a row switched to renaming");
         }
         y += row_h;
     }
@@ -424,6 +432,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         let resp = ui.interact(empty, ui.scope_id().with("items-empty"), Sense::click());
         if resp.clicked() {
             ws.session.selection.clear();
+            ui.ctx().request_discard("the selection was cleared from empty space");
         }
     }
     // The dragged row follows the pointer, see-through; letting go puts it in the folder under it, or takes it out of
@@ -447,6 +456,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         if ui.input(|i| i.pointer.any_released()) {
             ws.items_dragging = None;
             let doc = &ws.session.doc;
+            let moved = drop.is_some();
             match drop {
                 // The folder stays as it was (closed, as observed).
                 Some(Drop::Onto(t)) if doc.folder(t).is_some() => {
@@ -462,6 +472,11 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
                     let _ = ws.run("place_item", json!({ "item": item.0, "folder": id(folder), "after": id(after), "before": id(before) }));
                 }
                 None => {}
+            }
+            // Moving an item makes or reorders folders; those runs aren't safe to re-fire on a discarded pass, so
+            // one repaint paints the new tree in.
+            if moved {
+                ui.ctx().request_repaint();
             }
         }
     }
