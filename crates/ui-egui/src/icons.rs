@@ -1202,14 +1202,15 @@ fn paint_dark(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
                 pen.line(&[(x + ux * r, y + uy * r), (nx - ux * r, ny - uy * r)]);
             }
         }
-        // A round eye — a circle outline with a pupil dot, and the same circle struck through when hidden, as in
-        // the reference's Items list.
+        // The reference's eye: a lower half-circle, an eyelid arc above it and a pupil dot between the two; the
+        // hidden ones are crossed out with a slash.
         Eye | EyeOff => {
-            pen.circle(12.0, 12.0, 7.0);
+            pen.arc(12.0, 12.0, 7.5, 0.0, 180.0);
+            pen.arc(12.0, 13.5, 7.0, 205.0, 335.0);
             if icon == Eye {
-                pen.dot(12.0, 12.0, 2.2);
+                pen.dot(12.0, 12.3, 1.9);
             } else {
-                pen.line(&[(5.0, 5.0), (19.0, 19.0)]);
+                pen.line(&[(5.0, 4.5), (19.0, 19.5)]);
             }
         }
         Tablet => {
