@@ -221,12 +221,12 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         let selected = ws.item_selected(id);
         // A folder with everything in it picked fills like a picked item, and a folder on the way to something
         // picked fills dark blue, as in the reference.
-        let (folder_full, _) = if kind == ItemKind::Folder {
+        let folder_full = if kind == ItemKind::Folder {
             let deep = ws.session.doc.folder_items_deep(id);
             let picked_n = deep.iter().filter(|i| ws.item_selected(**i)).count();
-            (!deep.is_empty() && picked_n == deep.len(), picked_n > 0)
+            !deep.is_empty() && picked_n == deep.len()
         } else {
-            (false, false)
+            false
         };
         let contains_picked = containing.contains(&id);
         // The whole item picked (from the list or the view, a tool running or not) fills its row bright blue;
@@ -258,8 +258,10 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         if on_item {
             let fill = if face_on_item && !whole { theme::c(0x1e5aa8) } else { theme::c(0x2e68ff) };
             p.rect_filled(row, radius(5), fill);
+        } else if folder_full {
+            p.rect_filled(row, radius(5), theme::c(0x2e68ff));
         } else if contains_picked {
-            p.rect_filled(row, radius(5), theme::c(0x1e3c78));
+            p.rect_filled(row, radius(5), theme::c(0x1e448c));
         } else if selected {
             p.rect_filled(row, radius(5), theme::c(0x2e68ff));
         } else if resp.hovered() {
