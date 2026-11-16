@@ -272,7 +272,9 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         let takes = kind == ItemKind::Body && matches!(ws.tool, Tool::Mirror(_) | Tool::Boolean(_));
         // Measured (s22-002): names #DFDFDF, hidden ones #818181; icons a grey hairline, #9D9D9F or #5F5F5F hidden.
         let lit = visible && (!waiting || takes) && !dragging_this;
-        let color = if on_item || drop_on_this {
+        // Hidden names keep their grey even when picked (the eye-crossed row reads as hidden at a glance, as in the
+        // reference), and so does a row a tool can't take right now.
+        let color = if (on_item || drop_on_this) && visible {
             Color32::WHITE
         } else if lit {
             Tokens::text()
@@ -410,6 +412,14 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             ws.renaming = Some((Some(id), name.clone(), true));
         }
         y += row_h;
+    }
+    // A click on the empty space under the rows deselects, like a click on nothing in the view.
+    let empty = Rect::from_min_max(pos2(r.left() + 9.0, y.min(footer_y - 26.0)), pos2(r.right() - 9.0, footer_y - 26.0));
+    if empty.height() > 0.0 && ws.items_dragging.is_none() {
+        let resp = ui.interact(empty, ui.scope_id().with("items-empty"), Sense::click());
+        if resp.clicked() {
+            ws.session.selection.clear();
+        }
     }
     // The dragged row follows the pointer, see-through; letting go puts it in the folder under it, or takes it out of
     // its folder anywhere else in the list.
@@ -784,6 +794,21 @@ mod rename_tests {
             type_name(&ctx, &mut ws, "Lid");
             assert!(names(&ws).iter().any(|n| n == "Lid"), "row {i}: renamed, names now {:?}", names(&ws));
         }
+    }
+
+    /// A click on the empty space under the rows clears the selection, like a click on nothing in the view.
+    #[test]
+    fn click_below_the_rows_clears_the_selection() {
+        let (ctx, mut ws, row) = setup();
+        let at = row(&ws, 0);
+        click(&ctx, &mut ws, at, PointerButton::Primary);
+        assert!(ws.session.selection.iter().any(|p| p.item().is_some()), "a row's click picks its item");
+        let empty_at = row(&ws, 5);
+        click(&ctx, &mut ws, empty_at, PointerButton::Primary);
+        assert!(
+            ws.session.selection.iter().all(|p| p.item().is_none()),
+            "the empty space below the rows clears the selection"
+        );
     }
 
     /// #46: a double click on a body's row renames it; on a sketch's row it opens the sketch, and renaming stays
