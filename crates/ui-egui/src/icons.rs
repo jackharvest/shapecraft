@@ -1202,21 +1202,14 @@ fn paint_dark(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
                 pen.line(&[(x + ux * r, y + uy * r), (nx - ux * r, ny - uy * r)]);
             }
         }
-        // A linear eye — an almond outline with a pupil dot, in the same line style as the folder and cube icons;
-        // the hidden ones are crossed out with a slash.
+        // A round eye — a circle outline with a pupil dot, and the same circle struck through when hidden, as in
+        // the reference's Items list.
         Eye | EyeOff => {
-            let lens = |cy: f32, a0: f32| {
-                (0..=12).map(move |i| {
-                    let a = (a0 + 132.2 * i as f32 / 12.0).to_radians();
-                    (12.0 + 10.94 * a.cos(), cy + 10.94 * a.sin())
-                })
-            };
-            let almond: Vec<(f32, f32)> = lens(16.44, 203.9).chain(lens(7.56, 23.9)).collect();
-            pen.closed(&almond);
+            pen.circle(12.0, 12.0, 7.0);
             if icon == Eye {
-                pen.dot(12.0, 12.0, 1.7);
+                pen.dot(12.0, 12.0, 2.2);
             } else {
-                pen.line(&[(5.0, 4.5), (19.0, 19.5)]);
+                pen.line(&[(5.0, 5.0), (19.0, 19.0)]);
             }
         }
         Tablet => {
