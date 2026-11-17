@@ -413,16 +413,16 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
                 if open {
                     let all: Vec<Pick> = (0..n as u32).map(|entity| Pick::SketchEntity { sketch: id, entity }).collect();
                     let _ = ws.run("select", json!({ "picks": all }));
-                    ui.ctx().request_discard("a sketch was opened and its curves picked");
+                    ui.ctx().request_repaint();
                 }
                 open
             });
             if !opened {
                 let _ = ws.run("select", json!({ "picks": picks, "add": shift }));
                 ws.predict_tool();
-                // The rows above the picked one were painted before the pick landed; discarding the pass re-runs
-                // the whole list with the pick in, instead of leaving it half stale until the pointer moves again.
-                ui.ctx().request_discard("a row was picked");
+                // The rows above the picked one were painted before the pick landed; one repaint brings the whole
+                // list in with the pick (discarding the pass would run the scene's UI pass twice per click).
+                ui.ctx().request_repaint();
             }
             ws.items_focus = true;
         }
@@ -438,7 +438,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         let resp = ui.interact(empty, ui.scope_id().with("items-empty"), Sense::click());
         if resp.clicked() {
             ws.session.selection.clear();
-            ui.ctx().request_discard("the selection was cleared from empty space");
+            ui.ctx().request_repaint();
         }
     }
     // The dragged row follows the pointer, see-through; letting go puts it in the folder under it, or takes it out of
