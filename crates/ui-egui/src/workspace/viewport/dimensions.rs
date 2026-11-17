@@ -197,13 +197,11 @@ impl Workspace {
     /// across (ends = the rim points). Also every element that has one (a rectangle counts all four sides).
     pub(super) fn driving_dims(&self) -> (Vec<DrivingDim>, Vec<(ItemId, u32)>) {
         let (mut dims, mut has) = (Vec::new(), Vec::new());
-        for sk in self
-            .session
-            .doc
-            .sketches
-            .iter()
-            .filter(|s| s.visible && self.session.doc.item_shown(s.id) && (self.session.active_sketch.is_none() || self.session.active_sketch == Some(s.id)))
-        {
+        for sk in self.session.doc.sketches.iter().filter(|s| {
+            s.visible
+                && self.session.doc.item_shown(s.id)
+                && (self.session.active_sketch.is_none() || self.session.active_sketch == Some(s.id))
+        }) {
             let s = |p: DVec2| self.to_screen(sk.plane.to_world(p));
             for c in &sk.constraints {
                 match *c {
@@ -320,13 +318,11 @@ impl Workspace {
     pub(super) fn angle_dims(&self) -> Vec<AngleDim> {
         let mut out = Vec::new();
         let picked = self.picked_corner();
-        for sk in self
-            .session
-            .doc
-            .sketches
-            .iter()
-            .filter(|s| s.visible && self.session.doc.item_shown(s.id) && (self.session.active_sketch.is_none() || self.session.active_sketch == Some(s.id)))
-        {
+        for sk in self.session.doc.sketches.iter().filter(|s| {
+            s.visible
+                && self.session.doc.item_shown(s.id)
+                && (self.session.active_sketch.is_none() || self.session.active_sketch == Some(s.id))
+        }) {
             let mut pairs: Vec<(u32, u32)> = sk
                 .constraints
                 .iter()
@@ -393,13 +389,11 @@ impl Workspace {
                 _ => None,
             }
         });
-        for sk in self
-            .session
-            .doc
-            .sketches
-            .iter()
-            .filter(|s| s.visible && self.session.doc.item_shown(s.id) && (self.session.active_sketch.is_none() || self.session.active_sketch == Some(s.id)))
-        {
+        for sk in self.session.doc.sketches.iter().filter(|s| {
+            s.visible
+                && self.session.doc.item_shown(s.id)
+                && (self.session.active_sketch.is_none() || self.session.active_sketch == Some(s.id))
+        }) {
             let mut pairs: Vec<(Element, Element, bool)> = sk
                 .constraints
                 .iter()

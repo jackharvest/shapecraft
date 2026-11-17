@@ -369,11 +369,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         let eye_resp = ui.interact(eye_hit, ui.scope_id().with(("eye", id.0)), Sense::click());
         // The eye is the row's own flag — a folder's too, never what its children decide. Hidden rows always
         // carry it; a visible row shows it on hover, to hide.
-        let own_visible = if kind == ItemKind::Folder {
-            ws.session.doc.folder(id).is_some_and(|f| f.visible)
-        } else {
-            visible
-        };
+        let own_visible = if kind == ItemKind::Folder { ws.session.doc.folder(id).is_some_and(|f| f.visible) } else { visible };
         if touch || !own_visible || resp.hovered() || eye_resp.hovered() {
             // The eye pairs with the name's grey when the row is hidden, so it reads at a glance (s20-030, dimmed).
             let tint = if own_visible || eye_resp.hovered() { Tokens::text_dim() } else { theme::c(0x818181) };
@@ -837,10 +833,7 @@ mod rename_tests {
         assert!(ws.session.selection.iter().any(|p| p.item().is_some()), "a row's click picks its item");
         let empty_at = row(&ws, 5);
         click(&ctx, &mut ws, empty_at, PointerButton::Primary);
-        assert!(
-            ws.session.selection.iter().all(|p| p.item().is_none()),
-            "the empty space below the rows clears the selection"
-        );
+        assert!(ws.session.selection.iter().all(|p| p.item().is_none()), "the empty space below the rows clears the selection");
     }
 
     /// #46: a double click on a body's row renames it; on a sketch's row it opens the sketch, and renaming stays

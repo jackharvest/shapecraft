@@ -305,7 +305,12 @@ impl<'a> TreeWalk<'a> {
                     return;
                 }
                 let fid = s.doc.alloc_id();
-                s.doc.folders.push(shapecraft_doc::Folder { id: fid, name: f.name.chars().take(200).collect(), items: Vec::new(), visible: true });
+                s.doc.folders.push(shapecraft_doc::Folder {
+                    id: fid,
+                    name: f.name.chars().take(200).collect(),
+                    items: Vec::new(),
+                    visible: true,
+                });
                 self.made.push(fid.0);
                 if let Some(parent) = parent
                     && let Some(pf) = s.doc.folders.iter_mut().find(|f| f.id == parent)
@@ -451,7 +456,12 @@ pub(super) fn import_folder_tree(s: &mut Session, folders: Vec<(Vec<String>, Vec
                 Some(id) => *id,
                 None => {
                     let id = s.doc.alloc_id();
-                    s.doc.folders.push(shapecraft_doc::Folder { id, name: path[depth - 1].chars().take(200).collect(), items: Vec::new(), visible: true });
+                    s.doc.folders.push(shapecraft_doc::Folder {
+                        id,
+                        name: path[depth - 1].chars().take(200).collect(),
+                        items: Vec::new(),
+                        visible: true,
+                    });
                     paths.insert(key, id);
                     made.push(id.0);
                     if let Some(parent) = parent

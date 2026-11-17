@@ -225,7 +225,9 @@ impl Session {
         {
             self.mark_construction(before_doc);
         }
-        if matches!(result, Ok(Ok(_))) && let Some(before_doc) = &before.doc {
+        if matches!(result, Ok(Ok(_)))
+            && let Some(before_doc) = &before.doc
+        {
             match self.keep_constraints(before_doc) {
                 Ok(()) => self.refresh_regions(),
                 Err(e) => result = Ok(Err(e)),
@@ -233,8 +235,7 @@ impl Session {
         }
         match result {
             Ok(Ok(value)) => {
-                let mut changed = spec.modifies
-                    && before.doc.as_ref().is_some_and(|before_doc| self.doc_changed(before_doc));
+                let mut changed = spec.modifies && before.doc.as_ref().is_some_and(|before_doc| self.doc_changed(before_doc));
                 if changed && !history::UNLOGGED.contains(&spec.id) {
                     let logged = self.log_params.take().unwrap_or_else(|| params.clone());
                     self.record(spec.id, spec.label, &logged, selection_before.clone(), before.active_sketch, refs);

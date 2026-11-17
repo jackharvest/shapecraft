@@ -990,7 +990,9 @@ impl Document {
     /// Whether an item is shown in the view: its own flag and those of the folders above it — all independent,
     /// so hiding a folder never rewrites what is inside it.
     pub fn item_shown(&self, id: ItemId) -> bool {
-        let own = self.folder(id).map(|f| f.visible)
+        let own = self
+            .folder(id)
+            .map(|f| f.visible)
             .or_else(|| self.body(id).map(|b| b.visible))
             .or_else(|| self.sketch(id).map(|s| s.visible))
             .or_else(|| self.plane(id).map(|p| p.visible))
