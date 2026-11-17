@@ -314,13 +314,14 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         if kind == ItemKind::Folder {
             icons::paint(
                 &p,
-                Rect::from_center_size(pos2(r.left() + 17.0 + indent, row.center().y), vec2(8.0, 8.0)),
+                Rect::from_center_size(pos2(r.left() + 15.0 + indent, row.center().y), vec2(8.0, 8.0)),
                 if open { Icon::ChevronDown } else { Icon::ChevronRight },
                 color,
             );
         }
-        // Measured: 14 px icons centred 49 px in, names from 66 px.
-        icons::paint(&p, Rect::from_center_size(pos2(r.left() + 26.0 + indent, row.center().y), vec2(19.0, 19.0)), icon, icon_color);
+        // Measured: 19 px icons centred 33.5 px in, names from 48 px — the chevron (8 px, centred 15) and the
+        // icon leave the same 5 px gap either side of the icon, so the row reads as three even columns.
+        icons::paint(&p, Rect::from_center_size(pos2(r.left() + 33.5 + indent, row.center().y), vec2(19.0, 19.0)), icon, icon_color);
         let editing = matches!(&ws.renaming, Some((Some(rid), ..)) if *rid == id);
         if editing {
             if let Some((_, text, focus)) = &mut ws.renaming {
@@ -461,7 +462,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             fg.text(pos2(r.left() + 66.0, ghost.center().y), Align2::LEFT_CENTER, name, theme::body(14.0), Color32::from_white_alpha(150));
         }
         if let Some(Drop::Between { y, depth, .. }) = drop {
-            let a = pos2(r.left() + 13.0 + 13.0 * depth as f32, y);
+            let a = pos2(r.left() + 11.0 + 13.0 * depth as f32, y);
             p.line_segment([a, pos2(r.right() - 9.0, y)], Stroke::new(2.0, theme::c(0x2e68ff)));
         }
         if ui.input(|i| i.pointer.any_released()) {
