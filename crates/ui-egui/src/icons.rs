@@ -1211,9 +1211,10 @@ fn paint_dark(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
                     (cx + r * a.cos(), cy + r * a.sin())
                 })
             };
-            // Two arcs through the corners (2.5, 12) and (21.5, 12), bulging to y 7.2 and y 16.8.
+            // Two arcs through the corners (2.5, 12) and (21.5, 12), bulging to y 7.2 and y 16.8 — the lower one
+            // traced back, so the loop closes on itself without a chord across the middle.
             let upper = arc_pts(12.0, 19.0, 11.8, 216.4, 323.6);
-            let lower = arc_pts(12.0, 5.0, 11.8, 143.6, 36.4);
+            let lower = arc_pts(12.0, 5.0, 11.8, 143.6, 36.4).rev();
             let almond: Vec<(f32, f32)> = upper.chain(lower).collect();
             pen.closed(&almond);
             if icon == Eye {
