@@ -1202,25 +1202,24 @@ fn paint_dark(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
                 pen.line(&[(x + ux * r, y + uy * r), (nx - ux * r, ny - uy * r)]);
             }
         }
-        // The reference's eye: wide and flat. Open: an almond outline with a pupil dot. Hidden: a closed eyelid —
-        // just the lid arc, no slash (the dimmed name does the differentiating).
+        // The eye, in the line style of the set: a wide, flat almond (19×9.6 on the 24 grid) with a stroked pupil;
+        // the hidden ones are struck through.
         Eye | EyeOff => {
             let arc_pts = |cx: f32, cy: f32, r: f32, a0: f32, a1: f32| {
-                (0..=14).map(move |i| {
-                    let a = (a0 + (a1 - a0) * i as f32 / 14.0).to_radians();
+                (0..=24).map(move |i| {
+                    let a = (a0 + (a1 - a0) * i as f32 / 24.0).to_radians();
                     (cx + r * a.cos(), cy + r * a.sin())
                 })
             };
-            // almond: two arcs meeting at the corners (2.5, 12) and (21.5, 12)
-            let upper = arc_pts(12.0, 21.28, 13.28, 224.0, 316.0);
-            let lower = arc_pts(12.0, 0.86, 14.65, 49.6, 130.4);
+            // Two arcs through the corners (2.5, 12) and (21.5, 12), bulging to y 7.2 and y 16.8.
+            let upper = arc_pts(12.0, 19.0, 11.8, 216.4, 323.6);
+            let lower = arc_pts(12.0, 5.0, 11.8, 143.6, 36.4);
             let almond: Vec<(f32, f32)> = upper.chain(lower).collect();
             pen.closed(&almond);
             if icon == Eye {
-                pen.dot(12.0, 11.5, 1.7);
+                pen.circle(12.0, 12.0, 3.2);
             } else {
-                // closed eyelid
-                pen.arc(12.0, 4.5, 11.5, 35.0, 145.0);
+                pen.line(&[(3.0, 3.0), (21.0, 21.0)]);
             }
         }
         Tablet => {
