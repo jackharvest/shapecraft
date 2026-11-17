@@ -366,11 +366,17 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             (e, e)
         };
         let eye_resp = ui.interact(eye_hit, ui.scope_id().with(("eye", id.0)), Sense::click());
-        // Hidden rows always carry the eye; a visible row shows it on hover, to hide.
-        if touch || !visible || resp.hovered() || eye_resp.hovered() {
-            // A hidden row's eye stays dim, as in the reference (s20-030).
-            let tint = if visible || eye_resp.hovered() { Tokens::text_dim() } else { egui::Color32::from_rgb(0x3e, 0x3d, 0x3d) };
-            icons::paint(&p, eye, if visible { Icon::Eye } else { Icon::EyeOff }, tint);
+        // The eye is the row's own flag — a folder's too, never what its children decide. Hidden rows always
+        // carry it; a visible row shows it on hover, to hide.
+        let own_visible = if kind == ItemKind::Folder {
+            ws.session.doc.folder(id).is_some_and(|f| f.visible)
+        } else {
+            visible
+        };
+        if touch || !own_visible || resp.hovered() || eye_resp.hovered() {
+            // The eye pairs with the name's grey when the row is hidden, so it reads at a glance (s20-030, dimmed).
+            let tint = if own_visible || eye_resp.hovered() { Tokens::text_dim() } else { theme::c(0x818181) };
+            icons::paint(&p, eye, if own_visible { Icon::Eye } else { Icon::EyeOff }, tint);
         }
         let on_chevron = kind == ItemKind::Folder && resp.interact_pointer_pos().is_some_and(|q| q.x < r.left() + 36.0 + indent);
         if eye_resp.clicked() {
