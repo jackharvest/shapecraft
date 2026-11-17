@@ -139,9 +139,13 @@ pub(crate) struct Built {
 /// everything else in the view put together, so they're only rebuilt when this changes.
 pub(crate) fn edges_key(scene: &SceneInput) -> u64 {
     let mut h = DefaultHasher::new();
-    for body in scene.doc.bodies.iter().filter(|b| b.visible) {
+    // Every body, hidden ones included: a body's own flag is not what the view follows, so its folder's flag can
+    // hide it without the body changing — effective visibility is part of the key, or the wires of a hidden
+    // subtree would stay on screen until something else happened to change it.
+    for body in &scene.doc.bodies {
         body.id.hash(&mut h);
         Arc::as_ptr(&body.mesh).hash(&mut h);
+        scene.doc.item_shown(body.id).hash(&mut h);
     }
     scene.selection.hash(&mut h);
     scene.hover.hash(&mut h);
@@ -158,6 +162,7 @@ pub(crate) fn edges_of_key(scene: &SceneInput, body: &shapecraft_doc::Body, chos
     let mut h = DefaultHasher::new();
     body.id.hash(&mut h);
     Arc::as_ptr(&body.mesh).hash(&mut h);
+    scene.doc.item_shown(body.id).hash(&mut h);
     chosen.on(body.id).hash(&mut h);
     scene.hover.filter(|p| p.body() == Some(body.id)).hash(&mut h);
     scene.ghosts.iter().find(|(id, _)| *id == body.id).hash(&mut h);
@@ -295,7 +300,7 @@ pub(crate) fn build(scene: &SceneInput, camera: &Camera, size: DVec2) -> Built {
     // facing away, plus an open mesh's rim. A mesh body has no edges of its own.
     if scene.display == DisplayMode::Wireframe {
         let chosen = Chosen::of(scene.selection);
-        for body in scene.doc.bodies.iter().filter(|b| b.visible) {
+        for body in scene.doc.bodies.iter().filter(|b| scene.doc.item_shown(b.id)) {
             let Some(f) = &body.facets else { continue };
             let color = if chosen.whole(body) { c.selected } else { Rgba::hex(0xbdbdc0) };
             mesh_outline(&mut out, f, camera, color);
@@ -646,7 +651,7 @@ fn floor(scene: &SceneInput) -> Option<f64> {
         .doc
         .bodies
         .iter()
-        .filter(|b| b.visible)
+        .filter(|b| scene.doc.item_shown(b.id))
         .flat_map(|b| b.mesh.positions.iter())
         .map(|p| p[2] as f64)
         .fold(f64::INFINITY, f64::min);
@@ -681,7 +686,7 @@ fn cast_shadow(out: &mut Built, scene: &SceneInput) {
         let p = DVec3::new(p[0] as f64, p[1] as f64, p[2] as f64);
         p - l * ((p.z - z) / l.z)
     };
-    for body in scene.doc.bodies.iter().filter(|b| b.visible) {
+    for body in scene.doc.bodies.iter().filter(|b| scene.doc.item_shown(b.id)) {
         let m = &body.mesh;
         for t in m.indices.as_chunks::<3>().0 {
             let (Some(a), Some(b), Some(c)) =
@@ -703,7 +708,7 @@ fn cast_shadow(out: &mut Built, scene: &SceneInput) {
 fn contact_shadow(out: &mut Built, scene: &SceneInput) {
     let mut min = DVec3::splat(f64::INFINITY);
     let mut max = DVec3::splat(f64::NEG_INFINITY);
-    for b in scene.doc.bodies.iter().filter(|b| b.visible) {
+    for b in scene.doc.bodies.iter().filter(|b| scene.doc.item_shown(b.id)) {
         for p in &b.mesh.positions {
             let p = DVec3::new(p[0] as f64, p[1] as f64, p[2] as f64);
             min = min.min(p);
