@@ -1217,9 +1217,9 @@ fn paint_dark(painter: &Painter, rect: Rect, icon: Icon, color: Color32) {
             let lower = arc_pts(12.0, 5.0, 11.8, 143.6, 36.4).rev();
             let almond: Vec<(f32, f32)> = upper.chain(lower).collect();
             pen.closed(&almond);
-            if icon == Eye {
-                pen.circle(12.0, 12.0, 3.2);
-            } else {
+            // Both states carry the pupil; the hidden ones add the slash over it.
+            pen.circle(12.0, 12.0, 3.2);
+            if icon == EyeOff {
                 pen.line(&[(3.0, 3.0), (21.0, 21.0)]);
             }
         }
