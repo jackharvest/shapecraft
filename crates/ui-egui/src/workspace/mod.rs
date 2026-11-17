@@ -371,6 +371,8 @@ pub struct Workspace {
     /// The Items sidebar's filter (index into its choices) and which of its menus is open.
     pub(crate) items_filter: usize,
     pub(crate) items_menu: Option<&'static str>,
+    /// How far the Items sidebar's list is scrolled down, in points.
+    pub(crate) items_scroll: f32,
     pub section: Option<Section>,
     /// A sketch dimension being retyped (click its label).
     pub(crate) dim_edit: Option<viewport::DimEdit>,
@@ -765,6 +767,7 @@ impl Workspace {
             item_menu: None,
             items_filter: 0,
             items_menu: None,
+            items_scroll: 0.0,
             section: None,
             dim_edit: None,
             isolated: None,

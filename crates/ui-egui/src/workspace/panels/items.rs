@@ -161,13 +161,23 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
     } else {
         rows.into_iter().map(|r| (r.0, r.1, r.2, r.3, 0)).collect()
     };
-    // Where a dragged row would land, from the pointer over the (evenly spaced) rows.
-    let top = rows_top;
+    // The list scrolls with the wheel when it overflows; the wheel over it never reaches the camera (the
+    // viewport only reads the wheel while it is hovered).
+    let view = Rect::from_min_max(pos2(r.left(), rows_top), pos2(r.right(), footer_y - 26.0));
+    let max_scroll = (rows.len() as f32 * row_h - view.height()).max(0.0);
+    if max_scroll > 0.0 && pointer.is_some_and(|q| view.contains(q)) {
+        let dy = ui.input(|i| i.smooth_scroll_delta.y);
+        ws.items_scroll = (ws.items_scroll - dy).clamp(0.0, max_scroll);
+    } else {
+        ws.items_scroll = ws.items_scroll.clamp(0.0, max_scroll);
+    }
+    // Where a dragged row would land, from the pointer over the (evenly spaced, scrolled) rows.
+    let top = rows_top - ws.items_scroll;
     let drop = ws
         .items_dragging
-        .zip(pointer.filter(|q| r.contains(*q)))
+        .zip(pointer.filter(|q| view.contains(*q)))
         .and_then(|(item, q)| drop_at(&ws.session.doc, &rows, item, top, q.y, row_h));
-    let mut y = rows_top;
+    let n_rows = rows.len();
     let mut row_hover = None;
     let waiting = tool_mode(ws).is_some();
     // Folders on the way to anything picked, filled dark blue as in the reference: the whole containing chain
@@ -200,12 +210,15 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         }
     }
     let mut dragged_row: Option<(String, Icon)> = None;
-    for (id, name, visible, kind, depth) in rows {
-        if y + row_h > footer_y - 26.0 {
-            break;
+    // The rows paint through a clip on the list area; a row takes clicks only where it shows.
+    let lp = p.clone().with_clip_rect(view);
+    for (idx, (id, name, visible, kind, depth)) in rows.into_iter().enumerate() {
+        let y = rows_top + idx as f32 * row_h - ws.items_scroll;
+        if y + row_h <= rows_top || y >= view.bottom() {
+            continue;
         }
         let indent = 13.0 * depth as f32;
-        let row = Rect::from_min_size(pos2(r.left(), y), vec2(r.width(), row_h));
+        let row = Rect::from_min_size(pos2(r.left(), y), vec2(r.width(), row_h)).intersect(view);
         let resp = ui.interact(row, ui.scope_id().with(("item", id.0)), Sense::click_and_drag());
         // Dragging a row onto another lights it up blue (a folder takes it in, an item makes a folder with it);
         // between rows a blue line shows where it goes (s24-022, s24-025).
@@ -215,8 +228,8 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         let dragging_this = ws.items_dragging == Some(id);
         let drop_on_this = matches!(drop, Some(Drop::Onto(t)) if t == id);
         if drop_on_this {
-            p.rect_filled(row, radius(0), theme::c(0x2e68ff));
-            p.rect_stroke(row, radius(0), Stroke::new(1.5, Color32::WHITE), StrokeKind::Inside);
+            lp.rect_filled(row, radius(0), theme::c(0x2e68ff));
+            lp.rect_stroke(row, radius(0), Stroke::new(1.5, Color32::WHITE), StrokeKind::Inside);
         }
         let selected = ws.item_selected(id);
         // A folder with everything in it picked fills like a picked item, and a folder on the way to something
@@ -262,13 +275,13 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         // picked row fills #2b3b66 — the whole containing chain lights up, at any depth.
         if on_item {
             let fill = if face_on_item && !whole { theme::c(0x1e5aa8) } else { theme::c(0x2b53ba) };
-            p.rect_filled(row, radius(0), fill);
+            lp.rect_filled(row, radius(0), fill);
         } else if folder_full {
-            p.rect_filled(row, radius(0), theme::c(0x2b53ba));
+            lp.rect_filled(row, radius(0), theme::c(0x2b53ba));
         } else if contains_picked {
-            p.rect_filled(row, radius(0), theme::c(0x2b3b66));
+            lp.rect_filled(row, radius(0), theme::c(0x2b3b66));
         } else if selected {
-            p.rect_filled(row, radius(0), theme::c(0x2b53ba));
+            lp.rect_filled(row, radius(0), theme::c(0x2b53ba));
         }
         // The pointer lays a white veil (alpha 18, fading in and out) over whatever the row already shows: over
         // nothing it reads as a grey, over a picked row as a lighter blue — as in the reference.
@@ -278,7 +291,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             ui.ctx().animate_value_with_time(ui.scope_id().with(("row-hover", id.0)), if resp.hovered() { 1.0 } else { 0.0 }, 0.12)
         };
         if hover_t > 0.0 {
-            p.rect_filled(row, radius(0), Color32::from_white_alpha((18.0 * hover_t) as u8));
+            lp.rect_filled(row, radius(0), Color32::from_white_alpha((18.0 * hover_t) as u8));
         }
         // While a tool waits for picks in the view, the list goes dim except what it can still take: Mirror and
         // Split Body take more bodies (as observed, 324–334).
@@ -313,7 +326,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         let open = kind == ItemKind::Folder && ws.items_expanded.contains(&id);
         if kind == ItemKind::Folder {
             icons::paint(
-                &p,
+                &lp,
                 Rect::from_center_size(pos2(r.left() + 15.0 + indent, row.center().y), vec2(8.0, 8.0)),
                 if open { Icon::ChevronDown } else { Icon::ChevronRight },
                 color,
@@ -321,7 +334,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         }
         // Measured: 19 px icons centred 33.5 px in, names from 48 px — the chevron (8 px, centred 15) and the
         // icon leave the same 5 px gap either side of the icon, so the row reads as three even columns.
-        icons::paint(&p, Rect::from_center_size(pos2(r.left() + 33.5 + indent, row.center().y), vec2(19.0, 19.0)), icon, icon_color);
+        icons::paint(&lp, Rect::from_center_size(pos2(r.left() + 33.5 + indent, row.center().y), vec2(19.0, 19.0)), icon, icon_color);
         let editing = matches!(&ws.renaming, Some((Some(rid), ..)) if *rid == id);
         if editing {
             if let Some((_, text, focus)) = &mut ws.renaming {
@@ -352,7 +365,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             let x = r.left() + 48.0 + indent;
             let eye_room = if touch { 52.0 } else { 32.0 };
             let shown = theme::elide(&p, &name, theme::body(name_px), row.right() - eye_room - x);
-            p.text(pos2(x, row.center().y), Align2::LEFT_CENTER, shown, theme::body(name_px), color);
+            lp.text(pos2(x, row.center().y), Align2::LEFT_CENTER, shown, theme::body(name_px), color);
         }
         if resp.secondary_clicked() {
             ws.item_menu = resp.interact_pointer_pos().map(|pos| (id, pos));
@@ -373,7 +386,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         if touch || !own_visible || resp.hovered() || eye_resp.hovered() {
             // The eye pairs with the name's grey when the row is hidden, so it reads at a glance (s20-030, dimmed).
             let tint = if own_visible || eye_resp.hovered() { Tokens::text_dim() } else { theme::c(0x818181) };
-            icons::paint(&p, eye, if own_visible { Icon::Eye } else { Icon::EyeOff }, tint);
+            icons::paint(&lp, eye, if own_visible { Icon::Eye } else { Icon::EyeOff }, tint);
         }
         let on_chevron = kind == ItemKind::Folder && resp.interact_pointer_pos().is_some_and(|q| q.x < r.left() + 24.0 + indent);
         if eye_resp.clicked() {
@@ -432,10 +445,10 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             ws.renaming = Some((Some(id), name.clone(), true));
             ui.ctx().request_discard("a row switched to renaming");
         }
-        y += row_h;
     }
     // A click on the empty space under the rows deselects, like a click on nothing in the view.
-    let empty = Rect::from_min_max(pos2(r.left() + 4.0, y.min(footer_y - 26.0)), pos2(r.right() - 4.0, footer_y - 26.0));
+    let y_end = rows_top + n_rows as f32 * row_h - ws.items_scroll;
+    let empty = Rect::from_min_max(pos2(r.left() + 4.0, y_end.min(footer_y - 26.0)), pos2(r.right() - 4.0, footer_y - 26.0));
     if empty.height() > 0.0 && ws.items_dragging.is_none() {
         let resp = ui.interact(empty, ui.scope_id().with("items-empty"), Sense::click());
         if resp.clicked() {
@@ -459,7 +472,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         }
         if let Some(Drop::Between { y, depth, .. }) = drop {
             let a = pos2(r.left() + 11.0 + 13.0 * depth as f32, y);
-            p.line_segment([a, pos2(r.right() - 9.0, y)], Stroke::new(2.0, theme::c(0x2e68ff)));
+            lp.line_segment([a, pos2(r.right() - 9.0, y)], Stroke::new(2.0, theme::c(0x2e68ff)));
         }
         if ui.input(|i| i.pointer.any_released()) {
             ws.items_dragging = None;
