@@ -314,13 +314,13 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         if kind == ItemKind::Folder {
             icons::paint(
                 &p,
-                Rect::from_center_size(pos2(r.left() + 25.0 + indent, row.center().y), vec2(10.0, 10.0)),
+                Rect::from_center_size(pos2(r.left() + 17.0 + indent, row.center().y), vec2(8.0, 8.0)),
                 if open { Icon::ChevronDown } else { Icon::ChevronRight },
                 color,
             );
         }
         // Measured: 14 px icons centred 49 px in, names from 66 px.
-        icons::paint(&p, Rect::from_center_size(pos2(r.left() + 49.0 + indent, row.center().y), vec2(19.0, 19.0)), icon, icon_color);
+        icons::paint(&p, Rect::from_center_size(pos2(r.left() + 26.0 + indent, row.center().y), vec2(19.0, 19.0)), icon, icon_color);
         let editing = matches!(&ws.renaming, Some((Some(rid), ..)) if *rid == id);
         if editing {
             if let Some((_, text, focus)) = &mut ws.renaming {
@@ -348,7 +348,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             }
         } else {
             // Long names end in "…" before the eye, as in the reference (s36), instead of running into the viewport.
-            let x = r.left() + 66.0 + indent;
+            let x = r.left() + 48.0 + indent;
             let eye_room = if touch { 52.0 } else { 32.0 };
             let shown = theme::elide(&p, &name, theme::body(name_px), row.right() - eye_room - x);
             p.text(pos2(x, row.center().y), Align2::LEFT_CENTER, shown, theme::body(name_px), color);
@@ -378,7 +378,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             let tint = if own_visible || eye_resp.hovered() { Tokens::text_dim() } else { theme::c(0x818181) };
             icons::paint(&p, eye, if own_visible { Icon::Eye } else { Icon::EyeOff }, tint);
         }
-        let on_chevron = kind == ItemKind::Folder && resp.interact_pointer_pos().is_some_and(|q| q.x < r.left() + 36.0 + indent);
+        let on_chevron = kind == ItemKind::Folder && resp.interact_pointer_pos().is_some_and(|q| q.x < r.left() + 24.0 + indent);
         if eye_resp.clicked() {
             let _ = ws.run("show_hide", json!({ "items": [id.0] }));
             // show_hide toggles, so it must not re-fire on a discarded pass; one repaint paints it in.
@@ -438,7 +438,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         y += row_h;
     }
     // A click on the empty space under the rows deselects, like a click on nothing in the view.
-    let empty = Rect::from_min_max(pos2(r.left() + 9.0, y.min(footer_y - 26.0)), pos2(r.right() - 9.0, footer_y - 26.0));
+    let empty = Rect::from_min_max(pos2(r.left() + 4.0, y.min(footer_y - 26.0)), pos2(r.right() - 4.0, footer_y - 26.0));
     if empty.height() > 0.0 && ws.items_dragging.is_none() {
         let resp = ui.interact(empty, ui.scope_id().with("items-empty"), Sense::click());
         if resp.clicked() {
@@ -461,7 +461,7 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             fg.text(pos2(r.left() + 66.0, ghost.center().y), Align2::LEFT_CENTER, name, theme::body(14.0), Color32::from_white_alpha(150));
         }
         if let Some(Drop::Between { y, depth, .. }) = drop {
-            let a = pos2(r.left() + 9.0 + 13.0 * depth as f32, y);
+            let a = pos2(r.left() + 13.0 + 13.0 * depth as f32, y);
             p.line_segment([a, pos2(r.right() - 9.0, y)], Stroke::new(2.0, theme::c(0x2e68ff)));
         }
         if ui.input(|i| i.pointer.any_released()) {
