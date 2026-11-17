@@ -366,11 +366,10 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
             (e, e)
         };
         let eye_resp = ui.interact(eye_hit, ui.scope_id().with(("eye", id.0)), Sense::click());
-        // Only hidden rows carry the eye (an open eye on every row was visual noise); a visible item is hidden
-        // from its row's menu.
-        if touch || !visible {
+        // Hidden rows always carry the eye; a visible row shows it on hover, to hide.
+        if touch || !visible || resp.hovered() || eye_resp.hovered() {
             // A hidden row's eye stays dim, as in the reference (s20-030).
-            let tint = if eye_resp.hovered() { Tokens::text_dim() } else { egui::Color32::from_rgb(0x3e, 0x3d, 0x3d) };
+            let tint = if visible || eye_resp.hovered() { Tokens::text_dim() } else { egui::Color32::from_rgb(0x3e, 0x3d, 0x3d) };
             icons::paint(&p, eye, if visible { Icon::Eye } else { Icon::EyeOff }, tint);
         }
         let on_chevron = kind == ItemKind::Folder && resp.interact_pointer_pos().is_some_and(|q| q.x < r.left() + 36.0 + indent);
