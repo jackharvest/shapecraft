@@ -162,12 +162,23 @@ pub(in crate::workspace) fn items_sidebar(ws: &mut Workspace, ui: &mut Ui, r: Re
         rows.into_iter().map(|r| (r.0, r.1, r.2, r.3, 0)).collect()
     };
     // The list scrolls with the wheel when it overflows; the wheel over it never reaches the camera (the
-    // viewport only reads the wheel while it is hovered).
+    // viewport only reads the wheel while it is hovered). The deltas go straight from the events: the rows
+    // follow the wheel at once, with no smoothing tail piling them up at the edges.
     let view = Rect::from_min_max(pos2(r.left(), rows_top), pos2(r.right(), footer_y - 26.0));
     let max_scroll = (rows.len() as f32 * row_h - view.height()).max(0.0);
-    if max_scroll > 0.0 && pointer.is_some_and(|q| view.contains(q)) {
-        let dy = ui.input(|i| i.smooth_scroll_delta.y);
-        ws.items_scroll = (ws.items_scroll - dy).clamp(0.0, max_scroll);
+    let mut wheel_y = 0.0_f32;
+    ui.input(|i| {
+        for ev in &i.events {
+            if let egui::Event::MouseWheel { delta, unit, modifiers, .. } = ev {
+                if modifiers.command || modifiers.ctrl {
+                    continue; // pinch / ctrl-scroll is a zoom, not a list scroll
+                }
+                wheel_y += if *unit == egui::MouseWheelUnit::Point { delta.y } else { delta.y * row_h };
+            }
+        }
+    });
+    if max_scroll > 0.0 && wheel_y != 0.0 && pointer.is_some_and(|q| view.contains(q)) {
+        ws.items_scroll = (ws.items_scroll - wheel_y).clamp(0.0, max_scroll);
     } else {
         ws.items_scroll = ws.items_scroll.clamp(0.0, max_scroll);
     }
