@@ -231,17 +231,7 @@ impl Workspace {
             }
             // A result already applied and nothing typed: Return is Done (the button's ↵; 26.202, s40-004).
             Key::Enter if !typing && self.numeric.is_none() && self.is_live() && !matches!(self.tool, Tool::Idle) => self.finish_live(),
-            Key::Enter => {
-                // A pattern's Quantity takes the typed count, then Return applies the pattern as it stands.
-                self.take_pattern_count();
-                if matches!(self.tool, Tool::Revolve(_) | Tool::RotateAxis(_) | Tool::CircularPattern(_))
-                    || matches!(&self.tool, Tool::EdgePlane(t) if t.through)
-                    || matches!(&self.tool, Tool::Move(t) if matches!(t.handle, tools::Handle::Ring(_)))
-                {
-                    self.numeric_angle = self.numeric.as_deref().and_then(|n| self.eval_angle(n));
-                }
-                self.commit_tool();
-            }
+            Key::Enter => self.commit_tool(),
             Key::Backspace if typing && self.numeric.as_deref() == Some("") && self.dim_edit.is_some() => {}
             // A value filled from a clicked pill goes all at once, leaving the field open and empty.
             Key::Backspace if typing && std::mem::take(&mut self.numeric_fresh) => self.numeric = Some(String::new()),
@@ -584,6 +574,58 @@ mod tests {
         let Tool::Pattern(t) = &ws.tool else { panic!("Escape on the field keeps the tool") };
         assert!(!t.count_field, "digits typed next go to the spacing");
         assert_eq!(t.count, 4);
+    }
+
+    /// #96: pulling an arrow with the Quantity field open keeps the typed count (it went back to 3).
+    #[test]
+    fn pulling_an_arrow_keeps_the_typed_quantity() {
+        let mut ws = patterning();
+        ws.open_pattern_count();
+        type_text(&mut ws, "8");
+        ws.pull_pattern_arrow(1, egui::pos2(0.0, 0.0));
+        let Tool::Pattern(t) = &ws.tool else { panic!("the pull ended the tool") };
+        assert_eq!((t.count, t.axis, t.count_field), (8, 1, false));
+        assert!(ws.numeric.is_none());
+        type_text(&mut ws, "20");
+        ws.key(egui::Key::Enter, egui::Modifiers::NONE);
+        assert_eq!(ws.session.doc.bodies.len(), 8, "digits after the pull are the spacing");
+    }
+
+    /// #96: Done (a click, no Return) takes the Quantity being typed; it went in as the spacing.
+    #[test]
+    fn done_takes_the_typed_quantity() {
+        let mut ws = patterning();
+        type_text(&mut ws, "20");
+        ws.open_pattern_count();
+        type_text(&mut ws, "5");
+        ws.commit_tool();
+        assert_eq!(ws.session.doc.bodies.len(), 5);
+        let xs: Vec<f64> = (ws.session.doc.bodies.iter()).map(|b| ws.session.kernel.bounds(&b.shape).unwrap().min.x).collect();
+        assert!(xs.iter().any(|x| (x - 80.0).abs() < 1e-6), "20 apart, not 5: {xs:?}");
+    }
+
+    /// Done takes a typed angle too (only Return did).
+    #[test]
+    fn done_takes_the_typed_angle_of_a_circular_pattern() {
+        let mut ws = patterning();
+        ws.start_tool(super::super::toolbar::ToolKind::CircularPattern);
+        let Tool::CircularPattern(t) = &mut ws.tool else { panic!() };
+        t.about = Some(tools::CircularAxis::Free(glam::DVec3::new(-30.0, 0.0, 0.0), glam::DVec3::Z));
+        type_text(&mut ws, "90");
+        ws.open_pattern_count();
+        type_text(&mut ws, "2");
+        ws.commit_tool();
+        assert_eq!(ws.session.doc.bodies.len(), 2);
+        let turned = ws.session.doc.bodies.iter().any(|b| ws.session.kernel.bounds(&b.shape).unwrap().min.y > 20.0);
+        assert!(turned, "a quarter turn puts the copy up the Y axis");
+        let mut ws = patterning();
+        ws.start_tool(super::super::toolbar::ToolKind::CircularPattern);
+        let Tool::CircularPattern(t) = &mut ws.tool else { panic!() };
+        t.about = Some(tools::CircularAxis::Free(glam::DVec3::new(-30.0, 0.0, 0.0), glam::DVec3::Z));
+        t.count = 2;
+        type_text(&mut ws, "90");
+        ws.commit_tool();
+        assert!(ws.session.doc.bodies.iter().any(|b| ws.session.kernel.bounds(&b.shape).unwrap().min.y > 20.0));
     }
 
     /// #6: a quantity must be a whole number of 2 to 500; a bad one keeps the box open with the reason.

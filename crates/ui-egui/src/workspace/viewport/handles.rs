@@ -130,21 +130,29 @@ impl Workspace {
         }
     }
 
+    /// Takes hold of a pattern's arrow. A count typed into Quantity is kept (#96); a typed spacing makes way.
+    pub(in crate::workspace) fn pull_pattern_arrow(&mut self, axis: usize, at: egui::Pos2) {
+        self.take_pattern_count();
+        self.numeric = None;
+        if let Tool::Pattern(t) = &mut self.tool {
+            if t.axis != axis {
+                t.spacing = 0.0;
+            }
+            t.axis = axis;
+            t.dragging = Some((at, t.spacing));
+        }
+    }
+
     fn pattern_drags(&mut self, ui: &Ui, resp: &egui::Response) {
         let Tool::Pattern(t) = &self.tool else { return };
         let pointer = ui.input(|i| i.pointer.interact_pos());
         let (pivot, frame) = (t.pivot, t.frame);
+        // Where the button went down: a quick pull is well past the arrow by the time it counts as a drag (#96).
         if resp.drag_started_by(egui::PointerButton::Primary)
-            && let Some(p) = pointer
+            && let Some(p) = ui.input(|i| i.pointer.press_origin())
             && let Some(Handle::Arrow(a)) = self.gizmo_hit(pivot, frame, p)
-            && let Tool::Pattern(t) = &mut self.tool
         {
-            self.numeric = None;
-            if t.axis != a {
-                t.spacing = 0.0;
-            }
-            t.axis = a;
-            t.dragging = Some((p, t.spacing));
+            self.pull_pattern_arrow(a, p);
         }
         let Tool::Pattern(t) = &self.tool else { return };
         let (Some((p0, v0)), Some(p)) = (t.dragging, pointer) else { return };

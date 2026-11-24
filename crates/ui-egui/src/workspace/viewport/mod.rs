@@ -283,7 +283,12 @@ impl Workspace {
                 Some(_) if !live && matches!(self.tool, Tool::OffsetFace(_)) => {
                     self.ui_action(crate::workspace::toolbar::UiAction::ToolCancel)
                 }
-                Some(_) if boolean && !live => self.commit_tool(),
+                // A value that doesn't work keeps its box open with the reason, as Return does.
+                Some(_) if boolean && !live => {
+                    if self.typed_ok() {
+                        self.commit_tool();
+                    }
+                }
                 Some(_) => self.finish_live(),
                 None => {}
             }

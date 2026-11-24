@@ -757,9 +757,14 @@ impl Workspace {
                             }
                         }
                         let mut at = tip + dir * 34.0;
+                        // All of it stays where it can be clicked: not under a column or past the window's edge (#96).
+                        let row: f32 =
+                            [kind, value.as_str(), quantity.as_str()].iter().map(|t| super::paint::pill_half(t) * 2.0 + 6.0).sum();
+                        let badges = 12.0 + 23.0 * self.badges().len() as f32;
+                        at += super::paint::keep_row_in(self.reachable(), at, at + dir * (row + badges), tip);
                         for (i, (text, blue)) in [(kind, false), (value.as_str(), true), (quantity.as_str(), false)].into_iter().enumerate()
                         {
-                            let half = text.chars().count() as f32 * 3.0 + 8.0;
+                            let half = super::paint::pill_half(text);
                             at += dir * half;
                             // The blue edge marks the field being typed into; the spacing stays clickable.
                             let r = match i {

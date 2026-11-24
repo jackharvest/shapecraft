@@ -116,6 +116,16 @@ impl Workspace {
         self.camera.zoom_at(1.0 / factor.clamp(0.5, 2.0) as f64, self.local(at), size);
     }
 
+    /// The part of the canvas nothing floats over: where pills that have to be clicked may go.
+    pub(super) fn reachable(&self) -> egui::Rect {
+        let vp = self.viewport_rect;
+        let left: f32 = if self.compact { 64.0 } else { 210.0 };
+        egui::Rect::from_min_max(
+            egui::pos2(vp.left() + left.min(vp.width() / 3.0), vp.top() + 70.0),
+            egui::pos2(vp.right() - 16.0, vp.bottom() - 60.0),
+        )
+    }
+
     pub(in crate::workspace) fn dragging_handle(&self) -> bool {
         self.side_drag.is_some()
             || self.curve_drag.is_some()

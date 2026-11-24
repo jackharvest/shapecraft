@@ -394,6 +394,37 @@ pub(super) fn axis_pill(painter: &egui::Painter, center: Pos2, dir: egui::Vec2, 
     axis_pill_ex(painter, center, dir, text, blue_edge, blue_edge)
 }
 
+/// Half of an axis pill's length, as laid out in a row.
+pub(super) fn pill_half(text: &str) -> f32 {
+    text.chars().count() as f32 * 3.0 + 8.0
+}
+
+/// How far to shift a row of pills running from `a` to `b` so all of it is inside `area`. A row pushed back over the
+/// arrow it belongs to (`tip`) also steps aside, so the arrow can still be taken hold of.
+pub(super) fn keep_row_in(area: Rect, a: Pos2, b: Pos2, tip: Pos2) -> egui::Vec2 {
+    let shift = |lo: f32, hi: f32, min: f32, max: f32| if lo < min { min - lo } else { (max - hi).min(0.0).max(min - lo) };
+    let fit = |a: Pos2, b: Pos2| {
+        vec2(shift(a.x.min(b.x), a.x.max(b.x), area.left(), area.right()), shift(a.y.min(b.y), a.y.max(b.y), area.top(), area.bottom()))
+    };
+    let s = fit(a, b);
+    if s == egui::Vec2::ZERO {
+        return s;
+    }
+    // How close the row comes to the arrow once shifted by `v`.
+    let clear = |v: egui::Vec2| {
+        let (p, d) = (a + v, b - a);
+        let t = if d.length_sq() > 1e-6 { ((tip - p).dot(d) / d.length_sq()).clamp(0.0, 1.0) } else { 0.0 };
+        (p + d * t).distance(tip)
+    };
+    if clear(s) > 24.0 {
+        return s;
+    }
+    let d = (b - a).normalized();
+    let side = vec2(-d.y, d.x);
+    let aside = [40.0, -40.0, 60.0, -60.0].map(|k| s + side * k + fit(a + s + side * k, b + s + side * k));
+    aside.into_iter().fold(s, |best, v| if clear(best) <= 24.0 && clear(v) > clear(best) { v } else { best })
+}
+
 /// [`axis_pill`], saying whether a click on it opens the tool's value field (`value`) apart from its blue edge.
 pub(super) fn axis_pill_ex(painter: &egui::Painter, center: Pos2, dir: egui::Vec2, text: &str, blue_edge: bool, value: bool) -> Rect {
     let from = crate::motion::pop_begin(painter);
@@ -635,6 +666,28 @@ pub(super) fn angle_dim(painter: &egui::Painter, a: &AngleDim, typed: Option<&st
 
 #[cfg(test)]
 mod tests {
+    /// #96: a pattern's pills stay inside the canvas, and off the arrow they were pushed back over.
+    #[test]
+    fn a_row_of_pills_stays_in_reach() {
+        use super::keep_row_in;
+        use egui::{Rect, pos2};
+        let area = Rect::from_min_max(pos2(200.0, 70.0), pos2(1000.0, 700.0));
+        let inside = keep_row_in(area, pos2(400.0, 300.0), pos2(600.0, 350.0), pos2(370.0, 290.0));
+        assert_eq!(inside, egui::Vec2::ZERO, "a row with room isn't moved");
+        for (a, b, tip) in [
+            (pos2(950.0, 300.0), pos2(1150.0, 380.0), pos2(930.0, 290.0)),
+            (pos2(300.0, 300.0), pos2(90.0, 320.0), pos2(330.0, 300.0)),
+            (pos2(500.0, 680.0), pos2(520.0, 880.0), pos2(500.0, 640.0)),
+            (pos2(990.0, 690.0), pos2(1200.0, 900.0), pos2(970.0, 670.0)),
+        ] {
+            let s = keep_row_in(area, a, b, tip);
+            assert!(area.expand(0.5).contains(a + s) && area.expand(0.5).contains(b + s), "{a:?} {b:?} moved by {s:?}");
+            let d = (b - a).normalized();
+            let t = (tip - (a + s)).dot(d).clamp(0.0, (b - a).length());
+            assert!((a + s + d * t).distance(tip) > 24.0, "the row covers its arrow: {s:?}");
+        }
+    }
+
     #[test]
     fn a_pill_gives_its_number() {
         use super::pill_number;

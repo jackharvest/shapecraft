@@ -88,6 +88,12 @@ impl Workspace {
 
     /// Return: commits whatever the tool has.
     pub(in crate::workspace) fn commit_tool(&mut self) {
+        // Return and Done alike: a pattern's Quantity takes the typed count (#96), a turning tool the typed angle.
+        self.take_pattern_count();
+        let turns = matches!(self.tool, Tool::Revolve(_) | Tool::RotateAxis(_) | Tool::CircularPattern(_))
+            || matches!(&self.tool, Tool::EdgePlane(t) if t.through)
+            || matches!(&self.tool, Tool::Move(t) if matches!(t.handle, Handle::Ring(_)));
+        self.numeric_angle = self.numeric.as_deref().filter(|_| turns).and_then(|n| self.eval_angle(n));
         let kind = self.typed_kind();
         let typed = self.numeric.take().and_then(|t| self.eval_field(&t, kind).ok());
         match self.tool.clone() {
