@@ -2,6 +2,29 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.12.11-alpha
+**Patterns you can make with the mouse alone, and long edges that can always be picked.**
+### New
+- **Circular Pattern has handles.** Three turning arrows stand around a dot on what you picked: pull one and the copies
+  follow. Drag the dot first to go around somewhere else (it snaps to face and hole centers, corners and edge middles, or
+  anywhere on a sketch), or click an edge, an axis or a sketch circle. The angle, the quantity, Total or Spacing, and Rotated
+  or Uniform sit next to the handle. Thanks [@micide0606](https://github.com/micide0606) (#96).
+- **Click another body while a pattern waits** to take it in, or to leave it out.
+### Changed
+- **Return takes a pattern's typed value and keeps going**; Return again (or Done) finishes. A click anywhere else takes it
+  too, and the copies stay on screen while you type.
+- Tab opens a pattern's quantity straight away. The words on the pills follow your language.
+### Fixed
+- **A pattern's quantity stays what you typed.** Pulling an arrow put it back to 3×, and Done used it as the spacing. Done now
+  also takes a typed angle in Circular Pattern and Revolve. Thanks
+  [@micide0606](https://github.com/micide0606) (#96).
+- **A pattern's pills stay in reach**: they could end up under the History list or past the window's edge, where they couldn't
+  be clicked.
+- A quick pull on a Linear Pattern arrow turned the camera instead.
+- **Long edges couldn't be picked near their middle in a big window**: the face next to them was. One step of the phone
+  stand tutorial couldn't be finished on a large screen because of it.
+- Pressing Tab while a tool waited for a value could leave the keyboard dead.
+
 ## 0.12.10-alpha
 **Nine new tutorials you can click through, the whole app in twelve languages, and a bar that shows your project saving.**
 ### New

@@ -637,6 +637,25 @@ mod tests {
         assert!(ws.session.doc.bodies.iter().any(|b| ws.session.kernel.bounds(&b.shape).unwrap().min.y > 20.0));
     }
 
+    /// Done takes a typed angle in Revolve too.
+    #[test]
+    fn done_takes_the_typed_angle_of_a_revolve() {
+        let mut ws = workspace();
+        let s = &mut ws.session;
+        s.execute("sketch", &serde_json::json!({"plane": "xy"})).unwrap();
+        s.execute("rectangle", &serde_json::json!({"corner": [0, 0], "opposite": [10, 10]})).unwrap();
+        let sketch = s.active_sketch.take().unwrap();
+        s.selection = vec![Pick::Region { sketch, region: 0 }];
+        ws.start_tool(super::super::toolbar::ToolKind::Revolve);
+        let Tool::Revolve(t) = &mut ws.tool else { panic!("{:?}", ws.tool) };
+        t.axis = Some(tools::AxisPick::Line(0));
+        type_text(&mut ws, "90");
+        ws.commit_tool();
+        let v = ws.session.doc.bodies[0].shape.clone();
+        let v = ws.session.kernel.mass_props(&v).unwrap().volume;
+        assert!((v - std::f64::consts::PI * 1000.0 / 4.0).abs() < 1.0, "a quarter turn: {v}");
+    }
+
     /// #96: Circular Pattern has arrows from the start; a clicked edge is gone around, filling the circle.
     #[test]
     fn a_circular_pattern_goes_around_a_clicked_edge_or_a_pulled_arrow() {
