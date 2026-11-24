@@ -78,7 +78,7 @@ impl Workspace {
             return;
         }
         // A pattern's Quantity pill opens its own field with the count, selected (#6).
-        if matches!(self.tool, Tool::Pattern(_))
+        if matches!(self.tool, Tool::Pattern(_) | Tool::CircularPattern(_))
             && let Some(qr) = ui.ctx().data(|d| d.get_temp::<Rect>(ui.scope_id().with("pattern-count-pill")))
             && qr.expand(3.0).contains(c)
         {
@@ -110,6 +110,17 @@ impl Workspace {
                 self.numeric_fresh = true;
             }
             self.numpad_at = Some(c);
+            return;
+        }
+        // A pattern's open field takes its value with a click anywhere else, and that's all the click does.
+        let on_pill = |id: &str| {
+            let r = ui.ctx().data(|d| d.get_temp::<Rect>(ui.scope_id().with(id)));
+            r.is_some_and(|r| r.expand(2.0).contains(c))
+        };
+        if matches!(self.tool, Tool::Pattern(_) | Tool::CircularPattern(_)) && self.numeric.is_some() && !on_pill("pattern-kind-pill") {
+            if self.typed_ok() {
+                self.take_pattern_value();
+            }
             return;
         }
         // Visualization: a click on a decal picks it (not the body under it); anywhere else lets it go.
@@ -1062,12 +1073,22 @@ impl Workspace {
                 }
             }
             Tool::CircularPattern(mut t) => {
-                if let Some((p, _)) = self.pick_at(c)
-                    && let Some(a) = crate::workspace::tools::CircularPatternTool::axis_from_click(&self.session, p)
+                let Some((p, _)) = self.pick_at(c) else { return };
+                // A face before the pull takes its body in (or out); an edge, an axis or a sketch circle is gone around.
+                if let Pick::Face { body, .. } | Pick::Body { body } = p {
+                    if t.about.is_none() && !t.items.is_empty() {
+                        self.toggle_patterned(body);
+                    }
+                } else if let Some(a) = crate::workspace::tools::CircularPatternTool::axis_from_click(&self.session, p)
+                    && t.set_about(&self.session, a)
                 {
-                    t.about = Some(a);
                     self.tool = Tool::CircularPattern(t);
                     self.preview = None;
+                }
+            }
+            Tool::Pattern(t) if t.spacing.abs() < 1e-9 && !t.items.is_empty() => {
+                if let Some((Pick::Face { body, .. } | Pick::Body { body }, _)) = self.pick_at(c) {
+                    self.toggle_patterned(body);
                 }
             }
             // Brought up by the pick itself (faces or bodies plus an edge): a click picks again, as on a bare

@@ -242,6 +242,10 @@ impl Workspace {
             self.pattern_drags(ui, resp);
             return;
         }
+        if matches!(self.tool, Tool::CircularPattern(_)) {
+            self.circular_drags(ui, resp);
+            return;
+        }
         if matches!(self.tool, Tool::Scale(_)) {
             self.scale_drags(ui, resp);
             return;

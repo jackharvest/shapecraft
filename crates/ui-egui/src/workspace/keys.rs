@@ -27,8 +27,9 @@ impl Workspace {
 
     pub(super) fn keyboard(&mut self, ui: &mut egui::Ui) {
         // Tab while typing a value goes to the tool's next field (a rectangle's height), not to egui's focus
-        // traversal, which would hand the keyboard to some text field and swallow the rest of the value.
-        if self.numeric.is_some()
+        // traversal, which would hand the keyboard to some text field and swallow the rest of the value. Before
+        // anything is typed it would swallow the value to come.
+        if (self.numeric.is_some() || self.tool.takes_numbers())
             && ui.input(|i| i.key_pressed(egui::Key::Tab))
             && let Some(id) = ui.memory(|m| m.focused())
         {
@@ -231,6 +232,8 @@ impl Workspace {
             }
             // A result already applied and nothing typed: Return is Done (the button's ↵; 26.202, s40-004).
             Key::Enter if !typing && self.numeric.is_none() && self.is_live() && !matches!(self.tool, Tool::Idle) => self.finish_live(),
+            // A pattern's open field takes its value and the pattern goes on; the next Return applies it (#96).
+            Key::Enter if self.take_pattern_value() => {}
             Key::Enter => self.commit_tool(),
             Key::Backspace if typing && self.numeric.as_deref() == Some("") && self.dim_edit.is_some() => {}
             // A value filled from a clicked pill goes all at once, leaving the field open and empty.
@@ -243,7 +246,7 @@ impl Workspace {
                     }
                 }
             }
-            Key::Tab if typing => self.next_numeric_field(),
+            Key::Tab if typing || matches!(self.tool, Tool::Pattern(_) | Tool::CircularPattern(_)) => self.next_numeric_field(),
             Key::Backspace | Key::Delete if matches!(&self.tool, Tool::Spline { points, .. } if !points.is_empty()) => self.escape(),
             Key::Backspace | Key::Delete => self.delete_selection(),
             Key::Z if cmd && m.shift => self.act(Action::Command("redo"), "Redo"),
@@ -553,6 +556,9 @@ mod tests {
         type_text(&mut ws, "5");
         assert_eq!(ws.numeric.as_deref(), Some("5"), "the first key replaces the count");
         ws.key(egui::Key::Enter, egui::Modifiers::NONE);
+        let Tool::Pattern(t) = &ws.tool else { panic!("Return on the field only takes the value (#96)") };
+        assert_eq!((t.count, t.count_field), (5, false));
+        ws.key(egui::Key::Enter, egui::Modifiers::NONE);
         assert!(matches!(ws.tool, Tool::Idle), "Return applied the pattern");
         assert_eq!(ws.session.doc.bodies.len(), 5, "five copies, the original included");
     }
@@ -588,6 +594,7 @@ mod tests {
         assert!(ws.numeric.is_none());
         type_text(&mut ws, "20");
         ws.key(egui::Key::Enter, egui::Modifiers::NONE);
+        ws.key(egui::Key::Enter, egui::Modifiers::NONE);
         assert_eq!(ws.session.doc.bodies.len(), 8, "digits after the pull are the spacing");
     }
 
@@ -610,7 +617,8 @@ mod tests {
         let mut ws = patterning();
         ws.start_tool(super::super::toolbar::ToolKind::CircularPattern);
         let Tool::CircularPattern(t) = &mut ws.tool else { panic!() };
-        t.about = Some(tools::CircularAxis::Free(glam::DVec3::new(-30.0, 0.0, 0.0), glam::DVec3::Z));
+        t.pivot = glam::DVec3::new(-30.0, 0.0, 0.0);
+        t.set_axis(glam::DVec3::Z, glam::DVec3::X);
         type_text(&mut ws, "90");
         ws.open_pattern_count();
         type_text(&mut ws, "2");
@@ -621,11 +629,32 @@ mod tests {
         let mut ws = patterning();
         ws.start_tool(super::super::toolbar::ToolKind::CircularPattern);
         let Tool::CircularPattern(t) = &mut ws.tool else { panic!() };
-        t.about = Some(tools::CircularAxis::Free(glam::DVec3::new(-30.0, 0.0, 0.0), glam::DVec3::Z));
+        t.pivot = glam::DVec3::new(-30.0, 0.0, 0.0);
+        t.set_axis(glam::DVec3::Z, glam::DVec3::X);
         t.count = 2;
         type_text(&mut ws, "90");
         ws.commit_tool();
         assert!(ws.session.doc.bodies.iter().any(|b| ws.session.kernel.bounds(&b.shape).unwrap().min.y > 20.0));
+    }
+
+    /// #96: Circular Pattern has arrows from the start; a clicked edge is gone around, filling the circle.
+    #[test]
+    fn a_circular_pattern_goes_around_a_clicked_edge_or_a_pulled_arrow() {
+        let mut ws = patterning();
+        ws.start_tool(super::super::toolbar::ToolKind::CircularPattern);
+        let Tool::CircularPattern(t) = &ws.tool else { panic!() };
+        assert!(t.about.is_none() && !t.ready());
+        assert!((t.pivot - glam::DVec3::new(5.0, 5.0, 2.5)).length() < 1e-6, "the dot stands in the body's middle");
+        assert!(t.request(360.0).is_none(), "nothing to make before an axis");
+        let body = t.items[0];
+        let n = ws.session.kernel.edge_count(&ws.session.doc.body(body).unwrap().shape).unwrap() as u32;
+        let mut t = t.clone();
+        let edge = (0..n).find(|e| t.set_about(&ws.session, tools::CircularAxis::Topo(Pick::Edge { body, edge: *e }))).unwrap();
+        assert_eq!((t.count, t.angle), (6, 360.0), "a full circle (edge {edge})");
+        assert!(t.request(t.angle).is_some() && t.ready());
+        // Pulled back to nothing it asks for nothing.
+        t.angle = 0.0;
+        assert!(t.request(t.angle).is_none() && !t.ready());
     }
 
     /// #6: a quantity must be a whole number of 2 to 500; a bad one keeps the box open with the reason.
@@ -675,6 +704,9 @@ mod tests {
         ws.create_variable("w", "1", VarKind::Length).unwrap();
         let w = &ws.session.doc.variables[0];
         assert!((shapecraft_doc::expr::eval(&w.expr, &[]).unwrap() - 25.4).abs() < 1e-9, "a bare 1 is an inch: {}", w.expr);
+        let Tool::Pattern(t) = &ws.tool else { panic!("the pattern goes on with the value") };
+        assert!((t.spacing - 50.8).abs() < 1e-9, "2 × 1 inch: {}", t.spacing);
+        ws.key(egui::Key::Enter, egui::Modifiers::NONE);
         assert!(matches!(ws.tool, Tool::Idle), "the pattern applied");
         assert_eq!(ws.session.doc.bodies.len(), 3);
     }

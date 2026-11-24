@@ -496,10 +496,16 @@ impl Workspace {
 
 /// Paints the tool's badges in a row from `start` along `dir` (screen space) and remembers where they went.
 pub(super) fn paint_row(ws: &Workspace, ui: &Ui, painter: &egui::Painter, start: Pos2, dir: egui::Vec2) {
+    paint_row_after(ws, ui, painter, start, dir, Vec::new());
+}
+
+/// As `paint_row`, with the badges a tool drew itself (as pills) already in `drawn`.
+pub(super) fn paint_row_after(ws: &Workspace, ui: &Ui, painter: &egui::Painter, start: Pos2, dir: egui::Vec2, drawn: Vec<(Badge, Rect)>) {
+    let pills: Vec<Badge> = drawn.iter().map(|d| d.0).collect();
     let mut rects: Vec<(Badge, Rect)> = Vec::new();
     // 23 px apart for the square ones; a wider text badge keeps the same 4 px gap.
     let mut at = start;
-    for (b, face) in ws.badges() {
+    for (b, face) in ws.badges().into_iter().filter(|(b, _)| !pills.contains(b)) {
         let w = width(painter, face);
         if let Some((_, last)) = rects.last() {
             at += dir * (last.width() / 2.0 + 4.0 + w / 2.0);
@@ -507,6 +513,7 @@ pub(super) fn paint_row(ws: &Workspace, ui: &Ui, painter: &egui::Painter, start:
         let open = ws.badge_menu.is_some_and(|(o, _)| o == b);
         rects.push((b, paint(painter, at, face, open)));
     }
+    rects.extend(drawn);
     ui.ctx().data_mut(|d| d.insert_temp(ui.scope_id().with(RECTS), rects));
 }
 

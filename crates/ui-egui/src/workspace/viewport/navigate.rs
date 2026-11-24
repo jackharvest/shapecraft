@@ -136,6 +136,7 @@ impl Workspace {
             || matches!(&self.tool, Tool::Move(t) if t.dragging.is_some() || t.relocating)
             || self.section.is_some_and(|s| s.dragging.is_some())
             || matches!(&self.tool, Tool::Pattern(t) if t.dragging.is_some())
+            || matches!(&self.tool, Tool::CircularPattern(t) if t.dragging.is_some() || t.relocating)
             || matches!(&self.tool, Tool::Extrude(t) if t.dragging.is_some() || t.drafting.is_some())
             || matches!(&self.tool, Tool::Fillet(t) if t.dragging.is_some())
             || matches!(&self.tool, Tool::Shell(t) if t.dragging.is_some())

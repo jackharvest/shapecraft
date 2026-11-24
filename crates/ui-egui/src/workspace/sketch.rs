@@ -135,7 +135,7 @@ impl Workspace {
             Tool::Move(t) if t.items.is_empty() => Some(t.value.abs() > 1e-9 || t.planar.length() > 1e-9),
             Tool::Mirror(_) => Some(false),
             Tool::Pattern(t) => Some(t.spacing.abs() > 1e-9),
-            Tool::CircularPattern(t) => Some(t.about.is_some()),
+            Tool::CircularPattern(t) => Some(t.ready()),
             Tool::RotateAxis(t) => Some(t.angle.abs() > 1e-9),
             Tool::Scale(_) => Some(false),
             _ => None,

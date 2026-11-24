@@ -194,7 +194,9 @@ impl Workspace {
         // A live step at rest is already what the preview would show; leave the selection highlighted (the new cap
         // stays blue, as observed). A typed value shows only once Return applies it (26.202: Offset Face s39-of-type15 and a cut s39-cut-typed
         // keep the part as it was while the field is open).
-        if (self.is_live() || self.numeric.is_some()) && !self.dragging_handle() {
+        // A pattern keeps showing its copies while a value is typed.
+        let patterning = matches!(self.tool, Tool::Pattern(_) | Tool::CircularPattern(_));
+        if (self.is_live() || self.numeric.is_some() && !patterning) && !self.dragging_handle() {
             self.preview = None;
             return;
         }

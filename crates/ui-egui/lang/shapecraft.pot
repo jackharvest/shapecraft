@@ -1091,10 +1091,6 @@ msgid "Click an arc"
 msgstr ""
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
-msgid "Click an edge or round face (or a sketch circle) to repeat around"
-msgstr ""
-
-#: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Click any piece of a curve between crossings to cut it away."
 msgstr ""
 
@@ -4594,6 +4590,10 @@ msgid "Pull an arrow to repeat along it. Click Quantity for how many"
 msgstr ""
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
+msgid "Pull an arrow to repeat around the dot. Drag the dot, or click an edge, to go around something else"
+msgstr ""
+
+#: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Pull the arrow or type a distance. Return applies"
 msgstr ""
 
@@ -6917,7 +6917,7 @@ msgid "Type an angle (Tab, then a height for a helix), or click a line or edge t
 msgstr ""
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
-msgid "Type an angle, then Tab for the quantity (or − / +). Return applies"
+msgid "Type an angle, then Tab (or click Quantity) for how many. Done applies"
 msgstr ""
 
 #: crates/ui-egui/src/workspace/viewport/in_place.rs

@@ -919,8 +919,20 @@ impl AxisPick {
 #[derive(Clone, Debug)]
 pub struct CircularPatternTool {
     pub items: Vec<ItemId>,
-    /// A body's edge or round face; for sketch curves, the center of a picked circle or arc.
+    /// What it goes around: the line a turning arrow was pulled about, or a clicked edge, axis or sketch circle.
     pub about: Option<CircularAxis>,
+    /// The turning arrows' directions, and the dot they stand around (dragged elsewhere before the pull).
+    pub frame: GizmoFrame,
+    pub pivot: DVec3,
+    /// The middle of what is repeated.
+    pub center: DVec3,
+    /// Once there's an axis: its direction, and where the handle stands at 0° (a unit vector square to it).
+    pub turn: Option<(DVec3, DVec3)>,
+    /// The handle being pulled: the pointer's last angle around the axis (degrees), and the pull so far.
+    pub dragging: Option<(f64, f64)>,
+    /// The dot is being dragged; it sits on a snap point.
+    pub relocating: bool,
+    pub snapped: bool,
     pub count: u32,
     pub angle: f64,
     /// Uniform: the copies keep facing the same way (the ≡ menu's Orientation), else they turn with the circle.
@@ -942,23 +954,87 @@ pub enum CircularAxis {
 
 impl CircularPatternTool {
     pub fn from_selection(s: &Session) -> Option<Self> {
-        let mut items = Vec::new();
-        for b in s.selection.iter().filter_map(Pick::body) {
-            if !items.contains(&b) {
-                items.push(b);
+        let (items, frame, center) = match selected_items_bounds(s) {
+            Some((items, min, max)) => (items, GizmoFrame::WORLD, (min + max) / 2.0),
+            None => {
+                let (frame, center, _) = selected_curves_center(s)?;
+                (Vec::new(), frame, center)
             }
-        }
-        let curves = s.selection.iter().any(|p| matches!(p, Pick::SketchEntity { .. } | Pick::Region { .. }));
-        (!items.is_empty() || curves).then_some(Self {
+        };
+        Some(Self {
             items,
             about: None,
-            count: 6,
-            angle: 360.0,
+            frame,
+            pivot: center,
+            center,
+            turn: None,
+            dragging: None,
+            relocating: false,
+            snapped: false,
+            count: 3,
+            angle: 0.0,
             uniform: false,
             spacing: false,
             result: "new",
             count_field: false,
         })
+    }
+
+    /// Goes around `axis` (through the dot); the handle stands along `arm` at 0°.
+    pub fn set_axis(&mut self, axis: DVec3, arm: DVec3) {
+        let d = axis.normalize_or(DVec3::Z);
+        self.about = Some(CircularAxis::Free(self.pivot, d));
+        self.turn = Some((d, (arm - d * arm.dot(d)).try_normalize().unwrap_or_else(|| d.any_orthonormal_vector())));
+    }
+
+    /// Goes around a clicked edge, axis or sketch circle: the dot moves onto it, and the copies fill the circle
+    /// when nothing was pulled or typed yet.
+    pub fn set_about(&mut self, s: &Session, about: CircularAxis) -> bool {
+        let line = match about {
+            CircularAxis::Free(o, d) => Some((o, d)),
+            CircularAxis::Topo(Pick::Axis { axis }) => s.doc.axis(axis).map(|a| (a.origin, a.dir)),
+            CircularAxis::Topo(p) => {
+                let sub = match p {
+                    Pick::Edge { edge, .. } => shapecraft_kernel::SubShape::Edge(edge),
+                    Pick::Face { face, .. } => shapecraft_kernel::SubShape::Face(face),
+                    _ => return false,
+                };
+                let b = p.body().and_then(|b| s.doc.body(b));
+                b.and_then(|b| s.kernel.axis_of(&b.shape, sub).ok().flatten()).map(|a| (a.origin, a.dir))
+            }
+        };
+        let Some((o, d)) = line else { return false };
+        let d = d.normalize_or(DVec3::Z);
+        // A circle's own center stays; along a straight edge or an axis the dot goes level with the items.
+        self.pivot = if matches!(about, CircularAxis::Free(..)) { o } else { o + d * (self.center - o).dot(d) };
+        self.set_axis(d, self.center - self.pivot);
+        self.about = Some(about);
+        if self.angle.abs() < 1e-9 {
+            self.angle = if self.spacing { 60.0 } else { 360.0 };
+            if self.count == 3 {
+                self.count = 6;
+            }
+        }
+        true
+    }
+
+    /// Where the handle points at `angle` degrees, from the dot.
+    pub fn arm_at(&self, angle: f64) -> Option<DVec3> {
+        let (d, arm) = self.turn?;
+        Some(glam::DQuat::from_axis_angle(d, angle.to_radians()) * arm)
+    }
+
+    /// The items' middle seen along the axis, from the dot (nothing when it lies on the axis).
+    pub fn reach(&self) -> Option<DVec3> {
+        let (d, _) = self.turn?;
+        let v = self.center - self.pivot;
+        let v = v - d * v.dot(d);
+        (v.length() > 1e-6).then_some(v)
+    }
+
+    /// Ready to make: it has an axis and an angle.
+    pub fn ready(&self) -> bool {
+        self.about.is_some() && self.total_angle(self.angle).abs() > 1e-6
     }
 
     /// What a click on `p` gives as the axis: a straight or round edge or a round face, or, for sketch curves,
@@ -990,6 +1066,9 @@ impl CircularPatternTool {
     }
 
     pub fn request(&self, angle: f64) -> Option<(&'static str, serde_json::Value)> {
+        if self.total_angle(angle).abs() < 1e-6 {
+            return None;
+        }
         let mut v = match self.about? {
             CircularAxis::Topo(p) => json!({ "about": AxisPick::Topo(p).json() }),
             CircularAxis::Free(o, d) => json!({ "origin": [o.x, o.y, o.z], "axis": [d.x, d.y, d.z] }),
@@ -1382,10 +1461,11 @@ impl Tool {
                 ("Rotate Around Axis", "Click a straight or round edge, or a round face, to turn around")
             }
             Tool::RotateAxis(_) => ("Rotate Around Axis", "Drag the handle around the axis, or type an angle"),
-            Tool::CircularPattern(t) if t.about.is_none() => {
-                ("Pattern - Circular", "Click an edge or round face (or a sketch circle) to repeat around")
-            }
-            Tool::CircularPattern(_) => ("Pattern - Circular", "Type an angle, then Tab for the quantity (or − / +). Return applies"),
+            Tool::CircularPattern(t) if t.about.is_none() => (
+                "Pattern - Circular",
+                "Pull an arrow to repeat around the dot. Drag the dot, or click an edge, to go around something else",
+            ),
+            Tool::CircularPattern(_) => ("Pattern - Circular", "Type an angle, then Tab (or click Quantity) for how many. Done applies"),
             Tool::Move(_) => ("Move/Rotate (M)", "Pick what to move or turn, then use the gizmo."),
             Tool::Mirror(t) if t.split => ("Split Body", "Select a body to split, then a face, plane or sketch line to split it with."),
             Tool::Mirror(_) => ("Mirror", "Pick what to mirror, then a line, plane or flat face to mirror it across."),

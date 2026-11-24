@@ -396,7 +396,8 @@ pub(super) fn axis_pill(painter: &egui::Painter, center: Pos2, dir: egui::Vec2, 
 
 /// Half of an axis pill's length, as laid out in a row.
 pub(super) fn pill_half(text: &str) -> f32 {
-    text.chars().count() as f32 * 3.0 + 8.0
+    // (Chinese, Japanese and Korean signs are about twice as wide as letters.)
+    text.chars().map(|c| if c > '\u{2e80}' { 5.5 } else { 3.0 }).sum::<f32>() + 8.0
 }
 
 /// How far to shift a row of pills running from `a` to `b` so all of it is inside `area`. A row pushed back over the

@@ -1092,10 +1092,6 @@ msgid "Click an arc"
 msgstr "點選圓弧"
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
-msgid "Click an edge or round face (or a sketch circle) to repeat around"
-msgstr "點選作為重複中心的稜邊或圓面（或草圖圓）"
-
-#: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Click any piece of a curve between crossings to cut it away."
 msgstr "點選兩個交點之間的曲線段，把它剪掉。"
 
@@ -4595,6 +4591,10 @@ msgid "Pull an arrow to repeat along it. Click Quantity for how many"
 msgstr "拉箭頭沿該方向重複。點選“數量”設定個數"
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
+msgid "Pull an arrow to repeat around the dot. Drag the dot, or click an edge, to go around something else"
+msgstr "拉箭頭繞圓點重複。拖動圓點或點選稜邊，可繞別處重複"
+
+#: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Pull the arrow or type a distance. Return applies"
 msgstr "拉箭頭或輸入距離。回車鍵應用"
 
@@ -6918,8 +6918,8 @@ msgid "Type an angle (Tab, then a height for a helix), or click a line or edge t
 msgstr "輸入角度（按 Tab 再輸高度可做螺旋），或點選作為軸的線或稜邊。回車鍵應用"
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
-msgid "Type an angle, then Tab for the quantity (or − / +). Return applies"
-msgstr "輸入角度，按 Tab 輸入數量（或 − / +）。回車鍵應用"
+msgid "Type an angle, then Tab (or click Quantity) for how many. Done applies"
+msgstr "輸入角度，按 Tab（或點“數量”）輸入個數。“完成”應用"
 
 #: crates/ui-egui/src/workspace/viewport/in_place.rs
 msgid "Type here…"

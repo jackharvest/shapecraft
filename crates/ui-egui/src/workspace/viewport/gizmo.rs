@@ -166,6 +166,8 @@ impl Workspace {
                 // Its Spacing and Quantity pills open their own fields (#6); the click only picks the axis.
                 return true;
             }
+            // The turning arrows and the dot only drag.
+            Tool::CircularPattern(t) => return self.circular_hit(t, c).is_some() || t.turn.is_none() && self.near_dot(t.pivot, c),
             Tool::RotateAxis(t) => {
                 let near =
                     t.axis.is_some() && t.handle_at(t.angle).and_then(|h| self.to_screen(h)).is_some_and(|h| (c - h).length() < 14.0);

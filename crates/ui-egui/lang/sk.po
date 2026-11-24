@@ -1092,10 +1092,6 @@ msgid "Click an arc"
 msgstr "Kliknite na oblúk"
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
-msgid "Click an edge or round face (or a sketch circle) to repeat around"
-msgstr "Kliknite na hranu alebo okrúhlu plochu (či kružnicu náčrtu), okolo ktorej sa opakuje"
-
-#: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Click any piece of a curve between crossings to cut it away."
 msgstr "Kliknutím na časť krivky medzi priesečníkmi ju odrežete."
 
@@ -4595,6 +4591,10 @@ msgid "Pull an arrow to repeat along it. Click Quantity for how many"
 msgstr "Potiahnite šípku a opakujte pozdĺž nej. Počet nastavíte cez Počet"
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
+msgid "Pull an arrow to repeat around the dot. Drag the dot, or click an edge, to go around something else"
+msgstr "Potiahnite šípku a opakujte okolo bodu. Presuňte bod alebo kliknite na hranu, ak sa má opakovať okolo niečoho iného"
+
+#: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Pull the arrow or type a distance. Return applies"
 msgstr "Potiahnite šípku alebo napíšte vzdialenosť. Enter potvrdí"
 
@@ -6918,8 +6918,8 @@ msgid "Type an angle (Tab, then a height for a helix), or click a line or edge t
 msgstr "Napíšte uhol (Tab a potom výška pre špirálu) alebo kliknite na čiaru či hranu, okolo ktorej sa otáča. Enter potvrdí"
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
-msgid "Type an angle, then Tab for the quantity (or − / +). Return applies"
-msgstr "Napíšte uhol a potom Tab pre počet (alebo − / +). Enter potvrdí"
+msgid "Type an angle, then Tab (or click Quantity) for how many. Done applies"
+msgstr "Napíšte uhol a potom Tab (alebo kliknite na Počet) pre počet. Hotovo potvrdí"
 
 #: crates/ui-egui/src/workspace/viewport/in_place.rs
 msgid "Type here…"

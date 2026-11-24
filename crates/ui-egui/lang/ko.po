@@ -1092,10 +1092,6 @@ msgid "Click an arc"
 msgstr "호를 클릭하세요"
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
-msgid "Click an edge or round face (or a sketch circle) to repeat around"
-msgstr "반복 중심이 될 모서리나 둥근 면(또는 스케치 원)을 클릭하세요"
-
-#: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Click any piece of a curve between crossings to cut it away."
 msgstr "교차점 사이의 곡선을 클릭해 잘라 내세요."
 
@@ -4595,6 +4591,10 @@ msgid "Pull an arrow to repeat along it. Click Quantity for how many"
 msgstr "화살표를 당기면 그 방향으로 반복합니다. 개수는 수량을 클릭하세요"
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
+msgid "Pull an arrow to repeat around the dot. Drag the dot, or click an edge, to go around something else"
+msgstr "화살표를 당기면 점 둘레로 반복합니다. 점을 드래그하거나 모서리를 클릭하면 그 둘레로 반복합니다"
+
+#: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Pull the arrow or type a distance. Return applies"
 msgstr "화살표를 당기거나 거리를 입력하세요. Return으로 적용"
 
@@ -6918,8 +6918,8 @@ msgid "Type an angle (Tab, then a height for a helix), or click a line or edge t
 msgstr "각도를 입력(나선은 Tab 다음 높이)하거나 축이 될 선이나 모서리를 클릭하세요. Return으로 적용"
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
-msgid "Type an angle, then Tab for the quantity (or − / +). Return applies"
-msgstr "각도를 입력한 다음 Tab으로 수량(또는 − / +). Return으로 적용"
+msgid "Type an angle, then Tab (or click Quantity) for how many. Done applies"
+msgstr "각도를 입력한 다음 Tab(또는 수량 클릭)으로 개수. 완료로 적용"
 
 #: crates/ui-egui/src/workspace/viewport/in_place.rs
 msgid "Type here…"

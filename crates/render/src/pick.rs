@@ -145,6 +145,13 @@ fn cut(ctx: &PickContext, p: DVec3) -> bool {
     ctx.section.is_some_and(|(o, n)| (p - o).dot(n) > 0.0)
 }
 
+/// How far along a line (0–1) its point at `t` on screen is, its ends `za` and `zb` deep: in perspective the far half
+/// looks shorter.
+fn along(ctx: &PickContext, za: f64, zb: f64, t: f64) -> f64 {
+    let w = zb + t * (za - zb);
+    if ctx.camera.is_ortho() || za <= 0.0 || zb <= 0.0 || w <= 1e-9 { t } else { (t * za / w).clamp(0.0, 1.0) }
+}
+
 /// What's under the cursor, and the world point there.
 pub fn pick(ctx: &PickContext, cursor: DVec2) -> Option<(Pick, DVec3)> {
     let (o, d) = ctx.camera.ray(cursor, ctx.size);
@@ -194,14 +201,14 @@ pub fn pick(ctx: &PickContext, cursor: DVec2) -> Option<(Pick, DVec3)> {
             let (reach, weight) = ctx.reach(EDGE_PX, Pick::Edge { body: body.id, edge });
             for w in line.windows(2) {
                 let (a3, b3) = (v3(w[0]), v3(w[1]));
-                let (Some((a, _)), Some((b, _))) = (ctx.camera.project(a3, ctx.size), ctx.camera.project(b3, ctx.size)) else {
+                let (Some((a, za)), Some((b, zb))) = (ctx.camera.project(a3, ctx.size), ctx.camera.project(b3, ctx.size)) else {
                     continue;
                 };
                 let (px, t) = segment_distance(cursor, a, b);
                 if px >= reach || edge_hit.is_some_and(|(bp, ..)| px * weight >= bp) {
                     continue;
                 }
-                let world = a3.lerp(b3, t);
+                let world = a3.lerp(b3, along(ctx, za, zb, t));
                 if cut(ctx, world) {
                     continue;
                 }
@@ -301,9 +308,9 @@ pub fn pick_through(ctx: &PickContext, cursor: DVec2) -> Vec<(Pick, f64)> {
         for (line, &edge) in body.mesh.edges.iter().zip(&body.mesh.edge_ids) {
             for w in line.windows(2) {
                 let (a3, b3) = (v3(w[0]), v3(w[1]));
-                let (Some((a, _)), Some((b, _))) = (ctx.camera.project(a3, ctx.size), ctx.camera.project(b3, ctx.size)) else { continue };
+                let (Some((a, za)), Some((b, zb))) = (ctx.camera.project(a3, ctx.size), ctx.camera.project(b3, ctx.size)) else { continue };
                 let (px, t) = segment_distance(cursor, a, b);
-                let world = a3.lerp(b3, t);
+                let world = a3.lerp(b3, along(ctx, za, zb, t));
                 if px < EDGE_PX * ctx.slop && !cut(ctx, world) {
                     add(Pick::Edge { body: body.id, edge }, (world - o).dot(d), &mut hits);
                 }
@@ -350,6 +357,47 @@ mod tests {
         assert!(ray_meets(unit, DVec3::new(-3.0, -3.0, -3.0), DVec3::ONE.normalize()), "diagonally");
         assert!(ray_meets(Some(([0.0, 0.0, 0.0], [1.0, 1.0, 0.0])), DVec3::new(0.5, 0.5, 5.0), down), "flat, as a plate's face");
         assert!(!ray_meets(None, DVec3::ZERO, down), "an empty mesh");
+    }
+
+    /// A long bar's edge is picked wherever the pointer is on it, in a window of any size (the edge's point was
+    /// taken evenly along the line on screen, deeper in than the faces it bounds once perspective comes in).
+    #[test]
+    fn a_long_edge_picks_all_along_in_a_window_of_any_size() {
+        let (w, h, l) = (10.0f32, 20.0f32, 400.0f32);
+        let mut m = shapecraft_kernel::Mesh::default();
+        let mut quad = |q: [[f32; 3]; 4], face: u32| {
+            for [a, b, c] in [[q[0], q[1], q[2]], [q[0], q[2], q[3]]] {
+                let i = m.positions.len() as u32;
+                m.positions.extend([a, b, c]);
+                m.normals.extend([[0.0, 0.0, 1.0]; 3]);
+                m.indices.extend([i, i + 1, i + 2]);
+                m.triangle_faces.push(face);
+            }
+        };
+        quad([[0.0, 0.0, 0.0], [0.0, l, 0.0], [0.0, l, h], [0.0, 0.0, h]], 0);
+        quad([[w, 0.0, 0.0], [w, l, 0.0], [w, l, h], [w, 0.0, h]], 1);
+        quad([[0.0, 0.0, h], [w, 0.0, h], [w, l, h], [0.0, l, h]], 2);
+        quad([[0.0, 0.0, 0.0], [w, 0.0, 0.0], [w, 0.0, h], [0.0, 0.0, h]], 3);
+        m.edges = vec![vec![[w, 0.0, h], [w, l, h]]];
+        m.edge_ids = vec![7];
+        m.edge_faces = vec![[1, 2]];
+        let mut doc = cylinder();
+        doc.bodies[0].mesh = std::sync::Arc::new(m);
+        let camera = Camera { yaw: 0.9, pitch: 0.5, distance: 420.0, target: DVec3::new(0.0, 60.0, 0.0), ..Camera::default() };
+        for size in [DVec2::new(1280.0, 800.0), DVec2::new(2560.0, 1400.0), DVec2::new(5120.0, 2880.0)] {
+            let ctx = PickContext::new(&doc, &camera, size);
+            let mut seen = 0;
+            for k in 1..20 {
+                let p = DVec3::new(f64::from(w), f64::from(l) * f64::from(k) / 20.0, f64::from(h));
+                let Some((px, _)) = camera.project(p, size).filter(|(q, _)| q.cmpgt(DVec2::ZERO).all() && q.cmplt(size).all()) else {
+                    continue;
+                };
+                seen += 1;
+                let got = pick(&ctx, px);
+                assert!(matches!(got, Some((Pick::Edge { edge: 7, .. }, at)) if at.distance(p) < 0.1), "{size} {p}: {got:?}");
+            }
+            assert!(seen > 5, "the bar is in view");
+        }
     }
 
     struct NoShape;

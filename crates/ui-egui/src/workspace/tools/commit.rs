@@ -88,8 +88,8 @@ impl Workspace {
 
     /// Return: commits whatever the tool has.
     pub(in crate::workspace) fn commit_tool(&mut self) {
-        // Return and Done alike: a pattern's Quantity takes the typed count (#96), a turning tool the typed angle.
-        self.take_pattern_count();
+        // Return and Done alike: a pattern takes the value being typed (#96), a turning tool the typed angle.
+        self.take_pattern_value();
         let turns = matches!(self.tool, Tool::Revolve(_) | Tool::RotateAxis(_) | Tool::CircularPattern(_))
             || matches!(&self.tool, Tool::EdgePlane(t) if t.through)
             || matches!(&self.tool, Tool::Move(t) if matches!(t.handle, Handle::Ring(_)));
@@ -496,6 +496,27 @@ impl Workspace {
                 t.count_field = false;
                 t.count = count.unwrap_or(t.count);
             }
+            _ => {}
+        }
+        self.numeric_fresh = false;
+        self.preview = None;
+        true
+    }
+
+    /// A pattern's open value field (Quantity, or the spacing or angle) closes, taking what was typed when it works.
+    /// False when the tool isn't a pattern or nothing was open.
+    pub(in crate::workspace) fn take_pattern_value(&mut self) -> bool {
+        if self.take_pattern_count() {
+            return true;
+        }
+        if !matches!(self.tool, Tool::Pattern(_) | Tool::CircularPattern(_)) {
+            return false;
+        }
+        let Some(text) = self.numeric.take() else { return false };
+        let (length, angle) = (self.eval_typed(&text), self.eval_angle(&text));
+        match &mut self.tool {
+            Tool::Pattern(t) => t.spacing = length.unwrap_or(t.spacing),
+            Tool::CircularPattern(t) => t.angle = angle.unwrap_or(t.angle).clamp(-360.0, 360.0),
             _ => {}
         }
         self.numeric_fresh = false;

@@ -734,12 +734,14 @@ impl Workspace {
                 painter.circle_filled(c, 7.0, theme::c(0xf4f4f6));
                 painter.circle_stroke(c, 7.0, Stroke::new(1.0, rim));
                 painter.circle_filled(c, 2.5, Tokens::accent());
+                let many = crate::i18n::tr("Quantity");
                 let quantity = match typed_count {
-                    Some(n) => format!("Quantity  {n}"),
-                    None => format!("Quantity  {}×", t.count),
+                    Some(n) => format!("{many}  {n}"),
+                    None => format!("{many}  {}×", t.count),
                 };
                 let count_pill = ui.scope_id().with("pattern-count-pill");
-                let kind = if t.total { "Total ⌄" } else { "Spacing ⌄" };
+                let kind = format!("{} ⌄", crate::i18n::tr(if t.total { "Total" } else { "Spacing" }));
+                let kind = kind.as_str();
                 let value = typed.map(str::to_string).unwrap_or_else(|| format_length(spacing.abs(), units));
                 match tip_dir {
                     Some((tip, dir, base)) => {
@@ -809,30 +811,15 @@ impl Workspace {
         let angle_box = match &self.tool {
             // 26.200 shows the angle beside the handle on the profile (below); the box is for when there's none.
             Tool::Revolve(t) if t.params(t.angle).is_some() && self.revolve_frame(t).is_none() => Some(t.angle),
-            Tool::CircularPattern(t) if t.about.is_some() => Some(t.angle),
             _ => None,
         };
         if let Some(angle) = angle_box {
             let c = self.viewport_rect.center();
-            let mut shown = typed.map(str::to_string).unwrap_or_else(|| format!("{angle}°"));
-            let mut field = typed.map(str::to_string);
-            if let Tool::CircularPattern(t) = &self.tool {
-                shown = format!("{} × {angle}°", t.count);
-                // Tab moves the box between the angle and Quantity; it says which one it holds.
-                field = typed.map(|n| if t.count_field { format!("Quantity  {n}") } else { n.to_string() });
-            }
-            value_box(&painter, pos2(c.x, self.viewport_rect.top() + 90.0), &shown, field.as_deref());
-            if matches!(self.tool, Tool::CircularPattern(_)) {
-                // The pattern control badges follow the value (wide enough for "6 × 360°" or a typed field).
-                let half = shown.chars().count() as f32 * 4.0 + 30.0;
-                crate::workspace::badges::paint_row(
-                    self,
-                    ui,
-                    &painter,
-                    pos2(c.x + half.max(70.0), self.viewport_rect.top() + 90.0),
-                    vec2(1.0, 0.0),
-                );
-            }
+            let shown = typed.map(str::to_string).unwrap_or_else(|| format!("{angle}°"));
+            value_box(&painter, pos2(c.x, self.viewport_rect.top() + 90.0), &shown, typed);
+        }
+        if let Tool::CircularPattern(t) = &self.tool {
+            self.draw_circular(ui, &painter, t, typed);
         }
         if let Tool::Extrude(t) = &self.tool
             && let Some((s0, sdir, _)) = self.handle_frame(t.origin + t.normal * t.distance, t.normal)

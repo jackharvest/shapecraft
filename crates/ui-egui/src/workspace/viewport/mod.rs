@@ -5,6 +5,7 @@
 //! - `scene`: what the renderer draws besides the model (overlays, tinted bodies).
 //! - `navigate`: orbit, pan and zoom, and what the pointer hovers.
 //! - `clicks`: clicks, double-clicks and sketch drawing drags.
+//! - `circular`: Circular Pattern's turning arrows, dot and pills.
 //! - `gizmo`: the Move, Scale and Rotate Around Axis gizmos.
 //! - `handles`: the other tools' drag handles (arrows, draft, section, pattern, edge plane).
 //! - `in_place`: Text and Sketch Fillet, which work in the view, and the bottom Cancel / Done buttons.
@@ -15,6 +16,7 @@
 //! - `picking`: what is under the pointer: sketch points, plane tiles, model picks.
 
 mod annotations;
+mod circular;
 mod clicks;
 mod curve_drag;
 mod dimensions;
@@ -153,7 +155,10 @@ impl Workspace {
         let kept: Vec<Pick> = if let Some((body, face)) = self.growing_face() {
             // The face it grew from stays picked on the part as it was; the new end face isn't.
             vec![Pick::Face { body: Self::before_id(body), face }]
-        } else if live && matches!(self.tool, Tool::Move(_) | Tool::Scale(_) | Tool::Pattern(_) | Tool::RotateAxis(_)) {
+        } else if live
+            && (matches!(self.tool, Tool::Move(_) | Tool::Scale(_) | Tool::Pattern(_) | Tool::RotateAxis(_))
+                || matches!(&self.tool, Tool::CircularPattern(t) if t.dragging.is_none()))
+        {
             self.session.selection.iter().filter(|p| matches!(p, Pick::Body { .. } | Pick::Plane { .. })).copied().collect()
         } else if self.side_drag.is_some() || self.curve_drag.is_some() {
             // A side being pushed (or a curve dragged) keeps its place in the sketch, so it stays picked.
@@ -264,7 +269,7 @@ impl Workspace {
             Tool::Translate { to, .. } => to.is_some(),
             Tool::Align { to, .. } => to.is_some(),
             Tool::Onto(_) => self.is_live(),
-            Tool::CircularPattern(t) => t.about.is_some(),
+            Tool::CircularPattern(t) => t.ready(),
             Tool::RotateAxis(t) => t.angle.abs() > 1e-9,
             Tool::BodyEdgeOffset(t) => t.distance.abs() > 1e-9,
             Tool::OffsetFace(t) => t.whole,

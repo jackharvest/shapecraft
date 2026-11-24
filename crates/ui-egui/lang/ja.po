@@ -1092,10 +1092,6 @@ msgid "Click an arc"
 msgstr "円弧をクリック"
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
-msgid "Click an edge or round face (or a sketch circle) to repeat around"
-msgstr "繰り返しの中心にするエッジか丸い面（またはスケッチの円）をクリック"
-
-#: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Click any piece of a curve between crossings to cut it away."
 msgstr "交点の間の曲線をクリックして切り取ります。"
 
@@ -4595,6 +4591,10 @@ msgid "Pull an arrow to repeat along it. Click Quantity for how many"
 msgstr "矢印を引くとその方向に繰り返します。数は「数量」をクリック"
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
+msgid "Pull an arrow to repeat around the dot. Drag the dot, or click an edge, to go around something else"
+msgstr "矢印を引くと点のまわりに繰り返します。点をドラッグするかエッジをクリックすると、そのまわりになります"
+
+#: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Pull the arrow or type a distance. Return applies"
 msgstr "矢印を引くか距離を入力。Returnで適用"
 
@@ -6918,8 +6918,8 @@ msgid "Type an angle (Tab, then a height for a helix), or click a line or edge t
 msgstr "角度を入力（Tabのあと高さを入れるとらせん）するか、軸にする線かエッジをクリック。Returnで適用"
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
-msgid "Type an angle, then Tab for the quantity (or − / +). Return applies"
-msgstr "角度を入力し、Tabで数量（または− / +）。Returnで適用"
+msgid "Type an angle, then Tab (or click Quantity) for how many. Done applies"
+msgstr "角度を入力し、Tab（または「数量」をクリック）で個数。「完了」で適用"
 
 #: crates/ui-egui/src/workspace/viewport/in_place.rs
 msgid "Type here…"
