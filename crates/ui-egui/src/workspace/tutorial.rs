@@ -529,6 +529,7 @@ impl Workspace {
             }
         }
         crate::motion::pop_end(&p, "tut-words", begin, card.center());
+        spots.push(("card", card));
 
         // Left: the step's tools, then Undo, Redo and Retry; all of them there the whole step, so there is always a way
         // on and a way back.

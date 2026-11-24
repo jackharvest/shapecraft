@@ -238,6 +238,14 @@ impl Router {
                 self.now.push(Event::PointerMoved(pos));
                 self.now.push(self.button(pos, button, false));
                 if device == Device::Pen {
+                    // Held still and let go: the right-click's menu, for a pen without a button.
+                    let still = self.pen_held.is_some_and(|at| at.distance(pos) < PEN_SLOP);
+                    if still && kind == Kind::Up && button == PointerButton::Primary && super::pen_hold_menu() {
+                        let (down, up) =
+                            (self.button(pos, PointerButton::Secondary, true), self.button(pos, PointerButton::Secondary, false));
+                        self.after(1, down);
+                        self.after(2, up);
+                    }
                     self.pen_down = false;
                     self.pen_up = Some(now);
                     self.pen_hold = None;
@@ -551,6 +559,27 @@ mod tests {
         assert_eq!(presses(&r.take().0), vec![(PointerButton::Primary, true)]);
         assert_eq!(presses(&r.take().0), vec![(PointerButton::Primary, false)]);
         assert!(r.take().0.contains(&Event::PointerGone));
+    }
+
+    #[test]
+    fn a_pencil_held_and_lifted_is_a_right_click_when_asked_for() {
+        let t = Instant::now();
+        let hold = |drag: bool| {
+            let mut r = Router::default();
+            r.pointer(Kind::Down, Device::Pen, 1, pos2(100.0, 100.0), 0, t);
+            r.tick(t + Duration::from_millis(900));
+            let end = if drag { pos2(180.0, 100.0) } else { pos2(101.0, 100.0) };
+            r.pointer(Kind::Up, Device::Pen, 1, end, 0, t + Duration::from_millis(950));
+            let mut all = presses(&r.take().0);
+            all.extend(presses(&r.take().0));
+            all.extend(presses(&r.take().0));
+            all.iter().filter(|p| p.0 == PointerButton::Secondary).count()
+        };
+        assert_eq!(hold(false), 0, "off to begin with");
+        crate::tablet::set_pen_hold_menu(true);
+        let (still, dragged) = (hold(false), hold(true));
+        crate::tablet::set_pen_hold_menu(false);
+        assert_eq!((still, dragged), (2, 0));
     }
 
     #[test]

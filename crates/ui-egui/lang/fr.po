@@ -832,6 +832,10 @@ msgid "Cancel"
 msgstr "Annuler"
 
 #: crates/ui-egui/src/plugins.rs
+msgid "Cancelled"
+msgstr "Annulé"
+
+#: crates/ui-egui/src/plugins.rs
 msgid "Cancelled."
 msgstr "Annulé."
 
@@ -1619,6 +1623,10 @@ msgstr "Date de modification (récents d'abord)"
 msgid "Date Modified (Oldest to Latest)"
 msgstr "Date de modification (anciens d'abord)"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Decades of industrial use behind it"
+msgstr "Des décennies d'usage industriel"
+
 #: crates/engine/src/cmd/visual.rs
 #: crates/ui-egui/src/workspace/decals.rs
 #: crates/ui-egui/src/workspace/visual.rs
@@ -1697,6 +1705,10 @@ msgstr "Supprimer les esquisses"
 #: crates/ui-egui/src/workspace/history.rs
 msgid "Delete Variables"
 msgstr "Supprimer les variables"
+
+#: crates/kernel/src/lib.rs
+msgid "Delete faces"
+msgstr "Supprimer des faces"
 
 #: crates/ui-egui/src/workspace/panels/popups.rs
 msgid "Delete key"
@@ -1892,6 +1904,10 @@ msgstr "Téléchargement de {}…"
 msgid "Draft Angle"
 msgstr "Angle de dépouille"
 
+#: crates/kernel/src/lib.rs
+msgid "Draft angles"
+msgstr "Angles de dépouille"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Drag an arrow to slide the cup"
 msgstr "Faites glisser une flèche pour déplacer le pot"
@@ -2047,10 +2063,6 @@ msgstr "Modifier..."
 msgid "Edit…"
 msgstr "Modifier…"
 
-#: crates/ui-egui/src/whats_new.rs
-msgid "Eleven languages"
-msgstr "Onze langues"
-
 #: crates/engine/src/cmd/sketch.rs
 #: crates/ui-egui/src/menubar.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
@@ -2111,6 +2123,10 @@ msgstr "Toute forme commence par un dessin. Dessinez un cercle."
 #: crates/ui-egui/src/onboarding.rs
 msgid "Every shortcut, as on the computer."
 msgstr "Tous les raccourcis, comme sur l'ordinateur."
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Every tool and option, nothing greyed out"
+msgstr "Tous les outils et options, rien de grisé"
 
 #: crates/ui-egui/src/workspace/export.rs
 msgid "Everything Else"
@@ -2230,6 +2246,10 @@ msgstr "Extruder - D'un côté (E)"
 msgid "Extrude - To Object"
 msgstr "Extruder - Jusqu'à l'objet"
 
+#: crates/kernel/src/lib.rs
+msgid "Extrude, push and pull"
+msgstr "Extruder, pousser et tirer"
+
 #: crates/ui-egui/src/workspace/history.rs
 msgid "Extrusion"
 msgstr "Extrusion"
@@ -2281,6 +2301,10 @@ msgstr "Les fichiers prennent le nom des éléments"
 msgid "File…"
 msgstr "Fichier…"
 
+#: crates/kernel/src/lib.rs
+msgid "Fill"
+msgstr "Remplir"
+
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/ui-egui/src/menubar.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
@@ -2316,6 +2340,10 @@ msgstr "Congé d'esquisse"
 #: crates/ui-egui/src/whats_new.rs
 msgid "Fillet and Split Body show a card with every setting of the step, both while the tool runs and when you edit it from History. Drag the card anywhere; its ⋯ menu decides when it opens."
 msgstr "Congé et Diviser le corps montrent une carte avec tous les réglages de l'étape, pendant l'outil et depuis l'historique. Placez la carte où vous voulez ; son menu ⋯ décide quand elle s'ouvre."
+
+#: crates/kernel/src/lib.rs
+msgid "Fillet by chord width"
+msgstr "Congé par corde"
 
 #: crates/ui-egui/src/workspace/start_tool.rs
 msgid "Fillet rounds corners inside a sketch: start one first"
@@ -2615,6 +2643,10 @@ msgstr "Historique"
 msgid "Hold a bank card against the screen and drag the blue card's right edge (or use − and +) until both are the same size."
 msgstr "Tenez une carte bancaire contre l'écran et faites glisser le bord droit de la carte bleue (ou utilisez − et +) jusqu'à ce qu'elles aient la même taille."
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Hold still, then lift, for more options (like a right-click)"
+msgstr "Tenir immobile puis lever : plus d'options (comme un clic droit)"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Hollow it out with Shell."
 msgstr "Évidez-le avec Coque."
@@ -2653,6 +2685,10 @@ msgstr "L'écart permis entre les triangles et la vraie surface"
 #: crates/ui-egui/src/setup.rs
 msgid "How should ShapeCraft look?"
 msgstr "À quoi doit ressembler ShapeCraft ?"
+
+#: crates/kernel/src/lib.rs
+msgid "IGES files"
+msgstr "Fichiers IGES"
 
 #: crates/report/src/draft.rs
 #: crates/report/src/github.rs
@@ -2806,6 +2842,10 @@ msgstr "Insérer un point d'arrêt"
 #: crates/ui-egui/src/app.rs
 msgid "Insert Image"
 msgstr "Insérer une image"
+
+#: crates/ui-egui/src/plugins.rs
+msgid "Installed"
+msgstr "Installés"
 
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Installed. Open {} and sign in."
@@ -3139,6 +3179,18 @@ msgstr "Copies liées et non liées"
 msgid "Linux"
 msgstr "Linux"
 
+#: crates/update/src/install.rs
+msgid "Linux .deb package"
+msgstr "paquet .deb Linux"
+
+#: crates/update/src/install.rs
+msgid "Linux .rpm package"
+msgstr "paquet .rpm Linux"
+
+#: crates/update/src/install.rs
+msgid "Linux download"
+msgstr "téléchargement Linux"
+
 #: crates/doc/src/project.rs
 #: crates/ui-egui/src/landing.rs
 msgid "Local"
@@ -3312,6 +3364,10 @@ msgstr "Fusionne les faces et arêtes d'une même surface ou courbe. Moins de fa
 msgid "Merge now"
 msgstr "Fusionner maintenant"
 
+#: crates/kernel/src/lib.rs
+msgid "Mesh bodies (STL, OBJ, 3MF)"
+msgstr "Corps maillés (STL, OBJ, 3MF)"
+
 msgid "Meshes (STL, OBJ)"
 msgstr "Maillages (STL, OBJ)"
 
@@ -3421,6 +3477,10 @@ msgid "More options, like a right-click."
 msgstr "Plus d'options, comme un clic droit."
 
 #: crates/ui-egui/src/onboarding.rs
+msgid "More options, like a right-click. No button? Turn on a hold for it in Preferences ▸ Tablet."
+msgstr "Plus d'options, comme un clic droit. Pas de bouton ? Activez l'appui maintenu dans Préférences ▸ Tablette."
+
+#: crates/ui-egui/src/onboarding.rs
 msgid "More options."
 msgstr "Plus d'options."
 
@@ -3449,6 +3509,10 @@ msgstr "Orientation auto au déplacement"
 msgid "Move Them"
 msgstr "Les déplacer"
 
+#: crates/kernel/src/lib.rs
+msgid "Move faces"
+msgstr "Déplacer des faces"
+
 #: crates/ui-egui/src/workspace/sheet_views.rs
 msgid "Move the pointer to place the magnified view, then click"
 msgstr "Déplacez le pointeur pour placer la vue agrandie, puis cliquez"
@@ -3475,6 +3539,10 @@ msgstr "Déplacé vers {} dans votre dossier de projets"
 #: crates/ui-egui/src/workspace/history.rs
 msgid "Movement"
 msgstr "Déplacement"
+
+#: crates/kernel/src/lib.rs
+msgid "Moving or scaling one edge"
+msgstr "Déplacer ou mettre à l'échelle une arête"
 
 #: crates/ui-egui/src/app.rs
 msgid "NX part"
@@ -3704,6 +3772,10 @@ msgstr "Non pris en charge"
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Not available on this computer"
 msgstr "Indisponible sur cet ordinateur"
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Not checked in this run"
+msgstr "Non vérifié cette fois"
 
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Not on this computer."
@@ -4461,8 +4533,8 @@ msgid "Preferences"
 msgstr "Préférences"
 
 #: crates/ui-egui/src/whats_new.rs
-msgid "Preferences ▸ Language switches the toolbar, sidebars and cards to one of eleven languages."
-msgstr "Préférences ▸ Langue met la barre d'outils, les barres latérales et les cartes dans l'une de onze langues."
+msgid "Preferences ▸ Language switches the toolbar, sidebars and cards to one of twelve languages."
+msgstr "Préférences ▸ Langue met la barre d'outils, les barres latérales et les cartes dans l'une de douze langues."
 
 #: crates/ui-egui/src/menubar.rs
 msgid "Preferences…"
@@ -4614,6 +4686,10 @@ msgstr "Tirez le dessin vers le haut : il devient solide."
 msgid "Pull the strip up: it becomes part of the base."
 msgstr "Tirez la bande vers le haut : elle fait corps avec la base."
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Pure Rust: no C++ underneath to crash"
+msgstr "Rust pur : pas de C++ en dessous pour planter"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Push a shape in and it cuts. Make a dip for the glass."
 msgstr "Poussée vers l'intérieur, une forme coupe. Creusez la place du verre."
@@ -4629,6 +4705,10 @@ msgstr "Poussez la flèche vers le bas, dans le dessous de verre"
 #: crates/ui-egui/src/tutorials.rs
 msgid "Put the cup where you want it."
 msgstr "Mettez le pot où vous voulez."
+
+#: crates/ui-egui/src/plugins.rs
+msgid "Put your model in any scene from a sentence, with your own AI account (OpenRouter, OpenAI, Google Gemini) or an AI on your own computer (ComfyUI). No limits but your provider's."
+msgstr "Placez votre modèle dans n'importe quelle scène en une phrase, avec votre compte d'IA (OpenRouter, OpenAI, Google Gemini) ou une IA sur votre ordinateur (ComfyUI). Sans autres limites que celles du fournisseur."
 
 #: crates/ui-egui/src/settings.rs
 #: crates/ui-egui/src/workspace/import_prefs.rs
@@ -4889,6 +4969,10 @@ msgstr "Révolution"
 msgid "Revolve (V)"
 msgstr "Révolution (V)"
 
+#: crates/kernel/src/lib.rs
+msgid "Revolve and threads"
+msgstr "Révolution et filetages"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Revolve: a Drawer Knob"
 msgstr "Révolution : un bouton de tiroir"
@@ -4998,6 +5082,10 @@ msgstr "Réglée"
 #: crates/ui-egui/src/tutorials.rs
 msgid "Run a shape along a path, then join parts with Union"
 msgstr "Faire suivre un chemin à une forme, puis réunir des pièces avec Union"
+
+#: crates/kernel/src/lib.rs
+msgid "STEP files"
+msgstr "Fichiers STEP"
 
 #: crates/ui-egui/src/workspace/export.rs
 msgid "STL Triangle Mesh"
@@ -5619,6 +5707,10 @@ msgstr "Configurez le dossier de travail et les sauvegardes sur l'ordinateur où
 msgid "Setback"
 msgstr "Retrait"
 
+#: crates/kernel/src/lib.rs
+msgid "Setback corners"
+msgstr "Coins en retrait"
+
 #: crates/ui-egui/src/workspace/panels/titlebar.rs
 msgid "Settings"
 msgstr "Réglages"
@@ -5683,6 +5775,10 @@ msgstr "ShapeCraft n'a pas le droit d'utiliser {}"
 #: crates/ui-egui/src/whats_new.rs
 msgid "ShapeCraft on iPhone"
 msgstr "ShapeCraft sur iPhone"
+
+#: crates/ui-egui/src/plugins.rs
+msgid "ShapeCraft plugin"
+msgstr "Plugin ShapeCraft"
 
 #: crates/ui-egui/src/app_log.rs
 #: crates/ui-egui/src/landing.rs
@@ -5928,6 +6024,10 @@ msgstr "Points guides d'esquisse"
 #: crates/ui-egui/src/workspace/panels/context_menu.rs
 msgid "Sketch on Face"
 msgstr "Esquisser sur la face"
+
+#: crates/kernel/src/lib.rs
+msgid "Sketch regions"
+msgstr "Régions d'esquisse"
 
 #: crates/ui-egui/src/workspace/panels/items.rs
 msgid "Sketches"
@@ -6887,6 +6987,10 @@ msgstr "Tutoriels"
 msgid "Tutorials for everyone"
 msgstr "Des tutoriels pour tous"
 
+#: crates/ui-egui/src/whats_new.rs
+msgid "Twelve languages"
+msgstr "Douze langues"
+
 #: crates/engine/src/history.rs
 msgid "Twist"
 msgstr "Torsion"
@@ -6902,6 +7006,10 @@ msgstr "Deux images au choix."
 #: crates/ui-egui/src/workspace/badges.rs
 msgid "Two-Distance"
 msgstr "Deux distances"
+
+#: crates/kernel/src/lib.rs
+msgid "Two-distance chamfers"
+msgstr "Chanfreins à deux distances"
 
 #: crates/ui-egui/src/onboarding.rs
 msgid "Two-finger scroll"
@@ -6961,6 +7069,10 @@ msgstr "Union (Ctrl+U)"
 #: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Union (⌘ U)"
 msgstr "Union (⌘ U)"
+
+#: crates/kernel/src/lib.rs
+msgid "Union, subtract, intersect"
+msgstr "Unir, soustraire, intersecter"
 
 #: crates/engine/src/cmd/edit.rs
 #: crates/ui-egui/src/menubar.rs
@@ -7070,6 +7182,10 @@ msgstr "Valeur"
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Variable"
 msgstr "Variable"
+
+#: crates/kernel/src/lib.rs
+msgid "Variable-radius fillets"
+msgstr "Congés à rayon variable"
 
 #: crates/ui-egui/src/workspace/panels/variables.rs
 #: crates/ui-egui/src/workspace/prefs.rs
@@ -7267,6 +7383,10 @@ msgstr "Pourquoi un choix ? Pas de point de défaillance unique : si un noyau ca
 #: crates/ui-egui/src/menubar.rs
 msgid "Window"
 msgstr "Fenêtre"
+
+#: crates/update/src/install.rs
+msgid "Windows installer"
+msgstr "installateur Windows"
 
 #: crates/render/src/scene.rs
 #: crates/ui-egui/src/menubar.rs
@@ -7486,9 +7606,17 @@ msgstr "une variable porte sa propre unité"
 msgid "arrow keys"
 msgstr "flèches"
 
+#: crates/update/src/install.rs
+msgid "can't update in place"
+msgstr "ne peut pas se mettre à jour seul"
+
 #: crates/ui-egui/src/workspace/area.rs
 msgid "crossing"
 msgstr "croisant"
+
+#: crates/update/src/install.rs
+msgid "development build"
+msgstr "version de développement"
 
 #: crates/ui-egui/src/workspace/area.rs
 msgid "fully included"
@@ -7513,6 +7641,14 @@ msgstr "à l'instant"
 #: crates/ui-egui/src/app.rs
 msgid "less than a minute ago"
 msgstr "il y a moins d'une minute"
+
+#: crates/update/src/install.rs
+msgid "macOS app"
+msgstr "app macOS"
+
+#: crates/update/src/install.rs
+msgid "managed by a launcher"
+msgstr "géré par un lanceur"
 
 #: crates/ui-egui/src/app.rs
 msgid "no project open"
@@ -7541,6 +7677,10 @@ msgstr "ou allez sur {} depuis un téléphone ou un ordinateur"
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "or scan the code with its camera. Add it to the Home Screen to use"
 msgstr "ou scannez le code avec son appareil photo. Ajoutez-le à l'écran d'accueil pour l'utiliser"
+
+#: crates/update/src/install.rs
+msgid "portable zip"
+msgstr "zip portable"
 
 #: crates/ui-egui/src/workspace/panels/popups.rs
 msgid "press "
@@ -7608,11 +7748,19 @@ msgstr "{#} images"
 msgid "{#} items"
 msgstr "{#} éléments"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "{#} match"
+msgstr "{#} identiques"
+
 msgid "{#} min ago"
 msgstr "il y a {#} min"
 
 msgid "{#} more waiting after this one."
 msgstr "Encore {#} en attente après celle-ci."
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "{#} not yet"
+msgstr "{#} pas encore"
 
 msgid "{#} of {#} modeling checks pass"
 msgstr "{#} vérifications de modélisation sur {#} réussies"
@@ -7631,6 +7779,10 @@ msgstr "{#} réponses"
 
 msgid "{#} sketches"
 msgstr "{#} esquisses"
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "{#} with limits"
+msgstr "{#} avec limites"
 
 #: crates/ui-egui/src/landing.rs
 msgid "{n} min"

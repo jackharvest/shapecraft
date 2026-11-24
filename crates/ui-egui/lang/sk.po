@@ -832,6 +832,10 @@ msgid "Cancel"
 msgstr "Zrušiť"
 
 #: crates/ui-egui/src/plugins.rs
+msgid "Cancelled"
+msgstr "Zrušené"
+
+#: crates/ui-egui/src/plugins.rs
 msgid "Cancelled."
 msgstr "Zrušené."
 
@@ -1619,6 +1623,10 @@ msgstr "Dátum zmeny (od najnovších)"
 msgid "Date Modified (Oldest to Latest)"
 msgstr "Dátum zmeny (od najstarších)"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Decades of industrial use behind it"
+msgstr "Desaťročia používania v priemysle"
+
 #: crates/engine/src/cmd/visual.rs
 #: crates/ui-egui/src/workspace/decals.rs
 #: crates/ui-egui/src/workspace/visual.rs
@@ -1697,6 +1705,10 @@ msgstr "Odstrániť náčrty"
 #: crates/ui-egui/src/workspace/history.rs
 msgid "Delete Variables"
 msgstr "Odstrániť premenné"
+
+#: crates/kernel/src/lib.rs
+msgid "Delete faces"
+msgstr "Odstránenie plôch"
 
 #: crates/ui-egui/src/workspace/panels/popups.rs
 msgid "Delete key"
@@ -1892,6 +1904,10 @@ msgstr "Sťahuje sa {}…"
 msgid "Draft Angle"
 msgstr "Úkos"
 
+#: crates/kernel/src/lib.rs
+msgid "Draft angles"
+msgstr "Úkosy"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Drag an arrow to slide the cup"
 msgstr "Potiahnutím šípky pohár posuniete"
@@ -2047,10 +2063,6 @@ msgstr "Upraviť..."
 msgid "Edit…"
 msgstr "Upraviť…"
 
-#: crates/ui-egui/src/whats_new.rs
-msgid "Eleven languages"
-msgstr "Jedenásť jazykov"
-
 #: crates/engine/src/cmd/sketch.rs
 #: crates/ui-egui/src/menubar.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
@@ -2111,6 +2123,10 @@ msgstr "Každý tvar sa začína kresbou. Nakreslite kružnicu."
 #: crates/ui-egui/src/onboarding.rs
 msgid "Every shortcut, as on the computer."
 msgstr "Všetky skratky ako na počítači."
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Every tool and option, nothing greyed out"
+msgstr "Všetky nástroje a možnosti, nič vyšednuté"
 
 #: crates/ui-egui/src/workspace/export.rs
 msgid "Everything Else"
@@ -2230,6 +2246,10 @@ msgstr "Vytiahnuť – jednostranne (E)"
 msgid "Extrude - To Object"
 msgstr "Vytiahnuť – k objektu"
 
+#: crates/kernel/src/lib.rs
+msgid "Extrude, push and pull"
+msgstr "Vytiahnutie, tlač a ťahaj"
+
 #: crates/ui-egui/src/workspace/history.rs
 msgid "Extrusion"
 msgstr "Vytiahnutie"
@@ -2281,6 +2301,10 @@ msgstr "Súbory sa pomenujú podľa položiek"
 msgid "File…"
 msgstr "Súbor…"
 
+#: crates/kernel/src/lib.rs
+msgid "Fill"
+msgstr "Vyplniť"
+
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/ui-egui/src/menubar.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
@@ -2316,6 +2340,10 @@ msgstr "Zaobliť náčrt"
 #: crates/ui-egui/src/whats_new.rs
 msgid "Fillet and Split Body show a card with every setting of the step, both while the tool runs and when you edit it from History. Drag the card anywhere; its ⋯ menu decides when it opens."
 msgstr "Zaoblenie a Rozdeliť teleso ukazujú kartu so všetkými nastaveniami kroku, počas nástroja aj pri úprave z histórie. Presuňte ju, kam chcete; ponuka ⋯ určuje, kedy sa otvorí."
+
+#: crates/kernel/src/lib.rs
+msgid "Fillet by chord width"
+msgstr "Zaoblenie podľa tetivy"
 
 #: crates/ui-egui/src/workspace/start_tool.rs
 msgid "Fillet rounds corners inside a sketch: start one first"
@@ -2615,6 +2643,10 @@ msgstr "História"
 msgid "Hold a bank card against the screen and drag the blue card's right edge (or use − and +) until both are the same size."
 msgstr "Priložte k obrazovke platobnú kartu a ťahajte pravý okraj modrej karty (alebo použite − a +), kým nebudú rovnaké."
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Hold still, then lift, for more options (like a right-click)"
+msgstr "Podržať a zdvihnúť: ďalšie možnosti (ako pravý klik)"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Hollow it out with Shell."
 msgstr "Vydute ho nástrojom Škrupina."
@@ -2653,6 +2685,10 @@ msgstr "O koľko môžu byť trojuholníky mimo skutočnej plochy"
 #: crates/ui-egui/src/setup.rs
 msgid "How should ShapeCraft look?"
 msgstr "Ako má ShapeCraft vyzerať?"
+
+#: crates/kernel/src/lib.rs
+msgid "IGES files"
+msgstr "Súbory IGES"
 
 #: crates/report/src/draft.rs
 #: crates/report/src/github.rs
@@ -2806,6 +2842,10 @@ msgstr "Vložiť bod prerušenia"
 #: crates/ui-egui/src/app.rs
 msgid "Insert Image"
 msgstr "Vložiť obrázok"
+
+#: crates/ui-egui/src/plugins.rs
+msgid "Installed"
+msgstr "Nainštalované"
 
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Installed. Open {} and sign in."
@@ -3139,6 +3179,18 @@ msgstr "Prepojené a neprepojené kópie"
 msgid "Linux"
 msgstr "Linux"
 
+#: crates/update/src/install.rs
+msgid "Linux .deb package"
+msgstr "balík .deb pre Linux"
+
+#: crates/update/src/install.rs
+msgid "Linux .rpm package"
+msgstr "balík .rpm pre Linux"
+
+#: crates/update/src/install.rs
+msgid "Linux download"
+msgstr "stiahnutie pre Linux"
+
 #: crates/doc/src/project.rs
 #: crates/ui-egui/src/landing.rs
 msgid "Local"
@@ -3312,6 +3364,10 @@ msgstr "Zlúči plochy a hrany ležiace na jednej ploche alebo krivke. Menej vä
 msgid "Merge now"
 msgstr "Zlúčiť teraz"
 
+#: crates/kernel/src/lib.rs
+msgid "Mesh bodies (STL, OBJ, 3MF)"
+msgstr "Sieťové telesá (STL, OBJ, 3MF)"
+
 msgid "Meshes (STL, OBJ)"
 msgstr "Siete (STL, OBJ)"
 
@@ -3421,6 +3477,10 @@ msgid "More options, like a right-click."
 msgstr "Ďalšie možnosti, ako pravé kliknutie."
 
 #: crates/ui-egui/src/onboarding.rs
+msgid "More options, like a right-click. No button? Turn on a hold for it in Preferences ▸ Tablet."
+msgstr "Ďalšie možnosti ako pravý klik. Bez tlačidla? Zapnite podržanie v Nastavenia ▸ Tablet."
+
+#: crates/ui-egui/src/onboarding.rs
 msgid "More options."
 msgstr "Ďalšie možnosti."
 
@@ -3449,6 +3509,10 @@ msgstr "Automatická orientácia posunu"
 msgid "Move Them"
 msgstr "Presunúť ich"
 
+#: crates/kernel/src/lib.rs
+msgid "Move faces"
+msgstr "Posun plôch"
+
 #: crates/ui-egui/src/workspace/sheet_views.rs
 msgid "Move the pointer to place the magnified view, then click"
 msgstr "Posuňte ukazovateľ na miesto zväčšeného pohľadu a kliknite"
@@ -3475,6 +3539,10 @@ msgstr "Presunuté do {} v priečinku projektov"
 #: crates/ui-egui/src/workspace/history.rs
 msgid "Movement"
 msgstr "Pohyb"
+
+#: crates/kernel/src/lib.rs
+msgid "Moving or scaling one edge"
+msgstr "Posun alebo mierka jednej hrany"
 
 #: crates/ui-egui/src/app.rs
 msgid "NX part"
@@ -3704,6 +3772,10 @@ msgstr "Nepodporované"
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Not available on this computer"
 msgstr "Na tomto počítači nedostupné"
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Not checked in this run"
+msgstr "V tomto spustení neoverené"
 
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Not on this computer."
@@ -4461,8 +4533,8 @@ msgid "Preferences"
 msgstr "Nastavenia"
 
 #: crates/ui-egui/src/whats_new.rs
-msgid "Preferences ▸ Language switches the toolbar, sidebars and cards to one of eleven languages."
-msgstr "Nastavenia ▸ Jazyk prepne panel nástrojov, bočné panely a karty do jedného z jedenástich jazykov."
+msgid "Preferences ▸ Language switches the toolbar, sidebars and cards to one of twelve languages."
+msgstr "Nastavenia ▸ Jazyk prepne panel nástrojov, bočné panely a karty do jedného z dvanástich jazykov."
 
 #: crates/ui-egui/src/menubar.rs
 msgid "Preferences…"
@@ -4614,6 +4686,10 @@ msgstr "Potiahnite kresbu nahor a bude plná."
 msgid "Pull the strip up: it becomes part of the base."
 msgstr "Vytiahnite pás nahor: stane sa súčasťou základne."
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Pure Rust: no C++ underneath to crash"
+msgstr "Čistý Rust: pod ním žiadne C++, čo by padlo"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Push a shape in and it cuts. Make a dip for the glass."
 msgstr "Tvar zatlačený dovnútra reže. Urobte priehlbinu na pohár."
@@ -4629,6 +4705,10 @@ msgstr "Zatlačte šípku nadol, do podložky"
 #: crates/ui-egui/src/tutorials.rs
 msgid "Put the cup where you want it."
 msgstr "Dajte pohár tam, kde ho chcete mať."
+
+#: crates/ui-egui/src/plugins.rs
+msgid "Put your model in any scene from a sentence, with your own AI account (OpenRouter, OpenAI, Google Gemini) or an AI on your own computer (ComfyUI). No limits but your provider's."
+msgstr "Vložte model do akejkoľvek scény jednou vetou, s vlastným účtom AI (OpenRouter, OpenAI, Google Gemini) alebo s AI vo vašom počítači (ComfyUI). Bez limitov okrem limitov poskytovateľa."
 
 #: crates/ui-egui/src/settings.rs
 #: crates/ui-egui/src/workspace/import_prefs.rs
@@ -4889,6 +4969,10 @@ msgstr "Rotovať"
 msgid "Revolve (V)"
 msgstr "Rotovať (V)"
 
+#: crates/kernel/src/lib.rs
+msgid "Revolve and threads"
+msgstr "Rotácia a závity"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Revolve: a Drawer Knob"
 msgstr "Rotovať: gombík na zásuvku"
@@ -4998,6 +5082,10 @@ msgstr "Priamková"
 #: crates/ui-egui/src/tutorials.rs
 msgid "Run a shape along a path, then join parts with Union"
 msgstr "Viesť tvar po dráhe a spojiť diely nástrojom Zjednotiť"
+
+#: crates/kernel/src/lib.rs
+msgid "STEP files"
+msgstr "Súbory STEP"
 
 #: crates/ui-egui/src/workspace/export.rs
 msgid "STL Triangle Mesh"
@@ -5619,6 +5707,10 @@ msgstr "Pracovný priečinok a zálohy nastavte na počítači, kde ShapeCraft b
 msgid "Setback"
 msgstr "Odstup"
 
+#: crates/kernel/src/lib.rs
+msgid "Setback corners"
+msgstr "Ustúpené rohy"
+
 #: crates/ui-egui/src/workspace/panels/titlebar.rs
 msgid "Settings"
 msgstr "Nastavenia"
@@ -5683,6 +5775,10 @@ msgstr "ShapeCraft nemá povolenie používať {}"
 #: crates/ui-egui/src/whats_new.rs
 msgid "ShapeCraft on iPhone"
 msgstr "ShapeCraft na iPhone"
+
+#: crates/ui-egui/src/plugins.rs
+msgid "ShapeCraft plugin"
+msgstr "Doplnok ShapeCraft"
 
 #: crates/ui-egui/src/app_log.rs
 #: crates/ui-egui/src/landing.rs
@@ -5928,6 +6024,10 @@ msgstr "Vodiace body náčrtu"
 #: crates/ui-egui/src/workspace/panels/context_menu.rs
 msgid "Sketch on Face"
 msgstr "Náčrt na ploche"
+
+#: crates/kernel/src/lib.rs
+msgid "Sketch regions"
+msgstr "Oblasti náčrtu"
 
 #: crates/ui-egui/src/workspace/panels/items.rs
 msgid "Sketches"
@@ -6887,6 +6987,10 @@ msgstr "Návody"
 msgid "Tutorials for everyone"
 msgstr "Návody pre každého"
 
+#: crates/ui-egui/src/whats_new.rs
+msgid "Twelve languages"
+msgstr "Dvanásť jazykov"
+
 #: crates/engine/src/history.rs
 msgid "Twist"
 msgstr "Skrútenie"
@@ -6902,6 +7006,10 @@ msgstr "Dva obrázky na výber."
 #: crates/ui-egui/src/workspace/badges.rs
 msgid "Two-Distance"
 msgstr "Dve vzdialenosti"
+
+#: crates/kernel/src/lib.rs
+msgid "Two-distance chamfers"
+msgstr "Skosenia s dvoma rozmermi"
 
 #: crates/ui-egui/src/onboarding.rs
 msgid "Two-finger scroll"
@@ -6961,6 +7069,10 @@ msgstr "Zjednotiť (Ctrl+U)"
 #: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Union (⌘ U)"
 msgstr "Zjednotiť (⌘ U)"
+
+#: crates/kernel/src/lib.rs
+msgid "Union, subtract, intersect"
+msgstr "Zjednotenie, odčítanie, prienik"
 
 #: crates/engine/src/cmd/edit.rs
 #: crates/ui-egui/src/menubar.rs
@@ -7070,6 +7182,10 @@ msgstr "Hodnota"
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Variable"
 msgstr "Premenlivé"
+
+#: crates/kernel/src/lib.rs
+msgid "Variable-radius fillets"
+msgstr "Zaoblenia s premenným polomerom"
 
 #: crates/ui-egui/src/workspace/panels/variables.rs
 #: crates/ui-egui/src/workspace/prefs.rs
@@ -7267,6 +7383,10 @@ msgstr "Prečo výber? Nijaké jediné slabé miesto: ak sa jedno jadro zasekne 
 #: crates/ui-egui/src/menubar.rs
 msgid "Window"
 msgstr "Okno"
+
+#: crates/update/src/install.rs
+msgid "Windows installer"
+msgstr "inštalátor Windows"
 
 #: crates/render/src/scene.rs
 #: crates/ui-egui/src/menubar.rs
@@ -7486,9 +7606,17 @@ msgstr "premenná má vlastnú jednotku"
 msgid "arrow keys"
 msgstr "šípky"
 
+#: crates/update/src/install.rs
+msgid "can't update in place"
+msgstr "nevie sa aktualizovať sám"
+
 #: crates/ui-egui/src/workspace/area.rs
 msgid "crossing"
 msgstr "pretínajúce"
+
+#: crates/update/src/install.rs
+msgid "development build"
+msgstr "vývojová verzia"
 
 #: crates/ui-egui/src/workspace/area.rs
 msgid "fully included"
@@ -7513,6 +7641,14 @@ msgstr "práve teraz"
 #: crates/ui-egui/src/app.rs
 msgid "less than a minute ago"
 msgstr "pred menej ako minútou"
+
+#: crates/update/src/install.rs
+msgid "macOS app"
+msgstr "aplikácia macOS"
+
+#: crates/update/src/install.rs
+msgid "managed by a launcher"
+msgstr "spravuje spúšťač"
 
 #: crates/ui-egui/src/app.rs
 msgid "no project open"
@@ -7541,6 +7677,10 @@ msgstr "alebo choďte na {} na ľubovoľnom telefóne či počítači"
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "or scan the code with its camera. Add it to the Home Screen to use"
 msgstr "alebo naskenujte kód jeho kamerou. Pridajte ho na plochu a používajte"
+
+#: crates/update/src/install.rs
+msgid "portable zip"
+msgstr "prenosný zip"
 
 #: crates/ui-egui/src/workspace/panels/popups.rs
 msgid "press "
@@ -7608,11 +7748,19 @@ msgstr "Obrázky: {#}"
 msgid "{#} items"
 msgstr "Položky: {#}"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "{#} match"
+msgstr "{#} zhodných"
+
 msgid "{#} min ago"
 msgstr "pred {#} min"
 
 msgid "{#} more waiting after this one."
 msgstr "Po tejto čaká ešte {#}."
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "{#} not yet"
+msgstr "{#} zatiaľ nie"
 
 msgid "{#} of {#} modeling checks pass"
 msgstr "Prejde {#} z {#} skúšok modelovania"
@@ -7631,6 +7779,10 @@ msgstr "Odpovede: {#}"
 
 msgid "{#} sketches"
 msgstr "Náčrty: {#}"
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "{#} with limits"
+msgstr "{#} s obmedzeniami"
 
 #: crates/ui-egui/src/landing.rs
 msgid "{n} min"

@@ -81,8 +81,8 @@ pub const ENTRIES: &[Entry] = &[
     },
     Entry {
         version: "0.2.0",
-        title: "Eleven languages",
-        text: "Preferences ▸ Language switches the toolbar, sidebars and cards to one of eleven languages.",
+        title: "Twelve languages",
+        text: "Preferences ▸ Language switches the toolbar, sidebars and cards to one of twelve languages.",
         art: "new-languages",
     },
     Entry {

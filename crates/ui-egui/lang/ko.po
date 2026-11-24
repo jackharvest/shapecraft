@@ -832,6 +832,10 @@ msgid "Cancel"
 msgstr "취소"
 
 #: crates/ui-egui/src/plugins.rs
+msgid "Cancelled"
+msgstr "취소됨"
+
+#: crates/ui-egui/src/plugins.rs
 msgid "Cancelled."
 msgstr "취소했습니다."
 
@@ -1619,6 +1623,10 @@ msgstr "수정일(최신순)"
 msgid "Date Modified (Oldest to Latest)"
 msgstr "수정일(오래된 순)"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Decades of industrial use behind it"
+msgstr "수십 년의 산업 현장 사용"
+
 #: crates/engine/src/cmd/visual.rs
 #: crates/ui-egui/src/workspace/decals.rs
 #: crates/ui-egui/src/workspace/visual.rs
@@ -1697,6 +1705,10 @@ msgstr "스케치 삭제"
 #: crates/ui-egui/src/workspace/history.rs
 msgid "Delete Variables"
 msgstr "변수 삭제"
+
+#: crates/kernel/src/lib.rs
+msgid "Delete faces"
+msgstr "면 삭제"
 
 #: crates/ui-egui/src/workspace/panels/popups.rs
 msgid "Delete key"
@@ -1892,6 +1904,10 @@ msgstr "{} 다운로드 중…"
 msgid "Draft Angle"
 msgstr "구배 각도"
 
+#: crates/kernel/src/lib.rs
+msgid "Draft angles"
+msgstr "구배 각도"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Drag an arrow to slide the cup"
 msgstr "화살표를 드래그해 컵을 옮기세요"
@@ -2047,10 +2063,6 @@ msgstr "편집..."
 msgid "Edit…"
 msgstr "편집…"
 
-#: crates/ui-egui/src/whats_new.rs
-msgid "Eleven languages"
-msgstr "열한 개 언어"
-
 #: crates/engine/src/cmd/sketch.rs
 #: crates/ui-egui/src/menubar.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
@@ -2111,6 +2123,10 @@ msgstr "모든 모양은 그림에서 시작합니다. 원을 그리세요."
 #: crates/ui-egui/src/onboarding.rs
 msgid "Every shortcut, as on the computer."
 msgstr "컴퓨터와 같은 모든 단축키."
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Every tool and option, nothing greyed out"
+msgstr "모든 도구와 옵션, 비활성 항목 없음"
 
 #: crates/ui-egui/src/workspace/export.rs
 msgid "Everything Else"
@@ -2230,6 +2246,10 @@ msgstr "돌출 - 한쪽(E)"
 msgid "Extrude - To Object"
 msgstr "돌출 - 물체까지"
 
+#: crates/kernel/src/lib.rs
+msgid "Extrude, push and pull"
+msgstr "돌출, 밀고 당기기"
+
 #: crates/ui-egui/src/workspace/history.rs
 msgid "Extrusion"
 msgstr "돌출"
@@ -2281,6 +2301,10 @@ msgstr "파일 이름은 항목 이름을 따릅니다"
 msgid "File…"
 msgstr "파일…"
 
+#: crates/kernel/src/lib.rs
+msgid "Fill"
+msgstr "채우기"
+
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/ui-egui/src/menubar.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
@@ -2316,6 +2340,10 @@ msgstr "스케치 필릿"
 #: crates/ui-egui/src/whats_new.rs
 msgid "Fillet and Split Body show a card with every setting of the step, both while the tool runs and when you edit it from History. Drag the card anywhere; its ⋯ menu decides when it opens."
 msgstr "필릿과 바디 분할은 단계의 모든 설정을 카드로 보여 줍니다. 도구 사용 중에도, 기록에서 편집할 때도. 카드는 어디로든 옮길 수 있고 ⋯ 메뉴에서 열리는 때를 정합니다."
+
+#: crates/kernel/src/lib.rs
+msgid "Fillet by chord width"
+msgstr "현 너비 필렛"
 
 #: crates/ui-egui/src/workspace/start_tool.rs
 msgid "Fillet rounds corners inside a sketch: start one first"
@@ -2615,6 +2643,10 @@ msgstr "기록"
 msgid "Hold a bank card against the screen and drag the blue card's right edge (or use − and +) until both are the same size."
 msgstr "은행 카드를 화면에 대고 파란 카드의 오른쪽 끝을 드래그(또는 −와 +)해 크기를 맞추세요."
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Hold still, then lift, for more options (like a right-click)"
+msgstr "멈췄다 떼면 추가 옵션(오른쪽 클릭처럼)"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Hollow it out with Shell."
 msgstr "쉘로 속을 파내세요."
@@ -2653,6 +2685,10 @@ msgstr "삼각형이 실제 면에서 얼마나 벗어나도 되는지"
 #: crates/ui-egui/src/setup.rs
 msgid "How should ShapeCraft look?"
 msgstr "ShapeCraft의 모습은 어떻게 할까요?"
+
+#: crates/kernel/src/lib.rs
+msgid "IGES files"
+msgstr "IGES 파일"
 
 #: crates/report/src/draft.rs
 #: crates/report/src/github.rs
@@ -2806,6 +2842,10 @@ msgstr "중단점 삽입"
 #: crates/ui-egui/src/app.rs
 msgid "Insert Image"
 msgstr "이미지 삽입"
+
+#: crates/ui-egui/src/plugins.rs
+msgid "Installed"
+msgstr "설치됨"
 
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Installed. Open {} and sign in."
@@ -3139,6 +3179,18 @@ msgstr "연결된 복사본과 연결되지 않은 복사본"
 msgid "Linux"
 msgstr "Linux"
 
+#: crates/update/src/install.rs
+msgid "Linux .deb package"
+msgstr "Linux .deb 패키지"
+
+#: crates/update/src/install.rs
+msgid "Linux .rpm package"
+msgstr "Linux .rpm 패키지"
+
+#: crates/update/src/install.rs
+msgid "Linux download"
+msgstr "Linux 다운로드"
+
 #: crates/doc/src/project.rs
 #: crates/ui-egui/src/landing.rs
 msgid "Local"
@@ -3312,6 +3364,10 @@ msgstr "같은 면이나 곡선 위의 면과 모서리를 합칩니다. 면이 
 msgid "Merge now"
 msgstr "지금 합치기"
 
+#: crates/kernel/src/lib.rs
+msgid "Mesh bodies (STL, OBJ, 3MF)"
+msgstr "메시 바디(STL, OBJ, 3MF)"
+
 msgid "Meshes (STL, OBJ)"
 msgstr "메시(STL, OBJ)"
 
@@ -3421,6 +3477,10 @@ msgid "More options, like a right-click."
 msgstr "오른쪽 클릭 같은 추가 옵션."
 
 #: crates/ui-egui/src/onboarding.rs
+msgid "More options, like a right-click. No button? Turn on a hold for it in Preferences ▸ Tablet."
+msgstr "오른쪽 클릭처럼 추가 옵션. 버튼이 없으면 환경설정 ▸ 태블릿에서 길게 누르기를 켜세요."
+
+#: crates/ui-egui/src/onboarding.rs
 msgid "More options."
 msgstr "추가 옵션."
 
@@ -3449,6 +3509,10 @@ msgstr "이동 시 자동 방향"
 msgid "Move Them"
 msgstr "옮기기"
 
+#: crates/kernel/src/lib.rs
+msgid "Move faces"
+msgstr "면 이동"
+
 #: crates/ui-egui/src/workspace/sheet_views.rs
 msgid "Move the pointer to place the magnified view, then click"
 msgstr "포인터를 움직여 확대 뷰를 놓고 클릭하세요"
@@ -3475,6 +3539,10 @@ msgstr "프로젝트 폴더의 {}(으)로 옮겼습니다"
 #: crates/ui-egui/src/workspace/history.rs
 msgid "Movement"
 msgstr "이동"
+
+#: crates/kernel/src/lib.rs
+msgid "Moving or scaling one edge"
+msgstr "모서리 하나 이동 또는 크기 조절"
 
 #: crates/ui-egui/src/app.rs
 msgid "NX part"
@@ -3704,6 +3772,10 @@ msgstr "지원 안 함"
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Not available on this computer"
 msgstr "이 컴퓨터에서는 쓸 수 없습니다"
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Not checked in this run"
+msgstr "이번 실행에서 확인 안 함"
 
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Not on this computer."
@@ -4461,8 +4533,8 @@ msgid "Preferences"
 msgstr "환경설정"
 
 #: crates/ui-egui/src/whats_new.rs
-msgid "Preferences ▸ Language switches the toolbar, sidebars and cards to one of eleven languages."
-msgstr "환경설정 ▸ 언어에서 도구 막대, 사이드바, 카드를 열한 언어 중 하나로 바꿉니다."
+msgid "Preferences ▸ Language switches the toolbar, sidebars and cards to one of twelve languages."
+msgstr "환경설정 ▸ 언어에서 도구 막대, 사이드바, 카드를 열두 언어 중 하나로 바꿉니다."
 
 #: crates/ui-egui/src/menubar.rs
 msgid "Preferences…"
@@ -4614,6 +4686,10 @@ msgstr "그림을 위로 당기면 입체가 됩니다."
 msgid "Pull the strip up: it becomes part of the base."
 msgstr "띠를 위로 당기면 받침의 일부가 됩니다."
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Pure Rust: no C++ underneath to crash"
+msgstr "순수 Rust: 충돌할 C++ 없음"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Push a shape in and it cuts. Make a dip for the glass."
 msgstr "모양을 밀어 넣으면 잘립니다. 컵이 놓일 홈을 만드세요."
@@ -4629,6 +4705,10 @@ msgstr "화살표를 컵 받침 안으로 밀어 내리세요"
 #: crates/ui-egui/src/tutorials.rs
 msgid "Put the cup where you want it."
 msgstr "컵을 원하는 곳에 두세요."
+
+#: crates/ui-egui/src/plugins.rs
+msgid "Put your model in any scene from a sentence, with your own AI account (OpenRouter, OpenAI, Google Gemini) or an AI on your own computer (ComfyUI). No limits but your provider's."
+msgstr "한 문장으로 모델을 어떤 장면에든 넣으세요. 내 AI 계정(OpenRouter, OpenAI, Google Gemini)이나 내 컴퓨터의 AI(ComfyUI)를 사용합니다. 제한은 제공업체의 것뿐입니다."
 
 #: crates/ui-egui/src/settings.rs
 #: crates/ui-egui/src/workspace/import_prefs.rs
@@ -4889,6 +4969,10 @@ msgstr "회전체"
 msgid "Revolve (V)"
 msgstr "회전체(V)"
 
+#: crates/kernel/src/lib.rs
+msgid "Revolve and threads"
+msgstr "회전과 나사"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Revolve: a Drawer Knob"
 msgstr "회전체: 서랍 손잡이"
@@ -4998,6 +5082,10 @@ msgstr "룰드"
 #: crates/ui-egui/src/tutorials.rs
 msgid "Run a shape along a path, then join parts with Union"
 msgstr "모양을 경로를 따라 움직이고 합집합으로 부품 잇기"
+
+#: crates/kernel/src/lib.rs
+msgid "STEP files"
+msgstr "STEP 파일"
 
 #: crates/ui-egui/src/workspace/export.rs
 msgid "STL Triangle Mesh"
@@ -5619,6 +5707,10 @@ msgstr "작업 폴더와 백업은 ShapeCraft를 실행하는 컴퓨터에서 �
 msgid "Setback"
 msgstr "셋백"
 
+#: crates/kernel/src/lib.rs
+msgid "Setback corners"
+msgstr "세트백 모서리"
+
 #: crates/ui-egui/src/workspace/panels/titlebar.rs
 msgid "Settings"
 msgstr "설정"
@@ -5683,6 +5775,10 @@ msgstr "ShapeCraft에 {} 사용 권한이 없습니다"
 #: crates/ui-egui/src/whats_new.rs
 msgid "ShapeCraft on iPhone"
 msgstr "iPhone용 ShapeCraft"
+
+#: crates/ui-egui/src/plugins.rs
+msgid "ShapeCraft plugin"
+msgstr "ShapeCraft 플러그인"
 
 #: crates/ui-egui/src/app_log.rs
 #: crates/ui-egui/src/landing.rs
@@ -5928,6 +6024,10 @@ msgstr "스케치 안내점"
 #: crates/ui-egui/src/workspace/panels/context_menu.rs
 msgid "Sketch on Face"
 msgstr "면에 스케치"
+
+#: crates/kernel/src/lib.rs
+msgid "Sketch regions"
+msgstr "스케치 영역"
 
 #: crates/ui-egui/src/workspace/panels/items.rs
 msgid "Sketches"
@@ -6887,6 +6987,10 @@ msgstr "튜토리얼"
 msgid "Tutorials for everyone"
 msgstr "모두를 위한 튜토리얼"
 
+#: crates/ui-egui/src/whats_new.rs
+msgid "Twelve languages"
+msgstr "열두 개 언어"
+
 #: crates/engine/src/history.rs
 msgid "Twist"
 msgstr "비틀기"
@@ -6902,6 +7006,10 @@ msgstr "두 장 중에서 선택."
 #: crates/ui-egui/src/workspace/badges.rs
 msgid "Two-Distance"
 msgstr "두 거리"
+
+#: crates/kernel/src/lib.rs
+msgid "Two-distance chamfers"
+msgstr "두 거리 모따기"
 
 #: crates/ui-egui/src/onboarding.rs
 msgid "Two-finger scroll"
@@ -6961,6 +7069,10 @@ msgstr "합집합(Ctrl+U)"
 #: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Union (⌘ U)"
 msgstr "합집합(⌘ U)"
+
+#: crates/kernel/src/lib.rs
+msgid "Union, subtract, intersect"
+msgstr "합치기, 빼기, 교차"
 
 #: crates/engine/src/cmd/edit.rs
 #: crates/ui-egui/src/menubar.rs
@@ -7070,6 +7182,10 @@ msgstr "값"
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Variable"
 msgstr "가변"
+
+#: crates/kernel/src/lib.rs
+msgid "Variable-radius fillets"
+msgstr "가변 반지름 필렛"
 
 #: crates/ui-egui/src/workspace/panels/variables.rs
 #: crates/ui-egui/src/workspace/prefs.rs
@@ -7267,6 +7383,10 @@ msgstr "왜 선택하나요? 한 곳이 무너져도 멈추지 않기 위해서�
 #: crates/ui-egui/src/menubar.rs
 msgid "Window"
 msgstr "윈도우"
+
+#: crates/update/src/install.rs
+msgid "Windows installer"
+msgstr "Windows 설치 프로그램"
 
 #: crates/render/src/scene.rs
 #: crates/ui-egui/src/menubar.rs
@@ -7486,9 +7606,17 @@ msgstr "변수는 자체 단위를 가집니다"
 msgid "arrow keys"
 msgstr "화살표 키"
 
+#: crates/update/src/install.rs
+msgid "can't update in place"
+msgstr "자체 업데이트 불가"
+
 #: crates/ui-egui/src/workspace/area.rs
 msgid "crossing"
 msgstr "교차"
+
+#: crates/update/src/install.rs
+msgid "development build"
+msgstr "개발 빌드"
 
 #: crates/ui-egui/src/workspace/area.rs
 msgid "fully included"
@@ -7513,6 +7641,14 @@ msgstr "방금"
 #: crates/ui-egui/src/app.rs
 msgid "less than a minute ago"
 msgstr "1분 이내"
+
+#: crates/update/src/install.rs
+msgid "macOS app"
+msgstr "macOS 앱"
+
+#: crates/update/src/install.rs
+msgid "managed by a launcher"
+msgstr "런처가 관리"
 
 #: crates/ui-egui/src/app.rs
 msgid "no project open"
@@ -7541,6 +7677,10 @@ msgstr "또는 아무 휴대폰이나 컴퓨터에서 {}(으)로 가세요"
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "or scan the code with its camera. Add it to the Home Screen to use"
 msgstr "카메라로 코드를 스캔하세요. 홈 화면에 추가하면"
+
+#: crates/update/src/install.rs
+msgid "portable zip"
+msgstr "휴대용 zip"
 
 #: crates/ui-egui/src/workspace/panels/popups.rs
 msgid "press "
@@ -7608,11 +7748,19 @@ msgstr "이미지 {#}개"
 msgid "{#} items"
 msgstr "항목 {#}개"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "{#} match"
+msgstr "{#}개 일치"
+
 msgid "{#} min ago"
 msgstr "{#}분 전"
 
 msgid "{#} more waiting after this one."
 msgstr "이 다음에 {#}개가 더 기다립니다."
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "{#} not yet"
+msgstr "{#}개 아직"
 
 msgid "{#} of {#} modeling checks pass"
 msgstr "모델링 검사 {#}/{#} 통과"
@@ -7631,6 +7779,10 @@ msgstr "답변 {#}개"
 
 msgid "{#} sketches"
 msgstr "스케치 {#}개"
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "{#} with limits"
+msgstr "{#}개 제한 있음"
 
 #: crates/ui-egui/src/landing.rs
 msgid "{n} min"

@@ -254,7 +254,13 @@ pub(super) fn card(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
         })
         .collect();
     p.add(egui::Shape::line(arc, Stroke::new(3.0, Tokens::accent())));
-    p.text(pos2(r.left() + 58.0, r.top() + 24.0), Align2::LEFT_CENTER, format!("{label}…"), theme::strong(14.0), Tokens::text_strong());
+    p.text(
+        pos2(r.left() + 58.0, r.top() + 24.0),
+        Align2::LEFT_CENTER,
+        crate::i18n::tr_s(format!("{label}…")),
+        theme::strong(14.0),
+        Tokens::text_strong(),
+    );
     let took =
         if secs < 60.0 { format!("Working for {secs:.0} s") } else { format!("Working for {:.0} min {:.0} s", secs / 60.0, secs % 60.0) };
     p.text(pos2(r.left() + 58.0, r.top() + 43.0), Align2::LEFT_CENTER, took, theme::body(12.0), Tokens::text_dim());

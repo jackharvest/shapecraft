@@ -235,7 +235,11 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
     {
         let ink = theme::c(0x1c1c1e);
         let g = p.layout_no_wrap(crate::i18n::tr_s("Normal to Sketch"), theme::strong(12.0), ink);
-        let r = Rect::from_center_size(pos2(vp.center().x, banner_bottom + 10.0 + 14.0), vec2(g.size().x + 52.0, 28.0));
+        // With no banner: under the title on a touch screen, and under a tutorial's card.
+        let card = ws.tutorial.as_deref().and_then(|t| t.spots.get("card")).map_or(f32::MIN, |r| r.bottom());
+        let title = if crate::tablet::touch_ui() && banner_bottom == vp.top() { ws.banner_y() - 8.0 } else { f32::MIN };
+        let under = banner_bottom.max(card).max(title);
+        let r = Rect::from_center_size(pos2(vp.center().x, under + 10.0 + 14.0), vec2(g.size().x + 52.0, 28.0));
         let resp = ui.interact(r, ui.scope_id().with("normal-to-sketch"), Sense::click());
         p.rect_filled(r, radius(9), if resp.hovered() { theme::c(0xe6e6ea) } else { theme::c(0xffffff) });
         // A plane seen at an angle with an arrow coming down onto it.
@@ -614,7 +618,7 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
                     hold = true;
                     ui.ctx().set_cursor_icon(egui::CursorIcon::PointingHand);
                 }
-                p.text(b.center(), Align2::CENTER_CENTER, "Report…", theme::strong(12.0), Tokens::icon_blue());
+                p.text(b.center(), Align2::CENTER_CENTER, crate::i18n::tr_s("Report…"), theme::strong(12.0), Tokens::icon_blue());
                 if resp.clicked() {
                     report = Some((k, f.clone()));
                 }

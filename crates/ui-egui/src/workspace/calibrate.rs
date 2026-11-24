@@ -27,7 +27,7 @@ pub(crate) fn card(ws: &mut Workspace, ui: &mut Ui) {
         p.text(
             pos2(r.left() + 20.0, r.top() + 26.0),
             Align2::LEFT_CENTER,
-            "Calibrate Actual Size",
+            crate::i18n::tr_s("Calibrate Actual Size"),
             theme::strong(15.0),
             Tokens::text_strong(),
         );

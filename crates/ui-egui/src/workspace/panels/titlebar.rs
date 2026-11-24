@@ -333,7 +333,7 @@ pub(in crate::workspace) fn viewer_welcome(ws: &mut Workspace, ui: &mut Ui, full
         let resp = ui.interact(ok, ui.scope_id().with("viewer-welcome-ok"), Sense::click());
         let p = ui.painter();
         p.rect_filled(ok, radius(10), if resp.hovered() { theme::c(0x2f7cf6) } else { Tokens::accent() });
-        p.text(ok.center(), Align2::CENTER_CENTER, "Got it", theme::strong(15.0), Color32::WHITE);
+        p.text(ok.center(), Align2::CENTER_CENTER, crate::i18n::tr_s("Got it"), theme::strong(15.0), Color32::WHITE);
         done = resp.clicked();
     });
     if done {

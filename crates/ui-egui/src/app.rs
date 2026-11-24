@@ -3094,7 +3094,7 @@ fn unfold_prompt(ui: &mut egui::Ui, waiting: Option<&LandingAction>, name: Optio
         p.text(
             pos2(card.center().x, card.top() + 146.0),
             Align2::CENTER_CENTER,
-            "Open up to model",
+            crate::i18n::tr_s("Open up to model"),
             theme::strong(20.0),
             Tokens::text_strong(),
         );

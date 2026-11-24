@@ -709,7 +709,7 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
             clip.text(
                 pos2(right.center().x, y + 26.0),
                 Align2::CENTER_CENTER,
-                format!("{} Formats Selected", order.len()),
+                crate::i18n::tr_s(format!("{} Formats Selected", order.len())),
                 theme::strong(15.0),
                 Tokens::text_strong(),
             );

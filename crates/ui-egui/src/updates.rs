@@ -149,11 +149,8 @@ fn pill_line(s: &Snapshot) -> Option<Line> {
 fn pill(ui: &mut Ui, full: Rect, state: &mut UpdateUi, snap: &Snapshot, line: &Line) -> Option<Action> {
     let p = ui.painter().clone();
     let font = theme::body(11.5);
-    let text = p.layout_no_wrap(
-        crate::i18n::tr_s(line.text.clone()),
-        font.clone(),
-        if line.strong { Tokens::text_strong() } else { Tokens::text_dim() },
-    );
+    let text =
+        p.layout_no_wrap(crate::i18n::tr_s(&line.text), font.clone(), if line.strong { Tokens::text_strong() } else { Tokens::text_dim() });
     let button_w = line.button.map_or(0.0, |b| p.layout_no_wrap(crate::i18n::tr_s(b), font.clone(), Color32::WHITE).size().x + 22.0);
     let w = (16.0 + 14.0 + text.size().x + 10.0 + button_w + if line.button.is_some() { 8.0 } else { 0.0 } + 22.0).min(full.width() - 32.0);
     let r = Rect::from_min_size(pos2(full.right() - 16.0 - w, full.bottom() - 16.0 - 32.0), vec2(w, 32.0));
@@ -254,7 +251,7 @@ fn card(ui: &mut Ui, full: Rect, pill: Rect, state: &mut UpdateUi, snap: &Snapsh
     let p = ui.painter().clone();
     let wrap = w - 32.0;
     let lines = plain_notes(&notes, 14);
-    let galleys: Vec<_> = lines.iter().map(|l| p.layout(l.clone(), theme::body(11.5), Tokens::text(), wrap)).collect();
+    let galleys: Vec<_> = lines.iter().map(|l| p.layout(crate::i18n::tr_s(l), theme::body(11.5), Tokens::text(), wrap)).collect();
     let notes_h: f32 = galleys.iter().map(|g| g.size().y + 3.0).sum::<f32>().min(300.0);
     let footer = match &snap.phase {
         Phase::Ready => "It installs when you close ShapeCraft.".to_string(),
@@ -273,14 +270,14 @@ fn card(ui: &mut Ui, full: Rect, pill: Rect, state: &mut UpdateUi, snap: &Snapsh
     p.text(
         pos2(r.left() + 16.0, r.top() + 22.0),
         Align2::LEFT_CENTER,
-        format!("ShapeCraft {version}"),
+        crate::i18n::tr_s(format!("ShapeCraft {version}")),
         theme::strong(14.0),
         Tokens::text_strong(),
     );
     p.text(
         pos2(r.left() + 16.0, r.top() + 42.0),
         Align2::LEFT_CENTER,
-        format!("You have {}. What's new:", snap.current),
+        crate::i18n::tr_s(format!("You have {}. What's new:", snap.current)),
         theme::body(11.0),
         Tokens::text_dim(),
     );
@@ -364,7 +361,9 @@ fn closing_question(ui: &mut Ui, full: Rect, state: &mut UpdateUi, snap: &Snapsh
                 Tokens::text_strong(),
             );
             let body = p.layout(
-                format!("ShapeCraft {version} is downloaded and ready. Installing takes a few seconds, and your work is saved first."),
+                crate::i18n::tr_s(format!(
+                    "ShapeCraft {version} is downloaded and ready. Installing takes a few seconds, and your work is saved first."
+                )),
                 theme::body(12.0),
                 Tokens::text(),
                 r.width() - 40.0,
@@ -441,11 +440,12 @@ pub fn prefs_section(ui: &mut Ui, col: f32, mut y: f32, s: &mut Settings, label:
     p.text(
         pos2(col, y),
         Align2::LEFT_CENTER,
-        format!("ShapeCraft {} ({})", snap.current, snap.install.label()),
+        crate::i18n::tr_s(format!("ShapeCraft {} ({})", snap.current, crate::i18n::tr(snap.install.label()))),
         theme::body(12.5),
         Tokens::text_strong(),
     );
-    let check_now = Rect::from_min_size(pos2(col + 250.0, y - 10.0), vec2(96.0, 20.0));
+    let words = p.layout_no_wrap(crate::i18n::tr_s("Check Now"), theme::body(12.5), Tokens::text_strong()).size().x;
+    let check_now = Rect::from_min_size(pos2(col + 250.0, y - 10.0), vec2(96f32.max(words + 20.0).min(130.0), 20.0));
     if button(ui, check_now, "Check Now", false, "pref-check") {
         Updater::global().check_now();
     }

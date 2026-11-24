@@ -153,7 +153,7 @@ pub(super) fn card(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
         })
         .collect();
     p.add(egui::Shape::line(arc, Stroke::new(3.0, theme::c(0x2e68ff))));
-    p.text(mid + vec2(0.0, -10.0), Align2::CENTER_CENTER, "Importing", theme::strong(21.0), Color32::WHITE);
+    p.text(mid + vec2(0.0, -10.0), Align2::CENTER_CENTER, crate::i18n::tr_s("Importing"), theme::strong(21.0), Color32::WHITE);
     p.text(mid + vec2(0.0, 22.0), Align2::CENTER_CENTER, file, theme::body(14.0), Color32::WHITE);
     let line = if total > 0 { format!("{stage}  {} of {}", group(done.min(total)), group(total)) } else { stage };
     p.text(mid + vec2(0.0, 50.0), Align2::CENTER_CENTER, line, theme::body(14.0), theme::c(0xa1a1a6));
@@ -168,7 +168,7 @@ pub(super) fn card(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     if t >= 5 {
         p.text(mid + vec2(0.0, 122.0), Align2::CENTER_CENTER, format!("{}:{:02}", t / 60, t % 60), theme::body(12.0), theme::c(0x6e6e73));
     }
-    let g = p.layout_no_wrap("Cancel".to_string(), theme::body(13.0), theme::c(0x8e8e93));
+    let g = p.layout_no_wrap(crate::i18n::tr_s("Cancel"), theme::body(13.0), theme::c(0x8e8e93));
     let cancel = Rect::from_center_size(mid + vec2(0.0, 92.0), g.size() + vec2(16.0, 8.0));
     let cr = ui.interact(cancel, ui.scope_id().with("import-running-cancel"), Sense::click());
     let ink = if cr.hovered() { Color32::WHITE } else { theme::c(0x8e8e93) };

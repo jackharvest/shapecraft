@@ -99,7 +99,7 @@ const ANDROID_CONTROLS: [&[(&str, &str)]; 2] = [
         ("Stylus tap", "Pick and press. Hovering lights what a tap picks."),
         ("Stylus drag", "Draw (a round stroke makes a circle), and drag handles and arrows."),
         ("Stylus hold, then drag", "Area Selection."),
-        ("Stylus button", "More options, like a right-click."),
+        ("Stylus button", "More options, like a right-click. No button? Turn on a hold for it in Preferences ▸ Tablet."),
         ("One finger drag", "Turn the view, even while drawing (fingers only move the view)."),
         ("Two fingers", "Pan, and pinch to zoom."),
         ("Finger double tap", "Zoom to the face."),

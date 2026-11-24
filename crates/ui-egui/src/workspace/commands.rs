@@ -254,7 +254,14 @@ impl Workspace {
         let key = format!("{id}{params}");
         if super::working::HEAVY.contains(&id) {
             if self.working.is_none() {
-                self.heavy_preview(id, &params, key);
+                self.heavy_preview(id, &params, key.clone());
+                if let Tool::Fillet(t) = &self.tool
+                    && t.dragging.is_some()
+                    && t.two.is_none()
+                    && let Some(p) = self.preview.as_mut().filter(|p| p.key == key)
+                {
+                    self.pull_limit.learn(t.radius, p);
+                }
             }
             return;
         }

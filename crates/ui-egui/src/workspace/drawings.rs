@@ -475,8 +475,26 @@ pub(crate) fn button(ui: &mut Ui, r: Rect, label: &str, primary: bool, id: &str)
         (false, true) => theme::c(0x68686c),
     };
     ui.painter().rect_filled(r, radius(6), fill);
-    ui.painter().text(r.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(label), theme::body(12.5), Color32::WHITE);
+    let g = fit_text(ui.painter(), &crate::i18n::tr_s(label), 12.5, r.width() - 10.0, Color32::WHITE);
+    ui.painter().galley(r.center() - g.size() / 2.0, g, Color32::WHITE);
     resp.clicked()
+}
+
+/// One line of text that fits `room`: a little smaller when it has to be, then cut with an ellipsis.
+pub(crate) fn fit_text(p: &egui::Painter, text: &str, size: f32, room: f32, color: Color32) -> std::sync::Arc<egui::Galley> {
+    let mut at = size;
+    loop {
+        let g = p.layout_no_wrap(text.to_string(), theme::body(at), color);
+        if g.size().x <= room || at <= size * 0.8 {
+            if g.size().x <= room {
+                return g;
+            }
+            let mut job = egui::text::LayoutJob::simple_singleline(text.to_string(), theme::body(at), color);
+            job.wrap = egui::text::TextWrapping::truncate_at_width(room);
+            return p.layout_job(job);
+        }
+        at -= 0.5;
+    }
 }
 
 /// Drawing Preferences, as observed: name, orientation, sheet size, scale, include four views.

@@ -663,7 +663,7 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
                 p.text(
                     pos2(lx, fy + 8.0),
                     Align2::LEFT_CENTER,
-                    format!("{n} {}", if n == 1 { "face" } else { "faces" }),
+                    crate::i18n::tr_s(format!("{n} {}", if n == 1 { "face" } else { "faces" })),
                     theme::body(9.5),
                     Tokens::text_dim(),
                 );

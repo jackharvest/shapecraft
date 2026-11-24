@@ -632,7 +632,7 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
                         (None, false) => *count,
                     };
                     let g = p.layout_no_wrap(
-                        format!("{count} {noun}{}", if count == 1 { "" } else { "s" }),
+                        crate::i18n::tr_s(format!("{count} {noun}{}", if count == 1 { "" } else { "s" })),
                         theme::strong(10.5),
                         Tokens::text_strong(),
                     );

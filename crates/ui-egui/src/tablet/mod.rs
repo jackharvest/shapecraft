@@ -49,6 +49,17 @@ pub(crate) fn mark_pen_seen() {
 }
 
 /// The app is on a touch screen of its own (Android): see `touch_ui`.
+/// Preferences ▸ Tablet ▸ Pen: holding the pen still and letting go is a right-click (pens without a button).
+static PEN_HOLD_MENU: AtomicBool = AtomicBool::new(false);
+
+pub fn set_pen_hold_menu(on: bool) {
+    PEN_HOLD_MENU.store(on, Ordering::Relaxed);
+}
+
+pub(crate) fn pen_hold_menu() -> bool {
+    PEN_HOLD_MENU.load(Ordering::Relaxed)
+}
+
 static TOUCH_SCREEN: AtomicBool = AtomicBool::new(false);
 /// A hardware keyboard is attached (Android says so in its configuration).
 static KEYBOARD: AtomicBool = AtomicBool::new(false);

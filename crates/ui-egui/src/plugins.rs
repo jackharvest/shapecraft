@@ -781,13 +781,11 @@ fn prefs(p: &mut Plugins, ui: &mut Ui, r: Rect) {
     let x0 = r.left() + 24.0;
     let x1 = r.right() - 24.0;
     let mut y = r.top() + 92.0;
-    painter.text(
-        pos2(r.center().x, y),
-        Align2::CENTER_CENTER,
-        "Add features you want. Plugins run sealed off and can only do what they ask for when you add them.",
-        theme::body(11.0),
-        Tokens::text_dim(),
-    );
+    let intro = crate::i18n::tr_s("Add features you want. Plugins run sealed off and can only do what they ask for when you add them.");
+    let mut job = egui::text::LayoutJob::simple(intro, theme::body(11.0), Tokens::text_dim(), r.width() - 48.0);
+    job.halign = egui::Align::Center;
+    let g = painter.layout_job(job);
+    painter.galley(pos2(r.center().x, y - g.size().y / 2.0), g, Tokens::text_dim());
     y += 26.0;
     // Installed | Browse
     let seg = Rect::from_center_size(pos2(r.center().x, y), vec2(200.0, 24.0));
@@ -800,7 +798,7 @@ fn prefs(p: &mut Plugins, ui: &mut Ui, r: Rect) {
     }
     y += 24.0;
     if let Some((tone, text)) = p.notice.clone() {
-        let g = painter.layout(text, theme::body(11.5), tone_color(tone), x1 - x0);
+        let g = painter.layout(crate::i18n::tr_s(text), theme::body(11.5), tone_color(tone), x1 - x0);
         painter.galley(pos2(x0, y - 6.0), g.clone(), tone_color(tone));
         y += g.size().y + 6.0;
     }
@@ -846,7 +844,7 @@ fn installed_row(p: &mut Plugins, ui: &mut Ui, inst: &Installed) {
         let open = p.selected.as_deref() == Some(id.as_str());
         let w = ui.available_width();
         let desc = p.start_errors.get(&id).cloned().unwrap_or_else(|| inst.manifest.description.clone());
-        let g = ui.painter().layout(desc, theme::body(10.5), Tokens::text_dim(), w - 150.0);
+        let g = ui.painter().layout(crate::i18n::tr_s(desc), theme::body(10.5), Tokens::text_dim(), w - 150.0);
         let (rect, resp) = ui.allocate_exact_size(vec2(w, (g.size().y + 40.0).max(58.0)), Sense::click());
         let painter = ui.painter().clone();
         painter.rect_filled(rect, radius(8), if open { Tokens::row_selected() } else { Tokens::chip() });
@@ -857,7 +855,13 @@ fn installed_row(p: &mut Plugins, ui: &mut Ui, inst: &Installed) {
         if inst.sideloaded {
             title.push_str("  · added from a file");
         }
-        painter.text(pos2(tx, rect.top() + 19.0), Align2::LEFT_CENTER, title, theme::strong(13.0), Tokens::text_strong());
+        painter.text(
+            pos2(tx, rect.top() + 19.0),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr_s(title),
+            theme::strong(13.0),
+            Tokens::text_strong(),
+        );
         painter.galley(pos2(tx, rect.top() + 30.0), g, Tokens::text_dim());
         let mut on = inst.enabled;
         switch(ui, rect.right() - 12.0, rect.center().y, ("plugin-on", hash(&id)), &mut on);
@@ -922,7 +926,7 @@ fn browse_list(p: &mut Plugins, ui: &mut Ui) {
             ui.painter().text(
                 r.center() + vec2(0.0, 20.0),
                 Align2::CENTER_CENTER,
-                "Getting the list…",
+                crate::i18n::tr_s("Getting the list…"),
                 theme::body(12.0),
                 Tokens::text_dim(),
             );
@@ -962,7 +966,7 @@ fn browse_list(p: &mut Plugins, ui: &mut Ui) {
 fn browse_row(p: &mut Plugins, ui: &mut Ui, e: &index::Entry) {
     let w = ui.available_width();
     let lines = e.manifest.permission_lines();
-    let g = ui.painter().layout(e.manifest.description.clone(), theme::body(10.5), Tokens::text_dim(), w - 160.0);
+    let g = ui.painter().layout(crate::i18n::tr_s(&e.manifest.description), theme::body(10.5), Tokens::text_dim(), w - 160.0);
     let gh = g.size().y;
     let h = (46.0 + gh + 14.0 * lines.len() as f32).max(58.0);
     let (rect, _) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
@@ -974,7 +978,7 @@ fn browse_row(p: &mut Plugins, ui: &mut Ui, e: &index::Entry) {
     painter.text(
         pos2(tx, rect.top() + 18.0),
         Align2::LEFT_CENTER,
-        format!("{}  {}", e.manifest.name, e.manifest.version),
+        crate::i18n::tr_s(format!("{}  {}", e.manifest.name, e.manifest.version)),
         theme::strong(13.0),
         Tokens::text_strong(),
     );
@@ -983,7 +987,7 @@ fn browse_row(p: &mut Plugins, ui: &mut Ui, e: &index::Entry) {
         painter.text(
             pos2(tx, rect.top() + 38.0 + gh + 14.0 * k as f32),
             Align2::LEFT_CENTER,
-            format!("• {l}"),
+            crate::i18n::tr_s(format!("• {l}")),
             theme::body(10.0),
             Tokens::text_faint(),
         );
@@ -1035,7 +1039,7 @@ fn note(ui: &mut Ui, text: &str, tone: Tone) {
         return;
     }
     let w = ui.available_width();
-    let g = ui.painter().layout(text.to_string(), theme::body(11.5), tone_color(tone), w);
+    let g = ui.painter().layout(crate::i18n::tr_s(text), theme::body(11.5), tone_color(tone), w);
     let (r, _) = ui.allocate_exact_size(vec2(w, g.size().y), Sense::hover());
     ui.painter().galley(r.min, g, tone_color(tone));
 }
@@ -1052,7 +1056,7 @@ fn segmented_at(ui: &Ui, r: Rect, id: &str, items: &[&str], current: usize) -> O
         if k == current {
             p.rect_filled(s.shrink(2.0), radius(5), theme::c(0x5c5c5e));
         }
-        p.text(s.center(), Align2::CENTER_CENTER, *item, theme::body(12.0), Tokens::text_strong());
+        p.text(s.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(*item), theme::body(12.0), Tokens::text_strong());
         if ui.interact(s, ui.scope_id().with((id, k)), Sense::click()).clicked() && k != current {
             picked = Some(k);
         }
@@ -1095,7 +1099,13 @@ fn column(p: &mut Plugins, ui: &mut Ui, plugin: &str, panel_id: &str) {
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), Sense::hover());
         spinner(ui.painter(), pos2(r.left() + 10.0, r.center().y), now);
         let label = if text.is_empty() { format!("Working ({a})…") } else { text };
-        ui.painter().text(pos2(r.left() + 26.0, r.center().y), Align2::LEFT_CENTER, label, theme::body(11.5), Tokens::text_dim());
+        ui.painter().text(
+            pos2(r.left() + 26.0, r.center().y),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr_s(label),
+            theme::body(11.5),
+            Tokens::text_dim(),
+        );
         if button(ui, r.right(), r.center().y, "Cancel", Style::Plain, true).0 {
             acts.push(Act::Cancel);
         }
@@ -1215,7 +1225,7 @@ fn control(
                 ui.painter().text(
                     pos2(row.left(), row.center().y),
                     Align2::LEFT_CENTER,
-                    "✓ Saved on this computer",
+                    crate::i18n::tr_s("✓ Saved on this computer"),
                     theme::body(12.0),
                     tone_color(Tone::Good),
                 );
@@ -1243,7 +1253,13 @@ fn control(
         Control::Toggle { id, label, .. } => {
             let mut on = values.get(id).and_then(Value::as_bool).unwrap_or(false);
             let (r, _) = ui.allocate_exact_size(vec2(w, 26.0), Sense::hover());
-            ui.painter().text(pos2(r.left(), r.center().y), Align2::LEFT_CENTER, label, theme::body(12.5), Tokens::text_strong());
+            ui.painter().text(
+                pos2(r.left(), r.center().y),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr_s(label),
+                theme::body(12.5),
+                Tokens::text_strong(),
+            );
             let before = on;
             switch(ui, r.right(), r.center().y, ("pl-toggle", hash(id)), &mut on);
             if on != before {
@@ -1269,7 +1285,7 @@ fn control(
         }
         Control::Button { label, action, primary, capture, enabled, .. } => {
             let row = ui.allocate_exact_size(vec2(w, 30.0), Sense::hover()).0;
-            let g = ui.painter().layout_no_wrap(label.clone(), theme::body(13.0), Color32::WHITE);
+            let g = ui.painter().layout_no_wrap(crate::i18n::tr_s(label), theme::body(13.0), Color32::WHITE);
             let right = row.left() + g.size().x + 26.0;
             let ok = enabled.unwrap_or(true) && running.is_none();
             if button(ui, right, row.center().y, label, if *primary { Style::Primary } else { Style::Plain }, ok).0 {
@@ -1373,7 +1389,7 @@ fn dim_and_card_at(ui: &mut Ui, id: egui::Id, w: f32, h: f32, offset: egui::Vec2
 
 /// A small rounded label over a picture: what made it.
 fn pill(p: &egui::Painter, left_top: egui::Pos2, text: &str, size: f32, accent: bool) -> f32 {
-    let g = p.layout_no_wrap(text.to_string(), theme::body(size), Color32::WHITE);
+    let g = p.layout_no_wrap(crate::i18n::tr_s(text), theme::body(size), Color32::WHITE);
     let r = Rect::from_min_size(left_top, vec2(g.size().x + size * 1.3, g.size().y + size * 0.55));
     p.rect_filled(
         r,
@@ -1576,9 +1592,11 @@ fn sheet(p: &mut Plugins, ui: &mut Ui) {
         let switch_h = if top.is_some() && !switch_in_header { switch_line_h(touch) + gap } else { 0.0 };
         let composer_h = composer_height(&mp, col_w, &prompt_text.0, &prompt_text.1, folded, connected, touch);
         let (placed, options_h) = lay_out(&mp, &rows, col_w, touch);
-        let notes_h: f32 = notes.iter().map(|(t, _)| mp.layout(t.clone(), theme::body(12.0), Color32::WHITE, col_w).size().y + 8.0).sum();
-        let msg_h =
-            msg.as_ref().map_or(0.0, |(_, s)| mp.layout(s.clone(), theme::body(12.0), Color32::WHITE, col_w - 20.0).size().y + 22.0);
+        let notes_h: f32 =
+            notes.iter().map(|(t, _)| mp.layout(crate::i18n::tr_s(t), theme::body(12.0), Color32::WHITE, col_w).size().y + 8.0).sum();
+        let msg_h = msg
+            .as_ref()
+            .map_or(0.0, |(_, s)| mp.layout(crate::i18n::tr_s(s), theme::body(12.0), Color32::WHITE, col_w - 20.0).size().y + 22.0);
         let strip_h = if all.is_empty() { 0.0 } else { 50.0 + gap };
         let rest = switch_h + composer_h + gap + options_h + if notes_h > 0.0 { 6.0 + notes_h } else { 0.0 } + msg_h + gap + strip_h;
         let ideal = (stage_w * 0.56).round();
@@ -1623,19 +1641,25 @@ fn sheet(p: &mut Plugins, ui: &mut Ui) {
             if icon_button(ui, Rect::from_center_size(pos2(x0 + 12.0, hy), vec2(28.0, 28.0)), "sheet-back", "Back", back_glyph) {
                 out.history = Some(false);
             }
-            painter.text(pos2(x0 + 34.0, hy), Align2::LEFT_CENTER, "History", theme::strong(15.0), Tokens::text_strong());
+            painter.text(
+                pos2(x0 + 34.0, hy),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr_s("History"),
+                theme::strong(15.0),
+                Tokens::text_strong(),
+            );
             if w >= 480.0 {
                 painter.text(
                     pos2(x0 + 104.0, hy),
                     Align2::LEFT_CENTER,
-                    format!("{} pictures, kept on this computer", all.len()),
+                    crate::i18n::tr_s(format!("{} pictures, kept on this computer", all.len())),
                     theme::body(11.5),
                     Tokens::text_dim(),
                 );
             }
         } else {
             let title = panel.as_ref().map(|p| p.title.clone()).unwrap_or_default();
-            painter.text(pos2(x0, hy), Align2::LEFT_CENTER, &title, theme::strong(15.0), Tokens::text_strong());
+            painter.text(pos2(x0, hy), Align2::LEFT_CENTER, crate::i18n::tr_s(title), theme::strong(15.0), Tokens::text_strong());
             if switch_in_header && let Some(t) = &top {
                 let r = Rect::from_center_size(pos2(card.center().x, hy), vec2(switch_w, switch_line_h(touch)));
                 header_switch(ui, r, t, &values, &mut acts);
@@ -1713,13 +1737,13 @@ fn sheet(p: &mut Plugins, ui: &mut Ui) {
                     y += 6.0;
                 }
                 for (text, tone) in &notes {
-                    let g = painter.layout(text.clone(), theme::body(12.0), tone_color(*tone), col_w);
+                    let g = painter.layout(crate::i18n::tr_s(text), theme::body(12.0), tone_color(*tone), col_w);
                     let gh = g.size().y;
                     painter.galley(pos2(bx0, y), g, tone_color(*tone));
                     y += gh + 8.0;
                 }
                 if let Some((tone, text)) = &msg {
-                    let g = painter.layout(text.clone(), theme::body(12.0), Tokens::text_strong(), col_w - 20.0);
+                    let g = painter.layout(crate::i18n::tr_s(text), theme::body(12.0), Tokens::text_strong(), col_w - 20.0);
                     let r = Rect::from_min_size(pos2(bx0, y), vec2(col_w, g.size().y + 14.0));
                     painter.rect_filled(r, radius(7), if *tone == Tone::Error { theme::c(0x58302f) } else { theme::c(0x2c2c2e) });
                     painter.galley(pos2(bx0 + 10.0, y + 7.0), g, Tokens::text_strong());
@@ -1738,7 +1762,7 @@ fn sheet(p: &mut Plugins, ui: &mut Ui) {
             painter.text(
                 pos2(x0, fy),
                 Align2::LEFT_CENTER,
-                "Made by the service you picked, on your own account or computer.",
+                crate::i18n::tr_s("Made by the service you picked, on your own account or computer."),
                 theme::body(11.0),
                 Tokens::text_faint(),
             );
@@ -1864,7 +1888,7 @@ fn draw_stage(
         painter.rect_stroke(stage, radius(10), Stroke::new(3.0, Tokens::accent().gamma_multiply(0.35 + 0.45 * pulse)), StrokeKind::Inside);
         spinner(painter, stage.center() - vec2(0.0, 26.0), now);
         let text = if progress.is_empty() { "Generating scene…" } else { progress };
-        painter.text(stage.center() + vec2(0.0, 2.0), Align2::CENTER_CENTER, text, theme::strong(13.5), Color32::WHITE);
+        painter.text(stage.center() + vec2(0.0, 2.0), Align2::CENTER_CENTER, crate::i18n::tr_s(text), theme::strong(13.5), Color32::WHITE);
     }
 }
 
@@ -1892,7 +1916,7 @@ fn composer_geometry(
         1.0
     } else {
         let g = p.layout(
-            if text.is_empty() { placeholder.to_string() } else { text.to_string() },
+            crate::i18n::tr_s(if text.is_empty() { placeholder.to_string() } else { text.to_string() }),
             theme::body(13.0),
             Color32::WHITE,
             field_w - 18.0,
@@ -1958,7 +1982,7 @@ fn composer(
         painter.text(
             pos2(field.left() + 6.0, field.center().y),
             Align2::LEFT_CENTER,
-            "Connect an AI to start",
+            crate::i18n::tr_s("Connect an AI to start"),
             theme::body(13.0),
             Tokens::text_dim(),
         );
@@ -1969,7 +1993,11 @@ fn composer(
     }
     if folded {
         let one = text.lines().next().unwrap_or("").to_string();
-        let g = painter.layout_no_wrap(if one.is_empty() { "(no description)".into() } else { one }, theme::body(13.0), Tokens::text_dim());
+        let g = painter.layout_no_wrap(
+            crate::i18n::tr_s(if one.is_empty() { "(no description)".into() } else { one }),
+            theme::body(13.0),
+            Tokens::text_dim(),
+        );
         let clip = Rect::from_min_max(field.min, pos2(field.right() - 4.0, field.max.y));
         painter.with_clip_rect(clip).galley(pos2(field.left() + 8.0, field.center().y - g.size().y / 2.0), g, Tokens::text_dim());
         if ui.interact(field, ui.scope_id().with("sheet-fold"), Sense::click()).on_hover_text("Edit the description").clicked() {
@@ -2061,7 +2089,7 @@ fn switch_parts(c: &Control) -> (Vec<String>, Vec<String>, &str) {
 }
 
 fn switch_seg_w(p: &egui::Painter, label: &str, icon: bool) -> f32 {
-    p.layout_no_wrap(label.to_string(), theme::body(12.5), Color32::WHITE).size().x + 30.0 + if icon { 22.0 } else { 0.0 }
+    p.layout_no_wrap(crate::i18n::tr_s(label), theme::body(12.5), Color32::WHITE).size().x + 30.0 + if icon { 22.0 } else { 0.0 }
 }
 
 fn switch_width(p: &egui::Painter, c: &Control) -> f32 {
@@ -2097,7 +2125,7 @@ fn header_switch(ui: &Ui, r: Rect, c: &Control, values: &Map<String, Value>, act
         } else if resp.hovered() {
             p.rect_filled(s, inner, Tokens::button_hover());
         }
-        let g = p.layout_no_wrap(o.clone(), theme::body(12.5), Color32::PLACEHOLDER);
+        let g = p.layout_no_wrap(crate::i18n::tr_s(o), theme::body(12.5), Color32::PLACEHOLDER);
         let icon = icons.get(k).filter(|i| known_icon(i));
         let total = g.size().x + if icon.is_some() { 22.0 } else { 0.0 };
         let mut tx = s.center().x - total / 2.0;
@@ -2138,7 +2166,7 @@ fn tiled(c: &Control) -> bool {
 }
 
 fn tile_w(p: &egui::Painter, label: &str, icon: &str) -> f32 {
-    let lw = p.layout_no_wrap(label.to_string(), theme::body(12.0), Color32::WHITE).size().x;
+    let lw = p.layout_no_wrap(crate::i18n::tr_s(label), theme::body(12.0), Color32::WHITE).size().x;
     (lw + 24.0).max(pict_size(icon).x + 28.0).max(if pict_size(icon).x < 50.0 { 58.0 } else { 104.0 })
 }
 
@@ -2155,7 +2183,7 @@ fn tile_count(c: &Control) -> usize {
 fn item_w(p: &egui::Painter, c: &Control, touch: bool) -> f32 {
     match c {
         Control::Segmented { options, .. } => options.iter().map(|o| g_w(p, o).max(40.0) - 4.0).sum(),
-        Control::Toggle { label, .. } => p.layout_no_wrap(label.clone(), theme::body(12.5), Color32::WHITE).size().x + 54.0,
+        Control::Toggle { label, .. } => p.layout_no_wrap(crate::i18n::tr_s(label), theme::body(12.5), Color32::WHITE).size().x + 54.0,
         Control::Menu { .. } => {
             if touch {
                 260.0
@@ -2163,7 +2191,7 @@ fn item_w(p: &egui::Painter, c: &Control, touch: bool) -> f32 {
                 220.0
             }
         }
-        Control::Button { label, .. } => p.layout_no_wrap(label.clone(), theme::body(12.0), Color32::WHITE).size().x + 20.0,
+        Control::Button { label, .. } => p.layout_no_wrap(crate::i18n::tr_s(label), theme::body(12.0), Color32::WHITE).size().x + 20.0,
         _ => 0.0,
     }
 }
@@ -2256,7 +2284,7 @@ fn lay_out(p: &egui::Painter, rows: &[Vec<Control>], width: f32, touch: bool) ->
             if z.items.iter().any(tiled) {
                 tile_h(touch)
             } else if let Some(t) = &z.text {
-                p.layout(t.clone(), theme::body(12.0), Color32::WHITE, inner).size().y.max(row_h)
+                p.layout(crate::i18n::tr_s(t), theme::body(12.0), Color32::WHITE, inner).size().y.max(row_h)
             } else {
                 row_h
             }
@@ -2284,7 +2312,7 @@ fn lay_out(p: &egui::Painter, rows: &[Vec<Control>], width: f32, touch: bool) ->
                     x += w + 8.0;
                 }
             } else if let Some(t) = &z.text {
-                let th = p.layout(t.clone(), theme::body(12.0), Color32::WHITE, inner).size().y;
+                let th = p.layout(crate::i18n::tr_s(t), theme::body(12.0), Color32::WHITE, inner).size().y;
                 placed.push(Placed::Text(
                     Rect::from_min_size(pos2(zr.left() + ZONE_PAD, top + (band - th) / 2.0), vec2(inner, th)),
                     t.clone(),
@@ -2316,14 +2344,14 @@ fn draw_options(ui: &mut Ui, placed: &[Placed], origin: egui::Pos2, values: &Map
                 p.text(
                     pos2(r.left() + ZONE_PAD, r.top() + ZONE_PAD * 0.75 + 9.0),
                     Align2::LEFT_CENTER,
-                    caption,
+                    crate::i18n::tr_s(caption),
                     theme::strong(11.5),
                     Tokens::text_dim(),
                 );
             }
             Placed::Text(r, text) => {
                 let r = r.translate(o);
-                let g = ui.painter().layout(text.clone(), theme::body(12.0), Tokens::text_dim(), r.width());
+                let g = ui.painter().layout(crate::i18n::tr_s(text), theme::body(12.0), Tokens::text_dim(), r.width());
                 // One line sits in the middle of its zone, longer text from the left.
                 let x = if g.rows.len() == 1 { r.center().x - g.size().x / 2.0 } else { r.left() };
                 ui.painter().galley(pos2(x, r.top()), g, Tokens::text_dim());
@@ -2382,7 +2410,7 @@ fn tile(ui: &Ui, r: Rect, id: egui::Id, label: &str, icon: &str, on: bool, check
     let ps = pict_size(icon);
     let pict = Rect::from_center_size(pos2(r.center().x, r.top() + 10.0 + 20.0), ps);
     pictogram(p, pict, icon, on);
-    let g = p.layout_no_wrap(label.to_string(), theme::body(12.0), Color32::PLACEHOLDER);
+    let g = p.layout_no_wrap(crate::i18n::tr_s(label), theme::body(12.0), Color32::PLACEHOLDER);
     let col = if on { Tokens::text_strong() } else { Tokens::text_dim() };
     let lr = Rect::from_min_max(pos2(r.left() + 4.0, r.top()), pos2(r.right() - 4.0, r.bottom()));
     p.with_clip_rect(lr).galley(pos2(r.center().x - g.size().x / 2.0, r.bottom() - 10.0 - g.size().y), g, col);
@@ -2595,7 +2623,7 @@ fn glyph(p: &egui::Painter, r: Rect, name: &str, col: Color32) {
 
 /// A push button's width for `label`.
 fn g_w(p: &egui::Painter, label: &str) -> f32 {
-    p.layout_no_wrap(label.to_string(), theme::body(13.0), Color32::WHITE).size().x + 26.0
+    p.layout_no_wrap(crate::i18n::tr_s(label), theme::body(13.0), Color32::WHITE).size().x + 26.0
 }
 
 /// Every picture kept, newest first: the picture with what made it, when, the words, and Save / Copy / Use Prompt /
@@ -2658,8 +2686,14 @@ fn history_grid(
                 }
                 px += pill(&p.with_clip_rect(img), pos2(px, img.top() + 6.0), t, 9.5, k == 0) + 4.0;
             }
-            p.text(pos2(cell.left(), img.bottom() + 12.0), Align2::LEFT_CENTER, when(e.time), theme::strong(11.0), Tokens::text_dim());
-            let g = p.layout(e.title.clone(), theme::body(11.5), Tokens::text_strong(), cw);
+            p.text(
+                pos2(cell.left(), img.bottom() + 12.0),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr_s(when(e.time)),
+                theme::strong(11.0),
+                Tokens::text_dim(),
+            );
+            let g = p.layout(crate::i18n::tr_s(&e.title), theme::body(11.5), Tokens::text_strong(), cw);
             let clip = Rect::from_min_size(pos2(cell.left(), img.bottom() + 20.0), vec2(cw, 30.0));
             p.with_clip_rect(clip).galley(clip.min, g, Tokens::text_strong());
             let ly = cell.bottom() - 10.0;
@@ -2698,7 +2732,7 @@ fn inline_control(ui: &mut Ui, c: &Control, values: &Map<String, Value>, h: f32,
         }
         Control::Toggle { id, label, .. } => {
             let mut on = values.get(id).and_then(Value::as_bool).unwrap_or(false);
-            let g = ui.painter().layout_no_wrap(label.clone(), theme::body(12.5), Tokens::text_strong());
+            let g = ui.painter().layout_no_wrap(crate::i18n::tr_s(label), theme::body(12.5), Tokens::text_strong());
             let (r, _) = ui.allocate_exact_size(vec2(g.size().x + 54.0, h), Sense::hover());
             ui.painter().galley(pos2(r.left(), r.center().y - g.size().y / 2.0), g, Tokens::text_strong());
             let before = on;
@@ -2719,7 +2753,7 @@ fn inline_control(ui: &mut Ui, c: &Control, values: &Map<String, Value>, h: f32,
         }
         Control::Button { label, action, capture, .. } => {
             // A small pill (the free chats).
-            let g = ui.painter().layout_no_wrap(label.clone(), theme::body(12.0), Tokens::text_strong());
+            let g = ui.painter().layout_no_wrap(crate::i18n::tr_s(label), theme::body(12.0), Tokens::text_strong());
             let (r, resp) = ui.allocate_exact_size(vec2(g.size().x + 20.0, h - 6.0), Sense::click());
             let fill = if resp.hovered() { Tokens::button_hover() } else { Tokens::chip() };
             ui.painter().rect_filled(r, radius(((r.height() / 2.0) as u8).max(4)), fill);
@@ -2766,14 +2800,14 @@ fn handoff_card(p: &mut Plugins, ui: &mut Ui) {
         painter.text(
             pos2(x0, card.top() + 34.0),
             Align2::LEFT_CENTER,
-            format!("Make it in {site}, free"),
+            crate::i18n::tr_s(format!("Make it in {site}, free")),
             theme::strong(17.0),
             Tokens::text_strong(),
         );
         painter.text(
             pos2(x0, card.top() + 56.0),
             Align2::LEFT_CENTER,
-            format!("{site} is opening in your browser. Sign in there if it asks."),
+            crate::i18n::tr_s(format!("{site} is opening in your browser. Sign in there if it asks.")),
             theme::body(12.0),
             Tokens::text_dim(),
         );
@@ -2794,9 +2828,9 @@ fn handoff_card(p: &mut Plugins, ui: &mut Ui) {
         for (k, (t, d)) in steps.iter().enumerate() {
             let c = pos2(x0 + 11.0, y + 8.0);
             painter.circle_filled(c, 11.0, Tokens::accent());
-            painter.text(c, Align2::CENTER_CENTER, format!("{}", k + 1), theme::strong(12.0), Color32::WHITE);
-            painter.text(pos2(x0 + 32.0, y), Align2::LEFT_CENTER, t, theme::strong(13.0), Tokens::text_strong());
-            painter.text(pos2(x0 + 32.0, y + 17.0), Align2::LEFT_CENTER, d, theme::body(11.5), Tokens::text_dim());
+            painter.text(c, Align2::CENTER_CENTER, crate::i18n::tr_s(format!("{}", k + 1)), theme::strong(12.0), Color32::WHITE);
+            painter.text(pos2(x0 + 32.0, y), Align2::LEFT_CENTER, crate::i18n::tr_s(t), theme::strong(13.0), Tokens::text_strong());
+            painter.text(pos2(x0 + 32.0, y + 17.0), Align2::LEFT_CENTER, crate::i18n::tr_s(d), theme::body(11.5), Tokens::text_dim());
             y += 46.0;
         }
         let note = match copied {
@@ -2804,7 +2838,7 @@ fn handoff_card(p: &mut Plugins, ui: &mut Ui) {
             Some("words") => "The description is on the clipboard.",
             _ => "",
         };
-        painter.text(pos2(x0, y + 2.0), Align2::LEFT_CENTER, note, theme::body(11.5), tone_color(Tone::Good));
+        painter.text(pos2(x0, y + 2.0), Align2::LEFT_CENTER, crate::i18n::tr_s(note), theme::body(11.5), tone_color(Tone::Good));
         let by = card.bottom() - 30.0;
         painter.hline(card.x_range(), by - 24.0, Stroke::new(1.0, Tokens::divider()));
         let (copy, r1) = button(ui, card.right() - pad + 8.0, by, "Copy Description", Style::Primary, true);
@@ -2918,8 +2952,8 @@ fn feature_rows(p: &egui::Painter, top: egui::Pos2, w: f32, rows: &[(&str, &str)
         .iter()
         .map(|(title, detail)| {
             let font = if detail.is_empty() { theme::body(13.0) } else { theme::strong(13.0) };
-            let t = p.layout(title.to_string(), font, Tokens::text_strong(), text_w);
-            let d = (!detail.is_empty()).then(|| p.layout(detail.to_string(), theme::body(11.5), Tokens::text_dim(), text_w));
+            let t = p.layout(crate::i18n::tr_s(title), font, Tokens::text_strong(), text_w);
+            let d = (!detail.is_empty()).then(|| p.layout(crate::i18n::tr_s(detail), theme::body(11.5), Tokens::text_dim(), text_w));
             (t, d)
         })
         .collect();
@@ -2967,7 +3001,7 @@ fn offer_card(p: &mut Plugins, ui: &mut Ui) {
         painter.text(
             pos2(card.center().x, y + 11.0),
             Align2::CENTER_CENTER,
-            "Generative Render",
+            crate::i18n::tr_s("Generative Render"),
             theme::strong(19.0),
             Tokens::text_strong(),
         );
@@ -3004,7 +3038,13 @@ fn offer_card(p: &mut Plugins, ui: &mut Ui) {
                 }
             }
             (None, Some(e)) => {
-                painter.text(pos2(card.left() + pad, by), Align2::LEFT_CENTER, short(e, 46), theme::body(11.5), Tokens::danger());
+                painter.text(
+                    pos2(card.left() + pad, by),
+                    Align2::LEFT_CENTER,
+                    crate::i18n::tr_s(short(e, 46)),
+                    theme::body(11.5),
+                    Tokens::danger(),
+                );
                 if button(ui, card.right() - pad + 8.0, by, "Try Again", Style::Primary, true).0 {
                     retry = true;
                 }
@@ -3014,7 +3054,7 @@ fn offer_card(p: &mut Plugins, ui: &mut Ui) {
                 painter.text(
                     pos2(card.left() + pad + 24.0, by),
                     Align2::LEFT_CENTER,
-                    "Looking it up…",
+                    crate::i18n::tr_s("Looking it up…"),
                     theme::body(12.0),
                     Tokens::text_dim(),
                 );
@@ -3070,7 +3110,7 @@ fn confirm_card(p: &mut Plugins, ui: &mut Ui) {
         painter.text(
             pos2(x0 + 64.0, card.top() + 42.0),
             Align2::LEFT_CENTER,
-            format!("Add {}?", m.name),
+            crate::i18n::tr_s(format!("Add {}?", m.name)),
             theme::strong(17.0),
             Tokens::text_strong(),
         );
@@ -3078,17 +3118,19 @@ fn confirm_card(p: &mut Plugins, ui: &mut Ui) {
         painter.text(
             pos2(x0 + 64.0, card.top() + 63.0),
             Align2::LEFT_CENTER,
-            format!("{by}version {}", m.version),
+            crate::i18n::tr_s(format!("{by}version {}", m.version)),
             theme::body(12.0),
             Tokens::text_dim(),
         );
         let mut y = card.top() + 100.0;
-        painter.text(pos2(x0, y), Align2::LEFT_CENTER, "It will be able to", theme::strong(12.0), Tokens::text_dim());
+        painter.text(pos2(x0, y), Align2::LEFT_CENTER, crate::i18n::tr_s("It will be able to"), theme::strong(12.0), Tokens::text_dim());
         y += 14.0;
         let rows: Vec<(&str, &str)> = split.iter().map(|(t, d)| (t.as_str(), d.as_str())).collect();
         y += feature_rows(&painter, pos2(x0, y), card.width() - 2.0 * pad, &rows, theme::fixed(0x3d9a50)) + 14.0;
         let g = painter.layout(
-            "Nothing else: not your files, not other plugins. You can switch it off or remove it any time in Preferences ▸ Plugins.".into(),
+            crate::i18n::tr_s(
+                "Nothing else: not your files, not other plugins. You can switch it off or remove it any time in Preferences ▸ Plugins.",
+            ),
             theme::body(11.5),
             Tokens::text_dim(),
             card.width() - 2.0 * pad,
@@ -3098,7 +3140,9 @@ fn confirm_card(p: &mut Plugins, ui: &mut Ui) {
         y += gh + 12.0;
         if from_file {
             let g = painter.layout(
-                "This one comes from a file, not ShapeCraft's reviewed list. Only add it if you trust where it came from.".into(),
+                crate::i18n::tr_s(
+                    "This one comes from a file, not ShapeCraft's reviewed list. Only add it if you trust where it came from.",
+                ),
                 theme::body(11.5),
                 tone_color(Tone::Warning),
                 card.width() - 2.0 * pad,
@@ -3139,7 +3183,7 @@ fn approval_card(p: &mut Plugins, ui: &mut Ui) {
         if spend.what.is_empty() { "something".to_string() } else { spend.what.clone() },
         if spend.estimate.is_empty() { String::new() } else { format!(" ({})", spend.estimate) },
     );
-    let measure = |text: &str, font: egui::FontId| ctx.fonts_mut(|f| f.layout(text.to_string(), font, Color32::WHITE, tw).size().y);
+    let measure = |text: &str, font: egui::FontId| ctx.fonts_mut(|f| f.layout(crate::i18n::tr_s(text), font, Color32::WHITE, tw).size().y);
     let body_h = measure(&body, theme::body(13.0));
     let detail_h = if spend.detail.is_empty() { 0.0 } else { measure(&spend.detail, theme::body(12.0)) + 22.0 };
     let h = 132.0 + body_h + detail_h + if more > 0 { 22.0 } else { 0.0 };
@@ -3150,19 +3194,19 @@ fn approval_card(p: &mut Plugins, ui: &mut Ui) {
         painter.text(
             pos2(x0, y),
             Align2::LEFT_CENTER,
-            format!("Allow {who} to charge your account?"),
+            crate::i18n::tr_s(format!("Allow {who} to charge your account?")),
             theme::strong(17.0),
             Tokens::text_strong(),
         );
         y += 24.0;
-        let g = painter.layout(body.clone(), theme::body(13.0), Tokens::text(), tw);
+        let g = painter.layout(crate::i18n::tr_s(body), theme::body(13.0), Tokens::text(), tw);
         y += {
             let gh = g.size().y;
             painter.galley(pos2(x0, y), g, Tokens::text());
             gh
         } + 12.0;
         if !spend.detail.is_empty() {
-            let g = painter.layout(format!("“{}”", spend.detail), theme::body(12.0), Tokens::text_dim(), tw);
+            let g = painter.layout(crate::i18n::tr_s(format!("“{}”", spend.detail)), theme::body(12.0), Tokens::text_dim(), tw);
             let gh = g.size().y;
             painter.galley(pos2(x0, y), g, Tokens::text_dim());
             y += gh + 10.0;
@@ -3171,7 +3215,7 @@ fn approval_card(p: &mut Plugins, ui: &mut Ui) {
             painter.text(
                 pos2(x0, y + 6.0),
                 Align2::LEFT_CENTER,
-                format!("{more} more waiting after this one."),
+                crate::i18n::tr_s(format!("{more} more waiting after this one.")),
                 theme::body(11.5),
                 Tokens::text_dim(),
             );
@@ -3235,11 +3279,17 @@ fn add_card(p: &mut Plugins, ui: &mut Ui) {
                 painter.text(
                     pos2(c, card.top() + 118.0),
                     Align2::CENTER_CENTER,
-                    format!("Adding {name}"),
+                    crate::i18n::tr_s(format!("Adding {name}")),
                     theme::strong(17.0),
                     Tokens::text_strong(),
                 );
-                painter.text(pos2(c, card.top() + 144.0), Align2::CENTER_CENTER, step, theme::body(12.5), Tokens::text_dim());
+                painter.text(
+                    pos2(c, card.top() + 144.0),
+                    Align2::CENTER_CENTER,
+                    crate::i18n::tr_s(step),
+                    theme::body(12.5),
+                    Tokens::text_dim(),
+                );
                 let bar = Rect::from_center_size(pos2(c, card.top() + 178.0), vec2(card.width() - 2.0 * pad - 40.0, 6.0));
                 painter.rect_filled(bar, radius(3), theme::c(0x3a3a3c));
                 let fill = Rect::from_min_size(bar.min, vec2(bar.width() * (0.08 + 0.92 * t), bar.height()));
@@ -3247,7 +3297,7 @@ fn add_card(p: &mut Plugins, ui: &mut Ui) {
                 painter.text(
                     pos2(c, by),
                     Align2::CENTER_CENTER,
-                    "It runs sealed off, with only the permissions you just saw.",
+                    crate::i18n::tr_s("It runs sealed off, with only the permissions you just saw."),
                     theme::body(11.5),
                     Tokens::text_faint(),
                 );
@@ -3257,7 +3307,7 @@ fn add_card(p: &mut Plugins, ui: &mut Ui) {
                 painter.text(
                     pos2(c, card.top() + 118.0),
                     Align2::CENTER_CENTER,
-                    format!("{name} is ready"),
+                    crate::i18n::tr_s(format!("{name} is ready")),
                     theme::strong(17.0),
                     Tokens::text_strong(),
                 );
@@ -3281,7 +3331,7 @@ fn add_card(p: &mut Plugins, ui: &mut Ui) {
                 painter.text(
                     pos2(c, card.top() + 118.0),
                     Align2::CENTER_CENTER,
-                    format!("{name} couldn't be added"),
+                    crate::i18n::tr_s(format!("{name} couldn't be added")),
                     theme::strong(17.0),
                     Tokens::text_strong(),
                 );

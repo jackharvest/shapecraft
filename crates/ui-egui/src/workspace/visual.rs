@@ -162,6 +162,10 @@ pub(super) fn pill_menu<K: std::hash::Hash + std::fmt::Debug>(
     id: K,
 ) -> Option<&'static str> {
     let p = ui.painter().clone();
+    // Wide enough for its words, growing to the left.
+    let words = |t: &str| p.layout_no_wrap(crate::i18n::tr_s(t), theme::body(12.5), Tokens::text()).size().x;
+    let pill = Rect::from_min_max(pos2(pill.left().min(pill.right() - words(label) - 30.0), pill.top()), pill.max);
+    let menu_w = choices.iter().map(|c| words(c) + 36.0).fold(130.0, f32::max);
     let open_id = ui.scope_id().with(("pill-open", &id));
     let resp = ui.interact(pill, ui.scope_id().with(("pill", &id)), Sense::click());
     p.rect_filled(pill, radius(5), if resp.hovered() { theme::c(0x5a5a5e) } else { theme::c(0x4a4a4e) });
@@ -176,15 +180,15 @@ pub(super) fn pill_menu<K: std::hash::Hash + std::fmt::Debug>(
     let mut picked = None;
     if open {
         let menu = egui::Area::new(open_id.with("menu"))
-            .fixed_pos(pill.right_bottom() + vec2(-130.0, 4.0))
+            .fixed_pos(pill.right_bottom() + vec2(-menu_w, 4.0))
             .order(egui::Order::Foreground)
             .show(ui.ctx(), |ui| {
-                let (rect, _) = ui.allocate_exact_size(vec2(130.0, 8.0 + 22.0 * choices.len() as f32), Sense::hover());
+                let (rect, _) = ui.allocate_exact_size(vec2(menu_w, 8.0 + 22.0 * choices.len() as f32), Sense::hover());
                 let mp = ui.painter();
                 mp.rect_filled(rect, radius(8), theme::themed(Color32::from_rgba_unmultiplied(30, 30, 33, 245)));
                 mp.rect_stroke(rect, radius(8), Stroke::new(1.0, theme::c(0x48484c)), StrokeKind::Inside);
                 for (k, c) in choices.iter().enumerate() {
-                    let row = Rect::from_min_size(pos2(rect.left() + 4.0, rect.top() + 4.0 + 22.0 * k as f32), vec2(122.0, 22.0));
+                    let row = Rect::from_min_size(pos2(rect.left() + 4.0, rect.top() + 4.0 + 22.0 * k as f32), vec2(menu_w - 8.0, 22.0));
                     let rr = ui.interact(row, open_id.with(k), Sense::click());
                     if rr.hovered() {
                         mp.rect_filled(row, radius(5), theme::c(0x213cb0));
@@ -192,7 +196,13 @@ pub(super) fn pill_menu<K: std::hash::Hash + std::fmt::Debug>(
                     if *c == label {
                         mp.text(pos2(row.left() + 6.0, row.center().y), Align2::LEFT_CENTER, "✓", theme::body(12.0), Tokens::text());
                     }
-                    mp.text(pos2(row.left() + 20.0, row.center().y), Align2::LEFT_CENTER, *c, theme::body(12.5), Tokens::text());
+                    mp.text(
+                        pos2(row.left() + 20.0, row.center().y),
+                        Align2::LEFT_CENTER,
+                        crate::i18n::tr(c),
+                        theme::body(12.5),
+                        Tokens::text(),
+                    );
                     if rr.clicked() {
                         picked = Some(*c);
                     }
@@ -824,17 +834,23 @@ fn env_properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
         y += 12.0;
         let c = ws.vis_draft.unwrap_or(theme::c(backdrop(&v)));
         let (picked, used) = color_picker(ui, left, y, w, c, "backdrop");
+        let params = |c: Color32| json!({ "background": [c.r() as f32 / 255.0, c.g() as f32 / 255.0, c.b() as f32 / 255.0] });
+        let set = |ws: &mut Workspace, c: Color32| {
+            let _ = ws.run("visual_settings", params(c));
+        };
+        // The view follows the knob as it's dragged; the whole drag is one step.
         if let Some(c) = picked {
+            if ws.vis_draft.is_none() {
+                ws.live_step = None;
+            }
+            if ws.vis_draft != Some(c) {
+                ws.live_run("visual_settings", params(c));
+            }
             ws.vis_draft = Some(c);
         }
-        let set = |ws: &mut Workspace, c: Color32| {
-            let _ = ws.run("visual_settings", json!({ "background": [c.r() as f32 / 255.0, c.g() as f32 / 255.0, c.b() as f32 / 255.0] }));
-        };
-        if let Some(d) = ws.vis_draft
-            && !ui.input(|i| i.pointer.any_down())
-        {
+        if ws.vis_draft.is_some() && !ui.input(|i| i.pointer.any_down()) {
             ws.vis_draft = None;
-            set(ws, d);
+            ws.live_step = None;
         }
         let swatches = [0xffffff, 0xd0d0d2, 0x8e8e93, 0xf5d936, 0xf29b2c, 0xe5483d, 0xa660e0, 0x3a50e0, 0x3fc3f0, 0x3fbf6f];
         for (i, sw) in swatches.iter().enumerate() {
@@ -1032,27 +1048,34 @@ fn properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     let base = face_color.or(look.as_ref().map(|a| a.color)).unwrap_or([0.627, 0.627, 0.643]);
     let c = ws.vis_draft.unwrap_or(srgb(base));
     let (picked, used) = color_picker(ui, r.left() + 14.0, y, r.width() - 28.0, c, "body");
-    if let Some(p) = picked {
-        ws.vis_draft = Some(p);
-    }
-    let released = !ui.input(|i| i.pointer.any_down());
-    let set_color = |ws: &mut Workspace, c: Color32| {
+    let request = |ws: &Workspace, c: Color32| -> (&'static str, serde_json::Value) {
         let rgb = [c.r() as f32 / 255.0, c.g() as f32 / 255.0, c.b() as f32 / 255.0];
-        let has_faces = ws.session.selection.iter().any(|p| matches!(p, Pick::Face { .. }));
-        if has_faces {
-            let _ = ws.run("set_face_color", json!({ "color": rgb }));
-        } else {
-            let mut a = look_or_default(ws);
-            a.color = rgb;
-            let ids: Vec<u64> = targets(ws).iter().map(|i| i.0).collect();
-            let _ = ws.run("set_appearance", json!({ "items": ids, "appearance": a }));
+        if ws.session.selection.iter().any(|p| matches!(p, Pick::Face { .. })) {
+            return ("set_face_color", json!({ "color": rgb }));
         }
+        let mut a = look_or_default(ws);
+        a.color = rgb;
+        let ids: Vec<u64> = targets(ws).iter().map(|i| i.0).collect();
+        ("set_appearance", json!({ "items": ids, "appearance": a }))
     };
-    if let Some(d) = ws.vis_draft
-        && released
-    {
+    let set_color = |ws: &mut Workspace, c: Color32| {
+        let (id, params) = request(ws, c);
+        let _ = ws.run(id, params);
+    };
+    // The model follows the knob as it's dragged; the whole drag is one step.
+    if let Some(c) = picked {
+        if ws.vis_draft.is_none() {
+            ws.live_step = None;
+        }
+        if ws.vis_draft != Some(c) {
+            let (id, params) = request(ws, c);
+            ws.live_run(id, params);
+        }
+        ws.vis_draft = Some(c);
+    }
+    if ws.vis_draft.is_some() && !ui.input(|i| i.pointer.any_down()) {
         ws.vis_draft = None;
-        set_color(ws, d);
+        ws.live_step = None;
     }
     // Swatches.
     let swatches = [0xffffff, 0xd0d0d2, 0x8e8e93, 0xf5d936, 0xf29b2c, 0xe5483d, 0xa660e0, 0x3a50e0, 0x3fc3f0, 0x3fbf6f];

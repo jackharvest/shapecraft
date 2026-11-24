@@ -123,6 +123,8 @@ pub struct Settings {
     pub setup_done: bool,
     /// Preferences ▸ Tablet: a quick round pen stroke with Line draws a circle.
     pub pen_circles: bool,
+    /// Holding the pen still and letting go opens the right-click menu (for a pen without a button).
+    pub pen_hold_menu: bool,
     /// Preferences ▸ General: a sketch stays shown until every one of its regions has been used, not just every curve.
     pub keep_sketches: bool,
     /// Preferences ▸ Tablet: on a touch screen, starting a sketch also shows the plane squares, as with a mouse
@@ -200,6 +202,7 @@ impl Default for Settings {
             backup_after_change: false,
             setup_done: false,
             pen_circles: true,
+            pen_hold_menu: false,
             keep_sketches: false,
             touch_plane_squares: false,
             kernel: "occt".into(),

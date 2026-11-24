@@ -472,7 +472,7 @@ impl Landing {
             p.text(
                 pos2(badge.right() + 9.0, badge.top() + 8.0),
                 Align2::LEFT_CENTER,
-                "ShapeCraft",
+                crate::i18n::tr_s("ShapeCraft"),
                 theme::strong(13.5),
                 Tokens::text_strong(),
             );
@@ -630,6 +630,12 @@ impl Landing {
                         self.visit(section, self.folder.clone());
                     }
                 }
+            }
+            // A tablet has no menu bar to find it in.
+            if crate::tablet::touch_ui()
+                && row(ui, crate::tablet::above_home_strip(ui.ctx(), side.bottom()) - 26.0, Icon::Gear, "Preferences", false, "home-prefs")
+            {
+                action = Some(LandingAction::Menu(crate::menubar::MenuAction::Ui(crate::workspace::toolbar::UiAction::Preferences)));
             }
             p.text(
                 pos2(side.left() + 16.0, side.top() + 243.0),
@@ -830,7 +836,9 @@ impl Landing {
                 if self.page.step(dt, self.page_max) {
                     ui.ctx().request_repaint();
                 }
-                ui.set_clip_rect(content.intersect(ui.clip_rect()));
+                // Under the title strip: the page scrolls behind it, never over it.
+                let page = Rect::from_min_max(pos2(content.left(), content.top() + head), content.max);
+                ui.set_clip_rect(page.intersect(ui.clip_rect()));
             }
             let top = if phone { y - 94.0 } else { content.top() - self.page.offset };
             let (a, end) = self.learn_page(ui, top, left, if phone { grid_right } else { content.right() }, phone);
@@ -903,7 +911,13 @@ impl Landing {
         } else if tiles.is_empty() && !self.search.is_empty() {
             // As the reference words and places it, in the middle of the page (26.202, s39-refsearch).
             let c = content.center() - vec2(0.0, 10.0);
-            p.text(c, Align2::CENTER_CENTER, format!("No results for \"{}\"", self.search), theme::strong(13.0), Tokens::text());
+            p.text(
+                c,
+                Align2::CENTER_CENTER,
+                crate::i18n::tr_s(format!("No results for \"{}\"", self.search)),
+                theme::strong(13.0),
+                Tokens::text(),
+            );
             p.text(
                 c + vec2(0.0, 20.0),
                 Align2::CENTER_CENTER,
@@ -917,11 +931,11 @@ impl Landing {
             p.text(
                 c + vec2(0.0, 20.0),
                 Align2::CENTER_CENTER,
-                if crate::tablet::shows_shortcuts() {
+                crate::i18n::tr_s(if crate::tablet::shows_shortcuts() {
                     format!("Press + or {} to start one", theme::key_text("⌘N"))
                 } else {
                     "Tap + to start one".to_string()
-                },
+                }),
                 theme::body(11.0),
                 Tokens::text_dim(),
             );
@@ -1126,7 +1140,13 @@ impl Landing {
                 );
             }
             p.text(card.min + vec2(24.0, 26.0), Align2::LEFT_CENTER, crate::i18n::tr_s(e.title), theme::strong(18.0), Color32::WHITE);
-            p.text(card.min + vec2(24.0, 50.0), Align2::LEFT_CENTER, format!("New in {}", e.version), theme::body(11.5), hex(0xa9a9ab));
+            p.text(
+                card.min + vec2(24.0, 50.0),
+                Align2::LEFT_CENTER,
+                crate::i18n::tr_s(format!("New in {}", e.version)),
+                theme::body(11.5),
+                hex(0xa9a9ab),
+            );
             let g = p.layout(e.text.to_string(), theme::body(12.5), hex(0xdfdfdf), card.width() - 48.0);
             p.galley(pos2(card.left() + 24.0, pic.bottom() + 16.0), g, hex(0xdfdfdf));
             let b = Rect::from_min_size(pos2(card.right() - 104.0, card.bottom() - 46.0), vec2(80.0, 28.0));
@@ -1157,7 +1177,20 @@ impl Landing {
     /// `max`: how far it scrolls sideways.
     fn whats_new_row(&mut self, ui: &mut Ui, row: Rect, left: f32, max: f32) {
         let entries = crate::whats_new::ENTRIES;
-        let resp = ui.interact(row, ui.scope_id().with("whats-new-row"), Sense::hover());
+        // (A phone's page takes the drags itself, up and down or along the row.)
+        let touch = crate::tablet::touch_ui() && !crate::tablet::small_screen();
+        let resp = ui.interact(row, ui.scope_id().with("whats-new-row"), if touch { Sense::drag() } else { Sense::hover() });
+        if touch {
+            let now = ui.input(|i| i.time);
+            if resp.dragged() {
+                self.row.drag(-resp.drag_delta().x, max, row.width(), now);
+            } else if resp.drag_stopped() {
+                self.row.release(now);
+            }
+            if self.row.step(ui.input(|i| i.stable_dt), max) {
+                ui.ctx().request_repaint();
+            }
+        }
         if resp.hovered() {
             let d = ui.input(|i| i.smooth_scroll_delta);
             let d = if d.x.abs() > 0.0 { d.x } else { d.y };

@@ -197,7 +197,13 @@ pub fn window(ui: &mut egui::Ui, open: &mut bool) {
         p.rect_filled(card, radius(12), Tokens::panel());
         p.rect_stroke(card, radius(12), Stroke::new(1.0, Tokens::panel_border()), StrokeKind::Inside);
         let _ = ui.interact(card, id.with("card"), Sense::click());
-        p.text(pos2(card.left() + 18.0, card.top() + 22.0), Align2::LEFT_CENTER, "Log", theme::strong(15.0), Tokens::text_strong());
+        p.text(
+            pos2(card.left() + 18.0, card.top() + 22.0),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr_s("Log"),
+            theme::strong(15.0),
+            Tokens::text_strong(),
+        );
         let where_ = file().map(|p| p.display().to_string()).unwrap_or_else(|| "Kept only while ShapeCraft runs.".into());
         p.text(pos2(card.left() + 18.0, card.top() + 42.0), Align2::LEFT_CENTER, &where_, theme::body(11.5), Tokens::text_dim());
         let body = Rect::from_min_max(pos2(card.left() + 12.0, card.top() + 58.0), pos2(card.right() - 12.0, card.bottom() - 54.0));

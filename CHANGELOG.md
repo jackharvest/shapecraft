@@ -2,6 +2,27 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.12.12-alpha
+**Other languages fit, Settings and Plugins are translated throughout, and a fillet stops at its limit.** Most of this comes from
+BAR × SUK's careful test of the Android app in Russian. Thank you!
+### New
+- **A fillet or chamfer stops at the biggest size the part can take** while you pull it. Pulled farther, the edge used to go
+  sharp again. A cylinder's end pulled all the way is a dome.
+- **Colors change on the model as you drag** in Visualization, for bodies, faces and the backdrop. The whole drag is one undo.
+- **Preferences on the projects screen of a tablet**, at the bottom of the sidebar.
+- **A pen without a button can open the right-click menu**: Preferences ▸ Tablet ▸ Hold still, then lift.
+### Changed
+- **Plugins, Advanced, reports and the update notes follow your language.** Their translations were there but weren't used.
+  The last missing texts are in all eleven languages.
+- Russian: Visualize and Decal have their proper names.
+### Fixed
+- **Long words stay in their place**: Preferences' tabs, labels, pop-up buttons and Sync's rows; the buttons under the Items
+  list; Visualization's pop-ups and a decal's file name; the Area Selection card.
+- **What's New swipes sideways on a tablet**, and the Tutorials page scrolls under the title bar, not over it.
+- Normal to Sketch no longer covers the project's name or a tutorial's card.
+- A circle's diameter is easy to read: its dashed line stops for the number.
+- The Metal graphics choice was translated as the material.
+
 ## 0.12.11-alpha
 **Patterns you can make with the mouse alone, and long edges that can always be picked.**
 ### New

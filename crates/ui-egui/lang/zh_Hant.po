@@ -832,6 +832,10 @@ msgid "Cancel"
 msgstr "取消"
 
 #: crates/ui-egui/src/plugins.rs
+msgid "Cancelled"
+msgstr "已取消"
+
+#: crates/ui-egui/src/plugins.rs
 msgid "Cancelled."
 msgstr "已取消。"
 
@@ -1619,6 +1623,10 @@ msgstr "修改日期（從新到舊）"
 msgid "Date Modified (Oldest to Latest)"
 msgstr "修改日期（從舊到新）"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Decades of industrial use behind it"
+msgstr "數十年的工業應用"
+
 #: crates/engine/src/cmd/visual.rs
 #: crates/ui-egui/src/workspace/decals.rs
 #: crates/ui-egui/src/workspace/visual.rs
@@ -1697,6 +1705,10 @@ msgstr "刪除草圖"
 #: crates/ui-egui/src/workspace/history.rs
 msgid "Delete Variables"
 msgstr "刪除變數"
+
+#: crates/kernel/src/lib.rs
+msgid "Delete faces"
+msgstr "刪除面"
 
 #: crates/ui-egui/src/workspace/panels/popups.rs
 msgid "Delete key"
@@ -1892,6 +1904,10 @@ msgstr "正在下載 {}…"
 msgid "Draft Angle"
 msgstr "拔模角度"
 
+#: crates/kernel/src/lib.rs
+msgid "Draft angles"
+msgstr "拔模角"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Drag an arrow to slide the cup"
 msgstr "拖動箭頭來移動筆筒"
@@ -2047,10 +2063,6 @@ msgstr "編輯..."
 msgid "Edit…"
 msgstr "編輯…"
 
-#: crates/ui-egui/src/whats_new.rs
-msgid "Eleven languages"
-msgstr "十一種語言"
-
 #: crates/engine/src/cmd/sketch.rs
 #: crates/ui-egui/src/menubar.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
@@ -2111,6 +2123,10 @@ msgstr "每個形狀都從一張圖開始。畫一個圓。"
 #: crates/ui-egui/src/onboarding.rs
 msgid "Every shortcut, as on the computer."
 msgstr "所有快捷鍵，與電腦上相同。"
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Every tool and option, nothing greyed out"
+msgstr "所有工具和選項，沒有灰掉的"
 
 #: crates/ui-egui/src/workspace/export.rs
 msgid "Everything Else"
@@ -2230,6 +2246,10 @@ msgstr "拉伸 - 單側（E）"
 msgid "Extrude - To Object"
 msgstr "拉伸 - 到物件"
 
+#: crates/kernel/src/lib.rs
+msgid "Extrude, push and pull"
+msgstr "拉伸、推拉"
+
 #: crates/ui-egui/src/workspace/history.rs
 msgid "Extrusion"
 msgstr "拉伸"
@@ -2281,6 +2301,10 @@ msgstr "檔案以條目命名"
 msgid "File…"
 msgstr "檔案…"
 
+#: crates/kernel/src/lib.rs
+msgid "Fill"
+msgstr "填充"
+
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/ui-egui/src/menubar.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
@@ -2316,6 +2340,10 @@ msgstr "草圖圓角"
 #: crates/ui-egui/src/whats_new.rs
 msgid "Fillet and Split Body show a card with every setting of the step, both while the tool runs and when you edit it from History. Drag the card anywhere; its ⋯ menu decides when it opens."
 msgstr "圓角和分割實體會顯示一張卡片，列出該步驟的所有設定，使用工具時和從歷史記錄編輯時都有。卡片可隨意拖動，⋯ 選單決定何時開啟。"
+
+#: crates/kernel/src/lib.rs
+msgid "Fillet by chord width"
+msgstr "按弦寬圓角"
 
 #: crates/ui-egui/src/workspace/start_tool.rs
 msgid "Fillet rounds corners inside a sketch: start one first"
@@ -2615,6 +2643,10 @@ msgstr "歷史記錄"
 msgid "Hold a bank card against the screen and drag the blue card's right edge (or use − and +) until both are the same size."
 msgstr "把銀行卡貼在螢幕上，拖動藍色卡片的右邊（或用 − 和 +），直到兩者一樣大。"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Hold still, then lift, for more options (like a right-click)"
+msgstr "按住不動再抬起：更多選項（如右鍵）"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Hollow it out with Shell."
 msgstr "用“抽殼”把它挖空。"
@@ -2653,6 +2685,10 @@ msgstr "三角形可以偏離真實表面多少"
 #: crates/ui-egui/src/setup.rs
 msgid "How should ShapeCraft look?"
 msgstr "ShapeCraft 用什麼外觀？"
+
+#: crates/kernel/src/lib.rs
+msgid "IGES files"
+msgstr "IGES 檔案"
 
 #: crates/report/src/draft.rs
 #: crates/report/src/github.rs
@@ -2806,6 +2842,10 @@ msgstr "插入斷點"
 #: crates/ui-egui/src/app.rs
 msgid "Insert Image"
 msgstr "插入圖片"
+
+#: crates/ui-egui/src/plugins.rs
+msgid "Installed"
+msgstr "已安裝"
 
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Installed. Open {} and sign in."
@@ -3139,6 +3179,18 @@ msgstr "連結與未連結的副本"
 msgid "Linux"
 msgstr "Linux"
 
+#: crates/update/src/install.rs
+msgid "Linux .deb package"
+msgstr "Linux .deb 套件"
+
+#: crates/update/src/install.rs
+msgid "Linux .rpm package"
+msgstr "Linux .rpm 套件"
+
+#: crates/update/src/install.rs
+msgid "Linux download"
+msgstr "Linux 下載版"
+
 #: crates/doc/src/project.rs
 #: crates/ui-egui/src/landing.rs
 msgid "Local"
@@ -3312,6 +3364,10 @@ msgstr "合併位於同一曲面或曲線上的面和稜邊。面更少更大；
 msgid "Merge now"
 msgstr "立即合併"
 
+#: crates/kernel/src/lib.rs
+msgid "Mesh bodies (STL, OBJ, 3MF)"
+msgstr "網格體（STL、OBJ、3MF）"
+
 msgid "Meshes (STL, OBJ)"
 msgstr "網格（STL、OBJ）"
 
@@ -3421,6 +3477,10 @@ msgid "More options, like a right-click."
 msgstr "更多選項，相當於右鍵點選。"
 
 #: crates/ui-egui/src/onboarding.rs
+msgid "More options, like a right-click. No button? Turn on a hold for it in Preferences ▸ Tablet."
+msgstr "更多選項，如右鍵。筆上沒有按鈕？在「偏好設定 ▸ 平板」中開啟長按。"
+
+#: crates/ui-egui/src/onboarding.rs
 msgid "More options."
 msgstr "更多選項。"
 
@@ -3449,6 +3509,10 @@ msgstr "移動時自動定向"
 msgid "Move Them"
 msgstr "移過去"
 
+#: crates/kernel/src/lib.rs
+msgid "Move faces"
+msgstr "移動面"
+
 #: crates/ui-egui/src/workspace/sheet_views.rs
 msgid "Move the pointer to place the magnified view, then click"
 msgstr "移動指標放置放大檢視，然後點選"
@@ -3475,6 +3539,10 @@ msgstr "已移到專案資料夾中的 {}"
 #: crates/ui-egui/src/workspace/history.rs
 msgid "Movement"
 msgstr "移動"
+
+#: crates/kernel/src/lib.rs
+msgid "Moving or scaling one edge"
+msgstr "移動或縮放單條稜邊"
 
 #: crates/ui-egui/src/app.rs
 msgid "NX part"
@@ -3704,6 +3772,10 @@ msgstr "不支援"
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Not available on this computer"
 msgstr "這臺電腦上不可用"
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Not checked in this run"
+msgstr "本次執行未檢查"
 
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Not on this computer."
@@ -4461,8 +4533,8 @@ msgid "Preferences"
 msgstr "偏好設定"
 
 #: crates/ui-egui/src/whats_new.rs
-msgid "Preferences ▸ Language switches the toolbar, sidebars and cards to one of eleven languages."
-msgstr "“偏好設定 ▸ 語言”可把工具欄、側邊欄和卡片切換為十一種語言之一。"
+msgid "Preferences ▸ Language switches the toolbar, sidebars and cards to one of twelve languages."
+msgstr "“偏好設定 ▸ 語言”可把工具欄、側邊欄和卡片切換為十二種語言之一。"
 
 #: crates/ui-egui/src/menubar.rs
 msgid "Preferences…"
@@ -4614,6 +4686,10 @@ msgstr "把圖向上拉，它就變成實體。"
 msgid "Pull the strip up: it becomes part of the base."
 msgstr "把窄帶向上拉：它會成為底座的一部分。"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Pure Rust: no C++ underneath to crash"
+msgstr "純 Rust：底下沒有會當掉的 C++"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Push a shape in and it cuts. Make a dip for the glass."
 msgstr "往裡推就是切除。給杯子做一個凹槽。"
@@ -4629,6 +4705,10 @@ msgstr "把箭頭向下推進杯墊"
 #: crates/ui-egui/src/tutorials.rs
 msgid "Put the cup where you want it."
 msgstr "把筆筒放到你想放的地方。"
+
+#: crates/ui-egui/src/plugins.rs
+msgid "Put your model in any scene from a sentence, with your own AI account (OpenRouter, OpenAI, Google Gemini) or an AI on your own computer (ComfyUI). No limits but your provider's."
+msgstr "用一句話把模型放進任何場景：用你自己的 AI 帳號（OpenRouter、OpenAI、Google Gemini）或電腦上的 AI（ComfyUI）。除了服務商的限制，沒有其他限制。"
 
 #: crates/ui-egui/src/settings.rs
 #: crates/ui-egui/src/workspace/import_prefs.rs
@@ -4889,6 +4969,10 @@ msgstr "迴轉"
 msgid "Revolve (V)"
 msgstr "迴轉（V）"
 
+#: crates/kernel/src/lib.rs
+msgid "Revolve and threads"
+msgstr "旋轉和螺紋"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Revolve: a Drawer Knob"
 msgstr "迴轉：抽屜拉手"
@@ -4998,6 +5082,10 @@ msgstr "直紋"
 #: crates/ui-egui/src/tutorials.rs
 msgid "Run a shape along a path, then join parts with Union"
 msgstr "讓形狀沿路徑移動，再用“合併”連線零件"
+
+#: crates/kernel/src/lib.rs
+msgid "STEP files"
+msgstr "STEP 檔案"
 
 #: crates/ui-egui/src/workspace/export.rs
 msgid "STL Triangle Mesh"
@@ -5619,6 +5707,10 @@ msgstr "請在執行 ShapeCraft 的電腦上設定工作資料夾和備份。"
 msgid "Setback"
 msgstr "退讓"
 
+#: crates/kernel/src/lib.rs
+msgid "Setback corners"
+msgstr "後退拐角"
+
 #: crates/ui-egui/src/workspace/panels/titlebar.rs
 msgid "Settings"
 msgstr "設定"
@@ -5683,6 +5775,10 @@ msgstr "ShapeCraft 無權使用 {}"
 #: crates/ui-egui/src/whats_new.rs
 msgid "ShapeCraft on iPhone"
 msgstr "iPhone 上的 ShapeCraft"
+
+#: crates/ui-egui/src/plugins.rs
+msgid "ShapeCraft plugin"
+msgstr "ShapeCraft 外掛"
 
 #: crates/ui-egui/src/app_log.rs
 #: crates/ui-egui/src/landing.rs
@@ -5928,6 +6024,10 @@ msgstr "草圖引導點"
 #: crates/ui-egui/src/workspace/panels/context_menu.rs
 msgid "Sketch on Face"
 msgstr "在面上畫草圖"
+
+#: crates/kernel/src/lib.rs
+msgid "Sketch regions"
+msgstr "草圖區域"
 
 #: crates/ui-egui/src/workspace/panels/items.rs
 msgid "Sketches"
@@ -6887,6 +6987,10 @@ msgstr "教程"
 msgid "Tutorials for everyone"
 msgstr "人人都能學的教程"
 
+#: crates/ui-egui/src/whats_new.rs
+msgid "Twelve languages"
+msgstr "十二種語言"
+
 #: crates/engine/src/history.rs
 msgid "Twist"
 msgstr "扭曲"
@@ -6902,6 +7006,10 @@ msgstr "兩張圖片供選擇。"
 #: crates/ui-egui/src/workspace/badges.rs
 msgid "Two-Distance"
 msgstr "兩個距離"
+
+#: crates/kernel/src/lib.rs
+msgid "Two-distance chamfers"
+msgstr "雙距離倒角"
 
 #: crates/ui-egui/src/onboarding.rs
 msgid "Two-finger scroll"
@@ -6961,6 +7069,10 @@ msgstr "合併（Ctrl+U）"
 #: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Union (⌘ U)"
 msgstr "合併（⌘ U）"
+
+#: crates/kernel/src/lib.rs
+msgid "Union, subtract, intersect"
+msgstr "合併、減去、相交"
 
 #: crates/engine/src/cmd/edit.rs
 #: crates/ui-egui/src/menubar.rs
@@ -7070,6 +7182,10 @@ msgstr "值"
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Variable"
 msgstr "可變"
+
+#: crates/kernel/src/lib.rs
+msgid "Variable-radius fillets"
+msgstr "變半徑圓角"
 
 #: crates/ui-egui/src/workspace/panels/variables.rs
 #: crates/ui-egui/src/workspace/prefs.rs
@@ -7267,6 +7383,10 @@ msgstr "為什麼可以選？沒有單點故障：如果一個核心停滯或改
 #: crates/ui-egui/src/menubar.rs
 msgid "Window"
 msgstr "視窗"
+
+#: crates/update/src/install.rs
+msgid "Windows installer"
+msgstr "Windows 安裝程式"
 
 #: crates/render/src/scene.rs
 #: crates/ui-egui/src/menubar.rs
@@ -7486,9 +7606,17 @@ msgstr "變數自帶單位"
 msgid "arrow keys"
 msgstr "方向鍵"
 
+#: crates/update/src/install.rs
+msgid "can't update in place"
+msgstr "無法自行更新"
+
 #: crates/ui-egui/src/workspace/area.rs
 msgid "crossing"
 msgstr "交叉"
+
+#: crates/update/src/install.rs
+msgid "development build"
+msgstr "開發版"
 
 #: crates/ui-egui/src/workspace/area.rs
 msgid "fully included"
@@ -7513,6 +7641,14 @@ msgstr "剛剛"
 #: crates/ui-egui/src/app.rs
 msgid "less than a minute ago"
 msgstr "不到一分鐘前"
+
+#: crates/update/src/install.rs
+msgid "macOS app"
+msgstr "macOS 應用程式"
+
+#: crates/update/src/install.rs
+msgid "managed by a launcher"
+msgstr "由啟動器管理"
 
 #: crates/ui-egui/src/app.rs
 msgid "no project open"
@@ -7541,6 +7677,10 @@ msgstr "或在任意手機或電腦上開啟 {}"
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "or scan the code with its camera. Add it to the Home Screen to use"
 msgstr "或用相機掃描此碼。新增到主螢幕後可"
+
+#: crates/update/src/install.rs
+msgid "portable zip"
+msgstr "可攜 zip"
 
 #: crates/ui-egui/src/workspace/panels/popups.rs
 msgid "press "
@@ -7608,11 +7748,19 @@ msgstr "{#} 張圖片"
 msgid "{#} items"
 msgstr "{#} 個條目"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "{#} match"
+msgstr "{#} 項一致"
+
 msgid "{#} min ago"
 msgstr "{#} 分鐘前"
 
 msgid "{#} more waiting after this one."
 msgstr "之後還有 {#} 個在等待。"
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "{#} not yet"
+msgstr "{#} 項暫無"
 
 msgid "{#} of {#} modeling checks pass"
 msgstr "{#} / {#} 項建模檢查透過"
@@ -7631,6 +7779,10 @@ msgstr "{#} 條回覆"
 
 msgid "{#} sketches"
 msgstr "{#} 個草圖"
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "{#} with limits"
+msgstr "{#} 項有限制"
 
 #: crates/ui-egui/src/landing.rs
 msgid "{n} min"

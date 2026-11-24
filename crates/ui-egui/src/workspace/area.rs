@@ -284,7 +284,14 @@ impl Workspace {
         }
         let vp = self.viewport_rect;
         let p = ui.painter();
-        let r = Rect::from_min_size(pos2(vp.center().x - 155.0, self.banner_y()), vec2(310.0, 92.0));
+        // As wide as its longer line in the language.
+        let wide = |lead: &str, word: &str| -> f32 {
+            let part = |t: &str, f: FontId| p.layout_no_wrap(crate::i18n::tr_s(t), f, Tokens::text()).size().x;
+            part(lead, theme::body(14.0)) + part(word, theme::strong(14.0)) + part(" items", theme::body(14.0))
+        };
+        let lines = wide("Drag right to select ", "fully included").max(wide("Drag left to select ", "crossing"));
+        let w = (lines + 50.0).max(310.0).min(vp.width() - 16.0);
+        let r = Rect::from_min_size(pos2(vp.center().x - w / 2.0, self.banner_y()), vec2(w, 92.0));
         p.rect_filled(r.translate(vec2(0.0, 4.0)), radius(14), Color32::from_black_alpha(60));
         p.rect_filled(r, radius(14), Tokens::banner());
         p.text(

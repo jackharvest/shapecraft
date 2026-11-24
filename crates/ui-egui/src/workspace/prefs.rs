@@ -264,13 +264,29 @@ pub(super) fn help(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
 }
 
 /// A label on the left, right-aligned at the column, as the Preferences window lays its rows out.
+/// The room a row's label has, left of its setting.
+const LABEL_W: f32 = 150.0;
+
+/// A row's label, ending at `col`. A long one (a translation) wraps rather than run out of the window.
 fn row_label(p: &egui::Painter, col: f32, y: f32, text: &str) {
-    p.text(pos2(col - 8.0, y), Align2::RIGHT_CENTER, crate::i18n::tr_s(text), theme::body(12.5), Tokens::text_strong());
+    let text = crate::i18n::tr_s(text);
+    let g = p.layout_no_wrap(text.clone(), theme::body(12.5), Tokens::text_strong());
+    if g.size().x <= LABEL_W + 16.0 {
+        p.galley(pos2(col - 8.0 - g.size().x, y - g.size().y / 2.0), g, Tokens::text_strong());
+        return;
+    }
+    let mut job = egui::text::LayoutJob::simple(text, theme::body(11.5), Tokens::text_strong(), LABEL_W);
+    job.halign = egui::Align::Max;
+    let g = p.layout_job(job);
+    p.galley(pos2(col - 8.0, y - g.size().y / 2.0), g, Tokens::text_strong());
 }
 
 fn popup(ui: &mut Ui, at: Pos2, width: f32, id: &str, current: &mut String, options: &[&str]) {
     let names: Vec<String> = options.iter().map(|o| (*o).to_string()).collect();
     let now = names.iter().position(|n| n == current);
+    // It grows to the right, away from its label.
+    let shown = now.and_then(|i| names.get(i)).map(crate::i18n::tr_s).unwrap_or_default();
+    let width = width.max(ui.painter().layout_no_wrap(shown, theme::body(12.0), Tokens::text_strong()).size().x + 32.0);
     if let Some(i) = super::popover::pill_select(ui, id, pos2(at.x + width, at.y), width, &names, now)
         && let Some(n) = names.get(i)
     {
@@ -280,7 +296,13 @@ fn popup(ui: &mut Ui, at: Pos2, width: f32, id: &str, current: &mut String, opti
 
 fn check(ui: &mut Ui, at: Pos2, id: &str, value: &mut bool, text: &str) {
     let p = ui.painter().clone();
-    let g = p.layout_no_wrap(crate::i18n::tr_s(text), theme::body(12.5), Tokens::text_strong());
+    // A long text (a translation) gets smaller, then wraps, rather than run out of the window.
+    let room = (ui.max_rect().center().x + 280.0 - 24.0 - at.x - 20.0).clamp(180.0, 360.0);
+    let text = crate::i18n::tr_s(text);
+    let mut g = p.layout_no_wrap(text.clone(), theme::body(12.5), Tokens::text_strong());
+    if g.size().x > room {
+        g = p.layout(text, theme::body(11.5), Tokens::text_strong(), room);
+    }
     let hit = Rect::from_min_size(pos2(at.x, at.y - 9.0), vec2(22.0 + g.size().x, 18.0));
     let resp = ui.interact(hit, ui.scope_id().with(id), Sense::click());
     let bx = Rect::from_min_size(pos2(at.x, at.y - 7.0), vec2(14.0, 14.0));
@@ -307,6 +329,24 @@ fn small_button(ui: &mut Ui, at: Pos2, id: &str, text: &str) -> bool {
     p.rect_filled(r, radius(5), if resp.hovered() { theme::c(0x68686c) } else { theme::c(0x58585c) });
     p.galley(pos2(r.left() + 9.0, at.y - g.size().y / 2.0), g, Tokens::text_strong());
     resp.clicked()
+}
+
+/// Where buttons in a row start so the last one ends at `right`, whatever their words come to in the language.
+fn ends(ui: &Ui, right: f32, texts: &[&str]) -> Vec<f32> {
+    let width = |t: &&str| ui.painter().layout_no_wrap(crate::i18n::tr_s(*t), theme::body(12.0), Tokens::text_strong()).size().x + 18.0;
+    let mut x = right;
+    let mut out: Vec<f32> = texts
+        .iter()
+        .rev()
+        .map(|t| {
+            x -= width(t);
+            let at = x;
+            x -= 8.0;
+            at
+        })
+        .collect();
+    out.reverse();
+    out
 }
 
 /// Preferences (⌘,). General is as observed; ShapeCraft, Tablet, Plugins and Sync are ours (no Account tab: there are
@@ -344,7 +384,8 @@ pub(crate) struct PrefsOut {
 /// The Preferences window itself, with no Workspace behind it, so the projects screen can show it too.
 /// `shortcuts` is false where the Keyboard Shortcuts window can't open (projects screen).
 pub(crate) fn window(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings, shortcuts: bool, picks: &mut SyncPicks) -> PrefsOut {
-    if full.height() >= PREFS_H + 2.0 * PREFS_MARGIN {
+    let height = prefs_h(*tab);
+    if full.height() >= height + 2.0 * PREFS_MARGIN {
         return window_in(ui, full, tab, s, shortcuts, picks);
     }
     // A short screen (a phone held sideways): the whole window scrolls, so every setting and Done stay in reach.
@@ -352,7 +393,7 @@ pub(crate) fn window(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings,
     ui.painter().rect_filled(full, 0.0, Color32::from_black_alpha(90));
     let mut child = ui.new_child(egui::UiBuilder::new().max_rect(full));
     egui::ScrollArea::vertical().id_salt("prefs-scroll").auto_shrink([false, false]).show(&mut child, |ui| {
-        let (tall, _) = ui.allocate_exact_size(vec2(full.width(), PREFS_H + 2.0 * PREFS_MARGIN), Sense::hover());
+        let (tall, _) = ui.allocate_exact_size(vec2(full.width(), height + 2.0 * PREFS_MARGIN), Sense::hover());
         out = window_in(ui, tall, tab, s, shortcuts, picks);
     });
     out
@@ -362,8 +403,13 @@ pub(crate) fn window(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings,
 const PREFS_H: f32 = 848.0;
 const PREFS_MARGIN: f32 = 12.0;
 
+/// Advanced runs longer in other languages.
+fn prefs_h(tab: usize) -> f32 {
+    if tab == 5 && crate::i18n::current() != "English" { PREFS_H + 70.0 } else { PREFS_H }
+}
+
 fn window_in(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings, shortcuts: bool, picks: &mut SyncPicks) -> PrefsOut {
-    let r = dialog(ui, full, vec2(560.0, PREFS_H), "Preferences");
+    let r = dialog(ui, full, vec2(560.0, prefs_h(*tab)), "Preferences");
     let p = ui.painter().clone();
     // Touch screens: a round ✕ in the top corner closes it, as on iPad (Done sits at
     // the bottom, out of reach on a short screen until scrolled to).
@@ -384,12 +430,15 @@ fn window_in(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings, shortcu
         ("Advanced", Icon::Construct, true),
     ];
     let middle = (tabs.len() as f32 - 1.0) / 2.0;
+    // 58 apart, or as far as the longest name in the language needs (and fits).
+    let name_w = |l: &str| p.layout_no_wrap(crate::i18n::tr_s(l), theme::body(9.5), Tokens::text_dim()).size().x;
+    let pitch = tabs.iter().map(|t| name_w(t.0) + 10.0).fold(58.0, f32::max).min((r.width() - 24.0) / tabs.len() as f32);
     // The selected tab's highlight glides to a newly picked tab (crate::motion).
-    let lit_x = crate::motion::tween(ui.ctx(), "prefs-tab", (*tab as f32 - middle) * 58.0, 0.2);
-    p.rect_filled(Rect::from_center_size(pos2(r.center().x + lit_x, r.top() + 48.0), vec2(56.0, 36.0)), radius(5), Tokens::button());
+    let lit_x = crate::motion::tween(ui.ctx(), "prefs-tab", (*tab as f32 - middle) * pitch, 0.2);
+    p.rect_filled(Rect::from_center_size(pos2(r.center().x + lit_x, r.top() + 48.0), vec2(pitch - 2.0, 36.0)), radius(5), Tokens::button());
     for (k, (label, icon, enabled)) in tabs.into_iter().enumerate() {
-        let c = pos2(r.center().x + (k as f32 - middle) * 58.0, r.top() + 44.0);
-        let cell = Rect::from_center_size(c + vec2(0.0, 4.0), vec2(56.0, 36.0));
+        let c = pos2(r.center().x + (k as f32 - middle) * pitch, r.top() + 44.0);
+        let cell = Rect::from_center_size(c + vec2(0.0, 4.0), vec2(pitch - 2.0, 36.0));
         let on = enabled && *tab == k;
         if enabled && ui.interact(cell, ui.scope_id().with(("pref-tab", k)), Sense::click()).clicked() {
             *tab = k;
@@ -434,7 +483,13 @@ fn radio(ui: &mut Ui, at: Pos2, id: &str, on: bool, enabled: bool, name: &str, d
     if on {
         p.circle_filled(dot, 2.5, Color32::WHITE);
     }
-    p.text(pos2(at.x + 22.0, at.y), Align2::LEFT_CENTER, crate::i18n::tr(name), theme::body(12.5), text);
+    p.text(
+        pos2(at.x + 22.0, at.y),
+        Align2::LEFT_CENTER,
+        if name == "Metal" { name } else { crate::i18n::tr(name) },
+        theme::body(12.5),
+        text,
+    );
     let dim = if enabled { Tokens::text_dim() } else { Tokens::text_faint() };
     p.text(pos2(at.x + 22.0, at.y + 15.0), Align2::LEFT_CENTER, crate::i18n::tr_s(detail), theme::body(10.0), dim);
     enabled && resp.clicked()
@@ -451,8 +506,10 @@ fn graphics_row(status: &graphics::Status, choice: &str, gpu: &str) -> (bool, St
     };
     match (choice, found) {
         (graphics::AUTOMATIC, _) => (true, "Recommended: the best path this computer has".to_string()),
-        (_, None) if status.unchecked(choice) => (true, format!("Not checked in this run{warning}")),
-        (_, Some(f)) => (true, format!("{}{warning}", f.name)),
+        (_, None) if status.unchecked(choice) => {
+            (true, format!("{}{}", crate::i18n::tr("Not checked in this run"), crate::i18n::tr(warning)))
+        }
+        (_, Some(f)) => (true, format!("{}{}", f.name, crate::i18n::tr(warning))),
         (_, None) => (false, "Not available on this computer".to_string()),
     }
 }
@@ -492,7 +549,13 @@ fn shapecraft_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
         y += 30.0;
     }
     if let Some(a) = &status.active {
-        p.text(pos2(col, y - 4.0), Align2::LEFT_CENTER, format!("In use: {} ({})", a.path, a.name), theme::body(10.0), Tokens::text_dim());
+        p.text(
+            pos2(col, y - 4.0),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr_s(format!("In use: {} ({})", a.path, a.name)),
+            theme::body(10.0),
+            Tokens::text_dim(),
+        );
         y += 16.0;
     }
     if !status.choice.is_empty() && (s.graphics != status.choice || s.gpu != status.gpu) {
@@ -540,15 +603,21 @@ fn advanced_tab(ui: &mut Ui, r: Rect, s: &mut Settings) -> bool {
     let p = ui.painter().clone();
     let (left, right) = (r.left() + 24.0, r.right() - 24.0);
     let mut y = r.top() + 88.0;
-    p.text(pos2(left, y), Align2::LEFT_TOP, "Geometry Kernel", theme::strong(15.0), Tokens::text_strong());
+    p.text(pos2(left, y), Align2::LEFT_TOP, crate::i18n::tr_s("Geometry Kernel"), theme::strong(15.0), Tokens::text_strong());
     let running = crate::settings::RUNNING_KERNEL.get().copied().unwrap_or("occt");
     if s.kernel != running {
-        p.text(pos2(right, y + 2.0), Align2::RIGHT_TOP, "Restart ShapeCraft to apply", theme::strong(12.0), Tokens::accent());
+        p.text(
+            pos2(right, y + 2.0),
+            Align2::RIGHT_TOP,
+            crate::i18n::tr_s("Restart ShapeCraft to apply"),
+            theme::strong(12.0),
+            Tokens::accent(),
+        );
     }
     p.text(
         pos2(left, y + 21.0),
         Align2::LEFT_TOP,
-        "The engine under every shape you make. Both open source; restart to switch.",
+        crate::i18n::tr_s("The engine under every shape you make. Both open source; restart to switch."),
         theme::body(11.5),
         Tokens::text_dim(),
     );
@@ -593,7 +662,7 @@ fn advanced_tab(ui: &mut Ui, r: Rect, s: &mut Settings) -> bool {
     if running == "rust" {
         why.push_str(" Arris keeps its projects in a folder of their own, so your Open CASCADE work stays put.");
     }
-    let g = p.layout(why, theme::body(11.0), Tokens::text_dim(), right - left);
+    let g = p.layout(crate::i18n::tr_s(why), theme::body(11.0), Tokens::text_dim(), right - left);
     let gh = g.size().y;
     p.galley(pos2(left, y), g, Tokens::text_dim());
     y += gh + 14.0;
@@ -617,8 +686,8 @@ fn kernel_card(ui: &mut Ui, at: Rect, card: &KernelCard, s: &mut Settings) -> f3
     let pad = 14.0;
     let inner = at.width() - 2.0 * pad;
     let reasons: Vec<_> =
-        card.reasons.iter().map(|t| p.layout(t.to_string(), theme::body(11.0), Tokens::text_strong(), inner - 14.0)).collect();
-    let status = p.layout(card.status.to_string(), theme::body(10.5), Tokens::text_dim(), inner - 22.0);
+        card.reasons.iter().map(|t| p.layout(crate::i18n::tr_s(t), theme::body(11.0), Tokens::text_strong(), inner - 14.0)).collect();
+    let status = p.layout(crate::i18n::tr_s(card.status), theme::body(10.5), Tokens::text_dim(), inner - 22.0);
     let head = 16.0 + status.size().y + 12.0;
     let body: f32 = reasons.iter().map(|g| g.size().y + 5.0).sum();
     let rect = Rect::from_min_size(at.min, vec2(at.width(), pad + head + 14.0 + body + pad - 5.0));
@@ -641,11 +710,11 @@ fn kernel_card(ui: &mut Ui, at: Rect, card: &KernelCard, s: &mut Settings) -> f3
     if on {
         p.circle_filled(dot, 2.5, Color32::WHITE);
     }
-    p.text(pos2(x + 22.0, y + 8.0), Align2::LEFT_CENTER, card.name, theme::strong(13.0), Tokens::text_strong());
+    p.text(pos2(x + 22.0, y + 8.0), Align2::LEFT_CENTER, crate::i18n::tr_s(card.name), theme::strong(13.0), Tokens::text_strong());
     y += 18.0;
     p.galley(pos2(x + 22.0, y), status, Tokens::text_dim());
     y = rect.top() + pad + head;
-    p.text(pos2(x, y), Align2::LEFT_TOP, "PICK IT FOR", theme::strong(9.5), Tokens::text_faint());
+    p.text(pos2(x, y), Align2::LEFT_TOP, crate::i18n::tr_s("PICK IT FOR"), theme::strong(9.5), Tokens::text_faint());
     y += 14.0;
     for g in reasons {
         let gh = g.size().y;
@@ -654,7 +723,7 @@ fn kernel_card(ui: &mut Ui, at: Rect, card: &KernelCard, s: &mut Settings) -> f3
         y += gh + 5.0;
     }
     if !on {
-        resp.on_hover_text("Click to pick this kernel (takes effect after a restart)");
+        resp.on_hover_text(crate::i18n::tr("Click to pick this kernel (takes effect after a restart)"));
     }
     rect.height()
 }
@@ -676,9 +745,21 @@ fn arris_parity(ui: &mut Ui, r: Rect, mut y: f32) -> bool {
     let score = (full as f32 + 0.5 * limited as f32) / total;
 
     // Heading and score.
-    p.text(pos2(left, y), Align2::LEFT_TOP, "Arris parity", theme::strong(15.0), Tokens::text_strong());
-    p.text(pos2(left, y + 21.0), Align2::LEFT_TOP, "How close our Rust kernel is to Open CASCADE", theme::body(11.5), Tokens::text_dim());
-    p.text(pos2(right, y - 4.0), Align2::RIGHT_TOP, format!("{:.0}%", score * 100.0), theme::strong(28.0), Tokens::text_strong());
+    p.text(pos2(left, y), Align2::LEFT_TOP, crate::i18n::tr_s("Arris parity"), theme::strong(15.0), Tokens::text_strong());
+    p.text(
+        pos2(left, y + 21.0),
+        Align2::LEFT_TOP,
+        crate::i18n::tr_s("How close our Rust kernel is to Open CASCADE"),
+        theme::body(11.5),
+        Tokens::text_dim(),
+    );
+    p.text(
+        pos2(right, y - 4.0),
+        Align2::RIGHT_TOP,
+        crate::i18n::tr_s(format!("{:.0}%", score * 100.0)),
+        theme::strong(28.0),
+        Tokens::text_strong(),
+    );
     y += 46.0;
 
     // The bar: green for the same, amber (at half) for with limits.
@@ -702,17 +783,33 @@ fn arris_parity(ui: &mut Ui, r: Rect, mut y: f32) -> bool {
         [(full, "match", Tokens::good()), (limited, "with limits", Tokens::partial()), (missing, "not yet", Tokens::danger())]
     {
         p.circle_filled(pos2(x + 4.0, y), 4.0, color);
-        let g = p.layout_no_wrap(format!("{n} {what}"), theme::body(11.5), Tokens::text_dim());
+        let g = p.layout_no_wrap(crate::i18n::tr_s(format!("{n} {what}")), theme::body(11.5), Tokens::text_dim());
         let gw = g.size().x;
         p.galley(pos2(x + 13.0, y - g.size().y / 2.0), g, Tokens::text_dim());
         x += 13.0 + gw + 16.0;
     }
     let (pass, all) = RUST_KERNEL_CHECKS;
-    p.text(pos2(right, y), Align2::RIGHT_CENTER, format!("{pass} of {all} modeling checks pass"), theme::body(11.5), Tokens::text_dim());
+    p.text(
+        pos2(right, y),
+        Align2::RIGHT_CENTER,
+        crate::i18n::tr_s(format!("{pass} of {all} modeling checks pass")),
+        theme::body(11.5),
+        Tokens::text_dim(),
+    );
     y += 22.0;
 
     // Every feature as a chip, in the order the app goes through them.
-    let (h, gap) = (26.0, 6.0);
+    // (Smaller where the names in the language take more rows than there's room for.)
+    let chip_w = |f: &shapecraft_kernel::Feature, size: f32| {
+        40.0 + p.layout_no_wrap(crate::i18n::tr_s(f.label()), theme::body(size), Tokens::text()).size().x
+    };
+    let rows = |size: f32, gap: f32| {
+        support.iter().fold((1, left), |(n, x), (f, _)| {
+            let w = chip_w(f, size);
+            if x + w > right && x > left { (n + 1, left + w + gap) } else { (n, x + w + gap) }
+        })
+    };
+    let (h, gap, size) = if rows(12.0, 6.0).0 > 8 { (22.0, 4.0, 10.5) } else { (26.0, 6.0, 12.0) };
     let mut x = left;
     for (i, (f, s)) in support.iter().enumerate() {
         let (color, text, tip) = match s {
@@ -720,7 +817,7 @@ fn arris_parity(ui: &mut Ui, r: Rect, mut y: f32) -> bool {
             Support::Limited(why) => (Tokens::partial(), Tokens::text_strong(), format!("Works, with limits: {why}")),
             Support::Missing => (Tokens::danger(), Tokens::text_dim(), "Not yet: needs Open CASCADE for now".to_string()),
         };
-        let g = p.layout_no_wrap(f.label().to_string(), theme::body(12.0), text);
+        let g = p.layout_no_wrap(crate::i18n::tr_s(f.label()), theme::body(size), text);
         let cw = 10.0 + 12.0 + 7.0 + g.size().x + 11.0;
         if x + cw > right && x > left {
             x = left;
@@ -732,7 +829,7 @@ fn arris_parity(ui: &mut Ui, r: Rect, mut y: f32) -> bool {
         p.rect(chip, radius(6), fill, Stroke::new(1.0, color.gamma_multiply(0.35)), egui::StrokeKind::Inside);
         status_mark(&p, pos2(chip.left() + 16.0, chip.center().y), s, color);
         p.galley(pos2(chip.left() + 29.0, chip.center().y - g.size().y / 2.0), g, text);
-        resp.on_hover_text(tip);
+        resp.on_hover_text(crate::i18n::tr_s(tip));
         x += cw + gap;
     }
     y += h + 18.0;
@@ -741,7 +838,7 @@ fn arris_parity(ui: &mut Ui, r: Rect, mut y: f32) -> bool {
     let body = "Switch to Arris above and model the way you always do. When something is refused, comes out wrong \
                 or feels slow, send it in: every report becomes a test, and every test moves this bar.";
     let bw = 150.0;
-    let g = p.layout(body.to_string(), theme::body(11.0), Tokens::text_dim(), right - left - 32.0 - bw - 16.0);
+    let g = p.layout(crate::i18n::tr_s(body), theme::body(11.0), Tokens::text_dim(), right - left - 32.0 - bw - 16.0);
     let gh = g.size().y;
     let card = Rect::from_min_max(pos2(left, y), pos2(right, y + 14.0 + 20.0 + gh + 14.0));
     p.rect(
@@ -751,7 +848,13 @@ fn arris_parity(ui: &mut Ui, r: Rect, mut y: f32) -> bool {
         Stroke::new(1.0, Tokens::accent().gamma_multiply(0.45)),
         egui::StrokeKind::Inside,
     );
-    p.text(pos2(left + 16.0, y + 14.0), Align2::LEFT_TOP, "Help Arris get to 100%", theme::strong(13.0), Tokens::text_strong());
+    p.text(
+        pos2(left + 16.0, y + 14.0),
+        Align2::LEFT_TOP,
+        crate::i18n::tr_s("Help Arris get to 100%"),
+        theme::strong(13.0),
+        Tokens::text_strong(),
+    );
     p.galley(pos2(left + 16.0, y + 34.0), g, Tokens::text_dim());
     let b = Rect::from_center_size(pos2(right - 16.0 - bw / 2.0, card.center().y), vec2(bw, 24.0));
     button(ui, b, "Report a Problem…", true, "arris-report")
@@ -801,6 +904,8 @@ fn tablet_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
     // How the pen draws, wherever there is one (a browser on a tablet, an Android tablet).
     row_label(&p, col, y, "Pen:");
     check(ui, pos2(col, y), "pref-pen-circles", &mut s.pen_circles, "A quick round stroke with Line draws a circle");
+    y += 22.0;
+    check(ui, pos2(col, y), "pref-pen-hold", &mut s.pen_hold_menu, "Hold still, then lift, for more options (like a right-click)");
     y += 22.0;
     check(ui, pos2(col, y), "pref-plane-squares", &mut s.touch_plane_squares, "Show the plane squares when starting a sketch");
     y += 22.0;
@@ -992,7 +1097,7 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings, picks: &mut SyncPicks) {
     });
     icons::paint(&p, Rect::from_center_size(pos2(left - 12.0, y), vec2(15.0, 15.0)), Icon::Folder, Tokens::icon_blue());
     let name = work.file_name().map_or_else(|| work.display().to_string(), |n| n.to_string_lossy().into_owned());
-    p.text(pos2(left + 4.0, y), Align2::LEFT_CENTER, name, theme::strong(12.5), Tokens::text_strong());
+    p.text(pos2(left + 4.0, y), Align2::LEFT_CENTER, crate::i18n::tr_s(name), theme::strong(12.5), Tokens::text_strong());
     detail(ui, pos2(left + 4.0, y + 9.0), crate::landing::shorten_home(&work), right - left - 150.0, Tokens::text_dim());
     let pending_id = ui.scope_id().with("sync-work-pending");
     let mut pending: Option<std::path::PathBuf> = ui.data(|d| d.get_temp(pending_id)).flatten();
@@ -1004,11 +1109,12 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings, picks: &mut SyncPicks) {
     {
         pending = Some(dir);
     }
-    if small_button(ui, pos2(right - 136.0, y + 2.0), "sync-work-change", "Change…") && !picks.work.is_open() {
+    let at = ends(ui, right, &["Change…", "Show"]);
+    if small_button(ui, pos2(at[0], y + 2.0), "sync-work-change", "Change…") && !picks.work.is_open() {
         let work = work.clone();
         picks.work.start(move || crate::dialogs::FileDialog::new().set_title("Choose your Work Folder").set_directory(&work).pick_folder());
     }
-    if small_button(ui, pos2(right - 62.0, y + 2.0), "sync-work-show", "Show") {
+    if small_button(ui, pos2(at[1], y + 2.0), "sync-work-show", "Show") {
         crate::landing::reveal(&work);
     }
     y += 34.0;
@@ -1029,7 +1135,7 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings, picks: &mut SyncPicks) {
         None
     };
     if let Some(n) = note {
-        let g = p.layout(n, theme::body(10.5), Tokens::text_dim(), right - left);
+        let g = p.layout(crate::i18n::tr_s(n), theme::body(10.5), Tokens::text_dim(), right - left);
         let h = g.size().y;
         p.galley(pos2(left + 4.0, y - 8.0), g, Tokens::text_dim());
         y += h + 6.0;
@@ -1037,13 +1143,14 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings, picks: &mut SyncPicks) {
     if let Some(to) = pending.clone() {
         let ask = format!("Bring your projects to {}?", crate::landing::shorten_home(&to));
         detail(ui, pos2(left + 4.0, y - 6.0), ask, right - left - 250.0, Tokens::accent());
-        if small_button(ui, pos2(right - 250.0, y + 2.0), "sync-work-move", "Move Them") {
+        let at = ends(ui, right, &["Move Them", "Leave Them", "Cancel"]);
+        if small_button(ui, pos2(at[0], y + 2.0), "sync-work-move", "Move Them") {
             backup::request_switch(to.clone(), true);
             pending = None;
-        } else if small_button(ui, pos2(right - 160.0, y + 2.0), "sync-work-leave", "Leave Them") {
+        } else if small_button(ui, pos2(at[1], y + 2.0), "sync-work-leave", "Leave Them") {
             backup::request_switch(to.clone(), false);
             pending = None;
-        } else if small_button(ui, pos2(right - 66.0, y + 2.0), "sync-work-cancel", "Cancel") {
+        } else if small_button(ui, pos2(at[2], y + 2.0), "sync-work-cancel", "Cancel") {
             pending = None;
         }
         y += 30.0;
@@ -1060,7 +1167,7 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings, picks: &mut SyncPicks) {
     y += 24.0;
 
     // The backups, first first: the first is brought up to date first, and is where Restore looks first.
-    heading(y, "BACKUPS");
+    heading(y, &crate::i18n::tr("Backups").to_uppercase());
     y += 24.0;
     let jobs = backup::backups();
     let mut action: Option<(usize, i32)> = None;
@@ -1071,7 +1178,13 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings, picks: &mut SyncPicks) {
     for (k, b) in s.backups.iter().enumerate() {
         let t = Target::parse(b);
         let root = t.root(&found);
-        p.text(pos2(left - 26.0, y), Align2::CENTER_CENTER, format!("{}", k + 1), theme::strong(11.0), Tokens::text_faint());
+        p.text(
+            pos2(left - 26.0, y),
+            Align2::CENTER_CENTER,
+            crate::i18n::tr_s(format!("{}", k + 1)),
+            theme::strong(11.0),
+            Tokens::text_faint(),
+        );
         let icon = if t.is_cloud() { Icon::Cloud } else { Icon::Folder };
         icons::paint(&p, Rect::from_center_size(pos2(left - 6.0, y), vec2(15.0, 15.0)), icon, Tokens::icon_blue());
         p.text(pos2(left + 8.0, y), Align2::LEFT_CENTER, crate::i18n::tr_s(t.label(&found)), theme::strong(12.5), Tokens::text_strong());
@@ -1086,13 +1199,14 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings, picks: &mut SyncPicks) {
             (Some(root), _) => (crate::landing::shorten_home(&backup::dest(root, s.backup_per_computer)), Tokens::text_dim()),
         };
         detail(ui, pos2(left + 8.0, y + 9.0), line, right - left - 200.0, col);
-        if k > 0 && small_button(ui, pos2(right - 188.0, y + 2.0), &format!("sync-up-{k}"), "Up") {
+        let at = ends(ui, right, &["Up", "Down", "Remove"]);
+        if k > 0 && small_button(ui, pos2(at[0], y + 2.0), &format!("sync-up-{k}"), "Up") {
             action = Some((k, -1));
         }
-        if k + 1 < s.backups.len() && small_button(ui, pos2(right - 142.0, y + 2.0), &format!("sync-down-{k}"), "Down") {
+        if k + 1 < s.backups.len() && small_button(ui, pos2(at[1], y + 2.0), &format!("sync-down-{k}"), "Down") {
             action = Some((k, 1));
         }
-        if small_button(ui, pos2(right - 68.0, y + 2.0), &format!("sync-remove-{k}"), "Remove") {
+        if small_button(ui, pos2(at[2], y + 2.0), &format!("sync-remove-{k}"), "Remove") {
             action = Some((k, 0));
         }
         y += 44.0;
@@ -1113,7 +1227,7 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings, picks: &mut SyncPicks) {
     if small_button(ui, pos2(left - 20.0, y - 4.0), "sync-add", if adding { "Done Adding" } else { "Add Backup…" }) {
         adding = !adding;
     }
-    if !s.backups.is_empty() && small_button(ui, pos2(right - 104.0, y - 4.0), "sync-now", "Back Up Now") {
+    if !s.backups.is_empty() && small_button(ui, pos2(ends(ui, right, &["Back Up Now"])[0], y - 4.0), "sync-now", "Back Up Now") {
         jobs.now();
     }
     y += 26.0;
@@ -1122,7 +1236,7 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings, picks: &mut SyncPicks) {
         let free: Vec<(String, String)> = found.ready().filter(|c| !s.backups.contains(&c.key())).map(|c| (c.key(), c.label())).collect();
         for (key, label) in free {
             let text = format!("+ {label}");
-            let w = p.layout_no_wrap(text.clone(), theme::body(12.0), Tokens::text_strong()).size().x + 26.0;
+            let w = p.layout_no_wrap(crate::i18n::tr_s(text.clone()), theme::body(12.0), Tokens::text_strong()).size().x + 26.0;
             if x + w > right {
                 x = left - 20.0;
                 y += 26.0;
@@ -1222,11 +1336,11 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings, picks: &mut SyncPicks) {
             State::Ready => {
                 if s.backups.contains(&c.key()) {
                     tag(&p, right, y, "Backing Up");
-                } else if small_button(ui, pos2(right - 92.0, y + 2.0), &id, "Back Up Here") {
+                } else if small_button(ui, pos2(ends(ui, right, &["Back Up Here"])[0], y + 2.0), &id, "Back Up Here") {
                     s.backups.push(c.key());
                 }
                 // Same projects on every computer: the Work Folder in this app's folder.
-                if small_button(ui, pos2(right - 186.0, y + 2.0), &format!("{id}-work"), "Work Here") {
+                if small_button(ui, pos2(ends(ui, right, &["Work Here", "Back Up Here"])[0], y + 2.0), &format!("{id}-work"), "Work Here") {
                     s.backups.retain(|b| *b != c.key());
                     let to = c.root.join("ShapeCraft");
                     ui.data_mut(|d| d.insert_temp(pending_id, Some(to)));
@@ -1240,7 +1354,7 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings, picks: &mut SyncPicks) {
                 }
             }
             State::NotSignedIn => {
-                if small_button(ui, pos2(right - 84.0, y + 2.0), &id, "Check Again") {
+                if small_button(ui, pos2(ends(ui, right, &["Check Again"])[0], y + 2.0), &id, "Check Again") {
                     refresh = true;
                 }
             }
@@ -1249,7 +1363,7 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings, picks: &mut SyncPicks) {
         }
         y += 34.0;
     }
-    if small_button(ui, pos2(right - 84.0, y - 2.0), "sync-refresh", "Check Again") {
+    if small_button(ui, pos2(ends(ui, right, &["Check Again"])[0], y - 2.0), "sync-refresh", "Check Again") {
         refresh = true;
     }
     if refresh && !detector.busy() {
@@ -1260,7 +1374,7 @@ fn sync_tab(ui: &mut Ui, r: Rect, s: &mut Settings, picks: &mut SyncPicks) {
 
 /// A small outlined label at the right of a row ("Not Supported", "Backing Up").
 fn tag(p: &egui::Painter, right: f32, y: f32, text: &str) {
-    let g = p.layout_no_wrap(text.into(), theme::body(11.0), Tokens::text_dim());
+    let g = p.layout_no_wrap(crate::i18n::tr_s(text), theme::body(11.0), Tokens::text_dim());
     let r = Rect::from_min_size(pos2(right - g.size().x - 16.0, y - 7.0), vec2(g.size().x + 16.0, 20.0));
     p.rect_stroke(r, 10.0, Stroke::new(1.0, Tokens::text_dim().gamma_multiply(0.5)), egui::StrokeKind::Inside);
     p.galley(pos2(r.left() + 8.0, r.center().y - g.size().y / 2.0), g, Tokens::text_dim());
@@ -1394,7 +1508,7 @@ fn general_tab(ui: &mut Ui, r: Rect, s: &mut Settings, shortcuts: bool) -> (bool
     p.text(
         pos2(r.center().x, y),
         Align2::CENTER_CENTER,
-        format!("App Version: {}", env!("CARGO_PKG_VERSION")),
+        crate::i18n::tr_s(format!("App Version: {}", env!("CARGO_PKG_VERSION"))),
         theme::body(10.5),
         Tokens::text_dim(),
     );
@@ -1505,8 +1619,10 @@ pub(crate) fn presets_window(ui: &mut Ui, full: Rect, nav: &mut Option<&'static 
         p.text(
             pos2(r.left() + 19.0, r.top() + 52.0),
             Align2::LEFT_CENTER,
-            "Pick the app your hands already know, and orbit, pan and zoom work the way they do there. \
+            crate::i18n::tr_s(
+                "Pick the app your hands already know, and orbit, pan and zoom work the way they do there. \
              Change it any time in Preferences.",
+            ),
             theme::body(12.0),
             Tokens::text_dim(),
         );

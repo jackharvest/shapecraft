@@ -87,7 +87,7 @@ pub fn show(ui: &mut Ui, st: &mut Setup, found: Option<&Found>) -> bool {
             p.text(
                 pos2(x, card.top() + 50.0),
                 Align2::CENTER_CENTER,
-                *name,
+                crate::i18n::tr_s(*name),
                 theme::body(11.0),
                 if k == st.step { Tokens::text_strong() } else { Tokens::text_dim() },
             );
@@ -193,7 +193,13 @@ fn look(ui: &mut Ui, body: Rect, st: &mut Setup) {
             1 => window_art(&p, art, true, None),
             _ => window_art(&p, art, false, None),
         }
-        p.text(pos2(r.center().x, r.bottom() - 30.0), Align2::CENTER_CENTER, *name, theme::strong(13.5), Tokens::text_strong());
+        p.text(
+            pos2(r.center().x, r.bottom() - 30.0),
+            Align2::CENTER_CENTER,
+            crate::i18n::tr_s(*name),
+            theme::strong(13.5),
+            Tokens::text_strong(),
+        );
     }
 }
 
@@ -244,7 +250,13 @@ fn projects(ui: &mut Ui, body: Rect, st: &mut Setup, found: Option<&Found>) {
         let hit = tile(ui, r, on, id);
         let p = ui.painter();
         icons::paint(p, Rect::from_center_size(pos2(r.left() + 28.0, r.center().y), vec2(18.0, 18.0)), icon, Tokens::icon_blue());
-        p.text(pos2(r.left() + 52.0, r.center().y - 9.0), Align2::LEFT_CENTER, name, theme::strong(13.0), Tokens::text_strong());
+        p.text(
+            pos2(r.left() + 52.0, r.center().y - 9.0),
+            Align2::LEFT_CENTER,
+            crate::i18n::tr_s(name),
+            theme::strong(13.0),
+            Tokens::text_strong(),
+        );
         p.text(
             pos2(r.left() + 52.0, r.center().y + 10.0),
             Align2::LEFT_CENTER,
@@ -299,7 +311,7 @@ fn projects(ui: &mut Ui, body: Rect, st: &mut Setup, found: Option<&Found>) {
         p.text(
             pos2(body.left() + 4.0, y + 6.0),
             Align2::LEFT_CENTER,
-            format!("Chosen: {}", crate::landing::shorten_home(&chosen)),
+            crate::i18n::tr_s(format!("Chosen: {}", crate::landing::shorten_home(&chosen))),
             theme::body(11.5),
             Tokens::accent(),
         );
@@ -360,7 +372,7 @@ fn backups(ui: &mut Ui, body: Rect, st: &mut Setup, found: Option<&Found>) {
             p.text(
                 pos2(r.right() - 16.0, r.center().y),
                 Align2::RIGHT_CENTER,
-                format!("Backup {}", n + 1),
+                crate::i18n::tr_s(format!("Backup {}", n + 1)),
                 theme::body(11.0),
                 Tokens::text_dim(),
             );

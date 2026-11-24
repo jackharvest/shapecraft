@@ -282,7 +282,10 @@ impl Workspace {
             self.numeric = None;
             match &mut self.tool {
                 Tool::Extrude(t) => t.dragging = Some((p, value)),
-                Tool::Fillet(t) => t.dragging = Some((p, value)),
+                Tool::Fillet(t) => {
+                    t.dragging = Some((p, value));
+                    self.pull_limit = crate::workspace::PullLimit::default();
+                }
                 Tool::Shell(t) => t.dragging = Some((p, value)),
                 Tool::OffsetFace(t) => t.dragging = Some((p, value)),
                 Tool::OffsetEdge(t) => t.dragging = Some((p, value)),
@@ -338,7 +341,17 @@ impl Workspace {
                 Tool::Fillet(t) => {
                     let v = snap(v0 + along);
                     t.chamfer = v < 0.0;
-                    t.radius = v.abs();
+                    if self.pull_limit.chamfer != t.chamfer {
+                        self.pull_limit = crate::workspace::PullLimit { chamfer: t.chamfer, ..Default::default() };
+                    }
+                    t.radius = self.pull_limit.reach(v.abs());
+                    if t.radius < v.abs() {
+                        ui.ctx().request_repaint();
+                    }
+                    // Let go past the limit: the biggest that worked.
+                    if released && self.pull_limit.good > 0.0 && self.pull_limit.bad.is_some_and(|b| v.abs() >= b) {
+                        t.radius = self.pull_limit.good;
+                    }
                 }
                 Tool::Shell(t) => t.thickness = snap((v0 + along).max(0.0)),
                 // Pulled off its axis onto a flat face, the face's offset reaches it; back on the axis, the drag rules.

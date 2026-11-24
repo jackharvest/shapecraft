@@ -320,8 +320,20 @@ pub fn show_at(ui: &mut Ui, id: &str, place: Place, bounds: Rect, rows: &[Row]) 
                         clicked = Some((i, 0));
                     }
                     let ty = r.top() + 54.0;
-                    p.text(pos2(r.left() + 6.0, ty), Align2::LEFT_CENTER, format!("{min:.1}°"), theme::body(11.5), Tokens::text());
-                    p.text(pos2(r.right() - 4.0, ty), Align2::RIGHT_CENTER, format!("{max:.1}°"), theme::body(11.5), Tokens::text());
+                    p.text(
+                        pos2(r.left() + 6.0, ty),
+                        Align2::LEFT_CENTER,
+                        crate::i18n::tr_s(format!("{min:.1}°")),
+                        theme::body(11.5),
+                        Tokens::text(),
+                    );
+                    p.text(
+                        pos2(r.right() - 4.0, ty),
+                        Align2::RIGHT_CENTER,
+                        crate::i18n::tr_s(format!("{max:.1}°")),
+                        theme::body(11.5),
+                        Tokens::text(),
+                    );
                 }
             }
             y += rh;

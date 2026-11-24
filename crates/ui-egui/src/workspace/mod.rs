@@ -206,6 +206,8 @@ pub struct Workspace {
     /// A heavy step finishing in the background (#59).
     pub working: Option<working::Working>,
     /// A heavy step's live preview being worked out in the background.
+    /// How far the fillet or chamfer being pulled can go.
+    pull_limit: PullLimit,
     pub(crate) preview_job: Option<working::PreviewJob>,
     /// How long a heavy step may hold the window before it goes on in the background (tests set it to zero).
     pub(crate) heavy_wait: std::time::Duration,
@@ -575,6 +577,47 @@ impl Section {
     }
 }
 
+/// How far a pulled fillet or chamfer goes: the biggest size that worked, the smallest that didn't, and the shape at
+/// the biggest. A pull past the limit stays at it instead of the edge going sharp again.
+#[derive(Default)]
+pub(crate) struct PullLimit {
+    pub chamfer: bool,
+    pub good: f64,
+    pub bad: Option<f64>,
+    doc: Option<shapecraft_doc::Document>,
+    key: String,
+}
+
+impl PullLimit {
+    /// The size to try for a pull to `want`: past what failed, halfway to it until that's close enough to the limit.
+    pub fn reach(&self, want: f64) -> f64 {
+        match self.bad {
+            Some(bad) if want >= bad && bad - self.good > 0.06 => ((self.good + bad) * 50.0).round() / 100.0,
+            Some(bad) if want >= bad => self.good,
+            _ => want,
+        }
+    }
+
+    /// What previewing `size` gave; a failed one shows the biggest that worked.
+    fn learn(&mut self, size: f64, preview: &mut Preview) {
+        if self.key == preview.key {
+            return;
+        }
+        self.key = preview.key.clone();
+        match &preview.doc {
+            Some(doc) if size >= self.good => {
+                self.good = size;
+                self.doc = Some(doc.clone());
+            }
+            Some(_) => {}
+            None => {
+                self.bad = Some(self.bad.map_or(size, |b| b.min(size)));
+                preview.doc = self.doc.clone();
+            }
+        }
+    }
+}
+
 pub(crate) struct Preview {
     key: String,
     computed_at: f64,
@@ -687,6 +730,7 @@ impl Workspace {
             importing: None,
             working: None,
             preview_job: None,
+            pull_limit: PullLimit::default(),
             // SHAPECRAFT_HEAVY_WAIT_MS: how long a heavy step holds the window first (0 shows the card at once).
             heavy_wait: std::env::var("SHAPECRAFT_HEAVY_WAIT_MS")
                 .ok()
@@ -1197,6 +1241,7 @@ impl Workspace {
         self.view_rect = Rect::from_min_max(pos2(screen.left(), view_top), screen.max);
         ui.painter().with_clip_rect(screen).rect_filled(screen, 0.0, Tokens::window());
 
+        crate::tablet::set_pen_hold_menu(self.settings.pen_hold_menu);
         self.update_preview();
         // Viewport first so the floating controls drawn after it win the hit test.
         let began = std::time::Instant::now();
@@ -1321,5 +1366,27 @@ impl Workspace {
     /// A click outside a popup closes it, except the click that just opened it.
     pub(crate) fn just_opened(&self) -> bool {
         self.now - self.popup_opened_at < 1e-6
+    }
+}
+
+#[cfg(test)]
+mod pull_limit {
+    use super::*;
+
+    /// A fillet pulled past what the part can take finds the limit and stays there, showing the biggest that worked.
+    #[test]
+    fn a_pull_past_the_limit_stays_at_it() {
+        let mut l = PullLimit::default();
+        let mut size = 0.0;
+        for step in 0..40 {
+            // Pulled to 10 at once; sizes up to 2.97 work.
+            size = l.reach(if step == 0 { 1.0 } else { 10.0 });
+            let doc = (size <= 2.97).then(shapecraft_doc::Document::default);
+            let mut p = Preview { key: format!("{size}"), computed_at: 0.0, doc };
+            l.learn(size, &mut p);
+            assert!(p.doc.is_some(), "something rounded shows all the way ({size})");
+        }
+        assert!((2.88..=2.97).contains(&size), "{size}");
+        assert_eq!(l.reach(2.0), 2.0, "back under the limit it follows the pointer");
     }
 }

@@ -78,7 +78,18 @@ pub(super) fn diameter_dim(painter: &egui::Painter, a: Pos2, b: Pos2, text: &str
     let u = d.normalized();
     let pp = vec2(-u.y, u.x);
     let white = Color32::WHITE;
-    painter.add(egui::Shape::dashed_line(&[a, b], Stroke::new(1.0, white), 4.0, 3.0));
+    // The line stops for the value, or the dashes run through its digits.
+    let at = a + d * 0.775;
+    let gap = match typed {
+        None if !live => painter.layout_no_wrap(text.to_string(), theme::mono(12.0), white).size().x / 2.0 + 5.0,
+        _ => 0.0,
+    };
+    let gap = if gap * 2.0 < d.length() { gap } else { 0.0 };
+    for (from, to) in [(a, at - u * gap), (at + u * gap, b)] {
+        if (to - from).dot(u) > 1.0 {
+            painter.add(egui::Shape::dashed_line(&[from, to], Stroke::new(1.0, white), 4.0, 3.0));
+        }
+    }
     for (tip, s) in [(a, 1.0f32), (b, -1.0)] {
         painter.add(egui::Shape::convex_polygon(
             vec![tip, tip + u * 9.0 * s + pp * 3.5, tip + u * 9.0 * s - pp * 3.5],
@@ -86,7 +97,6 @@ pub(super) fn diameter_dim(painter: &egui::Painter, a: Pos2, b: Pos2, text: &str
             Stroke::NONE,
         ));
     }
-    let at = a + d * 0.775;
     match typed {
         Some(t) => value_field(painter, at, t),
         None => sketch_dimension_label(painter, at, u, text, live),
@@ -356,7 +366,8 @@ fn error_callout(painter: &egui::Painter, below: Pos2, text: &str, missing: Opti
     let mut chars = text.chars();
     let msg = chars.next().map(|f| f.to_uppercase().collect::<String>() + chars.as_str()).unwrap_or_default();
     let g = painter.layout(crate::i18n::tr_s(msg), theme::body(12.0), Tokens::text_strong(), 200.0);
-    let create = missing.map(|n| painter.layout_no_wrap(format!("Create {n}…"), theme::strong(12.0), Tokens::icon_blue()));
+    let create =
+        missing.map(|n| painter.layout_no_wrap(crate::i18n::tr_s(format!("Create {n}…")), theme::strong(12.0), Tokens::icon_blue()));
     let extra = create.as_ref().map_or(egui::Vec2::ZERO, |c| vec2((c.size().x - g.size().x).max(0.0), c.size().y + 8.0));
     let r = Rect::from_min_size(below + vec2(40.0, 8.0), g.size() + extra + vec2(42.0, 18.0));
     painter.rect_filled(r, radius(8), theme::c(0x4a4524));

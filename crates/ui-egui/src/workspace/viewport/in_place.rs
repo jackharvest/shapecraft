@@ -76,7 +76,7 @@ impl Workspace {
         p.text(
             pos2(dots.left() - 8.0, rows.top() + 21.0),
             Align2::RIGHT_CENTER,
-            format!("{font}, Regular"),
+            crate::i18n::tr_s(format!("{font}, Regular")),
             theme::body(13.0),
             Tokens::text_strong(),
         );

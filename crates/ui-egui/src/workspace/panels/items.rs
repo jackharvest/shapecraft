@@ -751,7 +751,17 @@ fn touch_footer(ws: &mut Workspace, ui: &mut Ui, r: Rect, footer_y: f32) {
         ("Delete", Align2::CENTER_CENTER, picked && idle),
         ("More...", Align2::RIGHT_CENTER, true),
     ];
-    let font = theme::body(15.0);
+    // As large as fits: in some languages the three words are wider than the panel.
+    let words = |size: f32| -> f32 {
+        let w = |l: &str| ui.painter().layout_no_wrap(crate::i18n::tr_s(l), theme::body(size), blue).size().x + 16.0;
+        // (Delete is centered, so the longer of its neighbours counts twice.)
+        w(slots[1].0) + 2.0 * w(slots[0].0).max(w(slots[2].0))
+    };
+    let mut size = 15.0;
+    while size > 10.5 && words(size) > r.width() - 8.0 {
+        size -= 0.5;
+    }
+    let font = theme::body(size);
     let mut more_rect = Rect::NOTHING;
     for (i, (label, align, on)) in slots.iter().enumerate() {
         let w = ui.painter().layout_no_wrap(crate::i18n::tr_s(label), font.clone(), blue).size().x + 16.0;

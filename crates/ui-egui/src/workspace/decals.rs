@@ -266,7 +266,8 @@ pub(super) fn properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
         if let Some(tex) = thumb(ws, ui.ctx(), img) {
             paint_thumb(&p, tile.shrink(3.0), tex, img.aspect(), Color32::WHITE);
         }
-        p.text(pos2(card.left() + 58.0, card.center().y), Align2::LEFT_CENTER, &img.name, theme::strong(12.0), Tokens::text_strong());
+        let g = super::drawings::fit_text(&p, &img.name, 12.0, card.width() - 70.0, Tokens::text_strong());
+        p.galley(pos2(card.left() + 58.0, card.center().y - g.size().y / 2.0), g, Tokens::text_strong());
     }
     y = card.bottom() + 26.0;
     let rows = [
@@ -331,7 +332,8 @@ pub(super) fn body_rows(ws: &mut Workspace, ui: &mut Ui, r: Rect, top: f32, body
             if let Some(tex) = thumb(ws, ui.ctx(), &img) {
                 paint_thumb(&p, tile.shrink(3.0), tex, img.aspect(), Color32::WHITE);
             }
-            p.text(pos2(card.left() + 58.0, card.center().y), Align2::LEFT_CENTER, &img.name, theme::strong(12.0), Tokens::text_strong());
+            let g = super::drawings::fit_text(&p, &img.name, 12.0, card.width() - 70.0, Tokens::text_strong());
+            p.galley(pos2(card.left() + 58.0, card.center().y - g.size().y / 2.0), g, Tokens::text_strong());
         }
         let edit = Rect::from_center_size(pos2(card.right() - 24.0, card.center().y), vec2(40.0, 22.0));
         let er = ui.interact(edit, ui.scope_id().with(("decal-edit", id.0)), Sense::click());

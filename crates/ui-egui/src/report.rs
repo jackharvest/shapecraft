@@ -499,7 +499,7 @@ impl Report {
             Kind::Problem => "Report a Problem",
             Kind::Idea => "Suggest an Idea",
         };
-        p.text(pos2(x0, head_y), Align2::LEFT_CENTER, title, theme::strong(16.0), Tokens::text_strong());
+        p.text(pos2(x0, head_y), Align2::LEFT_CENTER, crate::i18n::tr_s(title), theme::strong(16.0), Tokens::text_strong());
         if self.ctx.failure.is_none()
             && self.ctx.crash.is_none()
             && let Some(k) = segmented(ui, &p, x1, head_y, "report-kind", &["Problem", "Idea"], usize::from(self.draft.kind == Kind::Idea))
@@ -509,7 +509,7 @@ impl Report {
         p.text(
             pos2(x0, head_y + 22.0),
             Align2::LEFT_CENTER,
-            "Becomes a public issue on ShapeCraft's GitHub, under your name.",
+            crate::i18n::tr_s("Becomes a public issue on ShapeCraft's GitHub, under your name."),
             theme::body(12.0),
             Tokens::text_dim(),
         );
@@ -632,12 +632,18 @@ impl Report {
                 p.text(
                     pos2(rect.left() + 12.0, rect.center().y - 8.0),
                     Align2::LEFT_CENTER,
-                    *label,
+                    crate::i18n::tr_s(*label),
                     theme::body(13.0),
                     Tokens::text_strong(),
                 );
                 let sub = theme::elide(p, sub, theme::body(11.0), text_right - rect.left() - 12.0);
-                p.text(pos2(rect.left() + 12.0, rect.center().y + 9.0), Align2::LEFT_CENTER, sub, theme::body(11.0), Tokens::text_dim());
+                p.text(
+                    pos2(rect.left() + 12.0, rect.center().y + 9.0),
+                    Align2::LEFT_CENTER,
+                    crate::i18n::tr_s(sub),
+                    theme::body(11.0),
+                    Tokens::text_dim(),
+                );
                 if *which == Which::Shot
                     && let Some(s) = &self.shot
                 {
@@ -685,7 +691,13 @@ impl Report {
             Some(a) => {
                 let c = pos2(x0 + 11.0, fy);
                 avatar(p, c, &a.login);
-                let name = p.text(pos2(x0 + 28.0, fy - 7.0), Align2::LEFT_CENTER, a.handle(), theme::body(12.5), Tokens::text_strong());
+                let name = p.text(
+                    pos2(x0 + 28.0, fy - 7.0),
+                    Align2::LEFT_CENTER,
+                    crate::i18n::tr_s(a.handle()),
+                    theme::body(12.5),
+                    Tokens::text_strong(),
+                );
                 let _ = name;
                 let mine = link(ui, pos2(x0 + 28.0, fy + 9.0), "Your Reports", "report-mine-link");
                 let out_x = mine.right() + 10.0;
@@ -698,7 +710,13 @@ impl Report {
                 }
             }
             None => {
-                p.text(pos2(x0, fy - 7.0), Align2::LEFT_CENTER, "Not signed in", theme::body(12.5), Tokens::text_strong());
+                p.text(
+                    pos2(x0, fy - 7.0),
+                    Align2::LEFT_CENTER,
+                    crate::i18n::tr_s("Not signed in"),
+                    theme::body(12.5),
+                    Tokens::text_strong(),
+                );
                 let r = link(ui, pos2(x0, fy + 9.0), "Send from the browser instead", "report-browser");
                 if ui.interact(r, ui.scope_id().with("report-browser"), Sense::click()).clicked() {
                     let title = self.draft.send_title(&self.ctx);
@@ -720,17 +738,35 @@ impl Report {
         let mut y = card.top() + 46.0;
         github_mark(&p, pos2(cx, y), 18.0);
         y += 40.0;
-        p.text(pos2(cx, y), Align2::CENTER_CENTER, "Sign in with GitHub", theme::strong(17.0), Tokens::text_strong());
+        p.text(pos2(cx, y), Align2::CENTER_CENTER, crate::i18n::tr_s("Sign in with GitHub"), theme::strong(17.0), Tokens::text_strong());
         y += 26.0;
-        p.text(pos2(cx, y), Align2::CENTER_CENTER, "Once, so reports go out under your own name.", theme::body(12.5), Tokens::text_dim());
+        p.text(
+            pos2(cx, y),
+            Align2::CENTER_CENTER,
+            crate::i18n::tr_s("Once, so reports go out under your own name."),
+            theme::body(12.5),
+            Tokens::text_dim(),
+        );
         y += 40.0;
         match code {
             None => {
                 spinner(&p, pos2(cx, y + 20.0), ui.input(|i| i.time));
-                p.text(pos2(cx, y + 52.0), Align2::CENTER_CENTER, "Asking GitHub for a code…", theme::body(12.5), Tokens::text_dim());
+                p.text(
+                    pos2(cx, y + 52.0),
+                    Align2::CENTER_CENTER,
+                    crate::i18n::tr_s("Asking GitHub for a code…"),
+                    theme::body(12.5),
+                    Tokens::text_dim(),
+                );
             }
             Some(code) => {
-                p.text(pos2(cx, y), Align2::CENTER_CENTER, "Enter this code on GitHub:", theme::body(13.0), Tokens::text());
+                p.text(
+                    pos2(cx, y),
+                    Align2::CENTER_CENTER,
+                    crate::i18n::tr_s("Enter this code on GitHub:"),
+                    theme::body(13.0),
+                    Tokens::text(),
+                );
                 y += 38.0;
                 // The code, one box per character, big enough to read across the room.
                 let chars: Vec<char> = code.user_code.chars().collect();
@@ -746,7 +782,7 @@ impl Report {
                     let r = Rect::from_min_size(pos2(x, y - 21.0), vec2(cw, 42.0));
                     p.rect_filled(r, radius(7), Tokens::field());
                     p.rect_stroke(r, radius(7), Stroke::new(1.0, Tokens::chip_border()), StrokeKind::Inside);
-                    p.text(r.center(), Align2::CENTER_CENTER, ch.to_string(), theme::mono(22.0), Tokens::text_strong());
+                    p.text(r.center(), Align2::CENTER_CENTER, ch, theme::mono(22.0), Tokens::text_strong());
                     x += cw + 6.0;
                 }
                 y += 50.0;
@@ -760,19 +796,19 @@ impl Report {
                 p.text(
                     pos2(cx, y),
                     Align2::CENTER_CENTER,
-                    format!("or go to {shown} on any phone or computer"),
+                    crate::i18n::tr_s(format!("or go to {shown} on any phone or computer")),
                     theme::body(12.0),
                     Tokens::text_dim(),
                 );
                 y += 34.0;
                 let waiting = "Waiting for you to approve it…";
-                let tw = p.layout_no_wrap(waiting.into(), theme::body(12.5), Tokens::text()).size().x;
+                let tw = p.layout_no_wrap(crate::i18n::tr_s(waiting), theme::body(12.5), Tokens::text()).size().x;
                 let left = cx - (tw + 22.0) / 2.0;
                 spinner(&p, pos2(left + 9.0, y), ui.input(|i| i.time));
-                p.text(pos2(left + 22.0, y), Align2::LEFT_CENTER, waiting, theme::body(12.5), Tokens::text());
+                p.text(pos2(left + 22.0, y), Align2::LEFT_CENTER, crate::i18n::tr_s(waiting), theme::body(12.5), Tokens::text());
                 y += 30.0;
                 let signup = "No GitHub account? Make one free";
-                let lw = p.layout_no_wrap(signup.into(), theme::body(12.0), Tokens::icon_blue()).size().x;
+                let lw = p.layout_no_wrap(crate::i18n::tr_s(signup), theme::body(12.0), Tokens::icon_blue()).size().x;
                 let r = link(ui, pos2(cx - lw / 2.0, y), signup, "report-signup");
                 if ui.interact(r, ui.scope_id().with("report-signup-hit"), Sense::click()).clicked() {
                     *out = Some(Out::Open(shapecraft_report::SIGN_UP_PAGE.into()));
@@ -780,7 +816,7 @@ impl Report {
             }
         }
         let fine = "ShapeCraft can only open and read issues on its own repository. Nothing else of yours.";
-        p.text(pos2(cx, card.bottom() - 70.0), Align2::CENTER_CENTER, fine, theme::body(11.0), Tokens::text_faint());
+        p.text(pos2(cx, card.bottom() - 70.0), Align2::CENTER_CENTER, crate::i18n::tr_s(fine), theme::body(11.0), Tokens::text_faint());
         let (back, _) = button(ui, cx + 30.0, card.bottom() - 32.0, "Back", Style::Plain, true);
         if back {
             self.stop.store(true, Ordering::Relaxed);
@@ -800,12 +836,18 @@ impl Report {
             Stroke::new(3.5, Color32::WHITE),
         ));
         y += 52.0;
-        p.text(pos2(cx, y), Align2::CENTER_CENTER, format!("Sent as issue #{}", f.number), theme::strong(17.0), Tokens::text_strong());
+        p.text(
+            pos2(cx, y),
+            Align2::CENTER_CENTER,
+            crate::i18n::tr_s(format!("Sent as issue #{}", f.number)),
+            theme::strong(17.0),
+            Tokens::text_strong(),
+        );
         y += 26.0;
         p.text(
             pos2(cx, y),
             Align2::CENTER_CENTER,
-            "Thank you. You'll get GitHub's notifications when someone answers.",
+            crate::i18n::tr_s("Thank you. You'll get GitHub's notifications when someone answers."),
             theme::body(12.5),
             Tokens::text_dim(),
         );
@@ -817,7 +859,7 @@ impl Report {
             p.text(
                 pos2(step.left() + 16.0, step.top() + 20.0),
                 Align2::LEFT_CENTER,
-                "One more step: the screenshot",
+                crate::i18n::tr_s("One more step: the screenshot"),
                 theme::strong(13.0),
                 Tokens::text_strong(),
             );
@@ -825,7 +867,7 @@ impl Report {
             p.text(
                 pos2(step.left() + 16.0, step.top() + 42.0),
                 Align2::LEFT_CENTER,
-                format!("It's on your clipboard. Open the issue and press {keys} in the comment box."),
+                crate::i18n::tr_s(format!("It's on your clipboard. Open the issue and press {keys} in the comment box.")),
                 theme::body(12.0),
                 Tokens::text_dim(),
             );
@@ -861,9 +903,15 @@ impl Report {
         let p = ui.painter().clone();
         let x0 = card.left() + 20.0;
         let head_y = card.top() + 28.0;
-        p.text(pos2(x0, head_y), Align2::LEFT_CENTER, "Your Reports", theme::strong(16.0), Tokens::text_strong());
+        p.text(pos2(x0, head_y), Align2::LEFT_CENTER, crate::i18n::tr_s("Your Reports"), theme::strong(16.0), Tokens::text_strong());
         if let Some(a) = &self.account {
-            p.text(pos2(card.right() - 20.0, head_y), Align2::RIGHT_CENTER, a.handle(), theme::body(12.5), Tokens::text_dim());
+            p.text(
+                pos2(card.right() - 20.0, head_y),
+                Align2::RIGHT_CENTER,
+                crate::i18n::tr_s(a.handle()),
+                theme::body(12.5),
+                Tokens::text_dim(),
+            );
         }
         let body = Rect::from_min_max(pos2(card.left() + 1.0, head_y + 22.0), pos2(card.right() - 1.0, card.bottom() - 64.0));
         p.hline(card.x_range(), body.top(), Stroke::new(1.0, Tokens::divider()));
@@ -874,7 +922,7 @@ impl Report {
                 p.text(
                     body.center() - vec2(0.0, 12.0),
                     Align2::CENTER_CENTER,
-                    "Sign in to see the reports you've sent.",
+                    crate::i18n::tr_s("Sign in to see the reports you've sent."),
                     theme::body(13.0),
                     Tokens::text(),
                 );
@@ -895,7 +943,7 @@ impl Report {
                 p.text(
                     body.center(),
                     Align2::CENTER_CENTER,
-                    "Nothing sent yet. Your reports and ideas will show up here.",
+                    crate::i18n::tr_s("Nothing sent yet. Your reports and ideas will show up here."),
                     theme::body(13.0),
                     Tokens::text_dim(),
                 );
@@ -914,12 +962,12 @@ impl Report {
                         let (pill, color) = if m.open { ("Open", theme::fixed(0x2e9e5b)) } else { ("Closed", theme::fixed(0x8250df)) };
                         let pr = Rect::from_min_size(pos2(rect.right() - 62.0, rect.center().y - 10.0), vec2(56.0, 20.0));
                         p.rect_filled(pr, radius(10), color);
-                        p.text(pr.center(), Align2::CENTER_CENTER, pill, theme::strong(11.0), Color32::WHITE);
+                        p.text(pr.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(pill), theme::strong(11.0), Color32::WHITE);
                         let title = theme::elide(p, &m.title, theme::body(13.0), pr.left() - rect.left() - 20.0);
                         p.text(
                             pos2(rect.left() + 8.0, rect.center().y - 8.0),
                             Align2::LEFT_CENTER,
-                            title,
+                            crate::i18n::tr_s(title),
                             theme::body(13.0),
                             Tokens::text_strong(),
                         );
@@ -932,7 +980,7 @@ impl Report {
                         p.text(
                             pos2(rect.left() + 8.0, rect.center().y + 9.0),
                             Align2::LEFT_CENTER,
-                            format!("#{} · {replies} · {day}", m.number),
+                            crate::i18n::tr_s(format!("#{} · {replies} · {day}", m.number)),
                             theme::body(11.0),
                             Tokens::text_dim(),
                         );
@@ -1065,7 +1113,7 @@ fn segmented(ui: &Ui, p: &egui::Painter, right: f32, y: f32, id: &str, items: &[
         if k == current {
             p.rect_filled(s.shrink(2.0), radius(5), theme::c(0x5c5c5e));
         }
-        p.text(s.center(), Align2::CENTER_CENTER, *item, theme::body(13.0), Tokens::text_strong());
+        p.text(s.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(*item), theme::body(13.0), Tokens::text_strong());
         if ui.interact(s, ui.scope_id().with((id, k)), Sense::click()).clicked() && k != current {
             picked = Some(k);
         }
@@ -1083,7 +1131,7 @@ pub(crate) enum Style {
 pub(crate) fn button(ui: &Ui, right: f32, y: f32, label: &str, style: Style, enabled: bool) -> (bool, Rect) {
     let touch = crate::tablet::touch_ui();
     let h = if touch { 34.0 } else { 26.0 };
-    let g = ui.painter().layout_no_wrap(label.to_string(), theme::body(13.0), Color32::WHITE);
+    let g = ui.painter().layout_no_wrap(crate::i18n::tr_s(label), theme::body(13.0), Color32::WHITE);
     let r = Rect::from_min_size(pos2(right - g.size().x - 26.0, y - h / 2.0), vec2(g.size().x + 26.0, h));
     let resp = ui.interact(r, ui.scope_id().with(("report-btn", label)), if enabled { Sense::click() } else { Sense::hover() });
     let fill = match (style, enabled, resp.hovered()) {
@@ -1101,14 +1149,14 @@ pub(crate) fn button(ui: &Ui, right: f32, y: f32, label: &str, style: Style, ena
         Style::Plain if theme::is_light() => Tokens::text_strong(),
         _ => Color32::WHITE,
     };
-    p.text(r.center(), Align2::CENTER_CENTER, label, theme::body(13.0), ink);
+    p.text(r.center(), Align2::CENTER_CENTER, crate::i18n::tr_s(label), theme::body(13.0), ink);
     (enabled && resp.clicked(), r)
 }
 
 /// Blue link text starting at `at` (left, centred on y); its rect.
 pub(crate) fn link(ui: &Ui, at: Pos2, text: &str, id: &str) -> Rect {
     let p = ui.painter();
-    let g = p.layout_no_wrap(text.to_string(), theme::body(12.0), Tokens::icon_blue());
+    let g = p.layout_no_wrap(crate::i18n::tr_s(text), theme::body(12.0), Tokens::icon_blue());
     let r = Rect::from_min_size(pos2(at.x, at.y - g.size().y / 2.0), g.size());
     let hovered = ui.rect_contains_pointer(r);
     let _ = id;
@@ -1122,7 +1170,7 @@ pub(crate) fn link(ui: &Ui, at: Pos2, text: &str, id: &str) -> Rect {
 
 pub(crate) fn error_bar(ui: &mut Ui, text: &str) {
     let w = ui.available_width();
-    let g = ui.painter().layout(text.to_string(), theme::body(12.5), Tokens::text_strong(), w - 24.0);
+    let g = ui.painter().layout(crate::i18n::tr_s(text), theme::body(12.5), Tokens::text_strong(), w - 24.0);
     let (rect, _) = ui.allocate_exact_size(vec2(w, g.size().y + 16.0), Sense::hover());
     let p = ui.painter();
     p.rect_filled(rect, radius(7), theme::c(0x58302f));
@@ -1135,7 +1183,7 @@ fn avatar(p: &egui::Painter, c: Pos2, login: &str) {
     let color = egui::ecolor::Hsva::new(hue as f32 / 360.0, 0.45, 0.62, 1.0);
     p.circle_filled(c, 11.0, Color32::from(color));
     let letter = login.chars().next().map(|c| c.to_ascii_uppercase().to_string()).unwrap_or_default();
-    p.text(c, Align2::CENTER_CENTER, letter, theme::strong(12.0), Color32::WHITE);
+    p.text(c, Align2::CENTER_CENTER, crate::i18n::tr_s(letter), theme::strong(12.0), Color32::WHITE);
 }
 
 /// GitHub's mark, drawn simply (a ring with a cat's ears would be theirs to draw; this is a plain round badge).
@@ -1160,8 +1208,8 @@ fn spinner_pane(ui: &mut Ui, card: Rect, now: f64, title: &str, sub: &str) {
     let p = ui.painter();
     let c = card.center();
     spinner(p, c - vec2(0.0, 30.0), now);
-    p.text(c + vec2(0.0, 4.0), Align2::CENTER_CENTER, title, theme::strong(15.0), Tokens::text_strong());
-    p.text(c + vec2(0.0, 26.0), Align2::CENTER_CENTER, sub, theme::body(12.5), Tokens::text_dim());
+    p.text(c + vec2(0.0, 4.0), Align2::CENTER_CENTER, crate::i18n::tr_s(title), theme::strong(15.0), Tokens::text_strong());
+    p.text(c + vec2(0.0, 26.0), Align2::CENTER_CENTER, crate::i18n::tr_s(sub), theme::body(12.5), Tokens::text_dim());
 }
 
 /// This system in a few words: "macOS 26.1 (aarch64)".
@@ -1241,14 +1289,14 @@ pub fn crash_prompt(ui: &mut Ui) -> Option<bool> {
         p.text(
             pos2(rect.left() + 18.0, rect.top() + 24.0),
             Align2::LEFT_CENTER,
-            "ShapeCraft closed unexpectedly",
+            crate::i18n::tr_s("ShapeCraft closed unexpectedly"),
             theme::strong(14.0),
             Tokens::text_strong(),
         );
         p.text(
             pos2(rect.left() + 18.0, rect.top() + 45.0),
             Align2::LEFT_CENTER,
-            "Tell us what you were doing, and we'll look into it.",
+            crate::i18n::tr_s("Tell us what you were doing, and we'll look into it."),
             theme::body(12.5),
             Tokens::text_dim(),
         );
