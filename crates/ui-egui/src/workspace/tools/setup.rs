@@ -1186,9 +1186,7 @@ impl SweepTool {
             }
         }
         out.into_iter()
-            .map(|(id, edge, list)| {
-                if edge { json!({ "body": id.0, "edges": list }) } else { json!({ "sketch": id.0, "entities": list }) }
-            })
+            .map(|(id, edge, list)| if edge { json!({ "body": id.0, "edges": list }) } else { json!({ "sketch": id.0, "entities": list }) })
             .collect()
     }
 

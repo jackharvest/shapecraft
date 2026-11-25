@@ -58,7 +58,7 @@ impl Run {
         Some(Run { shape, reversed: false })
     }
 
-    fn at(&self, t: f64) -> DVec3 {
+    pub fn at(&self, t: f64) -> DVec3 {
         let t = if self.reversed { 1.0 - t } else { t };
         match &self.shape {
             RunShape::Line(a, b) => a.lerp(*b, t),
@@ -67,7 +67,7 @@ impl Run {
         }
     }
 
-    fn flipped(&self) -> Run {
+    pub fn flipped(&self) -> Run {
         Run { reversed: !self.reversed, ..self.clone() }
     }
 
@@ -294,7 +294,7 @@ impl Lu {
 
 /// What pins a cubic spline's two ends besides its points.
 #[derive(Clone, Copy, PartialEq)]
-enum Pin {
+pub(crate) enum Pin {
     /// A first derivative given.
     Slope,
     /// No bending.
@@ -302,7 +302,7 @@ enum Pin {
 }
 
 /// A C2 cubic spline through values at rising parameters: the solver for its B-spline poles (n + 2 of them).
-struct Cubic {
+pub(crate) struct Cubic {
     params: Vec<f64>,
     full: Vec<f64>,
     lu: Lu,
@@ -310,7 +310,7 @@ struct Cubic {
 }
 
 impl Cubic {
-    fn new(params: Vec<f64>, pins: [Pin; 2]) -> Option<Cubic> {
+    pub(crate) fn new(params: Vec<f64>, pins: [Pin; 2]) -> Option<Cubic> {
         let n = params.len();
         let (lo, hi) = (*params.first()?, *params.last()?);
         let mut full = vec![lo; 4];
@@ -333,7 +333,7 @@ impl Cubic {
     }
 
     /// The poles through `values`, with the end slopes where they're asked for.
-    fn poles(&self, values: &[DVec3], slopes: [DVec3; 2]) -> Vec<DVec3> {
+    pub(crate) fn poles(&self, values: &[DVec3], slopes: [DVec3; 2]) -> Vec<DVec3> {
         let n = values.len();
         let mut b = Vec::with_capacity(n + 2);
         b.push(values[0]);
@@ -533,12 +533,15 @@ fn line_up(rings: &mut [Ring], hits: &[Vec<(f64, f64)>]) -> Result<(Vec<Remap>, 
     let most = (0..rings.len()).max_by_key(|&i| (rings[i].corners().len(), rings.len() - i)).unwrap_or(0);
     let guided = !hits.is_empty();
     // Re-find guide touches after the reversals, as raw fractions.
-    let hits: Vec<Vec<f64>> = hits
-        .iter()
-        .map(|h| h.iter().zip(rings.iter()).map(|(&(f, _), r)| f + r.start).collect())
-        .collect();
+    let hits: Vec<Vec<f64>> = hits.iter().map(|h| h.iter().zip(rings.iter()).map(|(&(f, _), r)| f + r.start).collect()).collect();
     // Where each starts: the first section's first corner (or guide), the others turned to match.
-    rings[most].start = if guided { hits[0][most] } else if rings[most].runs.len() > 1 { 0.0 } else { rings[most].start };
+    rings[most].start = if guided {
+        hits[0][most]
+    } else if rings[most].runs.len() > 1 {
+        0.0
+    } else {
+        rings[most].start
+    };
     let base: Vec<f64> = rings[most].corners();
     let samples: Vec<f64> = if base.len() >= 3 { base.clone() } else { (0..24).map(|i| f64::from(i) / 24.0).collect() };
     let place = |r: &Ring, f: f64| r.at(f) - r.center;
@@ -554,8 +557,11 @@ fn line_up(rings: &mut [Ring], hits: &[Vec<(f64, f64)>]) -> Result<(Vec<Remap>, 
                 let size = |v: &[DVec3]| (v.iter().map(|p| p.length_squared()).sum::<f64>() / v.len() as f64).sqrt().max(1e-9);
                 let ws = size(&wanted);
                 let corners: Vec<f64> = rings[me].corners();
-                let tries: Vec<f64> =
-                    if corners.len() == base.len() && corners.len() > 1 { corners.clone() } else { (0..360).map(|k| f64::from(k) / 360.0).collect() };
+                let tries: Vec<f64> = if corners.len() == base.len() && corners.len() > 1 {
+                    corners.clone()
+                } else {
+                    (0..360).map(|k| f64::from(k) / 360.0).collect()
+                };
                 let same = corners.len() == base.len() && corners.len() > 1;
                 let cost = |r: &Ring, f: f64| -> f64 {
                     let pts: Vec<DVec3> = if same {
@@ -621,8 +627,7 @@ fn line_up(rings: &mut [Ring], hits: &[Vec<(f64, f64)>]) -> Result<(Vec<Remap>, 
     let mut hard: Vec<f64> = Vec::new();
     for k in 0..common.len() {
         let (lo, hi) = (common[k], common.get(k + 1).copied().unwrap_or(common[0] + 1.0));
-        let spans: Vec<(f64, f64)> =
-            pins.iter().map(|p| (p[k], p.get(k + 1).copied().unwrap_or(p[0] + 1.0))).collect();
+        let spans: Vec<(f64, f64)> = pins.iter().map(|p| (p[k], p.get(k + 1).copied().unwrap_or(p[0] + 1.0))).collect();
         let inner: Vec<Vec<f64>> = (0..n).map(|i| between(&corners_of[i], spans[i].0, spans[i].1)).collect();
         for i in 0..n {
             maps_from[i].push(lo);
@@ -733,7 +738,13 @@ impl Skin<'_> {
             let first = t <= v[1] && g2[0] && s.is_some();
             let last = t >= v[n - 2] && g2[1] && e.is_some();
             if first || last {
-                let (lo, hi) = if n == 2 { (v[0], v[1]) } else if first { (v[0], v[1]) } else { (v[n - 2], v[n - 1]) };
+                let (lo, hi) = if n == 2 {
+                    (v[0], v[1])
+                } else if first {
+                    (v[0], v[1])
+                } else {
+                    (v[n - 2], v[n - 1])
+                };
                 let h = hi - lo;
                 let far = |t: f64| c.slopes(poles, t);
                 let (d0, c0) = if (lo - v[0]).abs() < 1e-15 && g2[0] { s.unwrap_or_default() } else { far(lo) };
@@ -883,7 +894,8 @@ fn build(skin: &Skin, hard: &[f64], size: f64) -> Result<Brep, &'static str> {
     const WAY: &str = "the loft's walls couldn't be made";
     let n = skin.v.len();
     let opts = skin.opts;
-    let plain = skin.guides.is_empty() && !opts.periodic && ![&opts.start, &opts.end].iter().any(|e| e.as_ref().is_some_and(|e| e.curvature));
+    let plain =
+        skin.guides.is_empty() && !opts.periodic && ![&opts.start, &opts.end].iter().any(|e| e.as_ref().is_some_and(|e| e.curvature));
     // Rows along the loft: the sections alone where a cubic spline through them is the whole story, else close rows.
     let turn = if opts.periodic { skin.v[n - 1] + skin.gap_back() } else { 1.0 };
     let mut stops: Vec<f64> = skin.v.to_vec();
@@ -914,11 +926,8 @@ fn build(skin: &Skin, hard: &[f64], size: f64) -> Result<Brep, &'static str> {
         let d = (c[0] * -25.0 + c[1] * 48.0 - c[2] * 36.0 + c[3] * 16.0 - c[4] * 3.0) / (12.0 * h);
         Some(if last { -d } else { d })
     };
-    let pins = if plain {
-        [&opts.start, &opts.end].map(|e| if e.is_some() { Pin::Slope } else { Pin::Free })
-    } else {
-        [Pin::Slope, Pin::Slope]
-    };
+    let pins =
+        if plain { [&opts.start, &opts.end].map(|e| if e.is_some() { Pin::Slope } else { Pin::Free }) } else { [Pin::Slope, Pin::Slope] };
     let vs = Cubic::new(rows.clone(), pins).ok_or(WAY)?;
     // Patches between corners, or one all the way round.
     let spans: Vec<(f64, f64)> = if hard.is_empty() {
@@ -958,7 +967,13 @@ fn build(skin: &Skin, hard: &[f64], size: f64) -> Result<Brep, &'static str> {
                 let p = |t: f64| r.at(m.at(a + (z - a) * t.clamp(1e-12, 1.0 - 1e-12)));
                 (1..8).all(|k| p(f64::from(k) / 8.0).distance(p(0.0).lerp(p(1.0), f64::from(k) / 8.0)) < size * 1e-9)
             });
-        let nu = if straight { 2 } else if around { 73 } else { 25 };
+        let nu = if straight {
+            2
+        } else if around {
+            73
+        } else {
+            25
+        };
         let us: Vec<f64> = (0..nu).map(|k| k as f64 / (nu - 1) as f64).collect();
         // Never quite at the corner itself: the run on this side of it.
         let inside = |t: f64| if around { a + (z - a) * t } else { a + (z - a) * t.clamp(1e-12, 1.0 - 1e-12) };
@@ -1054,7 +1069,13 @@ fn build(skin: &Skin, hard: &[f64], size: f64) -> Result<Brep, &'static str> {
                     Curve::BSpline(Nurbs { degree: 3, mults: mult(knots.len()), knots, weights: None, periodic: false, poles })
                 });
                 rails[s][k] = b.edges.len();
-                b.edges.push(Edge { curve: Some(id), reversed: false, start: Some(vertex[la][k]), end: Some(vertex[lb][k]), tolerance: None });
+                b.edges.push(Edge {
+                    curve: Some(id),
+                    reversed: false,
+                    start: Some(vertex[la][k]),
+                    end: Some(vertex[lb][k]),
+                    tolerance: None,
+                });
             }
         }
     }
@@ -1146,8 +1167,8 @@ fn exact_curve(poles: &[DVec3], knots: &[f64], degree: u32, size: f64) -> Option
     let c = p + (u.length_squared() * v.cross(n) + v.length_squared() * n.cross(u)) / (2.0 * nn);
     let radius = c.distance(p);
     let normal = n.normalize();
-    let fits = radius < size * 1e3
-        && pts.iter().all(|x| (x.distance(c) - radius).abs() < size * 2e-6 && (*x - c).dot(normal).abs() < size * 2e-6);
+    let fits =
+        radius < size * 1e3 && pts.iter().all(|x| (x.distance(c) - radius).abs() < size * 2e-6 && (*x - c).dot(normal).abs() < size * 2e-6);
     // The same way round as the boundary runs.
     fits.then(|| Curve::Circle { center: c, normal, x: (p - c).normalize(), radius })
 }

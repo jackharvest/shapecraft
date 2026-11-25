@@ -822,6 +822,23 @@ impl Kernel for OcctKernel {
         blend_out("fill", |out| unsafe { ffi::sk_fill(s, edges.as_ptr(), edges.len(), out) })
     }
 
+    fn network(&self, faces: &[Shape], curves: &[Shape]) -> Result<Shape> {
+        if faces.len() + curves.len() > 10_000 {
+            return Err(KernelError::InvalidInput("too many profiles and curves".into()));
+        }
+        let f = faces.iter().map(raw).collect::<Result<Vec<_>>>()?;
+        let c = curves.iter().map(raw).collect::<Result<Vec<_>>>()?;
+        // SAFETY: both lists outlive the call.
+        shape_out("fill", |out| unsafe { ffi::sk_network(f.as_ptr(), f.len(), c.as_ptr(), c.len(), out) })
+    }
+
+    fn sew_solid(&self, faces: &[Shape], tolerance: f64) -> Result<Shape> {
+        finite("sew", &[tolerance])?;
+        let f = faces.iter().map(raw).collect::<Result<Vec<_>>>()?;
+        // SAFETY: the list outlives the call.
+        shape_out("fill", |out| unsafe { ffi::sk_sew_solid(f.as_ptr(), f.len(), tolerance, out) })
+    }
+
     fn fillet_edges_ex(&self, shape: &Shape, edges: &[u32], size: f64, chordal: bool, setback: f64) -> Result<Shape> {
         finite("fillet", &[size, setback])?;
         if size <= 0.0 || edges.is_empty() || setback < 0.0 {

@@ -69,7 +69,7 @@ pub(super) fn chains(s: &Session, parts: &[PathPart]) -> Result<Vec<Vec<DVec3>>>
 }
 
 /// Close points along a curve (a fit through a spline's samples).
-fn fine(c: &EdgeCurve) -> Vec<DVec3> {
+pub(super) fn fine(c: &EdgeCurve) -> Vec<DVec3> {
     match c {
         EdgeCurve::Other { points } => {
             let n = points.len();
@@ -88,15 +88,14 @@ fn drawn(frame: PlaneFrame, c: &PlanarCurve) -> Vec<DVec3> {
     const N: u32 = 512;
     let n = frame.x.cross(frame.y).normalize_or(DVec3::Z);
     let round = |center: DVec3, x: DVec3, y: DVec3| -> Vec<DVec3> {
-        (0..=N)
-            .map(|i| std::f64::consts::TAU * f64::from(i) / f64::from(N))
-            .map(|t| center + x * t.cos() + y * t.sin())
-            .collect()
+        (0..=N).map(|i| std::f64::consts::TAU * f64::from(i) / f64::from(N)).map(|t| center + x * t.cos() + y * t.sin()).collect()
     };
     match c {
         PlanarCurve::Line { a, b } => vec![*a, *b],
         PlanarCurve::Arc { a, mid, b } => along_n(&EdgeCurve::Arc { a: *a, mid: *mid, b: *b }, N as usize),
-        PlanarCurve::Circle { center, radius } => round(*center, frame.x.normalize_or(DVec3::X) * *radius, n.cross(frame.x.normalize_or(DVec3::X)) * *radius),
+        PlanarCurve::Circle { center, radius } => {
+            round(*center, frame.x.normalize_or(DVec3::X) * *radius, n.cross(frame.x.normalize_or(DVec3::X)) * *radius)
+        }
         PlanarCurve::Ellipse { center, major, rx, ry } => round(*center, *major * *rx, n.cross(*major) * *ry),
         PlanarCurve::Spline { points } => match shapecraft_kernel::spline::fit(points) {
             Some(f) => (0..=N).map(|i| f.point(f64::from(i) / f64::from(N))).collect(),
@@ -129,15 +128,15 @@ pub(super) fn loft(s: &Session, profiles: &[Profile], faces: &[Shape], guides: &
     for f in faces {
         let edges = s.kernel.face_edges(f, 0)?;
         let curves = edges.iter().map(|&e| s.kernel.edge_curve(f, e)).collect::<std::result::Result<Vec<_>, _>>()?;
-        sections.push(
-            skin::outer_loop(&curves).ok_or_else(|| EngineError::NotAvailable("a loft profile isn't one closed outline".into()))?,
-        );
+        sections
+            .push(skin::outer_loop(&curves).ok_or_else(|| EngineError::NotAvailable("a loft profile isn't one closed outline".into()))?);
     }
     let mid = |f: &Shape| -> Result<DVec3> { Ok(s.kernel.measure(f, shapecraft_kernel::SubShape::Face(0))?.1) };
     let n = faces.len();
     // Which way each end faces the loft.
     let inward = |i: usize, next: usize| -> Result<DVec3> {
-        let plane = s.kernel.face_plane(&faces[i], 0)?.ok_or_else(|| EngineError::NotAvailable("only flat faces can be profiles".into()))?;
+        let plane =
+            s.kernel.face_plane(&faces[i], 0)?.ok_or_else(|| EngineError::NotAvailable("only flat faces can be profiles".into()))?;
         let to = mid(&faces[next])? - mid(&faces[i])?;
         let normal = plane.normal.normalize_or(DVec3::Z);
         Ok(if normal.dot(to) < 0.0 { -normal } else { normal })
@@ -192,15 +191,9 @@ pub(super) fn loft(s: &Session, profiles: &[Profile], faces: &[Shape], guides: &
     };
     let start = |p: DVec3| sides[0].as_ref().map_or((DVec3::Z, DVec3::ZERO), |b| leave_of(b, p, true));
     let finish = |p: DVec3| sides[1].as_ref().map_or((DVec3::Z, DVec3::ZERO), |b| leave_of(b, p, true));
-    let end = |e: Option<LoftEnd>, leave| {
-        e.filter(|_| !how.periodic).map(|e| End { leave, curvature: e.curvature, magnitude: e.magnitude })
-    };
-    let opts = Options {
-        guides: chains(s, guides)?,
-        periodic: how.periodic,
-        start: end(how.start, &start),
-        end: end(how.end, &finish),
-    };
+    let end =
+        |e: Option<LoftEnd>, leave| e.filter(|_| !how.periodic).map(|e| End { leave, curvature: e.curvature, magnitude: e.magnitude });
+    let opts = Options { guides: chains(s, guides)?, periodic: how.periodic, start: end(how.start, &start), end: end(how.end, &finish) };
     let brep = skin::solid(sections, &opts).map_err(|e| EngineError::NotAvailable(e.into()))?;
     let shape = s.kernel.from_brep(&brep)?;
     let m = s.kernel.mass_props(&shape)?;

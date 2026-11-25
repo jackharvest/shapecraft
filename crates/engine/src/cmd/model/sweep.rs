@@ -172,7 +172,7 @@ pub(super) enum Profile {
     Face { body: ItemId, face: u32 },
 }
 
-fn profile_param(v: &Value) -> Result<Profile> {
+pub(super) fn profile_param(v: &Value) -> Result<Profile> {
     let p = Params::new(v);
     if p.has("sketch") {
         Ok(Profile::Region { sketch: p.id("sketch")?, region: p.f64_or("region", 0.0)? as u32 })
@@ -390,7 +390,11 @@ enum Position {
     Endpoint,
 }
 
-pub(super) fn entity_curves(s: &Session, sketch: ItemId, entity: u32) -> Result<(shapecraft_kernel::PlaneFrame, Vec<shapecraft_kernel::PlanarCurve>)> {
+pub(super) fn entity_curves(
+    s: &Session,
+    sketch: ItemId,
+    entity: u32,
+) -> Result<(shapecraft_kernel::PlaneFrame, Vec<shapecraft_kernel::PlanarCurve>)> {
     let sk = s.doc.sketch(sketch).ok_or_else(|| EngineError::BadParams(format!("no sketch {}", sketch.0)))?;
     let e = sk.entities.get(entity as usize).ok_or_else(|| EngineError::BadParams(format!("no sketch curve {entity}")))?;
     let mut one = sk.clone();
@@ -398,13 +402,7 @@ pub(super) fn entity_curves(s: &Session, sketch: ItemId, entity: u32) -> Result<
     Ok((sk.frame(), one.curves()))
 }
 
-fn sweep_shape(
-    s: &Session,
-    face: &Shape,
-    path: &[PathPart],
-    position: Position,
-    opts: &shapecraft_kernel::SweepOptions,
-) -> Result<Shape> {
+fn sweep_shape(s: &Session, face: &Shape, path: &[PathPart], position: Position, opts: &shapecraft_kernel::SweepOptions) -> Result<Shape> {
     // Curves of one sketch go to the kernel as they are.
     let one_sketch = path.first().and_then(PathPart::sketch).filter(|k| path.iter().all(|p| p.sketch() == Some(*k)));
     let planar = match one_sketch {
@@ -519,7 +517,8 @@ fn attach_point(s: &Session, face: &Shape, path: &[Shape], position: Position) -
     let tol = size * 1e-6;
     // The path's loose ends: end points no other piece shares.
     let tips: Vec<DVec3> = runs.iter().flat_map(|r| [r.first().copied(), r.last().copied()]).flatten().collect();
-    let ends = tips.iter().enumerate().filter(|(i, a)| !tips.iter().enumerate().any(|(j, b)| j != *i && a.distance(*b) < 1e-3)).map(|(_, a)| *a);
+    let ends =
+        tips.iter().enumerate().filter(|(i, a)| !tips.iter().enumerate().any(|(j, b)| j != *i && a.distance(*b) < 1e-3)).map(|(_, a)| *a);
     let nearest = |pts: Vec<DVec3>| pts.into_iter().min_by(|a, b| a.distance(center).total_cmp(&b.distance(center)));
     let crossings = || -> Vec<DVec3> {
         let side = |q: DVec3| (q - plane.origin).dot(n);
@@ -553,17 +552,13 @@ fn attach_point(s: &Session, face: &Shape, path: &[Shape], position: Position) -
             }
             best.map(|(_, q)| q)
         }
-        Position::Intersection => Some(
-            nearest(crossings()).ok_or_else(|| EngineError::NotAvailable("the path doesn't cross the profile's plane".into()))?,
-        ),
+        Position::Intersection => {
+            Some(nearest(crossings()).ok_or_else(|| EngineError::NotAvailable("the path doesn't cross the profile's plane".into()))?)
+        }
         Position::Auto => {
             let ends: Vec<DVec3> = ends.collect();
             let start = if ends.is_empty() { tips.first().copied() } else { None };
-            if ends.into_iter().chain(start).any(|q| (q - plane.origin).dot(n).abs() <= tol) {
-                None
-            } else {
-                nearest(crossings())
-            }
+            if ends.into_iter().chain(start).any(|q| (q - plane.origin).dot(n).abs() <= tol) { None } else { nearest(crossings()) }
         }
     })
 }

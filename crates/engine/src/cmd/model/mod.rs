@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use glam::DVec3;
-use serde_json::{Value, json};
+use serde_json::Value;
 use shapecraft_doc::{Body, ItemId, Pick};
 use shapecraft_kernel::{BoolOp, Shape};
 
@@ -13,7 +13,9 @@ use crate::{EngineError, Params, Result, Session};
 use boolean::{boolean_spec, split_body};
 use extrude::extrude;
 pub use extrude::extrude_auto_body;
-use faces::{chamfer, edge_target, fillet, move_edge, move_faces, offset_face, project_edge, replace_face, shell};
+use faces::{chamfer, fillet, move_edge, move_faces, offset_face, project_edge, replace_face, shell};
+use fill::fill;
+pub use fill::{Side as FillSide, fill_sides};
 pub use sweep::revolve_auto;
 use sweep::{loft, revolve, sweep};
 use thread::thread;
@@ -24,6 +26,7 @@ use wrap::wrap_emboss;
 mod boolean;
 mod extrude;
 mod faces;
+mod fill;
 mod skin;
 mod sweep;
 mod thread;
@@ -86,21 +89,11 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             label: "Fill (Beta)",
             menu: "Tools/Fill (Beta)",
             shortcut: None,
-            help: "Close an opening: a smooth face through the selected edges (a loop), joined to the body",
-            params: r#"{"body": id?, "edges": [n]?}  (default: the selected edges)"#,
+            help: "Span boundary profiles and guide curves with a smooth solid, or close an opening of the selected edges",
+            params: r#"{"profiles": [{"sketch": id, "region": n} | {"body": id, "face": n}], "guides": [{"sketch": id, "entities": [n]}]? (together one closed network), "continuity": "g0"|"g1"|"g2" (how the faces meet what's beside every edge), "sides": [{"at": [x,y,z], "continuity": "g1"}]? (the edge nearest a point), "result": "new"|"union"|"subtract"|"intersect"} | {"body": id?, "edges": [n]?} (a face through a loop of a body's edges)  (default: the selection)"#,
             modifies: true,
-            enabled: has_bodies,
-            run: |s, p| {
-                let (body, edges) = edge_target(s, p)?;
-                if edges.is_empty() {
-                    return Err(EngineError::NotAvailable("select the edges around the opening".into()));
-                }
-                let b = s.doc.body(body).ok_or_else(|| EngineError::BadParams(format!("no body {}", body.0)))?;
-                let shape = s.kernel.fill(&b.shape, &edges)?;
-                set_body_shape(s, body, shape)?;
-                s.selection.clear();
-                Ok(json!({ "body": body.0 }))
-            },
+            enabled: |_| true,
+            run: fill,
         },
         CommandSpec {
             id: "shell",

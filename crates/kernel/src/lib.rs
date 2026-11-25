@@ -16,6 +16,7 @@ pub mod brep;
 pub mod helix;
 mod mesh;
 pub mod nurbs;
+pub mod patch;
 pub mod skin;
 pub mod spline;
 pub use mesh::Mesh;
@@ -631,6 +632,18 @@ pub trait Kernel: Send + Sync {
         Err(KernelError::InvalidInput("this kernel can't fill openings".into()))
     }
 
+    /// Faces and loose curves cut where they meet, sharing the pieces (the faces first): the network Fill works on.
+    fn network(&self, faces: &[Shape], curves: &[Shape]) -> Result<Shape> {
+        let _ = (faces, curves);
+        Err(KernelError::InvalidInput("this kernel can't fill between profiles".into()))
+    }
+
+    /// Faces sewn along edges up to `tolerance` apart into a solid.
+    fn sew_solid(&self, faces: &[Shape], tolerance: f64) -> Result<Shape> {
+        let _ = (faces, tolerance);
+        Err(KernelError::InvalidInput("this kernel can't sew faces".into()))
+    }
+
     /// A loft whose walls run straight from profile to profile (Ruled), or smooth.
     fn loft_ruled(&self, sections: &[Shape], ruled: bool) -> Result<Shape> {
         if ruled { Err(KernelError::InvalidInput("this kernel has no ruled lofts".into())) } else { self.loft(sections) }
@@ -682,7 +695,8 @@ pub trait Kernel: Send + Sync {
     /// (positive towards the normal). A kernel without it answers for flat faces only.
     fn face_at(&self, shape: &Shape, face: u32, points: &[DVec3], dirs: &[DVec3]) -> Result<Vec<(DVec3, f64)>> {
         let _ = dirs;
-        let plane = self.face_plane(shape, face)?.ok_or_else(|| KernelError::InvalidInput("this kernel only knows flat faces here".into()))?;
+        let plane =
+            self.face_plane(shape, face)?.ok_or_else(|| KernelError::InvalidInput("this kernel only knows flat faces here".into()))?;
         Ok(points.iter().map(|_| (plane.normal, 0.0)).collect())
     }
 

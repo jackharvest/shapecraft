@@ -857,11 +857,8 @@ fn sweep_follows_edges_and_several_sketches() {
     s.execute("sketch", &json!({"origin": [20, 0, 10], "normal": [1, 0, 0]})).unwrap();
     s.execute("circle", &json!({"center": [0, 0], "radius": 1})).unwrap();
     let c = s.active_sketch.unwrap();
-    s.execute(
-        "sweep",
-        &json!({"profile": {"sketch": c.0, "region": 0}, "path": [{"body": body.0, "edges": top}], "result": "new"}),
-    )
-    .unwrap();
+    s.execute("sweep", &json!({"profile": {"sketch": c.0, "region": 0}, "path": [{"body": body.0, "edges": top}], "result": "new"}))
+        .unwrap();
     let bead = s.doc.bodies.last().unwrap();
     let v = s.kernel.mass_props(&bead.shape).unwrap().volume.abs();
     // Mitred corners: exactly the circle's area times the rim's length.
@@ -876,12 +873,16 @@ fn sweep_follows_edges_and_several_sketches() {
     s.execute("sketch", &json!({"origin": [30, 0, 0], "normal": [0, -1, 0]})).unwrap();
     let sk = s.active_sketch.unwrap();
     let up = s.doc.sketch(sk).unwrap().plane;
-    let to2 = |p: glam::DVec3| { let d = p - up.origin; json!([d.dot(up.x), d.dot(up.y)]) };
+    let to2 = |p: glam::DVec3| {
+        let d = p - up.origin;
+        json!([d.dot(up.x), d.dot(up.y)])
+    };
     s.execute("line", &json!({"a": to2(glam::dvec3(30.0, 0.0, 0.0)), "b": to2(glam::dvec3(30.0, 0.0, 20.0))})).unwrap();
     s.execute("sketch", &json!({"origin": [0, 0, 0], "normal": [1, 0, 0]})).unwrap();
     s.execute("circle", &json!({"center": [0, 0], "radius": 2})).unwrap();
     let c = s.active_sketch.unwrap();
-    s.execute("sweep", &json!({"profile": {"sketch": c.0, "region": 0}, "path": [{"sketch": a.0}, {"sketch": sk.0}], "result": "new"})).unwrap();
+    s.execute("sweep", &json!({"profile": {"sketch": c.0, "region": 0}, "path": [{"sketch": a.0}, {"sketch": sk.0}], "result": "new"}))
+        .unwrap();
     let want = std::f64::consts::PI * 4.0 * 50.0;
     assert!((volume(&mut s) - want).abs() < want * 1e-3, "{} vs {want}", volume(&mut s));
 
@@ -894,7 +895,11 @@ fn sweep_follows_edges_and_several_sketches() {
         s.execute("sketch", &json!({"origin": [0, 0, 0], "normal": [1, 0, 0]})).unwrap();
         s.execute("circle", &json!({"center": [0, 0], "radius": 2})).unwrap();
         let c = s.active_sketch.unwrap();
-        s.execute("sweep", &json!({"profile": {"sketch": c.0, "region": 0}, "path": {"sketch": a.0}, "result": "new", "position": position})).unwrap();
+        s.execute(
+            "sweep",
+            &json!({"profile": {"sketch": c.0, "region": 0}, "path": {"sketch": a.0}, "result": "new", "position": position}),
+        )
+        .unwrap();
         let b = s.kernel.bounds(&s.doc.bodies[0].shape).unwrap();
         assert!((b.min.x + 30.0).abs() < 1e-3 && (b.max.x - 10.0).abs() < 1e-3, "{position}: {b:?}");
     }
@@ -951,7 +956,9 @@ fn extrude_reaches_round_faces_tilted_planes_and_bodies() {
     let sk = s.active_sketch.unwrap();
     let n = s.doc.sketch(sk).unwrap().regions.len();
     let regions: Vec<usize> = (0..n).collect();
-    let e = s.execute("extrude", &json!({"sketch": sk.0, "regions": regions, "extent": "to_object", "to": {"body": cyl.0, "face": side}})).unwrap_err();
+    let e = s
+        .execute("extrude", &json!({"sketch": sk.0, "regions": regions, "extent": "to_object", "to": {"body": cyl.0, "face": side}}))
+        .unwrap_err();
     assert!(e.to_string().contains("doesn't all meet"), "{e}");
     // A tilted plane: a wedge top.
     let mut s = session();
@@ -959,7 +966,8 @@ fn extrude_reaches_round_faces_tilted_planes_and_bodies() {
     let pl = s.doc.planes.last().unwrap().id;
     s.execute("sketch", &json!({"plane": "xy"})).unwrap();
     s.execute("rectangle", &json!({"corner": [0, 0], "opposite": [10, 10]})).unwrap();
-    s.execute("extrude", &json!({"sketch": s.active_sketch.unwrap().0, "region": 0, "extent": "to_object", "to": {"plane": pl.0}})).unwrap();
+    s.execute("extrude", &json!({"sketch": s.active_sketch.unwrap().0, "region": 0, "extent": "to_object", "to": {"plane": pl.0}}))
+        .unwrap();
     assert!((volume(&mut s) - 1500.0).abs() < 1e-3, "{}", volume(&mut s));
 }
 
@@ -980,9 +988,12 @@ fn replace_face_takes_a_round_faces_shape() {
         s2.doc = s.doc.clone();
         s2.execute("sketch", &json!({"plane": "xy"})).unwrap();
         s2.execute("rectangle", &json!({"corner": [-15, 20], "opposite": [15, 40]})).unwrap();
-        let out = s2.execute("extrude", &json!({"sketch": s2.active_sketch.unwrap().0, "region": 0, "distance": height, "result": "new"})).unwrap();
+        let out = s2
+            .execute("extrude", &json!({"sketch": s2.active_sketch.unwrap().0, "region": 0, "distance": height, "result": "new"}))
+            .unwrap();
         let (body, top) = (out.value["body"].as_u64().unwrap(), out.value["face"].as_u64().unwrap());
-        s2.execute("replace_face", &json!({"body": body, "faces": [top], "to": {"body": cyl.0, "face": side}})).unwrap_or_else(|e| panic!("{what}: {e}"));
+        s2.execute("replace_face", &json!({"body": body, "faces": [top], "to": {"body": cyl.0, "face": side}}))
+            .unwrap_or_else(|e| panic!("{what}: {e}"));
         let b = s2.doc.bodies.iter().find(|b| b.id.0 == body).unwrap();
         let v = s2.kernel.mass_props(&b.shape).unwrap().volume;
         // 20 × ∫ √(900 − x²) over −15…15.
@@ -1034,7 +1045,10 @@ fn lofts_follow_guides_leave_ends_square_and_close_into_rings() {
     s.execute("sketch", &json!({"plane": "xz"})).unwrap();
     let g = s.active_sketch.unwrap();
     let pl = s.doc.sketch(g).unwrap().plane;
-    let uv = |x: f64, z: f64| { let d = glam::dvec3(x, 0.0, z) - pl.origin; json!([d.dot(pl.x), d.dot(pl.y)]) };
+    let uv = |x: f64, z: f64| {
+        let d = glam::dvec3(x, 0.0, z) - pl.origin;
+        json!([d.dot(pl.x), d.dot(pl.y)])
+    };
     for x in [1.0, -1.0] {
         s.execute("arc", &json!({"a": uv(10.0 * x, 0.0), "mid": uv(16.0 * x, 20.0), "b": uv(10.0 * x, 40.0)})).unwrap();
     }
@@ -1069,7 +1083,10 @@ fn lofts_follow_guides_leave_ends_square_and_close_into_rings() {
         s.execute("sketch", &json!({"origin": [0, 0, 0], "normal": [-sy, sx, 0], "x_dir": [sx, sy, 0]})).unwrap();
         let g = s.active_sketch.unwrap();
         let pl = s.doc.sketch(g).unwrap().plane;
-        let uv = |q: glam::DVec3| { let d = q - pl.origin; json!([d.dot(pl.x), d.dot(pl.y)]) };
+        let uv = |q: glam::DVec3| {
+            let d = q - pl.origin;
+            json!([d.dot(pl.x), d.dot(pl.y)])
+        };
         for k in [1.0, -1.0] {
             let at = |r: f64, z: f64| uv(glam::dvec3(sx * r * k, sy * r * k, z));
             s.execute("arc", &json!({"a": at(10.0, 0.0), "mid": at(6.0, 15.0), "b": at(10.0, 30.0)})).unwrap();
@@ -1084,7 +1101,11 @@ fn lofts_follow_guides_leave_ends_square_and_close_into_rings() {
     let mut p = Vec::new();
     for k in 0..8 {
         let a = f64::from(k) * PI / 4.0;
-        s.execute("sketch", &json!({"origin": [30.0 * a.cos(), 30.0 * a.sin(), 0], "normal": [-a.sin(), a.cos(), 0], "x_dir": [a.cos(), a.sin(), 0]})).unwrap();
+        s.execute(
+            "sketch",
+            &json!({"origin": [30.0 * a.cos(), 30.0 * a.sin(), 0], "normal": [-a.sin(), a.cos(), 0], "x_dir": [a.cos(), a.sin(), 0]}),
+        )
+        .unwrap();
         s.execute("circle", &json!({"center": [0, 0], "radius": 5})).unwrap();
         p.push(json!({"sketch": s.active_sketch.unwrap().0, "region": 0}));
     }
@@ -1120,4 +1141,120 @@ fn lofts_follow_guides_leave_ends_square_and_close_into_rings() {
     let v = s.kernel.mass_props(&s.doc.bodies[1].shape).unwrap().volume;
     // Its volume there (14245.2 for both parts, less the cylinder).
     assert!((v - (14245.23 - PI * 2000.0)).abs() < 25.0, "{v} vs {}", 14245.23 - PI * 2000.0);
+}
+
+/// Fill spans a network: a dome over a circle from two arcs, flat-sided at G0 and round at G1, a
+/// body between two faces and curves joining them, and the older loop of edges.
+#[test]
+fn fill_spans_profiles_and_guide_curves() {
+    let dome = |how: serde_json::Value, guides: usize| {
+        let mut s = session();
+        s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+        s.execute("circle", &json!({"center": [0, 0], "radius": 10})).unwrap();
+        let c = s.active_sketch.unwrap();
+        let mut g = Vec::new();
+        for (n, x) in [([0, -1, 0], [1, 0, 0]), ([1, 0, 0], [0, 1, 0])].into_iter().take(guides) {
+            s.execute("sketch", &json!({"origin": [0, 0, 0], "normal": n, "x_dir": x})).unwrap();
+            s.execute("arc", &json!({"a": [-10, 0], "mid": [0, 8], "b": [10, 0]})).unwrap();
+            g.push(json!({"sketch": s.active_sketch.unwrap().0}));
+        }
+        let mut p = how;
+        p["profiles"] = json!([{"sketch": c.0, "region": 0}]);
+        p["guides"] = json!(g);
+        let out = s.execute("fill", &p).map_err(|e| e.to_string());
+        (s, out)
+    };
+    for (how, want, off) in
+        [(json!({}), 1308.79, 0.03), (json!({"continuity": "g1"}), 1507.22, 0.05), (json!({"continuity": "g2"}), 1507.22, 0.1)]
+    {
+        let (s, out) = dome(how.clone(), 2);
+        out.unwrap_or_else(|e| panic!("{how}: {e}"));
+        let m = s.kernel.mass_props(&s.doc.bodies[0].shape).unwrap();
+        let mesh = s.kernel.mass_props_mesh(&s.doc.bodies[0].shape).unwrap();
+        assert!((m.volume - want).abs() < want * off, "{how}: {} vs {want}", m.volume);
+        assert!((mesh.volume - m.volume).abs() < want * 0.01);
+        assert_eq!(s.kernel.face_count(&s.doc.bodies[0].shape).unwrap(), 5);
+    }
+    // One arc: two faces and the disc.
+    let (s, out) = dome(json!({}), 1);
+    out.unwrap();
+    assert_eq!(s.kernel.face_count(&s.doc.bodies[0].shape).unwrap(), 3);
+    // No arcs: nothing to fill.
+    assert!(dome(json!({}), 0).1.is_err());
+    // Arcs that leave the circle square to it: a half ball, all but exactly.
+    let mut s = session();
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("circle", &json!({"center": [0, 0], "radius": 10})).unwrap();
+    let c = s.active_sketch.unwrap();
+    let mut g = Vec::new();
+    for (n, x) in [([0, -1, 0], [1, 0, 0]), ([1, 0, 0], [0, 1, 0])] {
+        s.execute("sketch", &json!({"origin": [0, 0, 0], "normal": n, "x_dir": x})).unwrap();
+        s.execute("arc", &json!({"a": [-10, 0], "mid": [0, 10], "b": [10, 0]})).unwrap();
+        g.push(json!({"sketch": s.active_sketch.unwrap().0}));
+    }
+    s.execute("fill", &json!({"profiles": [{"sketch": c.0, "region": 0}], "guides": g, "continuity": "g1"})).unwrap();
+    let want = 2000.0 * std::f64::consts::PI / 3.0;
+    assert!((volume(&mut s) - want).abs() < want * 0.01, "{} vs {want}", volume(&mut s));
+    let step = s.all_steps().iter().position(|h| h.kind == "fill").expect("a step of its own");
+    assert!(s.all_steps()[step].label.starts_with("Fill (Beta) 01"), "{}", s.all_steps()[step].label);
+    s.execute("edit_step", &json!({"step": step, "params": {"continuity": "g0"}})).unwrap();
+    assert!(volume(&mut s) < want * 0.95);
+    // The badges: the circle's four quarters and the arcs' four halves.
+    let sides = crate::cmd::model::fill_sides(&s, &json!({"profiles": [{"sketch": c.0, "region": 0}], "guides": g})).unwrap();
+    assert_eq!(sides.len(), 8);
+    assert!(sides.iter().all(|x| !x.fixed));
+    // A five-sided box out of lines: base profile, uprights, a top outline; every side flat.
+    let mut s = session();
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("polygon", &json!({"center": [0, 0], "radius": 10, "sides": 5})).unwrap();
+    let c = s.active_sketch.unwrap();
+    s.execute("sketch", &json!({"origin": [0, 0, 8], "normal": [0, 0, 1], "x_dir": [1, 0, 0]})).unwrap();
+    s.execute("polygon", &json!({"center": [0, 0], "radius": 10, "sides": 5})).unwrap();
+    let top = s.active_sketch.unwrap();
+    let mut g = vec![json!({"sketch": top.0})];
+    for k in 0..5usize {
+        let pl = s.doc.sketch(c).unwrap().plane;
+        let corner = {
+            let one = s.doc.sketch(c).unwrap();
+            let e = one.curves();
+            match &e[k] {
+                shapecraft_kernel::PlanarCurve::Line { a, .. } => *a,
+                o => panic!("{o:?}"),
+            }
+        };
+        let out = (corner - pl.origin).normalize();
+        s.execute("sketch", &json!({"origin": [0, 0, 0], "normal": [out.y, -out.x, 0], "x_dir": [out.x, out.y, 0]})).unwrap();
+        s.execute("line", &json!({"a": [10, 0], "b": [10, 8]})).unwrap();
+        let sk = s.active_sketch.unwrap();
+        let up = s.doc.sketch(sk).unwrap().plane;
+        if up.y.z < 0.5 {
+            s.execute("set_entity", &json!({"sketch": sk.0, "entity": 0, "value": {"type": "line", "a": [10, 0], "b": [10, -8]}})).unwrap();
+        }
+        g.push(json!({"sketch": sk.0}));
+    }
+    s.execute("fill", &json!({"profiles": [{"sketch": c.0, "region": 0}], "guides": g})).unwrap();
+    let want = 2.5 * 100.0 * (std::f64::consts::TAU / 5.0).sin() * 8.0;
+    assert!((volume(&mut s) - want).abs() < want * 1e-4, "{} vs {want}", volume(&mut s));
+    // From a cylinder's top to a smaller circle, along two lines, tangent to the cylinder.
+    let mut s = session();
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("circle", &json!({"center": [0, 0], "radius": 10})).unwrap();
+    let out = s.execute("extrude", &json!({"sketch": s.active_sketch.unwrap().0, "region": 0, "distance": 20, "result": "new"})).unwrap();
+    s.execute("sketch", &json!({"origin": [0, 0, 50], "normal": [0, 0, 1], "x_dir": [1, 0, 0]})).unwrap();
+    s.execute("circle", &json!({"center": [0, 0], "radius": 4})).unwrap();
+    let cap = s.active_sketch.unwrap();
+    s.execute("sketch", &json!({"origin": [0, 0, 0], "normal": [0, -1, 0], "x_dir": [1, 0, 0]})).unwrap();
+    let side = s.active_sketch.unwrap();
+    for x in [1.0, -1.0] {
+        s.execute("spline", &json!({"points": [[10.0 * x, 20], [9.0 * x, 30], [5.0 * x, 40], [4.0 * x, 50]]})).unwrap();
+    }
+    s.execute(
+        "fill",
+        &json!({"profiles": [{"body": out.value["body"], "face": out.value["face"]}, {"sketch": cap.0, "region": 0}], "guides": [{"sketch": side.0}],
+            "continuity": "g1", "result": "union"}),
+    )
+    .unwrap();
+    assert_eq!(s.doc.bodies.len(), 1);
+    let v = volume(&mut s);
+    assert!(v > std::f64::consts::PI * 2000.0 * 1.5 && v < std::f64::consts::PI * 2000.0 * 2.5, "{v}");
 }

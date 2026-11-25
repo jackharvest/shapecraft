@@ -183,6 +183,8 @@ unsafe extern "C" {
         n: usize,
         out: *mut *mut SkShape,
     ) -> i32;
+    pub fn sk_network(faces: *const *const SkShape, nf: usize, curves: *const *const SkShape, nc: usize, out: *mut *mut SkShape) -> i32;
+    pub fn sk_sew_solid(faces: *const *const SkShape, n: usize, tol: f64, out: *mut *mut SkShape) -> i32;
     pub fn sk_fill(s: *const SkShape, ids: *const u32, n: usize, out: *mut *mut SkShape) -> i32;
     pub fn sk_loft(faces: *const *const SkShape, n: usize, out: *mut *mut SkShape) -> i32;
     pub fn sk_loft_ruled(faces: *const *const SkShape, n: usize, ruled: i32, out: *mut *mut SkShape) -> i32;

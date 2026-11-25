@@ -629,7 +629,8 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
                     };
                     let slot_editing = slot.is_some_and(|(i, s)| ws.pick_edit.as_ref().is_some_and(|e| e.step == i && e.slot == s));
                     let edge_editing = slot.is_none()
-                        && *label == "Edge" && matches!((&source, ws.edge_edit.as_ref()), (Source::Step(i), Some(e)) if e.step == *i);
+                        && *label == "Edge"
+                        && matches!((&source, ws.edge_edit.as_ref()), (Source::Step(i), Some(e)) if e.step == *i);
                     let editing = slot_editing
                         || edge_editing
                         || match cut_step {

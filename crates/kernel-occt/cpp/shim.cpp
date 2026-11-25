@@ -21,6 +21,7 @@
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <BRepAlgoAPI_Splitter.hxx>
 #include <GeomLib.hxx>
+#include <BRepAlgoAPI_BuilderAlgo.hxx>
 #include <GeomLProp_SLProps.hxx>
 #include <Geom_BoundedSurface.hxx>
 #include <Precision.hxx>
@@ -3278,6 +3279,86 @@ int sk_edge_curve(const SkShape* s, uint32_t edge, int* kind, double* fixed, dou
 }
 
 void sk_f64_array_free(double* arr) { delete[] arr; }
+
+// Faces and loose curves cut where they meet, sharing the pieces: the network Fill works on. Faces keep their order
+// first; a face cut in several or a curve lost in one is refused.
+int sk_network(const SkShape* const* faces, size_t nf, const SkShape* const* curves, size_t nc, SkShape** out) {
+  return guard([&] {
+    TopTools_ListOfShape args;
+    std::vector<TopoDS_Shape> given;
+    for (size_t i = 0; i < nf; ++i) {
+      TopExp_Explorer ex(faces[i]->shape, TopAbs_FACE);
+      if (!ex.More()) return fail("a profile isn't a face");
+      given.push_back(ex.Current());
+      args.Append(ex.Current());
+    }
+    for (size_t i = 0; i < nc; ++i)
+      for (TopExp_Explorer ex(curves[i]->shape, TopAbs_EDGE); ex.More(); ex.Next()) {
+        if (BRep_Tool::Degenerated(TopoDS::Edge(ex.Current()))) continue;
+        given.push_back(ex.Current());
+        args.Append(ex.Current());
+      }
+    if (args.Extent() == 0) return fail("nothing to fill between");
+    TopoDS_Compound all;
+    BRep_Builder b;
+    b.MakeCompound(all);
+    if (args.Extent() == 1) {
+      b.Add(all, args.First());
+      return put(out, all);
+    }
+    BRepAlgoAPI_BuilderAlgo gf;
+    gf.SetArguments(args);
+    gf.SetFuzzyValue(1e-4);
+    gf.SetNonDestructive(Standard_True);
+    gf.Build();
+    if (!gf.IsDone() || gf.HasErrors()) return fail("the profiles and curves couldn't be joined");
+    TopTools_IndexedMapOfShape added;
+    for (const auto& g : given) {
+      const TopTools_ListOfShape& images = gf.Modified(g);
+      if (images.IsEmpty()) {
+        if (!gf.IsDeleted(g) && !added.Contains(g)) {
+          added.Add(g);
+          b.Add(all, g);
+        }
+        continue;
+      }
+      for (TopTools_ListIteratorOfListOfShape it(images); it.More(); it.Next())
+        if (!added.Contains(it.Value())) {
+          added.Add(it.Value());
+          b.Add(all, it.Value().Oriented(TopAbs_FORWARD));
+        }
+    }
+    return put(out, all);
+  });
+}
+
+// Faces sewn into a solid.
+int sk_sew_solid(const SkShape* const* faces, size_t n, double tol, SkShape** out) {
+  return guard([&] {
+    BRepBuilderAPI_Sewing sew(tol);
+    for (size_t i = 0; i < n; ++i)
+      for (TopExp_Explorer ex(faces[i]->shape, TopAbs_FACE); ex.More(); ex.Next()) sew.Add(ex.Current());
+    sew.Perform();
+    TopoDS_Shape sewn = sew.SewedShape();
+    if (sewn.IsNull()) return fail("the faces couldn't be joined");
+    for (TopExp_Explorer ex(sewn, TopAbs_SHELL); ex.More(); ex.Next()) {
+      TopoDS_Shell shell = TopoDS::Shell(ex.Current());
+      if (!BRep_Tool::IsClosed(shell)) continue;
+      BRepBuilderAPI_MakeSolid mk(shell);
+      if (!mk.IsDone()) continue;
+      ShapeFix_Solid fix;
+      fix.Init(mk.Solid());
+      fix.Perform();
+      TopoDS_Shape solid = fix.Solid();
+      if (solid.IsNull()) continue;
+      GProp_GProps props;
+      BRepGProp::VolumeProperties(solid, props);
+      if (props.Mass() < 0.0) solid.Reverse();
+      return put(out, solid);
+    }
+    return fail("the faces don't close up into a solid");
+  });
+}
 
 // Fill: a smooth surface through a closed loop of the shape's edges (C0 to them), sewn onto the shape; a shell
 // that closes up becomes a solid (a hole in a mesh or a missing face filled).

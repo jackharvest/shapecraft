@@ -63,10 +63,8 @@ pub(super) fn slots(kind: &str) -> &'static [Slot] {
     const REVOLVE: &[Slot] = &[slot("Axis", "axis", "axis", Held::Axis)];
     const SHELL: &[Slot] = &[Slot { label: "Open Faces", noun: "face", key: "faces", held: Held::Faces, optional: true }];
     const OFFSET: &[Slot] = &[slot("Faces", "face", "faces", Held::Faces)];
-    const REPLACE: &[Slot] = &[
-        slot("Faces to Replace", "face", "faces", Held::Faces),
-        slot("Replacing Face", "face", "to", Held::Target { bodies: false }),
-    ];
+    const REPLACE: &[Slot] =
+        &[slot("Faces to Replace", "face", "faces", Held::Faces), slot("Replacing Face", "face", "to", Held::Target { bodies: false })];
     const THREAD: &[Slot] = &[slot("Faces to Thread", "face", "faces", Held::Faces)];
     const BOOLEAN: &[Slot] = &[slot("Target", "body", "target", Held::Body), slot("Tools", "body", "tools", Held::Bodies)];
     const MIRROR: &[Slot] = &[ITEMS, slot("Mirror Plane", "item", "plane", Held::Target { bodies: false })];
@@ -83,10 +81,8 @@ pub(super) fn slots(kind: &str) -> &'static [Slot] {
         Slot { label: "Guide Curves", noun: "curve", key: "guides", held: Held::Path, optional: true },
     ];
     const FROM: &[Slot] = &[slot("Reference", "item", "from", Held::Target { bodies: false })];
-    const TWO: &[Slot] = &[
-        slot("Plane #1", "item", "a", Held::Target { bodies: false }),
-        slot("Plane #2", "item", "b", Held::Target { bodies: false }),
-    ];
+    const TWO: &[Slot] =
+        &[slot("Plane #1", "item", "a", Held::Target { bodies: false }), slot("Plane #2", "item", "b", Held::Target { bodies: false })];
     const EDGE: &[Slot] = &[slot("Edge", "edge", "edge", Held::Edge)];
     const FACE: &[Slot] = &[slot("Face", "face", "face", Held::Face)];
     match kind {
