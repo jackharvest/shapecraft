@@ -159,6 +159,12 @@ pub struct ExportDialog {
     pub detail: usize,
     pub tolerance: String,
     pub colors: bool,
+    /// Include Mesh Bodies (shown when the project has any) and Include Vertex Colors (painted faces, OBJ and GLB).
+    pub meshes: bool,
+    pub has_meshes: bool,
+    pub vertex_colors: bool,
+    /// DXF and DWG from Sketch: a file for each plane.
+    pub planes: bool,
     pub stl_ascii: bool,
     pub stl_units: usize,
     /// STEP application protocol: 0 AP242 (the reference's default), 1 AP214, 2 AP203.
@@ -197,6 +203,10 @@ impl ExportDialog {
             detail: 1,
             tolerance: "0.05".into(),
             colors: true,
+            meshes: true,
+            has_meshes: false,
+            vertex_colors: true,
+            planes: false,
             stl_ascii: false,
             stl_units: 0,
             step_ap: 0,
@@ -273,6 +283,13 @@ impl ExportDialog {
                 p["tolerance"] = serde_json::json!(self.mesh_tolerance());
             }
             p["colors"] = serde_json::json!(self.colors);
+            p["meshes"] = serde_json::json!(self.meshes);
+            if matches!(f, Format::Obj | Format::Glb) {
+                p["vertex_colors"] = serde_json::json!(self.vertex_colors);
+            }
+        }
+        if matches!(f, Format::DxfSketch | Format::DwgSketch) {
+            p["separately"] = serde_json::json!(self.planes);
         }
         if f == Format::Step {
             p["protocol"] = serde_json::json!(STEP_APS[self.step_ap.min(STEP_APS.len() - 1)]);
@@ -461,6 +478,36 @@ fn settings(d: &mut ExportDialog, ui: &mut Ui, p: &egui::Painter, f: Format, k: 
                 label(p, r.left() + 10.0, r.center().y, text, sub);
                 switch(ui, p, r.right() - 10.0, r.center().y, ("exp-colors", k), &mut d.colors);
             }
+        }
+        if matches!(f, Format::Obj | Format::Glb) {
+            let r = row(&mut y, CARD_H);
+            if paint {
+                card(p, r);
+                label(p, r.left() + 10.0, r.center().y, "Include Vertex Colors", Some("Painted faces keep their colors"));
+                switch(ui, p, r.right() - 10.0, r.center().y, ("exp-vcolors", k), &mut d.vertex_colors);
+            }
+        }
+        if d.has_meshes {
+            let r = row(&mut y, CARD_H);
+            if paint {
+                card(p, r);
+                label(p, r.left() + 10.0, r.center().y, "Include Mesh Bodies", None);
+                switch(ui, p, r.right() - 10.0, r.center().y, ("exp-meshes", k), &mut d.meshes);
+            }
+        }
+    }
+    if matches!(f, Format::DxfSketch | Format::DwgSketch) {
+        let r = row(&mut y, CARD_H);
+        if paint {
+            card(p, r);
+            label(
+                p,
+                r.left() + 10.0,
+                r.center().y,
+                "Save Each Sketch Plane Separately",
+                Some("Every shown sketch, zipped when there are several"),
+            );
+            switch(ui, p, r.right() - 10.0, r.center().y, ("exp-planes", k), &mut d.planes);
         }
     }
     if f == Format::Svg {

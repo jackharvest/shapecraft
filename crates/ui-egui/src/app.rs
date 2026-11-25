@@ -1178,6 +1178,7 @@ impl ShapeCraftApp {
     fn export_dialog(&mut self, preset: Option<Format>) {
         let Some(ws) = self.ws.as_deref_mut() else { return };
         let mut d = ExportDialog::new(&ws.session.doc.name, preset);
+        d.has_meshes = ws.session.doc.bodies.iter().any(shapecraft_doc::Body::is_mesh);
         d.slicer = crate::workspace::slicers::pick(&ws.settings.slicer);
         svg_from_settings(&mut d, &ws.settings, &ws.session);
         ws.export = Some(d);
@@ -1187,6 +1188,7 @@ impl ShapeCraftApp {
     fn export_svg_now(&mut self) {
         let Some(ws) = self.ws.as_deref_mut() else { return };
         let mut d = ExportDialog::new(&ws.session.doc.name, Some(crate::workspace::export::Format::Svg));
+        d.has_meshes = ws.session.doc.bodies.iter().any(shapecraft_doc::Body::is_mesh);
         svg_from_settings(&mut d, &ws.settings, &ws.session);
         ws.wants_export = Some(d);
         self.run_export();
@@ -1202,6 +1204,7 @@ impl ShapeCraftApp {
         match dir {
             Some(dir) if !formats.is_empty() => {
                 let mut d = ExportDialog::new(&ws.session.doc.name, None);
+                d.has_meshes = ws.session.doc.bodies.iter().any(shapecraft_doc::Body::is_mesh);
                 svg_from_settings(&mut d, &ws.settings, &ws.session);
                 d.chosen = formats;
                 d.quick = Some(dir);
@@ -1663,6 +1666,7 @@ impl ShapeCraftApp {
                 // Opens the Export dialog with the given formats picked (file extensions, e.g. ["3mf", "stl"]).
                 let ws = self.ws.as_deref_mut().ok_or("no project open")?;
                 let mut d = ExportDialog::new(&ws.session.doc.name, None);
+        d.has_meshes = ws.session.doc.bodies.iter().any(shapecraft_doc::Body::is_mesh);
                 svg_from_settings(&mut d, &ws.settings, &ws.session);
                 if let Some(list) = params.get("formats").and_then(Value::as_array) {
                     d.chosen = list.iter().filter_map(Value::as_str).filter_map(Format::from_extension).collect();

@@ -552,3 +552,30 @@ fn glb_materials_go_out_and_come_back() {
     assert!(s.execute("import_material", &json!({"path": dir.join("bad.glb")})).is_err());
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// DXF from every sketch plane goes into one file each, zipped; painted faces go into OBJ as vertex colors.
+#[test]
+fn sketch_planes_separately_and_painted_vertices() {
+    let mut s = super::session();
+    for plane in ["xy", "xz"] {
+        s.execute("sketch", &json!({"plane": plane})).unwrap();
+        s.execute("rectangle", &json!({"corner": [0, 0], "opposite": [10, 10]})).unwrap();
+        s.execute("exit_sketching", &json!({})).unwrap();
+    }
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("circle", &json!({"center": [30, 0], "radius": 4})).unwrap();
+    s.execute("exit_sketching", &json!({})).unwrap();
+    let dir = std::env::temp_dir().join(format!("sc-planes-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let out = s.execute("export_sketch", &json!({"path": dir.join("all.dxf"), "separately": true})).unwrap();
+    assert_eq!(out.value["planes"], 2);
+    let zip = std::fs::read(dir.join("all.zip")).unwrap();
+    assert!(zip.windows(6).any(|w| w == b"CIRCLE"));
+    s.execute("extrude", &json!({"sketch": 1, "region": 0, "distance": 5, "result": "new"})).unwrap();
+    let body = s.doc.bodies[0].id;
+    s.execute("set_face_color", &json!({"color": [1.0, 0.0, 0.0], "faces": [{"body": body.0, "face": 0}]})).unwrap();
+    s.execute("export_obj", &json!({"path": dir.join("a.obj"), "vertex_colors": true})).unwrap();
+    let obj = std::fs::read_to_string(dir.join("a.obj")).unwrap();
+    assert!(obj.lines().any(|l| l.starts_with("v ") && l.ends_with("1.0000 0.0000 0.0000")), "{}", &obj[..200]);
+    let _ = std::fs::remove_dir_all(&dir);
+}

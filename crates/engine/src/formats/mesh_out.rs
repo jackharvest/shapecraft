@@ -21,6 +21,8 @@ pub struct ExportBody<'a> {
     pub transmission: f32,
     pub ior: f32,
     pub emission: f32,
+    /// Each vertex's color (sRGB), when some faces are painted; else empty.
+    pub paint: Vec<[f32; 3]>,
 }
 
 fn clean(name: &str) -> String {
@@ -57,8 +59,15 @@ pub fn write_obj(bodies: &[ExportBody], mtl_name: &str) -> (String, String) {
             ns = 10.0 + b.gloss * 240.0
         );
         let _ = writeln!(obj, "o {}\nusemtl {mat}", clean(b.name));
-        for p in &b.mesh.positions {
-            let _ = writeln!(obj, "v {} {} {}", p[0], p[1], p[2]);
+        let painted = b.paint.len() == b.mesh.positions.len() && !b.paint.is_empty();
+        for (k, p) in b.mesh.positions.iter().enumerate() {
+            // Painted vertices carry their color after the position, as most readers understand.
+            let _ = if painted {
+                let c = b.paint[k];
+                writeln!(obj, "v {} {} {} {:.4} {:.4} {:.4}", p[0], p[1], p[2], c[0], c[1], c[2])
+            } else {
+                writeln!(obj, "v {} {} {}", p[0], p[1], p[2])
+            };
         }
         let has_normals = b.mesh.normals.len() == b.mesh.positions.len();
         if has_normals {
@@ -199,10 +208,20 @@ pub fn write_glb(bodies: &[ExportBody]) -> Option<Vec<u8>> {
             accessors.push(json!({ "bufferView": nview, "componentType": 5126, "count": m.normals.len(), "type": "VEC3" }));
             attributes["NORMAL"] = json!(accessors.len() - 1);
         }
+        let painted = b.paint.len() == m.positions.len() && !b.paint.is_empty();
+        if painted {
+            let cview = push_view(
+                b.paint.iter().flat_map(|c| c.map(to_linear).into_iter().flat_map(f32::to_le_bytes).collect::<Vec<u8>>()).collect(),
+                34962,
+            );
+            accessors.push(json!({ "bufferView": cview, "componentType": 5126, "count": m.positions.len(), "type": "VEC3" }));
+            attributes["COLOR_0"] = json!(accessors.len() - 1);
+        }
         let iview = push_view(m.indices.iter().flat_map(|i| i.to_le_bytes()).collect(), 34963);
         accessors.push(json!({ "bufferView": iview, "componentType": 5125, "count": m.indices.len(), "type": "SCALAR" }));
         let idx_acc = accessors.len() - 1;
-        let [r, g, bl] = b.color.map(to_linear);
+        // A painted body's vertices carry every color, its own included.
+        let [r, g, bl] = if painted { [1.0; 3] } else { b.color.map(to_linear) };
         let mut material = json!({
             "name": b.name,
             "pbrMetallicRoughness": { "baseColorFactor": [r, g, bl, b.opacity.clamp(0.0, 1.0)], "metallicFactor": b.metal.clamp(0.0, 1.0), "roughnessFactor": (1.0 - b.gloss).clamp(0.04, 1.0) }
@@ -348,7 +367,18 @@ mod tests {
     fn body(name: &str, color: [f32; 3]) -> ExportBody<'_> {
         let mesh =
             Mesh { positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], indices: vec![0, 1, 2], ..Default::default() };
-        ExportBody { name, mesh: Arc::new(mesh), color, metal: 0.0, gloss: 0.5, opacity: 1.0, transmission: 0.0, ior: 1.5, emission: 0.0 }
+        ExportBody {
+            name,
+            mesh: Arc::new(mesh),
+            color,
+            metal: 0.0,
+            gloss: 0.5,
+            opacity: 1.0,
+            transmission: 0.0,
+            ior: 1.5,
+            emission: 0.0,
+            paint: Vec::new(),
+        }
     }
 
     #[test]

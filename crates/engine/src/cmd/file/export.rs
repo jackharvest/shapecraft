@@ -176,6 +176,8 @@ fn chosen_bodies<'a>(s: &'a Session, p: &Params) -> Result<Vec<&'a Body>> {
     } else {
         s.doc.bodies.iter().filter(|b| s.doc.item_shown(b.id) || p.bool_or("hidden", false)).collect()
     };
+    // Include Mesh Bodies off: exact ones only.
+    let bodies: Vec<&Body> = bodies.into_iter().filter(|b| p.bool_or("meshes", true) || !b.is_mesh()).collect();
     if bodies.is_empty() {
         return Err(EngineError::BadParams("no bodies to export".into()));
     }
@@ -250,6 +252,10 @@ fn export_sketch(s: &mut Session, p: &Params) -> Result<Value> {
     if path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("svg")) {
         return export_sketch_svg(s, p, &path);
     }
+    let dwg = path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("dwg"));
+    if p.bool_or("separately", false) && !p.has("sketch") {
+        return export_sketch_planes(s, p, &path, dwg);
+    }
     let picked = s.selection.iter().find_map(|pk| match *pk {
         Pick::SketchEntity { sketch, .. } | Pick::Region { sketch, .. } => Some(sketch),
         _ => None,
@@ -262,13 +268,54 @@ fn export_sketch(s: &mut Session, p: &Params) -> Result<Value> {
     let sk = id.and_then(|i| s.doc.sketch(i)).ok_or_else(|| EngineError::NotAvailable("there's no sketch to export".into()))?;
     let ents: Vec<_> = sk.entities.iter().enumerate().map(|(i, e)| (e.clone(), sk.construction.contains(&(i as u32)))).collect();
     // A .dwg path writes an AutoCAD drawing; anything else the DXF.
-    let dwg = path.extension().and_then(|e| e.to_str()).is_some_and(|e| e.eq_ignore_ascii_case("dwg"));
     if dwg {
         write_file(&path, &formats::write_dwg(&ents).map_err(EngineError::BadParams)?)?;
     } else {
         write_file(&path, formats::write_dxf(&ents).as_bytes())?;
     }
     Ok(json!({ "path": path, "sketch": sk.id.0, "elements": ents.len() }))
+}
+
+/// DXF or DWG from every visible sketch (hidden ones too with `hidden`), a file for each plane they're drawn on, zipped when
+/// there's more than one. Sketches on one plane share its file.
+fn export_sketch_planes(s: &mut Session, p: &Params, path: &std::path::Path, dwg: bool) -> Result<Value> {
+    let hidden = p.bool_or("hidden", false);
+    let list: Vec<&shapecraft_doc::Sketch> =
+        s.doc.sketches.iter().filter(|k| !k.entities.is_empty() && (hidden || s.doc.item_shown(k.id))).collect();
+    let mut planes: Vec<(shapecraft_doc::SketchPlane, String, Vec<(SketchEntity, bool)>)> = Vec::new();
+    for k in list {
+        let same = |q: &shapecraft_doc::SketchPlane| {
+            q.normal().dot(k.plane.normal()) > 1.0 - 1e-9 && (q.origin - k.plane.origin).dot(q.normal()).abs() < 1e-6
+        };
+        let own = k.entities.iter().enumerate().map(|(i, e)| (e.clone(), k.construction.contains(&(i as u32))));
+        match planes.iter_mut().find(|(q, ..)| same(q)) {
+            Some((q, _, ents)) => {
+                let m = formats::plane_to_plane(&k.plane, q);
+                ents.extend(own.flat_map(|(e, c)| formats::entity_in_frame(&e, &m).into_iter().map(move |e| (e, c))));
+            }
+            None => planes.push((k.plane, k.name.replace(['/', '\\', ':'], "-"), own.collect())),
+        }
+    }
+    let ext = if dwg { "dwg" } else { "dxf" };
+    let mut files: Vec<(String, Vec<u8>)> = Vec::new();
+    for (_, name, ents) in &planes {
+        let bytes = if dwg { formats::write_dwg(ents).map_err(EngineError::BadParams)? } else { formats::write_dxf(ents).into_bytes() };
+        files.push((format!("{name}.{ext}"), bytes));
+    }
+    match files.as_slice() {
+        [] => Err(EngineError::NotAvailable("there's no sketch to export".into())),
+        [(_, bytes)] => {
+            write_file(path, bytes)?;
+            Ok(json!({ "path": path, "planes": 1 }))
+        }
+        many => {
+            let zip_path = path.with_extension("zip");
+            let entries: Vec<(&str, Vec<u8>)> = many.iter().map(|(n, b)| (n.as_str(), b.clone())).collect();
+            let bytes = formats::zip_store(&entries).ok_or_else(|| EngineError::BadParams("too much to fit in a zip".into()))?;
+            write_file(&zip_path, &bytes)?;
+            Ok(json!({ "path": zip_path, "planes": many.len() }))
+        }
+    }
 }
 
 /// SVG from sketches: the given sketch, else every visible one (and the hidden ones with `hidden`), drawn in the
@@ -442,7 +489,23 @@ fn export_bodies<'a>(s: &'a Session, p: &Params) -> Result<Vec<formats::ExportBo
                 Some(t) if !b.is_mesh() => Arc::new(s.kernel.mesh_within(&b.shape, t, angle(t))?),
                 _ => b.mesh.clone(),
             };
+            let paint = if p.bool_or("vertex_colors", false) && !b.face_colors.is_empty() {
+                let mut paint = vec![look.color; mesh.positions.len()];
+                for (t, face) in mesh.indices.as_chunks::<3>().0.iter().zip(&mesh.triangle_faces) {
+                    if let Some((_, c)) = b.face_colors.iter().find(|(f, _)| f == face) {
+                        for i in t {
+                            if let Some(q) = paint.get_mut(*i as usize) {
+                                *q = *c;
+                            }
+                        }
+                    }
+                }
+                paint
+            } else {
+                Vec::new()
+            };
             Ok(formats::ExportBody {
+                paint,
                 name: &b.name,
                 mesh,
                 color: look.color,
