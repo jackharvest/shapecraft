@@ -255,7 +255,7 @@ pub(super) fn loft(s: &mut Session, p: &Params) -> Result<Value> {
         None => s.kernel.loft_ruled(&faces, p.bool_or("ruled", false))?,
     };
     let body = place_result(s, shape, result, None, BoolOp::Union)?;
-    let used: Vec<ItemId> = profiles.iter().filter_map(|pr| profile_sketch(*pr)).chain(guides.iter().filter_map(PathPart::sketch)).collect();
+    let used: Vec<ItemId> = profiles.iter().filter_map(|pr| profile_sketch(*pr)).collect();
     consume_sketches(s, &used);
     s.selection = vec![Pick::Body { body }];
     Ok(json!({ "body": body.0 }))

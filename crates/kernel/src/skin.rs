@@ -387,15 +387,10 @@ fn derivative_row(full: &[f64], m: usize, t: f64, order: usize, _at_end: bool) -
     b
 }
 
-/// A periodic curve through values at fractions of the way round: smooth cardinal weights, one per value.
+/// How much each of two or more guides moves the wall at a fraction of the way round: between neighbours the one's share
+/// falls as the other's rises, level at both.
 fn spread(at: &[f64], f: f64) -> Vec<f64> {
     let n = at.len();
-    if n == 1 {
-        // One guide pulls its own side, the far side stays.
-        let d = wrap(f - at[0]);
-        return vec![0.5 + 0.5 * (d * std::f64::consts::TAU).cos()];
-    }
-    // Monotone-safe cubic Hermite between neighbours, with slopes from the chord across each.
     let mut order: Vec<usize> = (0..n).collect();
     order.sort_by(|&i, &j| at[i].total_cmp(&at[j]));
     let pos = |k: usize| at[order[k % n]] + (k / n) as f64;
@@ -404,23 +399,10 @@ fn spread(at: &[f64], f: f64) -> Vec<f64> {
         if f < pos(0) { f + 1.0 } else { f }
     };
     let k = (0..n).rfind(|&k| pos(k) <= g + 1e-12).unwrap_or(0);
-    let (a, b) = (pos(k), pos(k + 1));
-    let h = (b - a).max(1e-12);
-    let t = ((g - a) / h).clamp(0.0, 1.0);
-    let (h00, h10) = ((1.0 + 2.0 * t) * (1.0 - t).powi(2), t * (1.0 - t).powi(2));
-    let (h01, h11) = (t * t * (3.0 - 2.0 * t), t * t * (t - 1.0));
+    let t = ((g - pos(k)) / (pos(k + 1) - pos(k)).max(1e-12)).clamp(0.0, 1.0);
     let mut w = vec![0.0; n];
-    w[order[k % n]] += h00;
-    w[order[(k + 1) % n]] += h01;
-    let before = if k == 0 { pos(n - 1) - 1.0 } else { pos(k - 1) };
-    let after = pos(k + 2);
-    for (scale, left, right, li, ri) in
-        [(h10 * h, before, b, (k + n - 1) % n, (k + 1) % n), (h11 * h, a, after, k % n, (k + 2) % n)]
-    {
-        let d = (right - left).max(1e-12);
-        w[order[ri]] += scale / d;
-        w[order[li]] -= scale / d;
-    }
+    w[order[k % n]] += 1.0 - t * t * (3.0 - 2.0 * t);
+    w[order[(k + 1) % n]] += t * t * (3.0 - 2.0 * t);
     w
 }
 
@@ -703,7 +685,8 @@ impl Skin<'_> {
     fn end(&self, e: &End, p: DVec3, last: bool) -> (DVec3, DVec3) {
         let (dir, curve) = (e.leave)(p);
         let n = self.v.len();
-        let (gap, dv) = if last { (self.gaps[n - 2], self.v[n - 1] - self.v[n - 2]) } else { (self.gaps[0], self.v[1] - self.v[0]) };
+        let between = |a: usize, b: usize| self.rings[a].center.distance(self.rings[b].center);
+        let (gap, dv) = if last { (between(n - 1, n - 2), self.v[n - 1] - self.v[n - 2]) } else { (between(0, 1), self.v[1] - self.v[0]) };
         let speed = e.magnitude * gap / dv;
         (dir.normalize_or_zero() * speed * if last { -1.0 } else { 1.0 }, curve * speed * speed)
     }
@@ -776,18 +759,34 @@ impl Skin<'_> {
         if self.guides.is_empty() {
             return out;
         }
+        let target = |k: usize, t: f64| -> DVec3 {
+            let marks = &self.guides[k].1;
+            let i = (0..self.v.len() - 1).rfind(|&i| self.v[i] <= t + 1e-12).unwrap_or(0);
+            let s = ((t - self.v[i]) / (self.v[i + 1] - self.v[i]).max(1e-12)).clamp(0.0, 1.0);
+            along(&self.opts.guides[k], marks[i] + (marks[i + 1] - marks[i]) * s)
+        };
+        // One guide: each section in between grows (and turns) about its middle until it touches.
+        if let [(gf, _)] = self.guides.as_slice() {
+            let own = self.base(*gf);
+            let round: Vec<_> = (0..24).map(|k| self.base(f64::from(k) / 24.0)).collect();
+            for (p, &t) in out.iter_mut().zip(vs) {
+                let c = round.iter().map(|b| b(t)).sum::<DVec3>() / 24.0;
+                let (from, to) = (own(t) - c, target(0, t) - c);
+                let (a, b) = (from.length(), to.length());
+                if a > 1e-9 && b > 1e-9 {
+                    *p = c + turn(from / a, to / b) * (*p - c) * (b / a);
+                }
+            }
+            return out;
+        }
         let at: Vec<f64> = self.guides.iter().map(|g| g.0).collect();
-        let weights = spread(&at, f);
-        for (k, ((gf, marks), w)) in self.guides.iter().zip(&weights).enumerate() {
+        for (k, w) in spread(&at, f).into_iter().enumerate() {
             if w.abs() < 1e-12 {
                 continue;
             }
-            let own = self.base(*gf);
+            let own = self.base(self.guides[k].0);
             for (p, &t) in out.iter_mut().zip(vs) {
-                let i = (0..self.v.len() - 1).rfind(|&i| self.v[i] <= t + 1e-12).unwrap_or(0);
-                let s = ((t - self.v[i]) / (self.v[i + 1] - self.v[i]).max(1e-12)).clamp(0.0, 1.0);
-                let g = along(&self.opts.guides[k], marks[i] + (marks[i + 1] - marks[i]) * s);
-                *p += (g - own(t)) * *w;
+                *p += (target(k, t) - own(t)) * w;
             }
         }
         out

@@ -1044,7 +1044,17 @@ fn lofts_follow_guides_leave_ends_square_and_close_into_rings() {
     let bb = s.kernel.bounds(&s.doc.bodies[0].shape).unwrap();
     assert!((bb.max.x - 16.0).abs() < 0.02 && (bb.min.x + 16.0).abs() < 0.02, "{bb:?}");
     assert!((bb.max.y - 10.0).abs() < 0.05, "the sides between the guides stay: {bb:?}");
-    assert!(volume(&mut s) > PI * 4000.0 * 1.2);
+    // 17605.6 was measured for this loft.
+    assert!((volume(&mut s) - 17605.6).abs() < 20.0, "{}", volume(&mut s));
+    // One guide: a barrel.
+    let (mut s, p) = circles(&[(0.0, 10.0), (40.0, 10.0)]);
+    s.execute("sketch", &json!({"plane": "xz"})).unwrap();
+    let g = s.active_sketch.unwrap();
+    s.execute("arc", &json!({"a": uv(10.0, 0.0), "mid": uv(16.0, 20.0), "b": uv(10.0, 40.0)})).unwrap();
+    s.execute("loft", &json!({"profiles": p, "guides": [{"sketch": g.0}]})).unwrap();
+    let bb = s.kernel.bounds(&s.doc.bodies[0].shape).unwrap();
+    assert!((bb.max.y - 16.0).abs() < 0.02 && (bb.min.x + 16.0).abs() < 0.02, "{bb:?}");
+    assert!(s.doc.sketch(g).unwrap().visible, "guide sketches stay");
     // Squares with four guides at the corners.
     let mut s = session();
     let mut p = Vec::new();
@@ -1102,4 +1112,12 @@ fn lofts_follow_guides_leave_ends_square_and_close_into_rings() {
     // It narrows first, on from the cone, before coming back to 5.
     let bb = s.kernel.mass_props(&s.doc.bodies[1].shape).unwrap();
     assert!(bb.volume < PI * 25.0 * 20.0 * 0.95, "{}", bb.volume);
+    // A cylinder's top lofted to a smaller circle, tangent to its wall: its radii 10, 20 and 30 up.
+    let (mut s, p) = circles(&[(0.0, 10.0), (60.0, 4.0)]);
+    let out = s.execute("extrude", &json!({"sketch": p[0]["sketch"], "region": 0, "distance": 20, "result": "new"})).unwrap();
+    let (body, top) = (out.value["body"].as_u64().unwrap(), out.value["face"].as_u64().unwrap());
+    s.execute("loft", &json!({"profiles": [{"body": body, "face": top}, p[1]], "start_continuity": "g1", "result": "new"})).unwrap();
+    let v = s.kernel.mass_props(&s.doc.bodies[1].shape).unwrap().volume;
+    // Its volume there (14245.2 for both parts, less the cylinder).
+    assert!((v - (14245.23 - PI * 2000.0)).abs() < 25.0, "{v} vs {}", 14245.23 - PI * 2000.0);
 }
