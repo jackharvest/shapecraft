@@ -19,6 +19,21 @@ pub struct Entry {
 
 pub const ENTRIES: &[Entry] = &[
     Entry {
+        version: "0.13.0",
+        title: "Loft, Sweep and Fill follow your curves",
+        text: "Give a Loft guide curves and say how its walls leave each end. Sweep along the edges of a body. Fill the \
+               space between profiles and curves, with a badge on each edge for how smoothly it joins. And a step's card \
+               lets you pick what it's made of again.",
+        art: "new-curves",
+    },
+    Entry {
+        version: "0.13.0",
+        title: "Glass and light",
+        text: "Glass you can see through, frosted or tinted, and materials that glow, with sliders for each. Pick the \
+               color off any face, bring materials in from GLB files, and take them along when you export.",
+        art: "new-glass",
+    },
+    Entry {
         version: "0.12.9",
         title: "Tutorials for everyone",
         text: "Nine short courses on things from around the house. Start with a coaster, a pencil cup and a phone stand, \

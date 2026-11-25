@@ -2617,6 +2617,10 @@ msgstr "Baixar {}"
 msgid "Getting the list…"
 msgstr "Buscando a lista…"
 
+#: crates/ui-egui/src/whats_new.rs
+msgid "Give a Loft guide curves and say how its walls leave each end. Sweep along the edges of a body. Fill the space between profiles and curves, with a badge on each edge for how smoothly it joins. And a step's card lets you pick what it's made of again."
+msgstr "Dê curvas guia a um loft e escolha como as paredes saem de cada extremidade. Varra ao longo das arestas de um corpo. Preencha o espaço entre perfis e curvas, com um selo em cada aresta para a suavidade da junção. E o cartão de uma etapa deixa escolher de novo do que ela é feita."
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Give the cup a color."
 msgstr "Dê uma cor ao copo."
@@ -2629,6 +2633,14 @@ msgstr "Dê uma cor ao suporte."
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Glass"
 msgstr "Vidro"
+
+#: crates/ui-egui/src/whats_new.rs
+msgid "Glass and light"
+msgstr "Vidro e luz"
+
+#: crates/ui-egui/src/whats_new.rs
+msgid "Glass you can see through, frosted or tinted, and materials that glow, with sliders for each. Pick the color off any face, bring materials in from GLB files, and take them along when you export."
+msgstr "Vidro transparente, fosco ou colorido e materiais que brilham, com controles para cada um. Capture a cor de qualquer face, traga materiais de arquivos GLB e leve-os ao exportar."
 
 #: crates/doc/src/lib.rs
 msgid "Glossy"
@@ -3333,6 +3345,10 @@ msgstr "Travar a grade ({})"
 #: crates/kernel/src/lib.rs
 msgid "Loft"
 msgstr "Loft"
+
+#: crates/ui-egui/src/whats_new.rs
+msgid "Loft, Sweep and Fill follow your curves"
+msgstr "Loft, Varredura e Preenchimento seguem suas curvas"
 
 #: crates/ui-egui/src/tutorials.rs
 msgid "Loft: a Flower Pot"

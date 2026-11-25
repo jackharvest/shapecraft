@@ -2,7 +2,7 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## Unreleased
+## 0.13.0-alpha
 **Loft follows guides, Fill spans curves, Sweep runs along edges, and the view can turn freely.**
 ### New
 - **Loft has guide curves**, Tangent and Curvature ends with a strength each, and Periodic Loft, which closes a row of profiles

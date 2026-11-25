@@ -2617,6 +2617,10 @@ msgstr "{} holen"
 msgid "Getting the list…"
 msgstr "Liste wird geholt…"
 
+#: crates/ui-egui/src/whats_new.rs
+msgid "Give a Loft guide curves and say how its walls leave each end. Sweep along the edges of a body. Fill the space between profiles and curves, with a badge on each edge for how smoothly it joins. And a step's card lets you pick what it's made of again."
+msgstr "Gib einem Loft Leitkurven und lege fest, wie seine Wände die Enden verlassen. Ziehe ein Profil an den Kanten eines Körpers entlang. Fülle den Raum zwischen Profilen und Kurven; ein Symbol an jeder Kante zeigt, wie glatt sie anschließt. Und auf der Karte eines Schritts wählst du neu, woraus er besteht."
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Give the cup a color."
 msgstr "Gib dem Becher eine Farbe."
@@ -2629,6 +2633,14 @@ msgstr "Gib dem Ständer eine Farbe."
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Glass"
 msgstr "Glas"
+
+#: crates/ui-egui/src/whats_new.rs
+msgid "Glass and light"
+msgstr "Glas und Licht"
+
+#: crates/ui-egui/src/whats_new.rs
+msgid "Glass you can see through, frosted or tinted, and materials that glow, with sliders for each. Pick the color off any face, bring materials in from GLB files, and take them along when you export."
+msgstr "Durchsichtiges Glas, matt oder getönt, und leuchtende Materialien, jeweils mit Reglern. Nimm die Farbe von jeder Fläche auf, hol Materialien aus GLB-Dateien und nimm sie beim Export mit."
 
 #: crates/doc/src/lib.rs
 msgid "Glossy"
@@ -3333,6 +3345,10 @@ msgstr "Rastermaß sperren ({})"
 #: crates/kernel/src/lib.rs
 msgid "Loft"
 msgstr "Loft"
+
+#: crates/ui-egui/src/whats_new.rs
+msgid "Loft, Sweep and Fill follow your curves"
+msgstr "Loft, Sweep und Fill folgen deinen Kurven"
 
 #: crates/ui-egui/src/tutorials.rs
 msgid "Loft: a Flower Pot"

@@ -2617,6 +2617,10 @@ msgstr "獲取 {}"
 msgid "Getting the list…"
 msgstr "正在獲取列表…"
 
+#: crates/ui-egui/src/whats_new.rs
+msgid "Give a Loft guide curves and say how its walls leave each end. Sweep along the edges of a body. Fill the space between profiles and curves, with a badge on each edge for how smoothly it joins. And a step's card lets you pick what it's made of again."
+msgstr "為疊層拉伸加入引導曲線，並設定側壁離開兩端的方式。沿實體的邊掃掠。填充輪廓與曲線之間的空間，每條邊上的標記決定連接的平滑程度。還可以在步驟卡片中重新選取它的組成。"
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Give the cup a color."
 msgstr "給筆筒上色。"
@@ -2629,6 +2633,14 @@ msgstr "給支架上色。"
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Glass"
 msgstr "玻璃"
+
+#: crates/ui-egui/src/whats_new.rs
+msgid "Glass and light"
+msgstr "玻璃與光"
+
+#: crates/ui-egui/src/whats_new.rs
+msgid "Glass you can see through, frosted or tinted, and materials that glow, with sliders for each. Pick the color off any face, bring materials in from GLB files, and take them along when you export."
+msgstr "可透視的清透、磨砂或有色玻璃，以及發光材質，各有滑桿可調。可從任意面拾取顏色，從 GLB 檔案匯入材質，並在匯出時一併帶走。"
 
 #: crates/doc/src/lib.rs
 msgid "Glossy"
@@ -3333,6 +3345,10 @@ msgstr "鎖定網格大小（{}）"
 #: crates/kernel/src/lib.rs
 msgid "Loft"
 msgstr "放樣"
+
+#: crates/ui-egui/src/whats_new.rs
+msgid "Loft, Sweep and Fill follow your curves"
+msgstr "疊層拉伸、掃掠和填充沿曲線成形"
 
 #: crates/ui-egui/src/tutorials.rs
 msgid "Loft: a Flower Pot"

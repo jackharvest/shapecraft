@@ -2617,6 +2617,10 @@ msgstr "{} 받기"
 msgid "Getting the list…"
 msgstr "목록을 가져오는 중…"
 
+#: crates/ui-egui/src/whats_new.rs
+msgid "Give a Loft guide curves and say how its walls leave each end. Sweep along the edges of a body. Fill the space between profiles and curves, with a badge on each edge for how smoothly it joins. And a step's card lets you pick what it's made of again."
+msgstr "로프트에 가이드 곡선을 주고 각 끝에서 벽이 나가는 방식을 정하세요. 바디의 모서리를 따라 스윕하고, 프로파일과 곡선 사이를 채우고, 모서리마다 배지로 얼마나 부드럽게 이어질지 고르세요. 단계 카드에서 재료를 다시 선택할 수도 있습니다."
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Give the cup a color."
 msgstr "컵에 색을 입히세요."
@@ -2629,6 +2633,14 @@ msgstr "거치대에 색을 입히세요."
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Glass"
 msgstr "유리"
+
+#: crates/ui-egui/src/whats_new.rs
+msgid "Glass and light"
+msgstr "유리와 빛"
+
+#: crates/ui-egui/src/whats_new.rs
+msgid "Glass you can see through, frosted or tinted, and materials that glow, with sliders for each. Pick the color off any face, bring materials in from GLB files, and take them along when you export."
+msgstr "투명, 반투명, 착색 유리와 빛나는 재질을 슬라이더로 조절하세요. 어떤 면에서든 색을 가져오고, GLB 파일의 재질을 불러오고, 내보낼 때 함께 가져갈 수 있습니다."
 
 #: crates/doc/src/lib.rs
 msgid "Glossy"
@@ -3333,6 +3345,10 @@ msgstr "그리드 크기 고정({})"
 #: crates/kernel/src/lib.rs
 msgid "Loft"
 msgstr "로프트"
+
+#: crates/ui-egui/src/whats_new.rs
+msgid "Loft, Sweep and Fill follow your curves"
+msgstr "로프트, 스윕, 채우기가 곡선을 따라갑니다"
 
 #: crates/ui-egui/src/tutorials.rs
 msgid "Loft: a Flower Pot"

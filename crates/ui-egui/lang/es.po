@@ -2617,6 +2617,10 @@ msgstr "Obtener {}"
 msgid "Getting the list…"
 msgstr "Obteniendo la lista…"
 
+#: crates/ui-egui/src/whats_new.rs
+msgid "Give a Loft guide curves and say how its walls leave each end. Sweep along the edges of a body. Fill the space between profiles and curves, with a badge on each edge for how smoothly it joins. And a step's card lets you pick what it's made of again."
+msgstr "Da curvas guía a una solevación y elige cómo salen sus paredes de cada extremo. Barre a lo largo de las aristas de un cuerpo. Rellena el espacio entre perfiles y curvas, con una insignia en cada arista que dice con qué suavidad se une. Y en la ficha de un paso puedes volver a elegir de qué está hecho."
+
 #: crates/ui-egui/src/tutorials.rs
 msgid "Give the cup a color."
 msgstr "Dale un color al vaso."
@@ -2629,6 +2633,14 @@ msgstr "Dale un color al soporte."
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Glass"
 msgstr "Vidrio"
+
+#: crates/ui-egui/src/whats_new.rs
+msgid "Glass and light"
+msgstr "Vidrio y luz"
+
+#: crates/ui-egui/src/whats_new.rs
+msgid "Glass you can see through, frosted or tinted, and materials that glow, with sliders for each. Pick the color off any face, bring materials in from GLB files, and take them along when you export."
+msgstr "Vidrio transparente, esmerilado o tintado, y materiales que brillan, con controles para cada uno. Toma el color de cualquier cara, trae materiales de archivos GLB y llévatelos al exportar."
 
 #: crates/doc/src/lib.rs
 msgid "Glossy"
@@ -3333,6 +3345,10 @@ msgstr "Bloquear la cuadrícula ({})"
 #: crates/kernel/src/lib.rs
 msgid "Loft"
 msgstr "Solevación"
+
+#: crates/ui-egui/src/whats_new.rs
+msgid "Loft, Sweep and Fill follow your curves"
+msgstr "Solevación, Barrido y Relleno siguen tus curvas"
 
 #: crates/ui-egui/src/tutorials.rs
 msgid "Loft: a Flower Pot"
