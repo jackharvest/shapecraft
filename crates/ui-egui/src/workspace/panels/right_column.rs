@@ -355,7 +355,7 @@ impl Workspace {
         if resp.dragged_by(egui::PointerButton::Primary) && delta != egui::Vec2::ZERO {
             self.anim = None;
             let (sx, sy) = self.settings.orbit_signs();
-            self.camera.orbit(delta.x as f64 * sx, delta.y as f64 * sy);
+            self.orbit_view(delta.x as f64 * sx, delta.y as f64 * sy);
         }
         let (right, up) = self.camera.basis();
         let back = self.camera.back();

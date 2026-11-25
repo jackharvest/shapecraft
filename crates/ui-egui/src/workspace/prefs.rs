@@ -400,7 +400,7 @@ pub(crate) fn window(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings,
 }
 
 /// The Preferences window's height, and the space kept above and below it on a short screen.
-const PREFS_H: f32 = 902.0;
+const PREFS_H: f32 = 932.0;
 const PREFS_MARGIN: f32 = 12.0;
 
 /// Advanced runs longer in other languages.
@@ -1471,6 +1471,9 @@ fn general_tab(ui: &mut Ui, r: Rect, s: &mut Settings, shortcuts: bool) -> (bool
     y += pitch;
     row_label(&p, col, y, "Zoom:");
     check(ui, pos2(col, y), "pref-zoom", &mut s.reverse_scroll, "Reverse scroll direction");
+    y += pitch;
+    row_label(&p, col, y, "Orbit:");
+    check(ui, pos2(col, y), "pref-free-orbit", &mut s.free_orbit, "Turn freely in every direction");
     y += pitch;
     row_label(&p, col, y, "Selection Extension:");
     check(ui, pos2(col, y), "pref-ext", &mut s.extend_needs_shift, "Require holding shift");

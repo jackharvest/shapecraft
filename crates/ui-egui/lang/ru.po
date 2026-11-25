@@ -7226,6 +7226,10 @@ msgid "Turn and zoom the view (next: how it feels)."
 msgstr "Вращение и масштаб вида (дальше: как это ощущается)."
 
 #: crates/ui-egui/src/workspace/prefs.rs
+msgid "Turn freely in every direction"
+msgstr "Свободно вращать во все стороны"
+
+#: crates/ui-egui/src/workspace/prefs.rs
 msgid "Turn it on, then open the address it shows in Safari on your iPad,"
 msgstr "Включите и откройте показанный адрес в Safari на iPad,"
 

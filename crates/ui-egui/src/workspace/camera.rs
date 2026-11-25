@@ -318,6 +318,13 @@ impl Workspace {
     pub fn rotate_view(&mut self, dir: u8, big: bool) {
         let step = if big { 45f64 } else { 15f64 }.to_radians();
         let mut to = self.camera;
+        if self.settings.free_orbit {
+            let px = step / 0.008;
+            let (dx, dy) = [(-px, 0.0), (px, 0.0), (0.0, px), (0.0, -px)][usize::from(dir.min(3))];
+            to.orbit_free(dx, dy);
+            self.animate_to(to);
+            return;
+        }
         match dir {
             0 => to.yaw -= step,
             1 => to.yaw += step,

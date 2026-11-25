@@ -7226,6 +7226,10 @@ msgid "Turn and zoom the view (next: how it feels)."
 msgstr "轉動和縮放檢視（接下來：手感）。"
 
 #: crates/ui-egui/src/workspace/prefs.rs
+msgid "Turn freely in every direction"
+msgstr "向任意方向自由旋轉"
+
+#: crates/ui-egui/src/workspace/prefs.rs
 msgid "Turn it on, then open the address it shows in Safari on your iPad,"
 msgstr "開啟它，然後在 iPad 的 Safari 中開啟顯示的地址，"
 

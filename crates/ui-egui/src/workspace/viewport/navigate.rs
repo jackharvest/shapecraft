@@ -32,7 +32,7 @@ impl Workspace {
                         // Two-finger drag on a trackpad orbits.
                         self.anim = None;
                         let (sx, sy) = self.settings.orbit_signs();
-                        self.camera.orbit(-delta.x as f64 * sx, delta.y as f64 * sy);
+                        self.orbit_view(-delta.x as f64 * sx, delta.y as f64 * sy);
                     }
                 }
             }
@@ -84,10 +84,19 @@ impl Workspace {
                 Some(NavAction::Orbit) => {
                     self.anim = None;
                     let (sx, sy) = self.settings.orbit_signs();
-                    self.camera.orbit(delta.x as f64 * sx, delta.y as f64 * sy);
+                    self.orbit_view(delta.x as f64 * sx, delta.y as f64 * sy);
                 }
                 None => {}
             }
+        }
+    }
+
+    /// Orbits by pixels, about Z or about the screen (Preferences ▸ General ▸ Orbit).
+    pub(in crate::workspace) fn orbit_view(&mut self, dx: f64, dy: f64) {
+        if self.settings.free_orbit {
+            self.camera.orbit_free(dx, dy);
+        } else {
+            self.camera.orbit(dx, dy);
         }
     }
 

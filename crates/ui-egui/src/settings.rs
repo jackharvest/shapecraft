@@ -10,6 +10,9 @@ pub struct Settings {
     /// Name of the navigation preset (see [`PRESETS`]).
     pub nav_preset: String,
     pub reverse_scroll: bool,
+    /// Orbiting turns about the screen's own axes, past straight up and down (#99).
+    #[serde(default)]
+    pub free_orbit: bool,
     /// Adding to the selection needs Shift held (otherwise every click adds).
     pub extend_needs_shift: bool,
     /// Preferences ▸ Theme: "System", "Light" or "Dark".
@@ -149,6 +152,7 @@ impl Default for Settings {
         Self {
             nav_preset: "Blender".into(),
             reverse_scroll: true,
+            free_orbit: false,
             extend_needs_shift: true,
             theme: "System".into(),
             start_with: "Recents".into(),

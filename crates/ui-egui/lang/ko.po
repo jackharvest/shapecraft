@@ -7226,6 +7226,10 @@ msgid "Turn and zoom the view (next: how it feels)."
 msgstr "뷰를 돌리고 확대하세요(다음: 느낌)."
 
 #: crates/ui-egui/src/workspace/prefs.rs
+msgid "Turn freely in every direction"
+msgstr "모든 방향으로 자유롭게 회전"
+
+#: crates/ui-egui/src/workspace/prefs.rs
 msgid "Turn it on, then open the address it shows in Safari on your iPad,"
 msgstr "켠 다음 표시된 주소를 iPad의 Safari에서 열거나,"
 

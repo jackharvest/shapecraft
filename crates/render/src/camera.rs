@@ -1,4 +1,4 @@
-use glam::{DMat4, DVec2, DVec3, Mat4};
+use glam::{DMat3, DMat4, DQuat, DVec2, DVec3, Mat4};
 
 /// An orbit camera around `target`. Z is up, like the reference app.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -162,6 +162,38 @@ impl Camera {
         self.pitch = (self.pitch + dy_px * 0.008).clamp(-HALF_PI, HALF_PI);
     }
 
+    /// Orbits about the screen's own axes, so the view turns over the top and underneath without a fixed up.
+    pub fn orbit_free(&mut self, dx_px: f64, dy_px: f64) {
+        self.ortho = 0.0;
+        let (right, up) = self.basis();
+        let turn = DQuat::from_axis_angle(up, -dx_px * 0.008) * DQuat::from_axis_angle(right, -dy_px * 0.008);
+        self.set_orientation(turn * self.orientation());
+    }
+
+    /// The view's frame (right, up, towards the eye) as a rotation.
+    fn orientation(&self) -> DQuat {
+        let (right, up) = self.basis();
+        DQuat::from_mat3(&DMat3::from_cols(right, up, right.cross(up)))
+    }
+
+    /// The yaw, pitch and roll of a view's frame. Straight up or down the roll goes into the yaw.
+    fn set_orientation(&mut self, q: DQuat) {
+        let q = q.normalize();
+        let (right, back) = (q * DVec3::X, q * DVec3::Z);
+        let flat = back.x.hypot(back.y);
+        self.pitch = back.z.atan2(flat);
+        if flat < 1e-9 {
+            self.yaw = (-right.y).atan2(right.x);
+            self.roll = 0.0;
+            return;
+        }
+        self.yaw = (-back.x).atan2(-back.y);
+        self.roll = 0.0;
+        let (r0, u0) = self.basis();
+        let roll = (-right.dot(u0)).atan2(right.dot(r0));
+        self.roll = if roll.abs() < 1e-9 { 0.0 } else { roll };
+    }
+
     pub fn pan(&mut self, dx_px: f64, dy_px: f64, viewport_height: f64) {
         let (right, up) = self.basis();
         let k = self.world_per_pixel(viewport_height);
@@ -197,8 +229,11 @@ impl Camera {
     /// The camera `s` of the way from `a` to `b`, already eased; `s` may run a little past 1 (a move that overshoots
     /// and settles). Never past straight up or down, and never more than fully flat.
     pub fn blend(a: &Camera, b: &Camera, s: f64) -> Camera {
+        if s == 1.0 {
+            return *b;
+        }
         let dyaw = short_turn(b.yaw - a.yaw);
-        Camera {
+        let mut out = Camera {
             target: a.target.lerp(b.target, s),
             yaw: a.yaw + dyaw * s,
             pitch: (a.pitch + (b.pitch - a.pitch) * s).clamp(-std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2),
@@ -206,8 +241,13 @@ impl Camera {
             fov_y: a.fov_y + (b.fov_y - a.fov_y) * s,
             ortho: (a.ortho_amount() + (b.ortho_amount() - a.ortho_amount()) * s).clamp(0.0, 1.0),
             always_ortho: b.always_ortho,
-            roll: a.roll + short_turn(b.roll - a.roll) * s,
+            roll: 0.0,
+        };
+        // A turned picture has no yaw and pitch worth following: the short way between the two frames.
+        if a.roll != 0.0 || b.roll != 0.0 {
+            out.set_orientation(a.orientation().slerp(b.orientation(), s));
         }
+        out
     }
 
     /// A camera looking straight at a plane (the sketch-plane animation target).
@@ -300,6 +340,56 @@ mod tests {
         c.orbit(5.0, 0.0);
         assert!(!c.is_ortho());
         assert!(!Camera::default().is_ortho());
+    }
+
+    #[test]
+    fn free_orbit_turns_about_the_screen() {
+        let frame = |c: &Camera| {
+            let (r, u) = c.basis();
+            (r, u, c.back())
+        };
+        // Like the fixed orbit from a level view, whichever way it's dragged.
+        for (dx, dy) in [(40.0, 0.0), (-25.0, 0.0), (0.0, 30.0), (0.0, -30.0)] {
+            let mut a = Camera::standard(StandardView::Front, DVec3::ZERO, 10.0);
+            let mut b = a;
+            a.orbit(dx, dy);
+            b.orbit_free(dx, dy);
+            let (f, g) = (frame(&a), frame(&b));
+            assert!(f.0.distance(g.0) < 1e-9 && f.1.distance(g.1) < 1e-9 && f.2.distance(g.2) < 1e-9, "{dx} {dy}: {f:?} {g:?}");
+        }
+        // From the top, a sideways drag turns about the screen's up (Y), not about Z.
+        let mut c = Camera::standard(StandardView::Top, DVec3::ZERO, 10.0);
+        c.orbit_free(50.0, 0.0);
+        let (_, up, back) = frame(&c);
+        assert!(up.distance(DVec3::Y) < 1e-9 && back.x < -0.3, "{up:?} {back:?}");
+        // Over the top, all the way round and back where it began.
+        let mut c = Camera::standard(StandardView::Front, DVec3::ZERO, 10.0);
+        let start = frame(&c);
+        for k in 0..100 {
+            c.orbit_free(0.0, std::f64::consts::TAU / 0.008 / 100.0);
+            let (r, u, b) = frame(&c);
+            assert!(r.distance(DVec3::X) < 1e-6, "step {k}: {r:?}");
+            assert!((r.cross(u)).distance(b) < 1e-9 && c.yaw.is_finite() && c.roll.is_finite());
+        }
+        let end = frame(&c);
+        assert!(start.1.distance(end.1) < 1e-6 && start.2.distance(end.2) < 1e-6);
+    }
+
+    /// From a turned view back to a standard one: steadily, and exactly there at the end.
+    #[test]
+    fn a_turned_view_goes_back_the_short_way() {
+        let mut a = Camera::standard(StandardView::Top, DVec3::ZERO, 10.0);
+        for _ in 0..20 {
+            a.orbit_free(31.0, 17.0);
+        }
+        let b = Camera::standard(StandardView::Default, DVec3::ZERO, 20.0);
+        let whole = a.orientation().angle_between(b.orientation());
+        for k in 1..10 {
+            let c = Camera::blend(&a, &b, k as f64 / 10.0);
+            let d = a.orientation().angle_between(c.orientation());
+            assert!((d - whole * k as f64 / 10.0).abs() < 1e-6, "{k}: {d} of {whole}");
+        }
+        assert_eq!(Camera::blend(&a, &b, 1.0), b);
     }
 
     #[test]
