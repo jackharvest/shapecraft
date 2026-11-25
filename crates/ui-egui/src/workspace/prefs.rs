@@ -595,7 +595,7 @@ fn shapecraft_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
 
 /// How many of the engine's modeling checks (crates/engine/src/tests) pass on the pure-Rust kernel, out of all of
 /// them: `SHAPECRAFT_TEST_KERNEL=rust cargo test -p shapecraft-engine`. Kept current when the kernel grows.
-pub(crate) const RUST_KERNEL_CHECKS: (u32, u32) = (192, 203);
+pub(crate) const RUST_KERNEL_CHECKS: (u32, u32) = (194, 215);
 
 /// Settings for those who want to look under the hood: which geometry kernel models, why someone would pick either,
 /// and how close Arris is. True when its Report a Problem… button was clicked.
