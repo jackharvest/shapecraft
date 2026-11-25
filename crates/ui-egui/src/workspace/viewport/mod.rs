@@ -298,6 +298,7 @@ impl Workspace {
             Tool::Loft(t) => t.request().is_some(),
             Tool::Sweep(t) => t.request().is_some(),
             Tool::Fill(t) => t.request().is_some(),
+            Tool::Mirror(t) => t.across_request().is_some(),
             Tool::Shell(t) => t.thickness.abs() > 1e-9,
             Tool::OffsetPlane(t) => t.distance.abs() > 1e-9,
             _ => false,

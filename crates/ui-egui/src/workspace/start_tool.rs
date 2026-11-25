@@ -489,6 +489,13 @@ impl Workspace {
                         t.items.push((*p, at));
                     }
                 }
+                // A picked plane is what Project as Sketch projects onto, as Replace Face's is what the faces meet.
+                if let [Pick::Plane { plane }] = self.session.selection.as_slice()
+                    && kind != ToolKind::ProjectEdge
+                    && let Some(p) = self.session.doc.plane(*plane)
+                {
+                    t.to = Some((json!({ "plane": plane.0 }), p.plane.origin));
+                }
                 self.remember(t.command());
                 self.tool = Tool::Onto(t);
             }
@@ -585,6 +592,19 @@ impl Workspace {
                 self.tool = Tool::Plane3 { points: Vec::new() };
             }
             ToolKind::Text => {
+                // A picked plane (or flat face) takes the text straight away: a sketch on it, the text's box open.
+                let on = match self.session.selection.as_slice() {
+                    [Pick::Plane { plane }] if self.session.active_sketch.is_none() => Some(json!({ "construction": plane.0 })),
+                    [Pick::Face { body, face }] if self.session.active_sketch.is_none() && self.selected_face_is_flat() => {
+                        Some(json!({ "body": body.0, "face": face }))
+                    }
+                    _ => None,
+                };
+                if on.is_some_and(|on| self.start_sketch_on(on)) {
+                    self.remember("text");
+                    self.tool = Tool::Text { at: None, text: String::new(), size: 10.0, align: 0, angle: 0.0 };
+                    return;
+                }
                 if self.session.active_sketch.is_none() {
                     self.toast("Text goes into a sketch: start one first");
                 } else {

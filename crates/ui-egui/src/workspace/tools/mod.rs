@@ -594,6 +594,8 @@ pub struct MirrorTool {
     /// Split Body (26.200, s12-002..020): the splitting tools clicked (split_body's "with" entries) and where their
     /// badges sit. Applied live as they're picked; Done keeps it.
     pub with: Vec<(serde_json::Value, DVec3)>,
+    /// The construction plane picked before the tool: what's mirrored across, the items being picked.
+    pub across: Option<ItemId>,
     /// The pieces the live split added (tinted with the bodies split until Done).
     pub pieces: Vec<ItemId>,
 }
@@ -1186,7 +1188,7 @@ impl RotateAxisTool {
 
     /// Picked bodies, or (with none) picked sketch curves, which then turn in their sketch's plane.
     pub fn from_selection(s: &Session) -> Option<Self> {
-        let (items, center) = match selected_items_bounds(s) {
+        let (items, center) = match selected_items_bounds(s).or_else(|| setup::selected_planes_bounds(s)) {
             Some((items, min, max)) => (items, (min + max) / 2.0),
             None => (Vec::new(), selected_curves_center(s)?.1),
         };
@@ -1207,6 +1209,13 @@ impl RotateAxisTool {
             let Some((o, d)) = at else { return false };
             self.about = Some(p);
             self.axis = Some((o, d.normalize_or(DVec3::Z)));
+            self.angle = 0.0;
+            return true;
+        }
+        if let Pick::Axis { axis } = p {
+            let Some(a) = s.doc.axis(axis) else { return false };
+            self.about = Some(p);
+            self.axis = Some((a.origin, a.dir.normalize_or(DVec3::Z)));
             self.angle = 0.0;
             return true;
         }

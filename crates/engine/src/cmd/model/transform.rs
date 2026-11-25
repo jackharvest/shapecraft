@@ -28,7 +28,7 @@ fn selected_movables(s: &Session) -> Vec<ItemId> {
 }
 
 /// Moves a construction plane by `f`, or adds a moved copy (returned).
-fn xform_plane(s: &mut Session, id: ItemId, copy: bool, f: impl Fn(SketchPlane) -> SketchPlane) -> Result<Option<ItemId>> {
+fn xform_plane(s: &mut Session, id: ItemId, copy: bool, mut f: impl FnMut(SketchPlane) -> SketchPlane) -> Result<Option<ItemId>> {
     let (plane, size) =
         s.doc.plane(id).map(|p| (p.plane, p.size)).ok_or_else(|| EngineError::BadParams(format!("no body or plane {}", id.0)))?;
     let moved = f(plane);
@@ -408,11 +408,34 @@ pub(super) fn scale(s: &mut Session, p: &Params) -> Result<Value> {
         s.selection.clear();
         return Ok(json!({ "scaled": 1, "body": body.0, "copies": [] }));
     }
-    let ids = target_bodies(s, p, "select bodies to scale")?;
-    let center = if p.has("center") { p.vec3("center")? } else { bodies_center(s, &ids)? };
+    let ids = if p.has("items") { p.ids("items")? } else { selected_movables(s) };
+    if ids.is_empty() {
+        return Err(EngineError::NotAvailable("select bodies to scale".into()));
+    }
+    let (planes, bodies): (Vec<ItemId>, Vec<ItemId>) = ids.iter().partition(|id| s.doc.plane(**id).is_some());
+    let center = if p.has("center") {
+        p.vec3("center")?
+    } else if bodies.is_empty() {
+        planes.iter().filter_map(|id| s.doc.plane(*id)).map(|pl| pl.plane.origin).sum::<DVec3>() / planes.len().max(1) as f64
+    } else {
+        bodies_center(s, &bodies)?
+    };
     let copy = p.bool_or("copy", false);
     let mut made = Vec::new();
-    for id in &ids {
+    // A construction plane's shown size grows by how much its own directions do; it moves with everything else.
+    for id in &planes {
+        let mut grow = 1.0;
+        let copied = xform_plane(s, *id, copy, |pl| {
+            let along = |axis: DVec3| (axis * factors).length();
+            grow = (along(pl.x) + along(pl.y)) / 2.0;
+            SketchPlane { origin: center + (pl.origin - center) * factors, ..pl }
+        })?;
+        if let Some(pl) = s.doc.plane_mut(copied.unwrap_or(*id)) {
+            pl.size = (pl.size * grow).clamp(0.1, 1e6);
+        }
+        made.extend(copied);
+    }
+    for id in &bodies {
         let scaled = Moved::of(s, *id, &scaling(center, factors), |sh| Ok(s.kernel.scale(sh, center, factors)?))?;
         if copy {
             made.push(add_moved_copy(s, *id, scaled)?);

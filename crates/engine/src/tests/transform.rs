@@ -379,3 +379,33 @@ fn scale_on_a_picked_rim_tapers_the_body() {
     let bb = s.kernel.bounds(&s.doc.bodies[0].shape).unwrap();
     assert!((bb.max.x - 6.0).abs() < 1e-2 && (bb.max.y - 4.0).abs() < 1e-2, "{bb:?}");
 }
+
+/// A picked construction plane scales (its shown size), turns about a construction axis, gives an axis through its middle
+/// and is what bodies mirror across, following it when it moves.
+#[test]
+fn a_construction_plane_scales_turns_and_mirrors() {
+    let mut s = session();
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("rectangle", &json!({"corner": [0, 0], "opposite": [10, 10]})).unwrap();
+    s.execute("extrude", &json!({"sketch": s.active_sketch.unwrap().0, "region": 0, "distance": 10, "result": "new"})).unwrap();
+    let body = s.doc.bodies[0].id;
+    s.execute("offset_plane", &json!({"from": "yz", "distance": -20})).unwrap();
+    let plane = s.doc.planes[0].id;
+    let size = s.doc.planes[0].size;
+    s.execute("scale", &json!({"items": [plane.0], "factor": 2})).unwrap();
+    assert!((s.doc.plane(plane).unwrap().size - size * 2.0).abs() < 1e-9);
+    s.execute("select", &json!({"picks": [{"kind": "plane", "plane": plane.0}]})).unwrap();
+    s.execute("axis_perp_face", &json!({})).unwrap();
+    assert!(s.doc.axes[0].dir.cross(glam::DVec3::X).length() < 1e-9);
+    s.execute("mirror", &json!({"items": [body.0], "plane": {"plane": plane.0}})).unwrap();
+    let far = |s: &crate::Session| s.kernel.bounds(&s.doc.bodies[1].shape).unwrap().min.x;
+    assert!((far(&s) + 50.0).abs() < 1e-6, "{}", far(&s));
+    // The plane's step edited: the mirrored copy follows.
+    let step = s.all_steps().iter().position(|h| h.kind == "offset_plane").unwrap();
+    s.execute("edit_step", &json!({"step": step, "params": {"distance": -30}})).unwrap();
+    assert!((far(&s) + 70.0).abs() < 1e-6, "{}", far(&s));
+    let axis = s.doc.axes[0].id;
+    s.execute("rotate", &json!({"items": [plane.0], "about": {"axis": axis.0}, "angle": 90})).unwrap();
+    let pl = s.doc.plane(plane).unwrap().plane;
+    assert!(pl.normal().cross(glam::DVec3::X).length() < 1e-9 && pl.origin.distance(glam::dvec3(-30.0, pl.origin.y, pl.origin.z)) < 1e-9);
+}

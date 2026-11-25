@@ -231,6 +231,7 @@ impl Workspace {
             Tool::Loft(t) => t.request(),
             Tool::Sweep(t) => t.request(),
             Tool::Fill(t) => t.request(),
+            Tool::Mirror(t) => t.across_request(),
             Tool::Revolve(t) => {
                 let a = t.angle;
                 t.params(a).map(|p| ("revolve", p))

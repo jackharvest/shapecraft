@@ -674,6 +674,23 @@ pub(super) fn selected_items_bounds(s: &Session) -> Option<(Vec<ItemId>, DVec3, 
     Some((items, min, max))
 }
 
+/// The picked construction planes and the corners of the space they take up on screen.
+pub(super) fn selected_planes_bounds(s: &Session) -> Option<(Vec<ItemId>, DVec3, DVec3)> {
+    let items: Vec<ItemId> =
+        s.selection.iter().filter_map(|p| if let Pick::Plane { plane } = p { Some(*plane) } else { None }).collect();
+    let mut min = DVec3::splat(f64::INFINITY);
+    let mut max = DVec3::splat(f64::NEG_INFINITY);
+    for id in &items {
+        let p = s.doc.plane(*id)?;
+        for (u, v) in [(-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5)] {
+            let q = p.plane.origin + p.plane.x * (u * p.size) + p.plane.y * (v * p.size);
+            min = min.min(q);
+            max = max.max(q);
+        }
+    }
+    (!items.is_empty()).then_some((items, min, max))
+}
+
 /// One picked edge a tool can work on by itself: a rim (closed) or a straight edge; with its middle and half size
 /// per axis.
 fn picked_edge(s: &Session) -> Option<((ItemId, u32), DVec3, [f64; 3])> {
@@ -716,8 +733,25 @@ pub(super) fn with_items(v: &mut serde_json::Value, items: &[ItemId]) {
 
 impl MirrorTool {
     pub fn from_selection(s: &Session) -> Option<Self> {
+        // A construction plane on its own is what to mirror across; the items are picked then.
+        if let [Pick::Plane { plane }] = s.selection.as_slice()
+            && let Some(p) = s.doc.plane(*plane)
+        {
+            return Some(Self {
+                items: Vec::new(),
+                center: p.plane.origin,
+                size: p.size,
+                hovered: None,
+                split: false,
+                keep: true,
+                with: Vec::new(),
+                pieces: Vec::new(),
+                across: Some(*plane),
+            });
+        }
         match selected_items_bounds(s) {
             Some((items, min, max)) => Some(Self {
+                across: None,
                 items,
                 center: (min + max) / 2.0,
                 size: (max - min).length(),
@@ -730,6 +764,7 @@ impl MirrorTool {
             None => {
                 let (_, center, size) = selected_curves_center(s)?;
                 Some(Self {
+                    across: None,
                     items: Vec::new(),
                     center,
                     size: size.max(10.0),
@@ -741,6 +776,15 @@ impl MirrorTool {
                 })
             }
         }
+    }
+}
+
+impl MirrorTool {
+    /// Mirroring across the plane picked first, once there are items.
+    pub fn across_request(&self) -> Option<(&'static str, serde_json::Value)> {
+        let plane = self.across.filter(|_| !self.items.is_empty() && !self.split)?;
+        let items: Vec<u64> = self.items.iter().map(|i| i.0).collect();
+        Some(("mirror", json!({ "plane": { "plane": plane.0 }, "items": items, "copy": self.keep })))
     }
 }
 
@@ -895,7 +939,7 @@ impl ScaleTool {
                 copy: false,
             });
         }
-        let (items, pivot, half) = match selected_items_bounds(s) {
+        let (items, pivot, half) = match selected_items_bounds(s).or_else(|| selected_planes_bounds(s)) {
             Some((items, min, max)) => (items, (min + max) / 2.0, ((max - min) / 2.0).max(DVec3::splat(1e-3)).to_array()),
             None => {
                 let (_, center, size) = selected_curves_center(s)?;

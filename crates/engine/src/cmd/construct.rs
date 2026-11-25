@@ -172,10 +172,33 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             menu: "Construct/Axis/Axis Perpendicular to Face",
             shortcut: None,
             help: "A construction axis through a flat face's center (or a point on it), along its normal",
-            params: r#"{"body": id, "face": n, "at": [x,y,z]?} | {"sketch": id, "region": n}  (default: the selected face or region)"#,
+            params: r#"{"body": id, "face": n, "at": [x,y,z]?} | {"sketch": id, "region": n} | {"plane": id, "at": [x,y,z]?}  (default: the selected face, region or plane)"#,
             modifies: true,
             enabled: always,
             run: |s, p| {
+                let plane = if p.has("plane") {
+                    Some(p.id("plane")?)
+                } else if p.has("sketch") || p.has("body") {
+                    None
+                } else {
+                    s.selection.iter().find_map(|pk| match *pk {
+                        Pick::Plane { plane } => Some(plane),
+                        _ => None,
+                    })
+                };
+                if let Some(id) = plane {
+                    let pl = s.doc.plane(id).ok_or_else(|| EngineError::BadParams(format!("no plane {}", id.0)))?;
+                    let (mut origin, dir, len) = (pl.plane.origin, pl.plane.normal(), pl.size);
+                    if p.has("at") {
+                        // The point is taken onto the plane.
+                        let at = p.vec3("at")?;
+                        if !at.is_finite() {
+                            return Err(EngineError::BadParams("at must be finite".into()));
+                        }
+                        origin = at - dir * (at - origin).dot(dir);
+                    }
+                    return add_axis(s, origin, dir, len);
+                }
                 let region = if p.has("sketch") {
                     Some((p.id("sketch")?, p.f64_or("region", 0.0)? as u32))
                 } else if p.has("body") {

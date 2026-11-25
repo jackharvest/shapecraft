@@ -1031,6 +1031,25 @@ impl Workspace {
                 }
                 self.apply_split(t);
             }
+            // Mirroring across the plane picked first: clicks pick the bodies, Done makes it.
+            Tool::Mirror(mut t) if t.across.is_some() => {
+                let hit = self.pick_at(c).and_then(|(p, _)| p.body());
+                if let Some(body) = hit {
+                    match t.items.iter().position(|b| *b == body) {
+                        Some(k) => {
+                            t.items.remove(k);
+                        }
+                        None => t.items.push(body),
+                    }
+                    self.session.selection = t.items.iter().map(|&body| Pick::Body { body }).collect();
+                    self.preview = None;
+                }
+                let ready = hit.is_none() && t.across_request().is_some();
+                self.tool = Tool::Mirror(t);
+                if ready {
+                    self.commit_tool();
+                }
+            }
             Tool::Mirror(t) => {
                 let normal_origin = if let Some(i) = self.mirror_tile_under(c) {
                     Some((AXES[i.min(2)], DVec3::ZERO))

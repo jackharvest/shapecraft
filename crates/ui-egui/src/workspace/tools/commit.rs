@@ -215,6 +215,14 @@ impl Workspace {
                     }
                 }
             }
+            Tool::Mirror(t) if t.across.is_some() => {
+                if let Some((id, params)) = t.across_request()
+                    && self.run(id, params).is_some()
+                {
+                    self.tool = Tool::Idle;
+                    self.session.selection.clear();
+                }
+            }
             // Done leaves nothing picked.
             Tool::Loft(t) => {
                 if let Some((id, params)) = t.request()

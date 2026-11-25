@@ -535,7 +535,13 @@ impl Workspace {
                 }
             }
         }
+        // The plane to mirror across carries the target badge.
         if let Tool::Mirror(t) = &self.tool
+            && let Some(p) = t.across.and_then(|id| self.session.doc.plane(id))
+            && let Some(c) = self.to_screen(p.plane.origin)
+        {
+            target_badge(&painter, c);
+        } else if let Tool::Mirror(t) = &self.tool
             && let Some(c) = self.to_screen(t.center)
         {
             // A badge at the items' middle (330, 332): white capsule, blue ring, the tool's glyph.
