@@ -579,3 +579,36 @@ fn sketch_planes_separately_and_painted_vertices() {
     assert!(obj.lines().any(|l| l.starts_with("v ") && l.ends_with("1.0000 0.0000 0.0000")), "{}", &obj[..200]);
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// A STEP file's loose planar curves come in as sketches with their regions, unless told not to.
+#[test]
+fn step_curves_come_in_as_sketches() {
+    use glam::dvec3;
+    use shapecraft_kernel::{PlanarCurve as C, PlaneFrame};
+    let mut s = super::session();
+    let frame = PlaneFrame { origin: dvec3(0.0, 0.0, 7.0), x: glam::DVec3::X, y: glam::DVec3::Y };
+    let p = |x: f64, y: f64| dvec3(x, y, 7.0);
+    let curves = [
+        C::Line { a: p(0.0, 0.0), b: p(20.0, 0.0) },
+        C::Line { a: p(20.0, 0.0), b: p(20.0, 10.0) },
+        C::Arc { a: p(20.0, 10.0), mid: p(10.0, 14.0), b: p(0.0, 10.0) },
+        C::Line { a: p(0.0, 10.0), b: p(0.0, 0.0) },
+        C::Circle { center: p(10.0, 5.0), radius: 2.0 },
+    ];
+    let shape = s.kernel.curves_shape(frame, &curves).unwrap();
+    let dir = std::env::temp_dir().join(format!("sc-wires-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("wires.step");
+    s.kernel.write_step(&[shape], &path).unwrap();
+    let out = s.execute("import_file", &json!({"path": path})).unwrap();
+    let ids = out.value["sketches"].as_array().unwrap().clone();
+    assert!(!ids.is_empty(), "{:?}", out.value);
+    let sk = &s.doc.sketches[0];
+    assert!((sk.plane.origin.z - 7.0).abs() < 1e-9 && sk.plane.normal().z > 0.99);
+    let total: usize = s.doc.sketches.iter().map(|k| k.entities.len()).sum();
+    assert_eq!(total, 5);
+    let mut t = super::session();
+    let _ = t.execute("import_file", &json!({"path": path, "heal": {"curves": false}}));
+    assert!(t.doc.sketches.is_empty());
+    let _ = std::fs::remove_dir_all(&dir);
+}

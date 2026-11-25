@@ -103,6 +103,8 @@ pub struct Settings {
     /// "Don't show this again".
     pub import_mode: String,
     pub import_custom: [bool; 4],
+    /// Import Preferences ▸ Custom ▸ Import Planar Curves as Sketches.
+    pub import_curves: bool,
     pub import_skip_prefs: bool,
     /// Preferences ▸ Tablet: serve ShapeCraft to a browser (iPad, iPhone, another computer), on this port, to the
     /// whole network or this computer only, with this pairing key (made the first time it's turned on).
@@ -215,6 +217,7 @@ impl Default for Settings {
             kernel: "occt".into(),
             import_mode: "Quality".into(),
             import_custom: [true; 4],
+            import_curves: true,
             import_skip_prefs: false,
             tablet_serve: false,
             tablet_port: crate::tablet::DEFAULT_PORT,

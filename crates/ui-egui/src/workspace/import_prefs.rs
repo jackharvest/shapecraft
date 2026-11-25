@@ -18,17 +18,20 @@ pub struct ImportPrefs {
     pub mode: usize,
     /// Custom's switches: simplify, repair, edges, sew.
     pub custom: [bool; 4],
+    /// Custom's last switch: loose planar curves become sketches.
+    pub curves: bool,
     pub dont_show: bool,
 }
 
 pub const MODES: [&str; 3] = ["Quality", "Speed", "Custom"];
 
 /// Custom's rows: title and what it does.
-const ROWS: [(&str, &str); 4] = [
+const ROWS: [(&str, &str); 5] = [
     ("Simplify Geometry", "Merge faces and edges that lie on one surface or curve. Fewer, larger faces; small details can change."),
     ("Healing", "Close small gaps, drop tiny edges and faces, and turn faces that point the wrong way."),
     ("Accurate Edge Computation", "Work each edge out again from the faces it joins, so they meet exactly."),
     ("Sewing", "Join faces that touch into closed bodies, so they can be modeled on afterwards."),
+    ("Import Planar Curves as Sketches", "Loose curves lying in a plane come in as sketches; off, they're left out."),
 ];
 
 /// Files the sheet comes up for: the ones carrying exact geometry that may need repair.
@@ -38,10 +41,10 @@ pub fn wants_sheet(path: &std::path::Path) -> bool {
 }
 
 /// The import command's "heal" for a mode and Custom's switches.
-pub fn heal_param(mode: usize, custom: [bool; 4]) -> Value {
+pub fn heal_param(mode: usize, custom: [bool; 4], curves: bool) -> Value {
     match mode {
         1 => json!("speed"),
-        2 => json!({ "simplify": custom[0], "repair": custom[1], "edges": custom[2], "sew": custom[3] }),
+        2 => json!({ "simplify": custom[0], "repair": custom[1], "edges": custom[2], "sew": custom[3], "curves": curves }),
         _ => json!("quality"),
     }
 }
@@ -130,7 +133,14 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
                 );
                 let g = p.layout(crate::i18n::tr_s(*what), theme::body(11.0), Tokens::text_dim(), b.width() - 90.0);
                 p.galley(pos2(b.left() + 12.0, top + 27.0), g, Tokens::text_dim());
-                switch(ui, &p, b.right() - 12.0, top + row_h / 2.0, ("import-custom", k), &mut d.custom[k]);
+                switch(
+                    ui,
+                    &p,
+                    b.right() - 12.0,
+                    top + row_h / 2.0,
+                    ("import-custom", k),
+                    if k < 4 { &mut d.custom[k] } else { &mut d.curves },
+                );
             }
             y = b.bottom();
         }
@@ -165,8 +175,9 @@ pub(super) fn dialog(ws: &mut Workspace, ui: &mut Ui, full: Rect) {
     if gr.clicked() || keys.1 {
         ws.settings.import_mode = MODES[d.mode].to_string();
         ws.settings.import_custom = d.custom;
+        ws.settings.import_curves = d.curves;
         ws.settings.import_skip_prefs = d.dont_show;
-        ws.import_file_go = Some((d.path, heal_param(d.mode, d.custom)));
+        ws.import_file_go = Some((d.path, heal_param(d.mode, d.custom, d.curves)));
         return;
     }
     ws.import_prefs = Some(d);
@@ -183,7 +194,7 @@ mod tests {
     fn return_on_the_sheet_doesnt_open_search() {
         let session = shapecraft_engine::Session::new(Arc::new(shapecraft_kernel_occt::OcctKernel::new()), "Sheet");
         let mut ws = Workspace::new(session, crate::settings::Settings::default());
-        ws.import_prefs = Some(ImportPrefs { path: "part.step".into(), mode: 0, custom: [true; 4], dont_show: false });
+        ws.import_prefs = Some(ImportPrefs { path: "part.step".into(), mode: 0, custom: [true; 4], curves: true, dont_show: false });
         let ctx = egui::Context::default();
         let frame = |ws: &mut Workspace, events: Vec<egui::Event>| {
             let input = egui::RawInput {

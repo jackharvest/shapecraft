@@ -1009,11 +1009,16 @@ impl ShapeCraftApp {
         // STEP, IGES and Parasolid first ask how to clean the geometry up, unless told not to.
         let mode = crate::workspace::import_prefs::mode_index(&ws.settings.import_mode);
         if crate::workspace::import_prefs::wants_sheet(&path) && !ws.settings.import_skip_prefs {
-            ws.import_prefs =
-                Some(crate::workspace::import_prefs::ImportPrefs { path, mode, custom: ws.settings.import_custom, dont_show: false });
+            ws.import_prefs = Some(crate::workspace::import_prefs::ImportPrefs {
+                path,
+                mode,
+                custom: ws.settings.import_custom,
+                curves: ws.settings.import_curves,
+                dont_show: false,
+            });
             return;
         }
-        let heal = crate::workspace::import_prefs::heal_param(mode, ws.settings.import_custom);
+        let heal = crate::workspace::import_prefs::heal_param(mode, ws.settings.import_custom, ws.settings.import_curves);
         self.import_file(path, heal);
     }
 

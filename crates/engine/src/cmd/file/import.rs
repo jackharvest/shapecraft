@@ -88,7 +88,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             menu: "File/Import File…",
             shortcut: Some("⇧⌘I"),
             help: "Import STEP, IGES, Parasolid, SolidWorks, NX, Solid Edge or JT bodies, STL, OBJ or 3MF meshes as bodies, or DXF or SVG drawings as a sketch",
-            params: r#"{"path": "/in.step|.stp|.iges|.igs|.x_t|.x_b|.sldprt|.prt (NX)|.par|.psm|.jt|.stl|.obj|.3mf|.dxf|.svg", "config": n? (SolidWorks: which configuration, default the first), "plane": "top"|"front"|"right"? (DXF/SVG: the sketch plane, default top), "units": "mm"|"cm"|"m"|"in"|"ft"? (STL/OBJ: what the file's numbers are in, default mm), "heal": "quality"|"speed"|{"repair": bool, "edges": bool, "sew": bool, "simplify": bool}? (STEP/IGES/Parasolid clean-up, default speed = none)}"#,
+            params: r#"{"path": "/in.step|.stp|.iges|.igs|.x_t|.x_b|.sldprt|.prt (NX)|.par|.psm|.jt|.stl|.obj|.3mf|.dxf|.svg", "config": n? (SolidWorks: which configuration, default the first), "plane": "top"|"front"|"right"? (DXF/SVG: the sketch plane, default top), "units": "mm"|"cm"|"m"|"in"|"ft"? (STL/OBJ: what the file's numbers are in, default mm), "heal": "quality"|"speed"|{"repair": bool, "edges": bool, "sew": bool, "simplify": bool, "curves": bool}? (STEP/IGES/Parasolid clean-up, default speed = none; curves off leaves loose planar curves out of a STEP import)}"#,
             modifies: true,
             enabled: always,
             run: import_file,
@@ -240,7 +240,7 @@ fn import_any(s: &mut Session, p: &Params) -> Result<Value> {
         return Err(bad(format!("no file at {}", path.display())));
     }
     match ext.as_str() {
-        "step" | "stp" => import_step(s, &path, heal_options(p)?),
+        "step" | "stp" => import_step(s, &path, heal_options(p)?, planar_curves(p)),
         "shapr" => import_shapr(s, &path),
         "x_t" | "x_b" | "xmt_txt" | "xmt_bin" => {
             s.stage("Reading the file…", 0);
@@ -501,6 +501,93 @@ fn heal_options(p: &Params) -> Result<shapecraft_kernel::HealOptions> {
     })
 }
 
+/// Import Planar Curves as Sketches: on unless "heal" turns it off.
+fn planar_curves(p: &Params) -> bool {
+    p.raw("heal").and_then(|h| h.get("curves")).and_then(Value::as_bool).unwrap_or(true)
+}
+
+/// Loose curves of a file as sketches: every set of them lying in one plane.
+fn curves_as_sketches(s: &mut Session, name: &str, curves: &[shapecraft_kernel::EdgeCurve]) -> Vec<shapecraft_doc::ItemId> {
+    use shapecraft_doc::SketchEntity;
+    use shapecraft_kernel::EdgeCurve as E;
+    let points = |c: &E| -> Vec<DVec3> {
+        match c {
+            E::Line { a, b } => vec![*a, *b],
+            E::Arc { a, mid, b } => vec![*a, *mid, *b],
+            E::Circle { center, normal, radius } => {
+                let x = normal.any_orthonormal_vector() * *radius;
+                let y = normal.normalize_or(DVec3::Z).cross(x);
+                vec![*center + x, *center + y, *center - x]
+            }
+            E::Other { points } => points.clone(),
+        }
+    };
+    let all: Vec<Vec<DVec3>> = curves.iter().map(points).collect();
+    let size = all.iter().flatten().map(|q| q.distance(all[0][0])).fold(1e-6, f64::max);
+    let tol = size * 1e-5;
+    let normal_of = |pts: &[DVec3]| -> Option<DVec3> {
+        let (a, far) = (pts[0], pts.iter().copied().max_by(|p, q| p.distance(pts[0]).total_cmp(&q.distance(pts[0])))?);
+        let off = pts.iter().map(|p| (far - a).cross(*p - a)).max_by(|p, q| p.length().total_cmp(&q.length()))?;
+        (off.length() > tol * (far - a).length()).then(|| off.normalize())
+    };
+    let within = |pts: &[DVec3], o: DVec3, n: DVec3| pts.iter().all(|p| (*p - o).dot(n).abs() <= tol);
+    let mut left: Vec<usize> = (0..curves.len()).collect();
+    let mut out = Vec::new();
+    while !left.is_empty() {
+        // The plane of a curve that has one, else of two lines that meet, else (a lone line) an upright or level one.
+        let bent = left.iter().find_map(|&i| normal_of(&all[i]).map(|n| (all[i][0], n)));
+        let crossed = || {
+            left.iter().find_map(|&i| {
+                left.iter().find_map(|&j| {
+                    let four: Vec<DVec3> = all[i].iter().chain(&all[j]).copied().collect();
+                    let n = if i == j { None } else { normal_of(&four) }?;
+                    within(&four, four[0], n).then_some((four[0], n))
+                })
+            })
+        };
+        let Some((o, n)) = bent.or_else(crossed).or_else(|| {
+            let line = &all[*left.first()?];
+            let d = (line[line.len() - 1] - line[0]).normalize_or(DVec3::X);
+            let n = if d.z.abs() < 1e-6 { DVec3::Z } else { d.cross(if d.x.abs() < 0.9 { DVec3::X } else { DVec3::Y }) };
+            Some((line[0], n.normalize_or(DVec3::Z)))
+        }) else {
+            break;
+        };
+        let (mine, rest): (Vec<usize>, Vec<usize>) = left.iter().partition(|&&i| within(&all[i], o, n));
+        if mine.is_empty() {
+            break;
+        }
+        left = rest;
+        // The frame the app's own planes have, so the file's coordinates read the same.
+        let n = if n.z.abs() > 1.0 - 1e-9 {
+            DVec3::Z
+        } else if n.y.abs() > 1.0 - 1e-9 {
+            DVec3::Y * -1.0
+        } else {
+            n
+        };
+        let n = if n.x < -1.0 + 1e-9 { DVec3::X } else { n };
+        let Some(plane) = SketchPlane::on_face(n * o.dot(n), n, false) else { continue };
+        let at = |q: DVec3| plane.to_local(q);
+        let entities: Vec<SketchEntity> = mine
+            .iter()
+            .map(|&i| match &curves[i] {
+                E::Line { a, b } => SketchEntity::Line { a: at(*a), b: at(*b) },
+                E::Arc { a, mid, b } => SketchEntity::Arc { a: at(*a), mid: at(*mid), b: at(*b) },
+                E::Circle { center, radius, .. } => SketchEntity::Circle { center: at(*center), radius: *radius },
+                E::Other { points } => SketchEntity::Spline { points: points.iter().step_by(2).map(|p| at(*p)).collect() },
+            })
+            .collect();
+        let id = s.doc.alloc_id();
+        let label = if out.is_empty() { name.to_string() } else { format!("{name} ({})", out.len() + 1) };
+        let mut sketch = Sketch::new(id, label, plane, None);
+        sketch.entities = entities;
+        s.doc.sketches.push(sketch);
+        out.push(id);
+    }
+    out
+}
+
 /// Imported bodies go into an Items folder named after the file, as Shapr3D's Import File does ("box.step").
 fn file_folder(s: &mut Session, path: &std::path::Path, items: &[shapecraft_doc::ItemId]) -> Option<u64> {
     if items.is_empty() {
@@ -558,13 +645,14 @@ fn sniff(path: &std::path::Path) -> Option<String> {
 
 /// A STEP file's parts as bodies with the names and colors the file gives them; parts inside assemblies go into an
 /// Items folder per assembly ("Engine / Piston" for nested ones).
-fn import_step(s: &mut Session, path: &std::path::Path, heal: shapecraft_kernel::HealOptions) -> Result<Value> {
+fn import_step(s: &mut Session, path: &std::path::Path, heal: shapecraft_kernel::HealOptions, curves: bool) -> Result<Value> {
     s.stage("Reading the STEP file…", 0);
     let parts = s.kernel.read_step_parts(path)?;
     if parts.len() > 10_000 {
         return Err(EngineError::BadParams("that file has too many parts to import".into()));
     }
     let mut ids = Vec::new();
+    let mut sketches: Vec<shapecraft_doc::ItemId> = Vec::new();
     let mut cut = 0;
     let mut folders: Vec<(Vec<String>, Vec<shapecraft_doc::ItemId>)> = Vec::new();
     // Everything lands in a folder named after the file, parts of assemblies in folders below it.
@@ -573,6 +661,24 @@ fn import_step(s: &mut Session, path: &std::path::Path, heal: shapecraft_kernel:
     s.stage("Repairing and adding the parts…", parts.len() as u64);
     for (k, (read, mut info)) in parts.into_iter().enumerate() {
         s.progress_step();
+        // Loose curves: sketches, or left out.
+        if s.kernel.face_count(&read)? == 0 {
+            let count = s.kernel.edge_count(&read)?;
+            let list: Vec<_> = (0..count.min(20_000)).filter_map(|e| s.kernel.edge_curve(&read, e).ok()).collect();
+            if curves && !list.is_empty() {
+                let made = curves_as_sketches(s, &format!("Imported {:02}", k + 1), &list);
+                info.path.insert(0, file.clone());
+                match folders.iter_mut().find(|f| f.0 == info.path) {
+                    Some(f) => f.1.extend(&made),
+                    None => folders.push((info.path.clone(), made.clone())),
+                }
+                sketches.extend(made);
+                continue;
+            }
+            if !list.is_empty() {
+                continue;
+            }
+        }
         let shape = healed(s, &read, heal, &mut cut)?;
         let face_colors = repaired_face_colors(s, &read, &shape, &info.face_colors);
         let name = format!("Imported {:02}", k + 1);
@@ -597,7 +703,8 @@ fn import_step(s: &mut Session, path: &std::path::Path, heal: shapecraft_kernel:
     let made_folders = super::shapr::import_folder_tree(s, folders);
     // Nothing is selected after an import.
     s.selection.clear();
-    Ok(json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>(), "folders": made_folders, "repair_cut": cut }))
+    Ok(json!({ "bodies": ids.iter().map(|i| i.0).collect::<Vec<_>>(), "folders": made_folders, "repair_cut": cut,
+        "sketches": sketches.iter().map(|i| i.0).collect::<Vec<_>>() }))
 }
 
 /// The faces of a part the file colours one by one, on the faces of its repaired shape: the repair may renumber, split
