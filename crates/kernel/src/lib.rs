@@ -16,6 +16,7 @@ pub mod brep;
 pub mod helix;
 mod mesh;
 pub mod nurbs;
+pub mod skin;
 pub mod spline;
 pub use mesh::Mesh;
 
@@ -675,6 +676,14 @@ pub trait Kernel: Send + Sync {
     fn sweep_path(&self, profile: &Shape, path: &[Shape], at: Option<DVec3>, opts: &SweepOptions) -> Result<Shape> {
         let _ = (profile, path, at, opts);
         Err(KernelError::InvalidInput("this kernel can't sweep along edges".into()))
+    }
+
+    /// A face's outward normal at the points of its surface nearest `points`, and how it curves along `dirs` there
+    /// (positive towards the normal). A kernel without it answers for flat faces only.
+    fn face_at(&self, shape: &Shape, face: u32, points: &[DVec3], dirs: &[DVec3]) -> Result<Vec<(DVec3, f64)>> {
+        let _ = dirs;
+        let plane = self.face_plane(shape, face)?.ok_or_else(|| KernelError::InvalidInput("this kernel only knows flat faces here".into()))?;
+        Ok(points.iter().map(|_| (plane.normal, 0.0)).collect())
     }
 
     /// The solids a shape falls into when cut by a face's surface carried on past its edges: one, whole, when the

@@ -150,6 +150,15 @@ unsafe extern "C" {
         out: *mut *mut *mut SkShape,
         count: *mut usize,
     ) -> i32;
+    pub fn sk_face_at(
+        s: *const SkShape,
+        face: u32,
+        pts: *const f64,
+        dirs: *const f64,
+        n: usize,
+        normals: *mut f64,
+        curves: *mut f64,
+    ) -> i32;
     pub fn sk_split_face(s: *const SkShape, tool: *const SkShape, face: u32, out: *mut *mut *mut SkShape, count: *mut usize) -> i32;
     pub fn sk_curves_shape(plane: *const f64, kinds: *const i32, data: *const f64, n: usize, out: *mut *mut SkShape) -> i32;
     pub fn sk_edge_shape(s: *const SkShape, edge: u32, out: *mut *mut SkShape) -> i32;

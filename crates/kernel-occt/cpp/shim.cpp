@@ -21,6 +21,7 @@
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <BRepAlgoAPI_Splitter.hxx>
 #include <GeomLib.hxx>
+#include <GeomLProp_SLProps.hxx>
 #include <Geom_BoundedSurface.hxx>
 #include <Precision.hxx>
 #include <BRepBuilderAPI_MakeVertex.hxx>
@@ -2648,6 +2649,41 @@ int put_solids(const TopoDS_Shape& shape, SkShape*** out, size_t* count) {
 }  // namespace
 
 extern "C" {
+
+// A face's outward normal at the points of its surface nearest `pts`, and how it curves along `dirs` there (positive
+// towards the normal).
+int sk_face_at(const SkShape* s, uint32_t face, const double* pts, const double* dirs, size_t n, double* normals, double* curves) {
+  return guard([&] {
+    TopoDS_Shape sub;
+    if (!sub_shape(s->shape, 1, face, sub)) return fail("no such face");
+    const TopoDS_Face f = TopoDS::Face(sub);
+    Handle(Geom_Surface) surf = BRep_Tool::Surface(f);
+    if (surf.IsNull()) return fail("the face has no surface");
+    ShapeAnalysis_Surface near(surf);
+    const double sign = f.Orientation() == TopAbs_REVERSED ? -1.0 : 1.0;
+    for (size_t i = 0; i < n; ++i) {
+      gp_Pnt2d uv = near.ValueOfUV(gp_Pnt(pts[3 * i], pts[3 * i + 1], pts[3 * i + 2]), 1e-6);
+      GeomLProp_SLProps props(surf, uv.X(), uv.Y(), 2, 1e-9);
+      if (!props.IsNormalDefined()) return fail("the face has no normal there");
+      gp_Vec nv(props.Normal());
+      nv *= sign;
+      normals[3 * i] = nv.X(); normals[3 * i + 1] = nv.Y(); normals[3 * i + 2] = nv.Z();
+      // Normal curvature: the second fundamental form over the first, along the direction in the tangent plane.
+      const gp_Vec du = props.D1U(), dv = props.D1V();
+      gp_Vec d(dirs[3 * i], dirs[3 * i + 1], dirs[3 * i + 2]);
+      const double e = du.Dot(du), g = dv.Dot(dv), m = du.Dot(dv), det = e * g - m * m;
+      curves[i] = 0.0;
+      if (det > 1e-18) {
+        const double a = d.Dot(du), b = d.Dot(dv);
+        const double x = (a * g - b * m) / det, y = (b * e - a * m) / det;
+        const double first = e * x * x + 2.0 * m * x * y + g * y * y;
+        const double second = nv.Dot(props.D2U()) * x * x + 2.0 * nv.Dot(props.DUV()) * x * y + nv.Dot(props.D2V()) * y * y;
+        if (first > 1e-18) curves[i] = second / first;
+      }
+    }
+    return 0;
+  });
+}
 
 // The solids a shape falls into when cut by a face's surface, grown past its edges (one, whole, if it misses).
 int sk_split_face(const SkShape* s, const SkShape* tool, uint32_t face, SkShape*** out, size_t* count) {

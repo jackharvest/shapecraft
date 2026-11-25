@@ -990,3 +990,116 @@ fn replace_face_takes_a_round_faces_shape() {
         assert!((v - want).abs() < want * 1e-5, "{what}: {v} vs {want}");
     }
 }
+
+/// A loft's settings past the plain one: guides, tangent and curvature ends, and the ring.
+#[test]
+fn lofts_follow_guides_leave_ends_square_and_close_into_rings() {
+    use std::f64::consts::PI;
+    // Two circles of radius 10, 40 apart along z.
+    let circles = |radii: &[(f64, f64)]| {
+        let mut s = session();
+        let mut ids = Vec::new();
+        for (z, r) in radii {
+            s.execute("sketch", &json!({"origin": [0, 0, z], "normal": [0, 0, 1], "x_dir": [1, 0, 0]})).unwrap();
+            s.execute("circle", &json!({"center": [0, 0], "radius": r})).unwrap();
+            ids.push(json!({"sketch": s.active_sketch.unwrap().0, "region": 0}));
+        }
+        (s, ids)
+    };
+    // Straight up with G1 at both ends is the plain cylinder.
+    let (mut s, p) = circles(&[(0.0, 10.0), (40.0, 10.0)]);
+    s.execute("loft", &json!({"profiles": p, "start_continuity": "g1", "end_continuity": "g1"})).unwrap();
+    assert!((volume(&mut s) - PI * 4000.0).abs() < 0.05, "{} vs {}", volume(&mut s), PI * 4000.0);
+    // Radius 10 to 4, G1 both ends: r(t) = 10 − 6(3t² − 2t³).
+    for (how, want) in [
+        (json!({"start_continuity": "g1", "end_continuity": "g1"}), {
+            let r = |t: f64| 10.0 - 6.0 * t * t * (3.0 - 2.0 * t);
+            (0..10_000).map(|i| (f64::from(i) + 0.5) / 10_000.0).map(|t| PI * r(t) * r(t) * 40.0 / 10_000.0).sum::<f64>()
+        }),
+        (json!({"start_continuity": "g2", "end_continuity": "g2"}), {
+            let r = |t: f64| 10.0 - 6.0 * t.powi(3) * (10.0 - 15.0 * t + 6.0 * t * t);
+            (0..10_000).map(|i| (f64::from(i) + 0.5) / 10_000.0).map(|t| PI * r(t) * r(t) * 40.0 / 10_000.0).sum::<f64>()
+        }),
+    ] {
+        let (mut s, p) = circles(&[(0.0, 10.0), (40.0, 4.0)]);
+        let mut params = how.clone();
+        params["profiles"] = json!(p);
+        s.execute("loft", &params).unwrap();
+        // The slope's length is the mean gap (a little over 40), so the height wobbles a hair: 1 %.
+        let v = volume(&mut s);
+        assert!((v - want).abs() < want * 0.01, "{how}: {v} vs {want}");
+    }
+    // A guide on one side of two circles, bulging out to x = 16 half way; mirrored by a second: an ellipse-like waist.
+    let (mut s, p) = circles(&[(0.0, 10.0), (40.0, 10.0)]);
+    s.execute("sketch", &json!({"plane": "xz"})).unwrap();
+    let g = s.active_sketch.unwrap();
+    let pl = s.doc.sketch(g).unwrap().plane;
+    let uv = |x: f64, z: f64| { let d = glam::dvec3(x, 0.0, z) - pl.origin; json!([d.dot(pl.x), d.dot(pl.y)]) };
+    for x in [1.0, -1.0] {
+        s.execute("arc", &json!({"a": uv(10.0 * x, 0.0), "mid": uv(16.0 * x, 20.0), "b": uv(10.0 * x, 40.0)})).unwrap();
+    }
+    let before = s.doc.bodies.len();
+    s.execute("loft", &json!({"profiles": p, "guides": [{"sketch": g.0, "entities": [0, 1]}]})).unwrap();
+    assert_eq!(s.doc.bodies.len(), before + 1);
+    let bb = s.kernel.bounds(&s.doc.bodies[0].shape).unwrap();
+    assert!((bb.max.x - 16.0).abs() < 0.02 && (bb.min.x + 16.0).abs() < 0.02, "{bb:?}");
+    assert!((bb.max.y - 10.0).abs() < 0.05, "the sides between the guides stay: {bb:?}");
+    assert!(volume(&mut s) > PI * 4000.0 * 1.2);
+    // Squares with four guides at the corners.
+    let mut s = session();
+    let mut p = Vec::new();
+    for z in [0, 30] {
+        s.execute("sketch", &json!({"origin": [0, 0, z], "normal": [0, 0, 1], "x_dir": [1, 0, 0]})).unwrap();
+        s.execute("rectangle", &json!({"center": [0, 0], "size": [20, 20]})).unwrap();
+        p.push(json!({"sketch": s.active_sketch.unwrap().0, "region": 0}));
+    }
+    let mut guides = Vec::new();
+    for (sx, sy) in [(1.0, 1.0), (-1.0, 1.0)] {
+        // The diagonal plane through two opposite corners.
+        s.execute("sketch", &json!({"origin": [0, 0, 0], "normal": [-sy, sx, 0], "x_dir": [sx, sy, 0]})).unwrap();
+        let g = s.active_sketch.unwrap();
+        let pl = s.doc.sketch(g).unwrap().plane;
+        let uv = |q: glam::DVec3| { let d = q - pl.origin; json!([d.dot(pl.x), d.dot(pl.y)]) };
+        for k in [1.0, -1.0] {
+            let at = |r: f64, z: f64| uv(glam::dvec3(sx * r * k, sy * r * k, z));
+            s.execute("arc", &json!({"a": at(10.0, 0.0), "mid": at(6.0, 15.0), "b": at(10.0, 30.0)})).unwrap();
+        }
+        guides.push(json!({"sketch": g.0}));
+    }
+    s.execute("loft", &json!({"profiles": p, "guides": guides})).unwrap();
+    let v = volume(&mut s);
+    assert!(v < 12000.0 * 0.75 && v > 12000.0 * 0.4, "waisted: {v}");
+    // The ring: four circles round the z axis make a torus, near enough.
+    let mut s = session();
+    let mut p = Vec::new();
+    for k in 0..8 {
+        let a = f64::from(k) * PI / 4.0;
+        s.execute("sketch", &json!({"origin": [30.0 * a.cos(), 30.0 * a.sin(), 0], "normal": [-a.sin(), a.cos(), 0], "x_dir": [a.cos(), a.sin(), 0]})).unwrap();
+        s.execute("circle", &json!({"center": [0, 0], "radius": 5})).unwrap();
+        p.push(json!({"sketch": s.active_sketch.unwrap().0, "region": 0}));
+    }
+    s.execute("loft", &json!({"profiles": p, "periodic": true})).unwrap();
+    let want = 2.0 * PI * 30.0 * PI * 25.0;
+    let v = volume(&mut s);
+    assert!((v - want).abs() < want * 0.01, "{v} vs {want}");
+    // A face's neighbours carry on: a tapered frustum's walls go straight on (G1 from its top).
+    let (mut s, _) = circles(&[(0.0, 10.0), (20.0, 5.0)]);
+    let ids: Vec<u64> = s.doc.sketches.iter().map(|k| k.id.0).collect();
+    s.execute("loft", &json!({"profiles": ids.iter().map(|i| json!({"sketch": i, "region": 0})).collect::<Vec<_>>()})).unwrap();
+    let body = s.doc.bodies[0].id;
+    let shape = s.doc.bodies[0].shape.clone();
+    let top = (0..s.kernel.face_count(&shape).unwrap())
+        .find(|&f| s.kernel.face_plane(&shape, f).unwrap().is_some_and(|p| p.normal.z > 0.9))
+        .unwrap();
+    s.execute("sketch", &json!({"origin": [0, 0, 40], "normal": [0, 0, 1], "x_dir": [1, 0, 0]})).unwrap();
+    s.execute("circle", &json!({"center": [0, 0], "radius": 5})).unwrap();
+    let cap = s.active_sketch.unwrap();
+    s.execute(
+        "loft",
+        &json!({"profiles": [{"body": body.0, "face": top}, {"sketch": cap.0, "region": 0}], "start_continuity": "g1", "result": "new"}),
+    )
+    .unwrap();
+    // It narrows first, on from the cone, before coming back to 5.
+    let bb = s.kernel.mass_props(&s.doc.bodies[1].shape).unwrap();
+    assert!(bb.volume < PI * 25.0 * 20.0 * 0.95, "{}", bb.volume);
+}

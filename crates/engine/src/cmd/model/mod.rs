@@ -24,6 +24,7 @@ use wrap::wrap_emboss;
 mod boolean;
 mod extrude;
 mod faces;
+mod skin;
 mod sweep;
 mod thread;
 mod transform;
@@ -140,7 +141,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             menu: "Tools/Loft",
             shortcut: None,
             help: "Blend a solid through the selected profiles, in order",
-            params: r#"{"profiles": [{"sketch": id, "region": n} | {"body": id, "face": n}, …], "ruled": false (straight walls between profiles), "result": "new"|"union"|"subtract"|"intersect"}  (default: the selected regions and faces, in selection order)"#,
+            params: r#"{"profiles": [{"sketch": id, "region": n} | {"body": id, "face": n}, …], "ruled": false (straight walls between profiles), "guides": [{"sketch": id, "entities": [n]} | {"body": id, "edges": [n]}]? (curves the walls follow, touching every profile), "periodic": false (the last profile runs on into the first), "start_continuity"|"end_continuity": "none"|"g1"|"g2", "start_magnitude"|"end_magnitude": 1 (how strongly the walls leave the end square to a sketch, or on from a face's neighbours), "result": "new"|"union"|"subtract"|"intersect"}  (default: the selected regions and faces, in selection order)"#,
             modifies: true,
             enabled: |_| true,
             run: loft,

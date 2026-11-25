@@ -242,12 +242,48 @@ pub(super) fn loft(s: &mut Session, p: &Params) -> Result<Value> {
     }
     let faces = profiles.iter().map(|pr| profile_face(s, *pr)).collect::<Result<Vec<_>>>()?;
     let result = result_param(p)?;
-    let shape = s.kernel.loft_ruled(&faces, p.bool_or("ruled", false))?;
+    let guides = if p.has("guides") {
+        match p.parse::<Value>("guides")? {
+            Value::Array(list) => list.iter().map(|v| path_part(s, v)).collect::<Result<Vec<_>>>()?.concat(),
+            v => path_part(s, &v)?,
+        }
+    } else {
+        Vec::new()
+    };
+    let shape = match skin_options(p, !guides.is_empty())? {
+        Some(how) => super::skin::loft(s, &profiles, &faces, &guides, &how)?,
+        None => s.kernel.loft_ruled(&faces, p.bool_or("ruled", false))?,
+    };
     let body = place_result(s, shape, result, None, BoolOp::Union)?;
-    let used: Vec<ItemId> = profiles.iter().filter_map(|pr| profile_sketch(*pr)).collect();
+    let used: Vec<ItemId> = profiles.iter().filter_map(|pr| profile_sketch(*pr)).chain(guides.iter().filter_map(PathPart::sketch)).collect();
     consume_sketches(s, &used);
     s.selection = vec![Pick::Body { body }];
     Ok(json!({ "body": body.0 }))
+}
+
+/// Loft's card settings past the plain loft: `None` when there are none.
+fn skin_options(p: &Params, guided: bool) -> Result<Option<super::skin::LoftOptions>> {
+    use super::skin::{LoftEnd, LoftOptions};
+    let end = |which: &str| -> Result<Option<LoftEnd>> {
+        let magnitude = p.f64_or(&format!("{which}_magnitude"), 1.0)?;
+        if !(magnitude.is_finite() && magnitude.abs() <= 100.0) {
+            return Err(EngineError::BadParams("a tangent magnitude is between -100 and 100".into()));
+        }
+        Ok(match p.opt_str(&format!("{which}_continuity")).unwrap_or("none") {
+            "none" => None,
+            "g1" => Some(LoftEnd { curvature: false, magnitude }),
+            "g2" => Some(LoftEnd { curvature: true, magnitude }),
+            o => return Err(EngineError::BadParams(format!("continuity is none, g1 or g2, not '{o}'"))),
+        })
+    };
+    let how = LoftOptions { periodic: p.bool_or("periodic", false), start: end("start")?, end: end("end")? };
+    if how.periodic || how.start.is_some() || how.end.is_some() || guided {
+        if p.bool_or("ruled", false) {
+            return Err(EngineError::BadParams("a ruled loft has no guide curves, tangents or closing".into()));
+        }
+        return Ok(Some(how));
+    }
+    Ok(None)
 }
 
 pub(super) fn sweep(s: &mut Session, p: &Params) -> Result<Value> {
@@ -313,13 +349,13 @@ pub(super) fn sweep(s: &mut Session, p: &Params) -> Result<Value> {
 
 /// One piece of a sweep's path: a sketch curve or a body's edge.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum PathPart {
+pub(super) enum PathPart {
     Curve { sketch: ItemId, entity: u32 },
     Edge { body: ItemId, edge: u32 },
 }
 
 impl PathPart {
-    fn sketch(&self) -> Option<ItemId> {
+    pub(super) fn sketch(&self) -> Option<ItemId> {
         match *self {
             PathPart::Curve { sketch, .. } => Some(sketch),
             PathPart::Edge { .. } => None,
@@ -329,7 +365,7 @@ impl PathPart {
 
 /// `{"sketch": id, "entities": [n]?}` (a sketch's curves, all of them by default) or `{"body": id, "edge": n | "edges":
 /// [n]}`.
-fn path_part(s: &Session, v: &Value) -> Result<Vec<PathPart>> {
+pub(super) fn path_part(s: &Session, v: &Value) -> Result<Vec<PathPart>> {
     let pp = Params::new(v);
     if pp.has("body") {
         let body = pp.id("body")?;
@@ -354,7 +390,7 @@ enum Position {
     Endpoint,
 }
 
-fn entity_curves(s: &Session, sketch: ItemId, entity: u32) -> Result<(shapecraft_kernel::PlaneFrame, Vec<shapecraft_kernel::PlanarCurve>)> {
+pub(super) fn entity_curves(s: &Session, sketch: ItemId, entity: u32) -> Result<(shapecraft_kernel::PlaneFrame, Vec<shapecraft_kernel::PlanarCurve>)> {
     let sk = s.doc.sketch(sketch).ok_or_else(|| EngineError::BadParams(format!("no sketch {}", sketch.0)))?;
     let e = sk.entities.get(entity as usize).ok_or_else(|| EngineError::BadParams(format!("no sketch curve {entity}")))?;
     let mut one = sk.clone();
@@ -422,9 +458,14 @@ fn sweep_shape(
 }
 
 /// Points along an edge's curve, close enough to find crossings on.
-fn along(c: &shapecraft_kernel::EdgeCurve) -> Vec<DVec3> {
+pub(super) fn along(c: &shapecraft_kernel::EdgeCurve) -> Vec<DVec3> {
+    along_n(c, 64)
+}
+
+/// [`along`] with `n` steps on round curves.
+pub(super) fn along_n(c: &shapecraft_kernel::EdgeCurve, n: usize) -> Vec<DVec3> {
     use shapecraft_kernel::EdgeCurve;
-    const N: usize = 64;
+    let steps = n;
     match c {
         EdgeCurve::Line { a, b } => vec![*a, *b],
         EdgeCurve::Other { points } => points.clone(),
@@ -432,10 +473,10 @@ fn along(c: &shapecraft_kernel::EdgeCurve) -> Vec<DVec3> {
             let n = normal.normalize_or(DVec3::Z);
             let x = n.any_orthonormal_vector() * *radius;
             let y = n.cross(x);
-            (0..=N).map(|i| std::f64::consts::TAU * i as f64 / N as f64).map(|t| *center + x * t.cos() + y * t.sin()).collect()
+            (0..=steps).map(|i| std::f64::consts::TAU * i as f64 / steps as f64).map(|t| *center + x * t.cos() + y * t.sin()).collect()
         }
         EdgeCurve::Arc { a, mid, b } => match arc_frame(*a, *mid, *b) {
-            Some((c, x, y, sweep)) => (0..=N).map(|i| sweep * i as f64 / N as f64).map(|t| c + x * t.cos() + y * t.sin()).collect(),
+            Some((c, x, y, sweep)) => (0..=steps).map(|i| sweep * i as f64 / steps as f64).map(|t| c + x * t.cos() + y * t.sin()).collect(),
             None => vec![*a, *mid, *b],
         },
     }

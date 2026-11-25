@@ -940,6 +940,21 @@ impl Kernel for OcctKernel {
         blend_out("sweep", |out| unsafe { ffi::sk_sweep_path(f, ptrs.as_ptr(), ptrs.len(), ap, twist, scale, parallel, round, out) })
     }
 
+    fn face_at(&self, shape: &Shape, face: u32, points: &[DVec3], dirs: &[DVec3]) -> Result<Vec<(DVec3, f64)>> {
+        if points.len() != dirs.len() || points.len() > 1_000_000 {
+            return Err(KernelError::InvalidInput("give as many directions as points".into()));
+        }
+        let p: Vec<f64> = points.iter().flat_map(|q| q.to_array()).collect();
+        let d: Vec<f64> = dirs.iter().flat_map(|q| q.to_array()).collect();
+        finite("surface", &p)?;
+        finite("surface", &d)?;
+        let s = raw(shape)?;
+        let (mut n, mut c) = (vec![0.0; p.len()], vec![0.0; points.len()]);
+        // SAFETY: the buffers hold 3 numbers (1 for the curvatures) per point and outlive the call.
+        check("surface", unsafe { ffi::sk_face_at(s, face, p.as_ptr(), d.as_ptr(), points.len(), n.as_mut_ptr(), c.as_mut_ptr()) })?;
+        Ok(n.as_chunks::<3>().0.iter().zip(c).map(|(n, c)| (DVec3::from_array(*n), c)).collect())
+    }
+
     fn split_by_face(&self, shape: &Shape, tool: &Shape, face: u32) -> Result<Vec<Shape>> {
         let (s, t) = (raw(shape)?, raw(tool)?);
         let (mut arr, mut n) = (ptr::null_mut(), 0usize);
