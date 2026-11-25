@@ -436,15 +436,23 @@ fn export_bodies<'a>(s: &'a Session, p: &Params) -> Result<Vec<formats::ExportBo
     chosen_bodies(s, p)?
         .into_iter()
         .map(|b| {
-            let (color, metal, gloss) = match (&b.appearance, colors) {
-                (Some(a), true) => (a.color, a.metal, a.gloss),
-                _ => ([0.7, 0.7, 0.72], 0.0, 0.3),
-            };
+            let plain = shapecraft_doc::Appearance { color: [0.7, 0.7, 0.72], gloss: 0.3, ..Default::default() };
+            let look = b.appearance.as_ref().filter(|_| colors).unwrap_or(&plain).clone();
             let mesh = match tolerance {
                 Some(t) if !b.is_mesh() => Arc::new(s.kernel.mesh_within(&b.shape, t, angle(t))?),
                 _ => b.mesh.clone(),
             };
-            Ok(formats::ExportBody { name: &b.name, mesh, color, metal, gloss })
+            Ok(formats::ExportBody {
+                name: &b.name,
+                mesh,
+                color: look.color,
+                metal: look.metal,
+                gloss: look.gloss,
+                opacity: look.opacity,
+                transmission: look.transmission,
+                ior: look.ior,
+                emission: look.emission,
+            })
         })
         .collect()
 }

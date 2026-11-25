@@ -16,6 +16,11 @@ pub struct ExportBody<'a> {
     pub color: [f32; 3],
     pub metal: f32,
     pub gloss: f32,
+    /// How solid it is (1), how much light passes and bends (glass), how much it glows.
+    pub opacity: f32,
+    pub transmission: f32,
+    pub ior: f32,
+    pub emission: f32,
 }
 
 fn clean(name: &str) -> String {
@@ -160,6 +165,7 @@ fn filament_slots(bodies: &[ExportBody]) -> String {
 pub fn write_glb(bodies: &[ExportBody]) -> Option<Vec<u8>> {
     let mut bin: Vec<u8> = Vec::new();
     let (mut views, mut accessors, mut meshes, mut materials, mut nodes) = (vec![], vec![], vec![], vec![], vec![]);
+    let mut glass = false;
     for b in bodies {
         let m = &b.mesh;
         if m.positions.is_empty() || m.indices.is_empty() {
@@ -197,10 +203,24 @@ pub fn write_glb(bodies: &[ExportBody]) -> Option<Vec<u8>> {
         accessors.push(json!({ "bufferView": iview, "componentType": 5125, "count": m.indices.len(), "type": "SCALAR" }));
         let idx_acc = accessors.len() - 1;
         let [r, g, bl] = b.color.map(to_linear);
-        materials.push(json!({
+        let mut material = json!({
             "name": b.name,
-            "pbrMetallicRoughness": { "baseColorFactor": [r, g, bl, 1.0], "metallicFactor": b.metal.clamp(0.0, 1.0), "roughnessFactor": (1.0 - b.gloss).clamp(0.04, 1.0) }
-        }));
+            "pbrMetallicRoughness": { "baseColorFactor": [r, g, bl, b.opacity.clamp(0.0, 1.0)], "metallicFactor": b.metal.clamp(0.0, 1.0), "roughnessFactor": (1.0 - b.gloss).clamp(0.04, 1.0) }
+        });
+        if b.opacity < 1.0 {
+            material["alphaMode"] = json!("BLEND");
+        }
+        if b.emission > 0.0 {
+            material["emissiveFactor"] = json!([r, g, bl].map(|c| c * b.emission.clamp(0.0, 1.0)));
+        }
+        if b.transmission > 0.0 {
+            material["extensions"] = json!({
+                "KHR_materials_transmission": { "transmissionFactor": b.transmission.clamp(0.0, 1.0) },
+                "KHR_materials_ior": { "ior": b.ior.max(1.0) }
+            });
+            glass = true;
+        }
+        materials.push(material);
         meshes.push(
             json!({ "name": b.name, "primitives": [{ "attributes": attributes, "indices": idx_acc, "material": materials.len() - 1 }] }),
         );
@@ -225,6 +245,10 @@ pub fn write_glb(bodies: &[ExportBody]) -> Option<Vec<u8>> {
         "bufferViews": views,
         "buffers": [{ "byteLength": bin.len() }],
     });
+    let mut doc = doc;
+    if glass {
+        doc["extensionsUsed"] = json!(["KHR_materials_transmission", "KHR_materials_ior"]);
+    }
     let mut json_bytes = serde_json::to_vec(&doc).ok()?;
     while !json_bytes.len().is_multiple_of(4) {
         json_bytes.push(b' ');
@@ -303,9 +327,14 @@ pub fn write_usdz(bodies: &[ExportBody]) -> Option<Vec<u8>> {
         let [r, g, bl] = b.color.map(to_linear);
         let _ = write!(
             usda,
-            "        def Material \"M{i}\"\n        {{\n            token outputs:surface.connect = </Root/Materials/M{i}/Surface.outputs:surface>\n            def Shader \"Surface\"\n            {{\n                uniform token info:id = \"UsdPreviewSurface\"\n                color3f inputs:diffuseColor = ({r}, {g}, {bl})\n                float inputs:metallic = {}\n                float inputs:roughness = {}\n                token outputs:surface\n            }}\n        }}\n",
+            "        def Material \"M{i}\"\n        {{\n            token outputs:surface.connect = </Root/Materials/M{i}/Surface.outputs:surface>\n            def Shader \"Surface\"\n            {{\n                uniform token info:id = \"UsdPreviewSurface\"\n                color3f inputs:diffuseColor = ({r}, {g}, {bl})\n                float inputs:metallic = {}\n                float inputs:roughness = {}\n                float inputs:opacity = {}\n                float inputs:ior = {}\n                color3f inputs:emissiveColor = ({}, {}, {})\n                token outputs:surface\n            }}\n        }}\n",
             b.metal.clamp(0.0, 1.0),
-            (1.0 - b.gloss).clamp(0.05, 1.0)
+            (1.0 - b.gloss).clamp(0.05, 1.0),
+            (b.opacity * (1.0 - 0.85 * b.transmission)).clamp(0.0, 1.0),
+            b.ior.max(1.0),
+            r * b.emission,
+            g * b.emission,
+            bl * b.emission
         );
     }
     usda.push_str("    }\n}\n");
@@ -319,7 +348,7 @@ mod tests {
     fn body(name: &str, color: [f32; 3]) -> ExportBody<'_> {
         let mesh =
             Mesh { positions: vec![[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]], indices: vec![0, 1, 2], ..Default::default() };
-        ExportBody { name, mesh: Arc::new(mesh), color, metal: 0.0, gloss: 0.5 }
+        ExportBody { name, mesh: Arc::new(mesh), color, metal: 0.0, gloss: 0.5, opacity: 1.0, transmission: 0.0, ior: 1.5, emission: 0.0 }
     }
 
     #[test]

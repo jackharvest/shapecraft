@@ -222,6 +222,10 @@ pub struct Workspace {
     pub vis_tab: usize,
     pub vis_search: String,
     pub vis_changing: bool,
+    /// Pick Face Color is waiting for its face.
+    pub(crate) vis_eyedrop: bool,
+    /// Used Materials' right-click menu: where, and which material.
+    pub(crate) vis_used_menu: Option<(Pos2, Option<shapecraft_doc::Appearance>)>,
     pub vis_draft: Option<egui::Color32>,
     /// Decals: thumbnails of the library's pictures, a picture being dragged onto a body, the decal picked on one,
     /// and whether its centre handle is being dragged.
@@ -760,6 +764,8 @@ impl Workspace {
             vis_tab: 0,
             vis_search: String::new(),
             vis_changing: false,
+            vis_eyedrop: false,
+            vis_used_menu: None,
             vis_draft: None,
             decal_thumbs: std::collections::HashMap::new(),
             decal_drag: None,
@@ -1331,8 +1337,10 @@ impl Workspace {
             } else if self.visualizing {
                 if self.session.selection.is_empty() {
                     self.vis_changing = false;
+                    self.vis_eyedrop = false;
                 }
                 visual::sidebar(self, ui, r);
+                visual::used_menu(self, ui);
             } else {
                 history::sidebar(self, ui, r);
             }

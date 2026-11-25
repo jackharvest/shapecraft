@@ -419,7 +419,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             menu: "Item/Appearance",
             shortcut: None,
             help: "Give bodies a look from the library (or your own color), or reset them to grey",
-            params: r#"{"items": [ids]?, "appearance": "Aluminum" | {"name", "color": [r,g,b] (0–1), "metal": 0–1, "gloss": 0–1 | "roughness": 0–1, "texture": id?, "scale": 0.05–20?} | null, "custom": material picture id? (instead of appearance)}  (default: the selected bodies)"#,
+            params: r#"{"items": [ids]?, "appearance": "Aluminum" | {"name", "color": [r,g,b] (0–1), "metal": 0–1, "gloss": 0–1 | "roughness": 0–1, "texture": id?, "scale": 0.05–20?, "rotate": [x,y,z] degrees?, "opacity": 0–1?, "transmission": 0–1?, "ior": 1–3?, "emission": 0–1?} | null, "custom": material picture id? (instead of appearance)}  (default: the selected bodies)"#,
             modifies: true,
             enabled: |s| !s.doc.bodies.is_empty(),
             run: |s, p| {
@@ -771,9 +771,24 @@ fn item_visible(doc: &shapecraft_doc::Document, id: shapecraft_doc::ItemId) -> b
 fn roughness_to_gloss(v: &Value) -> Result<Value> {
     let mut v = v.clone();
     if let Some(m) = v.as_object_mut() {
-        if let Some(k) =
-            m.keys().find(|k| !matches!(k.as_str(), "name" | "finish" | "color" | "metal" | "gloss" | "roughness" | "texture" | "scale"))
-        {
+        if let Some(k) = m.keys().find(|k| {
+            !matches!(
+                k.as_str(),
+                "name"
+                    | "finish"
+                    | "color"
+                    | "metal"
+                    | "gloss"
+                    | "roughness"
+                    | "texture"
+                    | "scale"
+                    | "opacity"
+                    | "transmission"
+                    | "ior"
+                    | "emission"
+                    | "rotate"
+            )
+        }) {
             return Err(EngineError::BadParams(format!("unknown parameter '{k}' in appearance")));
         }
         if let Some(r) = m.remove("roughness") {

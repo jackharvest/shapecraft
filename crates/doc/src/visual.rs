@@ -19,6 +19,9 @@ pub struct DecalImage {
     /// A picture placed on a drawing sheet rather than a decal.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub sheet: bool,
+    /// A custom material's settings, when its file gave any (GLB).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub look: Option<crate::Appearance>,
     #[serde(skip)]
     pub file: Arc<Vec<u8>>,
     #[serde(skip)]

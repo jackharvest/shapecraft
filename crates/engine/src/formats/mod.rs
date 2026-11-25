@@ -2,6 +2,7 @@
 //! imports (DXF, SVG). B-rep formats (STEP, IGES) go through the kernel.
 
 mod fbx;
+pub(crate) mod glb_in;
 mod mesh_in;
 mod mesh_out;
 mod sketch_in;

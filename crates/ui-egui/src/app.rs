@@ -1103,7 +1103,7 @@ impl ShapeCraftApp {
         self.open_path(
             Wanted::Material,
             "Custom Material",
-            &[("Image", &["png", "jpg", "jpeg", "tif", "tiff", "bmp", "gif", "ico"])],
+            &[("Material", &["glb", "png", "jpg", "jpeg", "tif", "tiff", "bmp", "gif", "ico"])],
             |app, path| {
                 if let Some(path) = path
                     && let Some(ws) = app.ws.as_deref_mut()

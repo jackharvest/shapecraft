@@ -144,6 +144,12 @@ fn fs_through(v: MeshOut) -> @location(0) vec4<f32> {
     discard;
 }
 
+// A glass body's reflections stay while the rest of it lets the view through.
+fn through_glass(color: vec3<f32>, fresnel: vec3<f32>, passes: f32) -> vec4<f32> {
+    let mirror = clamp(max(fresnel.r, max(fresnel.g, fresnel.b)) * 1.6, 0.0, 1.0) * passes;
+    return vec4<f32>(color, max(b.color.a, mirror));
+}
+
 @fragment
 fn fs_mesh(v: MeshOut) -> @location(0) vec4<f32> {
     if (cut_away(v.world)) {
@@ -214,6 +220,9 @@ fn fs_mesh(v: MeshOut) -> @location(0) vec4<f32> {
     let l = normalize(g.light.xyz);
     let h = normalize(l + to_eye);
     let spec = pow(max(dot(n, h), 0.0), mix(12.0, 220.0, gloss * gloss)) * mix(0.15, 1.2, gloss);
+    // Glass: what isn't reflected passes through (tinted), more of it head on than at a glance.
+    let passes = b.wash.z;
+    let bends = (b.material.z - 1.0) / (b.material.z + 1.0);
     let r = reflect(-to_eye, n);
     var env = mix(vec3<f32>(0.10, 0.10, 0.11), vec3<f32>(0.95, 0.95, 0.97), smoothstep(-0.3, 0.6, r.z));
     if (g.visual.w > 0.5) {
@@ -230,7 +239,7 @@ fn fs_mesh(v: MeshOut) -> @location(0) vec4<f32> {
         let box2 = smoothstep(0.90, 0.98, dot(flat, vec2<f32>(cos(a + 3.6), sin(a + 3.6))));
         env = env + vec3<f32>(1.3, 1.3, 1.3) * box1 * tall + vec3<f32>(0.6, 0.6, 0.6) * box2 * tall;
     }
-    let f0 = mix(vec3<f32>(0.04, 0.04, 0.04), base, metal);
+    let f0 = mix(vec3<f32>(bends * bends), base, metal);
     let fresnel = f0 + (vec3<f32>(1.0, 1.0, 1.0) - f0) * pow(1.0 - max(dot(n, to_eye), 0.0), 5.0) * gloss * 0.6;
     if (g.envp.x > 0.5 && g.visual.w > 0.5) {
         // The user's panorama lights the body: its irradiance for the diffuse part, and its reflection, sharp on
@@ -239,11 +248,11 @@ fn fs_mesh(v: MeshOut) -> @location(0) vec4<f32> {
         let refl = env_radiance_at(r, 1.0 + 8.0 * pow(1.0 - clamp(gloss, 0.0, 1.0), 0.7));
         let diffuse_ibl = base * irr * (1.0 - 0.85 * metal);
         let lit_ibl = diffuse_ibl + fresnel * refl * mix(0.3, 1.0, gloss) * (0.35 + 0.65 * metal);
-        return vec4<f32>(lit_ibl * g.visual.x, b.color.a);
+        return through_glass(mix(lit_ibl * g.visual.x, base * 1.8, b.wash.w), fresnel, passes);
     }
     let diffuse = base * shade * (1.0 - 0.85 * metal);
     let lit = diffuse + fresnel * (env * mix(0.15, 0.9, gloss) * (0.35 + 0.65 * metal)) + f0 * spec;
-    return vec4<f32>(lit * g.visual.x, b.color.a);
+    return through_glass(mix(lit * g.visual.x, base * 1.8, b.wash.w), fresnel, passes);
 }
 
 // ---- screen-space lines ----

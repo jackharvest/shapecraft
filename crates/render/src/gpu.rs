@@ -82,11 +82,11 @@ struct BodyUniform {
     color: [f32; 4],
     sel_color: [f32; 4],
     hover_color: [f32; 4],
-    /// metal, gloss, 1 when it has an appearance, 1 in Visualization
+    /// metal, gloss, how much it bends light (0 without an appearance), 1 in Visualization
     material: [f32; 4],
     flags: [u32; 4],
     sel: [u32; MAX_SELECTED_FACES],
-    /// x: how far the colour is washed towards the grey in y (linear).
+    /// x: how far the colour is washed towards the grey in y (linear). z: how much light passes; w: how much it glows.
     wash: [f32; 4],
 }
 
@@ -1113,8 +1113,14 @@ impl Renderer {
             let mut wash = [0.0; 4];
             if let Some(a) = &body.appearance {
                 let lin = |v: f32| if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) };
-                color = [lin(a.color[0]), lin(a.color[1]), lin(a.color[2]), 1.0];
-                material = [a.metal, a.gloss, 1.0, material[3]];
+                color = [lin(a.color[0]), lin(a.color[1]), lin(a.color[2]), a.opacity.clamp(0.02, 1.0)];
+                material = [a.metal, a.gloss, a.ior.max(1.0), material[3]];
+                wash[3] = a.emission;
+                // Glass lets the view through only in the Visualize look.
+                if scene.presentation {
+                    wash[2] = a.transmission;
+                    color[3] *= 1.0 - 0.92 * a.transmission;
+                }
             }
             let ghost = scene.ghosts.iter().find(|(id, _)| *id == body.id).map(|(_, g)| g.linear());
             if let Some((_, t)) = scene.tints.iter().find(|(id, _)| *id == body.id) {
@@ -1133,7 +1139,7 @@ impl Renderer {
             } else if sketching && on_face {
                 // As observed sketching on a board's face: bodies stay solid and every colour, a face's own too,
                 // washes about half way to a light grey (black comes out ~122, a gold pad 190/156/124).
-                wash = [0.48, 0.41, 0.0, 0.0];
+                wash = [0.48, 0.41, 0.0, wash[3]];
             } else if sketching {
                 // As observed, bodies fade while sketching so the sketch plane's grid shows through them.
                 color[3] = 0.4;

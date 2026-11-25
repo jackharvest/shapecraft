@@ -98,12 +98,21 @@ fn fs_decal(v: DecalOut) -> @location(0) vec4<f32> {
 
 // A custom material: the picture tiled over the body, each face taking the two axes it faces least (box projection),
 // lit like a matte body.
+fn unturned(p: vec3<f32>) -> vec3<f32> {
+    let c = cos(d.axis.xyz);
+    let s = sin(d.axis.xyz);
+    var q = vec3<f32>(p.x * c.z + p.y * s.z, -p.x * s.z + p.y * c.z, p.z);
+    q = vec3<f32>(q.x * c.y - q.z * s.y, q.y, q.x * s.y + q.z * c.y);
+    return vec3<f32>(q.x, q.y * c.x + q.z * s.x, -q.y * s.x + q.z * c.x);
+}
+
 fn material(v: DecalOut, n: vec3<f32>) -> vec4<f32> {
     if (g.light.w > 0.5 && dot(g.section.xyz, v.world) > g.section.w) {
         discard;
     }
-    let q = v.world - d.center.xyz;
-    let a = abs(n);
+    // The picture turns by the body's material turning the other way: the place and the normal it's looked up with.
+    let q = unturned(v.world - d.center.xyz);
+    let a = abs(unturned(n));
     var st = vec2<f32>(q.x, q.y);
     if (a.x >= a.y && a.x >= a.z) {
         st = vec2<f32>(q.y, q.z);

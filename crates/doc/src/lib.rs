@@ -72,6 +72,20 @@ pub struct Appearance {
     /// How big one tile of the picture is, as a fraction of the body's largest extent (custom materials).
     #[serde(default = "one", skip_serializing_if = "is_one")]
     pub scale: f32,
+    /// 1 solid, 0 not there at all; shown in the modeling space too.
+    #[serde(default = "one", skip_serializing_if = "is_one")]
+    pub opacity: f32,
+    /// How much light passes through (glass), and how much it bends there (Visualization).
+    #[serde(default, skip_serializing_if = "is_none")]
+    pub transmission: f32,
+    #[serde(default = "glass", skip_serializing_if = "is_glass")]
+    pub ior: f32,
+    /// How much it glows by itself.
+    #[serde(default, skip_serializing_if = "is_none")]
+    pub emission: f32,
+    /// The picture's turn about X, Y and Z, degrees (custom materials).
+    #[serde(default, skip_serializing_if = "is_still")]
+    pub rotate: [f32; 3],
 }
 
 impl Default for Appearance {
@@ -85,12 +99,33 @@ impl Default for Appearance {
             gloss: 0.35,
             texture: None,
             scale: 1.0,
+            opacity: 1.0,
+            transmission: 0.0,
+            ior: glass(),
+            emission: 0.0,
+            rotate: [0.0; 3],
         }
     }
 }
 
 fn one() -> f32 {
     1.0
+}
+
+fn glass() -> f32 {
+    1.5
+}
+
+fn is_glass(v: &f32) -> bool {
+    *v == glass()
+}
+
+fn is_none(v: &f32) -> bool {
+    *v == 0.0
+}
+
+fn is_still(v: &[f32; 3]) -> bool {
+    *v == [0.0; 3]
 }
 
 fn is_one(v: &f32) -> bool {
@@ -107,6 +142,12 @@ impl Appearance {
         self.metal = self.metal.clamp(0.0, 1.0);
         self.gloss = self.gloss.clamp(0.0, 1.0);
         self.scale = if self.scale.is_finite() { self.scale.clamp(0.05, 20.0) } else { 1.0 };
+        let within = |v: f32, lo: f32, hi: f32, or: f32| if v.is_finite() { v.clamp(lo, hi) } else { or };
+        self.opacity = within(self.opacity, 0.0, 1.0, 1.0);
+        self.transmission = within(self.transmission, 0.0, 1.0, 0.0);
+        self.ior = within(self.ior, 1.0, 3.0, glass());
+        self.emission = within(self.emission, 0.0, 1.0, 0.0);
+        self.rotate = self.rotate.map(|r| within(r, -360.0, 360.0, 0.0));
         self.name.truncate(100);
         self.finish.truncate(100);
         Some(self)
@@ -120,8 +161,13 @@ impl Appearance {
             color: [((c >> 16) & 255) as f32 / 255.0, ((c >> 8) & 255) as f32 / 255.0, (c & 255) as f32 / 255.0],
             metal,
             gloss,
-            texture: None,
-            scale: 1.0,
+            ..Appearance::default()
+        };
+        // How much light passes, and how rough the glass is.
+        let g = |finish: &str, name: &str, c: u32, gloss: f32, transmission: f32, ior: f32| Appearance {
+            transmission,
+            ior,
+            ..a(finish, name, c, 0.0, gloss)
         };
         vec![
             (
@@ -183,6 +229,25 @@ impl Appearance {
             (
                 "Leather",
                 vec![a("Standard", "Embossed Leather", 0x3a2a20, 0.0, 0.3), a("Standard", "Flat Grain Leather", 0x2a2a2a, 0.0, 0.3)],
+            ),
+            (
+                "Utility",
+                vec![
+                    a("Standard", "Default Material", 0xa0a0a4, 0.0, 0.35),
+                    Appearance { opacity: 0.35, ..a("Simple", "Transparent", 0xa0a0a4, 0.0, 0.35) },
+                    Appearance { emission: 1.0, ..a("Standard", "Emissive", 0xfff2d6, 0.0, 0.1) },
+                ],
+            ),
+            (
+                "Glass",
+                vec![
+                    g("Clear", "Glass", 0xf2f7f7, 0.95, 0.95, 1.5),
+                    g("Frosted", "Glass", 0xeef3f3, 0.45, 0.8, 1.5),
+                    g("Tinted", "Glass", 0x6f9f8f, 0.95, 0.85, 1.5),
+                    g("Clear", "Acrylic Sheet", 0xf6f6f6, 0.9, 0.92, 1.49),
+                    g("Clear", "Water", 0xdfeef2, 0.98, 0.95, 1.33),
+                    g("Polished", "Diamond", 0xfafcff, 0.99, 0.9, 2.42),
+                ],
             ),
         ]
     }
@@ -255,6 +320,16 @@ impl PartialEq for RefImage {
 }
 
 impl RefImage {
+    /// A PNG of one pixel (a plain custom material's picture).
+    pub fn one_pixel(color: [f32; 3]) -> Result<Vec<u8>, String> {
+        let c = color.map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8);
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::RgbaImage::from_pixel(1, 1, image::Rgba([c[0], c[1], c[2], 255]))
+            .write_to(&mut png, image::ImageFormat::Png)
+            .map_err(|e| e.to_string())?;
+        Ok(png.into_inner())
+    }
+
     /// A picture file as projects keep it: PNG and JPEG as they are; TIFF, BMP, GIF (its first frame) and ICO
     /// turned into PNG.
     pub fn normalize(file: Vec<u8>) -> Result<Vec<u8>, String> {

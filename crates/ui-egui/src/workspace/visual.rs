@@ -419,6 +419,11 @@ fn materials(ws: &mut Workspace, ui: &mut Ui) {
         ui.add_space(4.0);
         for look in &used {
             let (rect, resp) = ui.allocate_exact_size(vec2(w - 8.0, 52.0), Sense::click());
+            // A right-click offers to take it off again.
+            if resp.secondary_clicked() {
+                ws.vis_used_menu = resp.interact_pointer_pos().map(|q| (q, look.clone()));
+                ws.popup_opened_at = ws.now;
+            }
             // A click picks every body wearing it (s13-016), which shows its Properties.
             if resp.clicked() {
                 let picks: Vec<Pick> =
@@ -1009,6 +1014,47 @@ fn properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
         ws.vis_tab = 0;
     }
     y = card.bottom() + 22.0;
+    // Look ▸ its settings: which apply depends on the material.
+    let face_only = ws.session.selection.iter().any(|p| matches!(p, Pick::Face { .. }));
+    if let Some(a) = look.as_ref().filter(|_| !face_only) {
+        type Setting = (&'static str, &'static str, fn(&Appearance) -> f64, fn(&mut Appearance, f64), (f64, f64), &'static str);
+        let mut rows: Vec<Setting> = Vec::new();
+        if a.transmission > 0.0 || a.full_name().contains("Glass") {
+            rows.push(("Transmission", "mat-transmission", |a| a.transmission.into(), |a, v| a.transmission = v as f32, (0.0, 1.0), ""));
+            rows.push(("IOR", "mat-ior", |a| a.ior.into(), |a, v| a.ior = v as f32, (1.0, 3.0), ""));
+        }
+        if a.emission > 0.0 {
+            rows.push(("Emission", "mat-emission", |a| a.emission.into(), |a, v| a.emission = (v as f32).max(0.01), (0.0, 1.0), ""));
+        }
+        rows.push(("Roughness", "mat-rough", |a| f64::from(1.0 - a.gloss), |a, v| a.gloss = 1.0 - v as f32, (0.0, 1.0), ""));
+        rows.push(("Opacity", "mat-opacity", |a| a.opacity.into(), |a, v| a.opacity = v as f32, (0.0, 1.0), ""));
+        if a.texture.is_some() {
+            rows.push(("Rotate X", "mat-rx", |a| a.rotate[0].into(), |a, v| a.rotate[0] = v as f32, (-180.0, 180.0), "°"));
+            rows.push(("Rotate Y", "mat-ry", |a| a.rotate[1].into(), |a, v| a.rotate[1] = v as f32, (-180.0, 180.0), "°"));
+            rows.push(("Rotate Z", "mat-rz", |a| a.rotate[2].into(), |a, v| a.rotate[2] = v as f32, (-180.0, 180.0), "°"));
+        }
+        for (label, id, get, set, range, unit) in rows {
+            let value = get(a);
+            let text = if unit.is_empty() { format!("{value:.2}") } else { format!("{value:.0}{unit}") };
+            let out = slider(
+                ui,
+                Slider { left: r.left() + 14.0, top: y, width: r.width() - 28.0, label, value, range, log: false, text: &text, id },
+            );
+            if out.started {
+                ws.live_step = None;
+            }
+            if let Some(v) = out.value {
+                let mut a = a.clone();
+                set(&mut a, v);
+                let ids: Vec<u64> = targets(ws).iter().map(|i| i.0).collect();
+                ws.live_run("set_appearance", json!({ "items": ids, "appearance": a }));
+            }
+            if out.stopped {
+                ws.live_step = None;
+            }
+            y += 46.0;
+        }
+    }
     // A custom material has no color to pick: how big its picture's tiles are instead.
     if let Some(a) = look.as_ref().filter(|a| a.texture.is_some()) {
         let text = format!("{}x", trim(a.scale as f64));
@@ -1101,6 +1147,26 @@ fn properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     let rr = ui.interact(reset, ui.scope_id().with("vis-default"), Sense::click());
     p.rect_filled(reset, radius(6), if rr.hovered() { theme::c(0x58585c) } else { theme::c(0x48484b) });
     p.text(reset.center(), Align2::CENTER_CENTER, crate::i18n::tr("Default Body Color"), theme::body(12.0), Tokens::text());
+    // Pick Face Color: the next click on a face takes its color.
+    let pick = Rect::from_min_size(pos2(reset.left(), reset.bottom() + 8.0), reset.size());
+    let pr = ui.interact(pick, ui.scope_id().with("vis-eyedrop"), Sense::click());
+    let on = ws.vis_eyedrop;
+    p.rect_filled(
+        pick,
+        radius(6),
+        if on {
+            theme::c(0x2f55d4)
+        } else if pr.hovered() {
+            theme::c(0x58585c)
+        } else {
+            theme::c(0x48484b)
+        },
+    );
+    let label = if on { "Click a face" } else { "Pick Face Color" };
+    p.text(pick.center(), Align2::CENTER_CENTER, crate::i18n::tr(label), theme::body(12.0), Tokens::text());
+    if pr.clicked() {
+        ws.vis_eyedrop = !ws.vis_eyedrop;
+    }
     if rr.clicked() {
         let has_faces = ws.session.selection.iter().any(|p| matches!(p, Pick::Face { .. }));
         if has_faces {
@@ -1116,6 +1182,39 @@ fn properties(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
     p.text(done.center(), Align2::CENTER_CENTER, crate::i18n::tr("Done"), theme::body(12.5), Color32::WHITE);
     if dr.clicked() {
         ws.session.selection.clear();
+    }
+}
+
+/// Used Materials' right-click menu.
+pub(super) fn used_menu(ws: &mut Workspace, ui: &mut Ui) {
+    let Some((at, look)) = ws.vis_used_menu.clone() else { return };
+    let (hit, rect) = super::popover::pull_down(ui, "used-material", at, 190.0, &[("Reset to Default Material", None, false)]);
+    if hit.is_some() {
+        let ids: Vec<u64> = ws.session.doc.bodies.iter().filter(|b| b.appearance == look).map(|b| b.id.0).collect();
+        let _ = ws.run("set_appearance", json!({ "items": ids, "appearance": null }));
+    }
+    if hit.is_some()
+        || ws.now - ws.popup_opened_at > 0.15
+            && ui.input(|i| i.pointer.any_click() && i.pointer.interact_pos().is_some_and(|q| !rect.contains(q)))
+    {
+        ws.vis_used_menu = None;
+    }
+}
+
+/// Pick Face Color: the color of the face clicked goes to what's picked.
+pub(super) fn eyedrop(ws: &mut Workspace, hit: Option<Pick>) {
+    ws.vis_eyedrop = false;
+    let Some(Pick::Face { body, face }) = hit else { return };
+    let Some(b) = ws.session.doc.body(body) else { return };
+    let color = b.face_colors.iter().find(|(f, _)| *f == face).map(|(_, c)| *c).or(b.appearance.as_ref().map(|a| a.color));
+    let color = color.unwrap_or(Appearance::default().color);
+    if ws.session.selection.iter().any(|p| matches!(p, Pick::Face { .. })) {
+        let _ = ws.run("set_face_color", json!({ "color": color }));
+    } else {
+        let mut a = look_or_default(ws);
+        a.color = color;
+        let ids: Vec<u64> = targets(ws).iter().map(|i| i.0).collect();
+        let _ = ws.run("set_appearance", json!({ "items": ids, "appearance": a }));
     }
 }
 

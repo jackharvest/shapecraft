@@ -552,6 +552,11 @@ impl Workspace {
             }
             return;
         }
+        if self.vis_eyedrop {
+            let hit = self.pick_at(c).map(|(p, _)| p);
+            crate::workspace::visual::eyedrop(self, hit);
+            return;
+        }
         // A step's picks being picked again.
         if self.pick_edit.is_some() {
             let hit = self.pick_at(c).map(|(p, _)| p);

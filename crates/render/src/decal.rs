@@ -133,7 +133,7 @@ impl Decals {
                 continue;
             }
             let Some(s) = self.slots.get(&slot) else { continue };
-            queue.write_buffer(&s.params, 0, bytemuck::cast_slice(&material_uniform(bounds, look.scale, img.aspect())));
+            queue.write_buffer(&s.params, 0, bytemuck::cast_slice(&material_uniform(bounds, look.scale, look.rotate, img.aspect())));
             draws.push((slot, b.id.0));
         }
         for d in &doc.decals {
@@ -223,14 +223,15 @@ fn mesh_bounds(positions: &[[f32; 3]]) -> Option<(glam::Vec3, glam::Vec3)> {
 
 /// A custom material: the picture tiled by box projection (out.w = 2), one tile as wide as the body's largest
 /// extent times the scale, starting at the body's low corner.
-fn material_uniform((lo, hi): (glam::Vec3, glam::Vec3), scale: f32, aspect: f64) -> [[f32; 4]; 6] {
+fn material_uniform((lo, hi): (glam::Vec3, glam::Vec3), scale: f32, rotate: [f32; 3], aspect: f64) -> [[f32; 4]; 6] {
     let tile = ((hi - lo).max_element() * scale).max(1e-3);
     [
         [lo.x, lo.y, lo.z, 1.0],
         [0.0, 0.0, 0.0, tile],
         [0.0, 0.0, 0.0, tile / aspect.max(1e-3) as f32],
         [0.0, 0.0, 1.0, 2.0],
-        [0.0; 4],
+        // The picture's turn about each axis, radians.
+        [rotate[0].to_radians(), rotate[1].to_radians(), rotate[2].to_radians(), 0.0],
         [1.0, 0.0, -1.0, f32::MAX],
     ]
 }

@@ -18,6 +18,9 @@ fn bad(msg: impl Into<String>) -> EngineError {
 
 /// Reads a picture into the project's library: a decal, or a custom material's picture.
 pub(super) fn import_picture(s: &mut Session, path: &str, material: bool) -> Result<Value> {
+    if material && std::path::Path::new(path).extension().is_some_and(|e| e.eq_ignore_ascii_case("glb")) {
+        return import_glb_materials(s, path);
+    }
     let bytes = std::fs::read(path).map_err(|e| bad(format!("couldn't read {path}: {e}")))?;
     if bytes.len() > 64 << 20 {
         return Err(bad("that picture is too big (64 MB at most)"));
@@ -31,8 +34,60 @@ pub(super) fn import_picture(s: &mut Session, path: &str, material: bool) -> Res
     let n = s.doc.decal_images.iter().filter(|i| i.material == material && !i.sheet).count() + 1;
     let fallback = if material { format!("Material {n:02}") } else { format!("Decal {n:02}") };
     let name = std::path::Path::new(path).file_stem().map_or(fallback, |f| f.to_string_lossy().chars().take(100).collect());
-    s.doc.decal_images.push(DecalImage { id, name, ext, material, sheet: false, file: Arc::new(bytes), pixels: Arc::new(pixels) });
+    s.doc.decal_images.push(DecalImage {
+        id,
+        name,
+        ext,
+        material,
+        sheet: false,
+        look: None,
+        file: Arc::new(bytes),
+        pixels: Arc::new(pixels),
+    });
     Ok(json!({ "image": id.0 }))
+}
+
+/// A GLB file's materials into the Custom section (its geometry is left out): base color or its picture, metal,
+/// roughness, glow, glass and opacity.
+fn import_glb_materials(s: &mut Session, path: &str) -> Result<Value> {
+    let meta = std::fs::metadata(path).map_err(|e| bad(format!("couldn't read {path}: {e}")))?;
+    if meta.len() > 256 << 20 {
+        return Err(bad("that file is too big (256 MB at most)"));
+    }
+    let bytes = std::fs::read(path).map_err(|e| bad(format!("couldn't read {path}: {e}")))?;
+    let found = crate::formats::glb_in::materials(&bytes).map_err(bad)?;
+    if found.is_empty() {
+        return Err(bad("there are no materials in that file"));
+    }
+    if s.doc.decal_images.len() + found.len() > 1000 {
+        return Err(bad("a project holds 1000 pictures at most"));
+    }
+    let mut ids = Vec::new();
+    for m in found {
+        let look = m.look.sanitized().ok_or_else(|| bad("a material's values aren't finite"))?;
+        // A plain color is kept as a picture of one pixel.
+        let picture = match m.picture {
+            Some(p) => p,
+            None => shapecraft_doc::RefImage::one_pixel(look.color).map_err(bad)?,
+        };
+        let picture = shapecraft_doc::RefImage::normalize(picture).map_err(EngineError::BadParams)?;
+        let (ext, pixels) = shapecraft_doc::RefImage::decode(&picture).map_err(EngineError::BadParams)?;
+        let id = s.doc.alloc_id();
+        let n = s.doc.decal_images.iter().filter(|i| i.material).count() + 1;
+        let name = if look.name.trim().is_empty() { format!("Material {n:02}") } else { look.name.clone() };
+        s.doc.decal_images.push(DecalImage {
+            id,
+            name,
+            ext,
+            material: true,
+            sheet: false,
+            look: Some(look),
+            file: Arc::new(picture),
+            pixels: Arc::new(pixels),
+        });
+        ids.push(id.0);
+    }
+    Ok(json!({ "image": ids.first(), "images": ids }))
 }
 
 /// Reads a panorama into the project as a custom environment and selects it. Returns its place in the environment
@@ -85,6 +140,13 @@ fn custom_index(s: &Session, p: &Params) -> Result<usize> {
 /// cards and wherever the picture isn't drawn).
 pub(crate) fn custom_look(doc: &Document, image: ItemId) -> Option<shapecraft_doc::Appearance> {
     let img = doc.decal_images.iter().find(|i| i.id == image && i.material)?;
+    // One read from a GLB file comes with its own settings.
+    if let Some(look) = &img.look {
+        // (A plain color's picture is one pixel: nothing to tile.)
+        let (w, h, _) = *img.pixels;
+        let texture = (w > 1 || h > 1).then_some(image);
+        return Some(shapecraft_doc::Appearance { name: img.name.clone(), texture, ..look.clone() });
+    }
     let (_, _, px) = &*img.pixels;
     let mut sum = [0f64; 3];
     let mut n = 0f64;
@@ -102,7 +164,7 @@ pub(crate) fn custom_look(doc: &Document, image: ItemId) -> Option<shapecraft_do
         metal: 0.0,
         gloss: 0.3,
         texture: Some(image),
-        scale: 1.0,
+        ..Default::default()
     })
 }
 
@@ -124,7 +186,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             label: "Import Material",
             menu: "",
             shortcut: None,
-            help: "Make a custom material from a PNG or JPEG picture (Material ▸ Custom); set_appearance {\"custom\": id} puts it on bodies",
+            help: "Make a custom material from a PNG or JPEG picture, or a GLB file's materials (Material ▸ Custom); set_appearance {\"custom\": id} puts it on bodies",
             params: r#"{"path": "/walnut.jpg"}"#,
             modifies: true,
             enabled: always,

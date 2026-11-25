@@ -522,3 +522,33 @@ fn a_3mf_comes_back_with_names_and_colors() {
     t.execute("import_file", &json!({"path": bare})).unwrap();
     assert_eq!(t.doc.bodies.len(), 1);
 }
+
+/// A material's opacity, glass and glow go into a GLB file, and a GLB file's materials come back as custom ones.
+#[test]
+fn glb_materials_go_out_and_come_back() {
+    let mut s = super::session();
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("rectangle", &json!({"corner": [0, 0], "opposite": [10, 10]})).unwrap();
+    s.execute("extrude", &json!({"sketch": s.active_sketch.unwrap().0, "region": 0, "distance": 10, "result": "new"})).unwrap();
+    let body = s.doc.bodies[0].id;
+    s.execute("rename", &json!({"item": body.0, "name": "Lamp"})).unwrap();
+    let look = json!({"name": "Lamp", "color": [0.2, 0.5, 0.8], "metal": 0.25, "gloss": 0.75, "opacity": 0.5, "transmission": 0.6, "ior": 1.33, "emission": 0.4});
+    s.execute("set_appearance", &json!({"items": [body.0], "appearance": look})).unwrap();
+    let dir = std::env::temp_dir().join(format!("sc-glb-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("lamp.glb");
+    s.execute("export_glb", &json!({"path": path})).unwrap();
+    let out = s.execute("import_material", &json!({"path": path})).unwrap();
+    let id = out.value["image"].as_u64().unwrap();
+    s.execute("set_appearance", &json!({"items": [body.0], "custom": id})).unwrap();
+    let a = s.doc.bodies[0].appearance.clone().unwrap();
+    assert_eq!(a.name, "Lamp");
+    assert!(a.texture.is_none(), "a plain color has no picture to tile");
+    for (got, want) in [(a.metal, 0.25), (a.gloss, 0.75), (a.opacity, 0.5), (a.transmission, 0.6), (a.ior, 1.33), (a.color[1], 0.5)] {
+        assert!((got - want).abs() < 0.01, "{got} vs {want}");
+    }
+    assert!(s.execute("import_material", &json!({"path": dir.join("nothing.glb")})).is_err());
+    std::fs::write(dir.join("bad.glb"), b"glTF\x02\0\0\0\xff\xff\xff\xff\xff\xff\xff\x7fJSON").unwrap();
+    assert!(s.execute("import_material", &json!({"path": dir.join("bad.glb")})).is_err());
+    let _ = std::fs::remove_dir_all(&dir);
+}
