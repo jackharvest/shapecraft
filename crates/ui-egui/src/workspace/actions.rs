@@ -452,6 +452,10 @@ impl Workspace {
             super::step_card::edge_end(self, false);
             return;
         }
+        if self.pick_edit.is_some() {
+            super::step_picks::end(self, false);
+            return;
+        }
         if self.profile_edit.take().is_some() {
             return;
         }

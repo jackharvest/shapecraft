@@ -1152,15 +1152,14 @@ impl LoftTool {
 impl SweepTool {
     pub fn from_selection(s: &Session) -> Option<Self> {
         let profile = s.selection.iter().copied().find(is_profile)?;
-        let path = s.selection.iter().copied().filter(|p| matches!(p, Pick::SketchEntity { .. })).collect();
-        Some(Self { profile, path, result: "new" })
+        let path = s.selection.iter().copied().filter(|p| matches!(p, Pick::SketchEntity { .. } | Pick::Edge { .. })).collect();
+        Some(Self { profile, path, result: "new", set: serde_json::Map::new() })
     }
 
-    /// Sketch curves toggle in and out of the path (one sketch at a time); a region or face becomes the profile.
+    /// Sketch curves and edges toggle in and out of the path; a region or face becomes the profile.
     pub fn click(&mut self, p: Pick) -> bool {
         match p {
-            Pick::SketchEntity { sketch, .. } => {
-                self.path.retain(|x| x.sketch() == Some(sketch));
+            Pick::SketchEntity { .. } | Pick::Edge { .. } => {
                 toggle(&mut self.path, p);
                 true
             }
@@ -1172,19 +1171,40 @@ impl SweepTool {
         }
     }
 
-    pub fn request(&self) -> Option<(&'static str, serde_json::Value)> {
-        let sketch = self.path.first()?.sketch()?;
-        let entities: Vec<u32> = self
-            .path
-            .iter()
-            .filter_map(|p| match *p {
-                Pick::SketchEntity { entity, .. } => Some(entity),
-                _ => None,
+    /// The path as the command takes it: each sketch's curves together, then each body's edges.
+    fn path_json(&self) -> Vec<serde_json::Value> {
+        let mut out: Vec<(ItemId, bool, Vec<u32>)> = Vec::new();
+        for p in &self.path {
+            let (id, edge, n) = match *p {
+                Pick::SketchEntity { sketch, entity } => (sketch, false, entity),
+                Pick::Edge { body, edge } => (body, true, edge),
+                _ => continue,
+            };
+            match out.iter_mut().find(|(i, e, _)| *i == id && *e == edge) {
+                Some((_, _, list)) => list.push(n),
+                None => out.push((id, edge, vec![n])),
+            }
+        }
+        out.into_iter()
+            .map(|(id, edge, list)| {
+                if edge { json!({ "body": id.0, "edges": list }) } else { json!({ "sketch": id.0, "entities": list }) }
             })
-            .collect();
-        let mut v = json!({ "profile": profile_json(&self.profile)?, "path": { "sketch": sketch.0, "entities": entities } });
+            .collect()
+    }
+
+    pub fn request(&self) -> Option<(&'static str, serde_json::Value)> {
+        let mut path = self.path_json();
+        if path.is_empty() {
+            return None;
+        }
+        let one = path.len() == 1 && path[0].get("sketch").is_some();
+        let path = if one { path.remove(0) } else { json!(path) };
+        let mut v = json!({ "profile": profile_json(&self.profile)?, "path": path });
         if self.result != "new" {
             v["result"] = json!(self.result);
+        }
+        for (key, value) in &self.set {
+            v[key] = value.clone();
         }
         Some(("sweep", v))
     }

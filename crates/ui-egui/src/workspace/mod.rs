@@ -33,6 +33,7 @@ mod sketch;
 pub mod slicers;
 mod start_tool;
 mod step_card;
+mod step_picks;
 pub mod toolbar;
 mod tools;
 pub mod tutorial;
@@ -268,6 +269,8 @@ pub struct Workspace {
     pub cut_edit: Option<(usize, Vec<ItemId>)>,
     /// A fillet's or chamfer's Edge ▸ Edit...: the edges being picked again with the model rolled back (#89).
     pub(crate) edge_edit: Option<step_card::EdgeEdit>,
+    /// Any other step's picks being picked again from its card, with the model rolled back.
+    pub(crate) pick_edit: Option<step_picks::PickEdit>,
     /// The bodies the open step's cut works on, found for a revision (the card asks every frame).
     pub(crate) cut_found: std::cell::RefCell<Option<(u64, usize, Vec<ItemId>)>>,
     /// "Select Through This Point…": where its list opened and what's under the point; the entry hovered.
@@ -763,6 +766,7 @@ impl Workspace {
             profile_edit: None,
             cut_edit: None,
             edge_edit: None,
+            pick_edit: None,
             cut_found: Default::default(),
             through: None,
             menu_hover: None,

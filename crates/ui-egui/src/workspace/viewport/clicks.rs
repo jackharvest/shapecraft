@@ -552,6 +552,12 @@ impl Workspace {
             }
             return;
         }
+        // A step's picks being picked again.
+        if self.pick_edit.is_some() {
+            let hit = self.pick_at(c).map(|(p, _)| p);
+            crate::workspace::step_picks::click(self, hit);
+            return;
+        }
         // A cut step's Subtract From ▸ Edit...: a click on a body picks it or lets it go.
         if self.cut_edit.is_some() {
             let hit = self.pick_at(c).and_then(|(p, _)| p.body());
@@ -589,6 +595,7 @@ impl Workspace {
             let target = match self.pick_at(c).map(|(p, _)| p) {
                 Some(Pick::Face { body, face }) => Some(json!({ "body": body.0, "face": face })),
                 Some(Pick::Plane { plane }) => Some(json!({ "plane": plane.0 })),
+                Some(Pick::Body { body }) if which == "to" => Some(json!({ "body": body.0 })),
                 _ => None,
             };
             if let (Some(target), Tool::Extrude(t)) = (target, &mut self.tool) {
@@ -1052,6 +1059,14 @@ impl Workspace {
                 if let Some((n, o)) = normal_origin {
                     let id = if t.split { "split_body" } else { "mirror" };
                     let mut params = json!({ "origin": [o.x, o.y, o.z], "normal": [n.x, n.y, n.z] });
+                    // Bodies stay tied to the face or plane they were mirrored in.
+                    if !t.split && !t.items.is_empty() && self.mirror_tile_under(c).is_none() {
+                        match self.pick_at(c) {
+                            Some((Pick::Face { body, face }, _)) => params["plane"] = json!({ "body": body.0, "face": face }),
+                            Some((Pick::Plane { plane }, _)) => params["plane"] = json!({ "plane": plane.0 }),
+                            _ => {}
+                        }
+                    }
                     params[if t.split { "keep" } else { "copy" }] = json!(t.keep);
                     if !t.items.is_empty() {
                         params["items"] = json!(t.items.iter().map(|i| i.0).collect::<Vec<_>>());

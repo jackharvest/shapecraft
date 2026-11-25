@@ -721,8 +721,8 @@ fn link_mirror(s: &mut Session, sketch: ItemId, ents: &[u32], before: usize, o: 
 }
 
 pub(super) fn mirror(s: &mut Session, p: &Params) -> Result<Value> {
-    let origin = p.vec3("origin")?;
-    let normal = p.vec3("normal")?;
+    let (origin, normal) =
+        if p.has("plane") { face_frame(s, &p.parse::<Value>("plane")?)? } else { (p.vec3("origin")?, p.vec3("normal")?) };
     let copy = p.bool_or("copy", true);
     if let Some(sel) = selected_entities(s, p) {
         let pl = sketch_plane_of(s, sel.0)?;

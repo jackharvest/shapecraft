@@ -572,8 +572,19 @@ impl Workspace {
             crate::workspace::tools::Target::Face { body, face } => Some((body, face)),
             _ => None,
         };
-        let (body, face, d) = self.onto_face(p, s0, sdir, t.origin, t.normal, own)?;
-        Some((serde_json::json!({ "body": body.0, "face": face }), d))
+        if let Some((body, face, d)) = self.onto_face(p, s0, sdir, t.origin, t.normal, own) {
+            return Some((serde_json::json!({ "body": body.0, "face": face }), d));
+        }
+        // A round or free-form face: as far as the point under the pointer, for the arrow.
+        if t.symmetric || !Self::off_axis(p, s0, sdir) {
+            return None;
+        }
+        let Some((shapecraft_doc::Pick::Face { body, face }, at)) = self.pick_at(p) else { return None };
+        if self.session.kernel.face_plane(&self.session.doc.body(body)?.shape, face).ok()?.is_some() {
+            return None;
+        }
+        let d = (at - t.origin).dot(t.normal);
+        (d.abs() > 1e-6).then(|| (serde_json::json!({ "body": body.0, "face": face }), d))
     }
 
     /// A handle pulled well off its axis (40 points) over another flat face that isn't side-on to it: that face and

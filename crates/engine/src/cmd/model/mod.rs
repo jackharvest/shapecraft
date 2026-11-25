@@ -173,7 +173,7 @@ pub(super) fn commands() -> Vec<CommandSpec> {
             menu: "Transform/Mirror",
             shortcut: None,
             help: "Mirror the selected bodies across a plane (as copies by default)",
-            params: r#"{"origin": [x,y,z], "normal": [x,y,z], "items": [ids]?, "copy": true}"#,
+            params: r#"{"origin": [x,y,z], "normal": [x,y,z] | "plane": {"body": id, "face": n} | {"plane": id}, "items": [ids]?, "copy": true}"#,
             modifies: true,
             enabled: has_bodies_or_curves,
             run: mirror,

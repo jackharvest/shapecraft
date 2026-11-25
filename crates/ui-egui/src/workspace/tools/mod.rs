@@ -550,13 +550,15 @@ pub struct LoftTool {
     pub result: &'static str,
 }
 
-/// Sweep: one region or flat face, then the sketch curves it follows.
+/// Sweep: one region or flat face, then the sketch curves and edges it follows.
 #[derive(Clone, Debug)]
 pub struct SweepTool {
     pub profile: Pick,
     pub path: Vec<Pick>,
     /// The Result badge's choice: "new", "union", "subtract" or "intersect".
     pub result: &'static str,
+    /// The card's other settings, as the command takes them (position, orientation, corners, twist, scale).
+    pub set: serde_json::Map<String, serde_json::Value>,
 }
 
 #[derive(Clone, Debug)]
@@ -1437,7 +1439,7 @@ impl Tool {
                 "Fit Point Spline (I)",
                 "Click the points the curve goes through, adding as many segments as you like. Return finishes it.",
             ),
-            Tool::Extrude(t) if t.picking == Some("to") => ("Extrude - To Object", "Select the flat face or plane to extrude to"),
+            Tool::Extrude(t) if t.picking == Some("to") => ("Extrude - To Object", "Select the face, plane or body to extrude to"),
             Tool::Extrude(t) if t.picking.is_some() => ("Extrude - From Plane", "Select the face or plane the extrusion starts from"),
             // These say what to pick, as the reference does at that moment (26.202, s37), not how to drag.
             Tool::Extrude(_) => {
@@ -1477,7 +1479,7 @@ impl Tool {
             }
             Tool::Pattern(_) => ("Linear Pattern", "Pull an arrow to repeat along it. Click Quantity for how many"),
             Tool::Loft(_) => ("Loft", "Pick two or more profiles or faces, in order, to blend a solid through them."),
-            Tool::Sweep(_) => ("Sweep (W)", "Pick a profile, then the path to sweep it along."),
+            Tool::Sweep(_) => ("Sweep (W)", "Pick a profile, then the curves or edges to sweep it along."),
             Tool::SketchFillet { .. } => ("Fillet", "Drag the arrow to set the radius; click corners to add or take them away."),
             Tool::Trim { .. } => ("Trim (T)", "Click any piece of a curve between crossings to cut it away."),
             Tool::Project => ("Project (P)", "Click body edges or faces to copy them into the sketch"),

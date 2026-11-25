@@ -9,6 +9,7 @@ use shapecraft_doc::format_length;
 use shapecraft_engine::history::{self, BREAKPOINT, FieldKind};
 
 use super::Workspace;
+use super::step_picks::{self, Slot};
 use super::tools::{ExtrudeTool, FilletTool, ThreadTool, Tool};
 use crate::i18n::tr;
 use crate::icons::{self, Icon};
@@ -191,6 +192,12 @@ const EXTENTS: &[(&str, &str, bool)] =
 const STARTS: &[(&str, &str, bool)] = &[("From Profile", "profile", true), ("Offset", "offset", true), ("From Plane", "plane", true)];
 const SIDES: &[&str] = &["one", "symmetric"];
 const RESULTS: &[&str] = &["new", "union", "subtract", "intersect"];
+const POSITIONS: &[(&str, &str, bool)] = &[
+    ("Auto", "auto", true),
+    ("Path Intersection", "intersection", true),
+    ("Closest Point", "point", true),
+    ("Closest Endpoint", "endpoint", true),
+];
 const ORIENTATIONS: &[(&str, &str, bool)] = &[("Normal to Path", "normal", true), ("Parallel to Profile", "parallel", true)];
 const CORNERS: &[(&str, &str, bool)] = &[("Mitre", "mitre", true), ("Round", "round", true)];
 const SIZE_TYPES: &[&str] = &["radius", "chordal"];
@@ -302,6 +309,9 @@ struct Extrude {
     /// A depth being typed, which the Result row already counts (as the Result badge does).
     typed: Option<f64>,
     exprs: [Option<String>; 2],
+    /// A step's To Object and Start Plane picks (how many), which its card can pick again.
+    to_picks: Option<usize>,
+    start_picks: Option<usize>,
 }
 
 fn extrude_rows(e: &Extrude) -> (Vec<Row>, String) {
@@ -333,6 +343,11 @@ fn extrude_rows(e: &Extrude) -> (Vec<Row>, String) {
     if !e.through_all && !e.to_object {
         rows.push(Row::Number("Distance", "distance", FieldKind::Length, e.distance, e.exprs[0].clone()));
     }
+    if e.to_object
+        && let Some(n) = e.to_picks
+    {
+        rows.push(Row::Picks("To Object", "item", n));
+    }
     rows.push(Row::Number("Draft Angle", "draft", FieldKind::Angle, e.draft, e.exprs[1].clone()));
     rows.push(Row::Choice(
         "Start",
@@ -346,6 +361,11 @@ fn extrude_rows(e: &Extrude) -> (Vec<Row>, String) {
         },
         STARTS,
     ));
+    if e.from_plane
+        && let Some(n) = e.start_picks
+    {
+        rows.push(Row::Picks("Start Plane", "item", n));
+    }
     if let Some(o) = e.offset {
         rows.push(Row::Number("Start Offset", "start_offset", FieldKind::Length, o, None));
     }
@@ -373,6 +393,8 @@ fn tool_extrude(ws: &Workspace, t: &ExtrudeTool) -> Extrude {
         side,
         typed: ws.numeric.as_deref().and_then(|t| ws.eval_typed(t)),
         exprs: [None, None],
+        to_picks: None,
+        start_picks: None,
     }
 }
 
@@ -404,6 +426,8 @@ fn step_extrude(ws: &Workspace, i: usize) -> Option<Extrude> {
         side,
         typed: None,
         exprs: [history::expression(step, &fields[0]).map(str::to_string), history::expression(step, &fields[1]).map(str::to_string)],
+        to_picks: Some(usize::from(get("to").is_some_and(|v| !v.is_null()))),
+        start_picks: Some(usize::from(get("start_plane").is_some_and(|v| !v.is_null()))),
     })
 }
 
@@ -431,6 +455,9 @@ fn step_rows(ws: &Workspace, i: usize) -> Option<(String, Vec<Row>, String)> {
     if let Some(n) = history::profile_count(step) {
         rows.push(Row::Picks("Profile", "face", n));
     }
+    for slot in step_picks::slots(&step.kind) {
+        rows.push(Row::Picks(slot.label, slot.noun, step_picks::picks(step, slot).len()));
+    }
     for f in feature.fields {
         rows.push(Row::Number(f.label, f.key, f.kind, history::value(step, f, vars), history::expression(step, f).map(str::to_string)));
     }
@@ -440,7 +467,8 @@ fn step_rows(ws: &Workspace, i: usize) -> Option<(String, Vec<Row>, String)> {
             let set = step.entries.first().and_then(|e| e.params.get(key)).and_then(Value::as_str);
             choices.iter().find(|c| Some(c.1) == set).unwrap_or(&choices[0]).0
         };
-        rows.push(Row::Choice("Orientation", "orientation", param("orientation", ORIENTATIONS), ORIENTATIONS));
+        rows.insert(2, Row::Choice("Profile Position", "position", param("position", POSITIONS), POSITIONS));
+        rows.insert(3, Row::Choice("Orientation", "orientation", param("orientation", ORIENTATIONS), ORIENTATIONS));
         rows.push(Row::Choice("Corner Type", "corners", param("corners", CORNERS), CORNERS));
     }
     Some((step.label.clone(), rows, String::new()))
@@ -467,6 +495,7 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
     if ws.edge_edit.as_ref().is_some_and(|e| Some(e.step) != ws.history.open || !matches!(ws.tool, Tool::Idle)) {
         edge_end(ws, false);
     }
+    step_picks::tend(ws);
     // Show on Tool Start: a card tool that has just started opens its card once.
     // (A tool a pick started counts: the reference lights it as running, s29-010.)
     let tool_name = match &ws.tool {
@@ -536,6 +565,7 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
     let mut cut_click: Option<usize> = None;
     let mut edge_click: Option<usize> = None;
     let mut cut_clear: Option<usize> = None;
+    let mut slot_click: Option<(usize, Slot)> = None;
     egui::Area::new(ui.scope_id().with("step-card")).fixed_pos(card.min).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
         let (rect, _) = ui.allocate_exact_size(card.size(), Sense::click());
         let p = ui.painter().clone();
@@ -588,11 +618,23 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
                         (Source::Step(i), "Subtract From") => Some(*i),
                         _ => None,
                     };
-                    let edge_editing =
-                        *label == "Edge" && matches!((&source, ws.edge_edit.as_ref()), (Source::Step(i), Some(e)) if e.step == *i);
-                    let editing = edge_editing
+                    // A setting with picks of its own (a path, a target, the bodies moved).
+                    let slot = match &source {
+                        Source::Step(i) => {
+                            let all = ws.session.all_steps();
+                            let kind = all.get(*i).map_or("", |h| h.kind.as_str());
+                            step_picks::slots(kind).iter().find(|s| s.label == *label).map(|s| (*i, *s))
+                        }
+                        _ => None,
+                    };
+                    let slot_editing = slot.is_some_and(|(i, s)| ws.pick_edit.as_ref().is_some_and(|e| e.step == i && e.slot == s));
+                    let edge_editing = slot.is_none()
+                        && *label == "Edge" && matches!((&source, ws.edge_edit.as_ref()), (Source::Step(i), Some(e)) if e.step == *i);
+                    let editing = slot_editing
+                        || edge_editing
                         || match cut_step {
                             Some(i) => ws.cut_edit.as_ref().is_some_and(|(s, _)| *s == i),
+                            None if slot.is_some() => false,
                             None => matches!((&source, ws.profile_edit.as_ref()), (Source::Step(i), Some((s, ..))) if s == i),
                         };
                     let link = Rect::from_min_max(pos2(rx - 50.0, y + 8.0), pos2(rx, y + 28.0));
@@ -602,13 +644,20 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
                         p.text(
                             pos2(rx, y + 18.0),
                             Align2::RIGHT_CENTER,
-                            tr(if editing { "Done" } else { "Edit..." }),
+                            tr(if editing {
+                                "Done"
+                            } else if slot.is_some() && *count == 0 {
+                                "Select..."
+                            } else {
+                                "Edit..."
+                            }),
                             theme::body(12.5),
                             link_blue(),
                         );
                     }
                     if editable && ui.interact(link, ui.scope_id().with(("profile-edit", n)), Sense::click()).clicked() {
                         match (&source, *label) {
+                            _ if slot.is_some() => slot_click = slot,
                             (Source::Step(i), "Profile") => profile_click = Some(*i),
                             (Source::Step(i), "Subtract From") => cut_click = Some(*i),
                             (_, "Subtract From") => pick_hint = Some("The cut goes into the body the profile rests on"),
@@ -625,6 +674,8 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
                         }
                     }
                     let count = match (cut_step, editing) {
+                        _ if slot_editing => ws.pick_edit.as_ref().map_or(*count, |e| e.picks.len()),
+                        _ if slot.is_some() => *count,
                         _ if edge_editing => ws.edge_edit.as_ref().map_or(*count, |e| e.edges.len()),
                         (Some(_), true) => ws.cut_edit.as_ref().map_or(*count, |(_, l)| l.len()),
                         (Some(i), false) => cut_list(ws, i).map_or(*count, |l| l.len()),
@@ -887,6 +938,13 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
     if let Some(i) = cut_clear {
         cut_begin(ws, i, true);
     }
+    if let Some((i, slot)) = slot_click {
+        if ws.pick_edit.as_ref().is_some_and(|e| e.step == i && e.slot == slot) {
+            step_picks::end(ws, true);
+        } else if ws.pick_edit.is_none() {
+            step_picks::begin(ws, i, slot, serde_json::Map::new());
+        }
+    }
     if let Some((key, value)) = change {
         apply(ws, source, key, value);
     }
@@ -979,8 +1037,16 @@ fn apply(ws: &mut Workspace, source: Source, key: &'static str, value: Value) {
                 ws.apply_extrude(&t);
             }
         }
-        Source::Step(_) if matches!(value.as_str(), Some("to_object" | "plane")) => {
-            ws.toast("Pick the face or plane while extruding: open the step's sketch and extrude again");
+        // To Object and From Plane wait for what to be picked, then set both.
+        Source::Step(i) if matches!(value.as_str(), Some("to_object" | "plane")) => {
+            let want = if value.as_str() == Some("plane") { "start_plane" } else { "to" };
+            let mut extra = serde_json::Map::new();
+            if want == "to" {
+                extra.insert("extent".into(), value);
+            }
+            if let Some(slot) = step_picks::slots("extrude").iter().find(|s| s.key == want) {
+                step_picks::begin(ws, i, *slot, extra);
+            }
         }
         Source::Step(i) if ws.session.all_steps().get(i).is_some_and(|s| s.kind == "thread") => {
             let Some(t) = step_thread(ws, i) else { return };
@@ -1026,6 +1092,9 @@ fn apply(ws: &mut Workspace, source: Source, key: &'static str, value: Value) {
                 "curvature" => json!(value.as_f64().unwrap_or(0.0).clamp(-1.0, 1.0)),
                 _ => value,
             };
+            if key == "start" {
+                params.insert("start_plane".into(), Value::Null);
+            }
             params.insert(if key == "start" { "start_offset" } else { key }.into(), value);
             let _ = ws.run("edit_step", json!({ "step": i, "params": params }));
         }
