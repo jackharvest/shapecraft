@@ -413,6 +413,7 @@ msgstr "Aluminium"
 
 #: crates/ui-egui/src/settings.rs
 #: crates/ui-egui/src/workspace/prefs.rs
+#: crates/ui-egui/src/workspace/viewport/detail.rs
 msgid "Always"
 msgstr "Toujours"
 
@@ -574,6 +575,8 @@ msgid "Auto-orientation"
 msgstr "Orientation auto"
 
 #: crates/ui-egui/src/graphics.rs
+#: crates/ui-egui/src/settings.rs
+#: crates/ui-egui/src/workspace/viewport/detail.rs
 msgid "Automatic"
 msgstr "Automatique"
 
@@ -1261,6 +1264,10 @@ msgstr "Fermer les petits jours, supprimer arêtes et faces minuscules, et retou
 #: crates/ui-egui/src/report.rs
 msgid "Closed"
 msgstr "Fermé"
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Coarser While Moving:"
+msgstr "Simplifier en mouvement :"
 
 #: crates/doc/src/constraints.rs
 #: crates/ui-egui/src/workspace/constraints.rs
@@ -2282,9 +2289,9 @@ msgstr "Champ de vision"
 msgid "Field of View…"
 msgstr "Champ de vision…"
 
+#: crates/ui-egui/src/global_menu.rs
 #: crates/ui-egui/src/landing.rs
 #: crates/ui-egui/src/menubar.rs
-#: crates/ui-egui/src/workspace/toolbar.rs
 msgid "File"
 msgstr "Fichier"
 
@@ -2686,6 +2693,7 @@ msgstr "L'écart permis entre les triangles et la vraie surface"
 msgid "How should ShapeCraft look?"
 msgstr "À quoi doit ressembler ShapeCraft ?"
 
+#: crates/kernel-rs/src/poly.rs
 #: crates/kernel/src/lib.rs
 msgid "IGES files"
 msgstr "Fichiers IGES"
@@ -3401,6 +3409,7 @@ msgstr "Maillages avec matériaux pour le web, les moteurs de jeu et la RA."
 
 #: crates/doc/src/lib.rs
 #: crates/ui-egui/src/graphics.rs
+#: crates/ui-egui/src/workspace/prefs.rs
 msgid "Metal"
 msgstr "Métal"
 
@@ -3472,7 +3481,6 @@ msgstr "Modélisation"
 msgid "More"
 msgstr "Plus"
 
-#: crates/ui-egui/src/onboarding.rs
 msgid "More options, like a right-click."
 msgstr "Plus d'options, comme un clic droit."
 
@@ -4527,6 +4535,7 @@ msgstr "Port :"
 msgid "Portrait"
 msgstr "Portrait"
 
+#: crates/ui-egui/src/landing.rs
 #: crates/ui-egui/src/workspace/panels/titlebar.rs
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Preferences"
@@ -4592,7 +4601,7 @@ msgstr "Programmes"
 
 #: crates/doc/src/project.rs
 #: crates/engine/src/cmd/sketch.rs
-#: crates/ui-egui/src/workspace/toolbar.rs
+#: crates/ui-egui/src/workspace/panels/command_search.rs
 msgid "Project"
 msgstr "Projeter"
 
@@ -4706,7 +4715,6 @@ msgstr "Poussez la flèche vers le bas, dans le dessous de verre"
 msgid "Put the cup where you want it."
 msgstr "Mettez le pot où vous voulez."
 
-#: crates/ui-egui/src/plugins.rs
 msgid "Put your model in any scene from a sentence, with your own AI account (OpenRouter, OpenAI, Google Gemini) or an AI on your own computer (ComfyUI). No limits but your provider's."
 msgstr "Placez votre modèle dans n'importe quelle scène en une phrase, avec votre compte d'IA (OpenRouter, OpenAI, Google Gemini) ou une IA sur votre ordinateur (ComfyUI). Sans autres limites que celles du fournisseur."
 
@@ -4715,6 +4723,8 @@ msgstr "Placez votre modèle dans n'importe quelle scène en une phrase, avec vo
 msgid "Quality"
 msgstr "Qualité"
 
+#: crates/ui-egui/src/workspace/viewport/annotations.rs
+#: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Quantity"
 msgstr "Quantité"
 
@@ -5052,6 +5062,7 @@ msgid "Rotate View"
 msgstr "Tourner la vue"
 
 #: crates/ui-egui/src/workspace/badges.rs
+#: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Rotated"
 msgstr "Tourné"
 
@@ -5083,6 +5094,8 @@ msgstr "Réglée"
 msgid "Run a shape along a path, then join parts with Union"
 msgstr "Faire suivre un chemin à une forme, puis réunir des pièces avec Union"
 
+#: crates/kernel-rs/src/poly.rs
+#: crates/kernel-rs/src/step.rs
 #: crates/kernel/src/lib.rs
 msgid "STEP files"
 msgstr "Fichiers STEP"
@@ -6140,7 +6153,6 @@ msgstr "Espacement"
 msgid "Spacing Angle"
 msgstr "Angle d'espacement"
 
-#: crates/ui-egui/src/workspace/viewport/annotations.rs
 #: crates/ui-egui/src/workspace/viewport/clicks.rs
 msgid "Spacing ⌄"
 msgstr "Espacement ⌄"
@@ -7038,8 +7050,8 @@ msgid "Type the spacing, then Tab (or click Quantity) for how many. Done applies
 msgstr "Tapez l'espacement, puis Tab (ou cliquez Quantité) pour le nombre. Terminé applique"
 
 #: crates/engine/src/cmd/edit.rs
+#: crates/ui-egui/src/global_menu.rs
 #: crates/ui-egui/src/menubar.rs
-#: crates/ui-egui/src/workspace/keys.rs
 msgid "Undo"
 msgstr "Défaire"
 
@@ -7049,6 +7061,7 @@ msgstr "Dépliez votre iPhone pour continuer : votre projet est là où vous l'a
 
 #: crates/ui-egui/src/workspace/badges.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
+#: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Uniform"
 msgstr "Uniforme"
 
@@ -7167,7 +7180,6 @@ msgstr "Utilisez l'un ou l'autre : stylet et souris sont distingués, et les doi
 msgid "Use either any time: the Pencil, a mouse and a trackpad are told apart by themselves; fingers always move the view."
 msgstr "Utilisez l'un ou l'autre : Pencil, souris et trackpad sont distingués ; les doigts bougent toujours la vue."
 
-#: crates/ui-egui/src/workspace/panels/command_search.rs
 msgid "Use the File menu for files"
 msgstr "Utilisez le menu Fichier pour les fichiers"
 
@@ -7748,7 +7760,6 @@ msgstr "{#} images"
 msgid "{#} items"
 msgstr "{#} éléments"
 
-#: crates/ui-egui/src/workspace/prefs.rs
 msgid "{#} match"
 msgstr "{#} identiques"
 
@@ -7758,7 +7769,6 @@ msgstr "il y a {#} min"
 msgid "{#} more waiting after this one."
 msgstr "Encore {#} en attente après celle-ci."
 
-#: crates/ui-egui/src/workspace/prefs.rs
 msgid "{#} not yet"
 msgstr "{#} pas encore"
 
@@ -7780,7 +7790,6 @@ msgstr "{#} réponses"
 msgid "{#} sketches"
 msgstr "{#} esquisses"
 
-#: crates/ui-egui/src/workspace/prefs.rs
 msgid "{#} with limits"
 msgstr "{#} avec limites"
 

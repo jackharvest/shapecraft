@@ -413,6 +413,7 @@ msgstr "Hliník"
 
 #: crates/ui-egui/src/settings.rs
 #: crates/ui-egui/src/workspace/prefs.rs
+#: crates/ui-egui/src/workspace/viewport/detail.rs
 msgid "Always"
 msgstr "Vždy"
 
@@ -574,6 +575,8 @@ msgid "Auto-orientation"
 msgstr "Automatická orientácia"
 
 #: crates/ui-egui/src/graphics.rs
+#: crates/ui-egui/src/settings.rs
+#: crates/ui-egui/src/workspace/viewport/detail.rs
 msgid "Automatic"
 msgstr "Automaticky"
 
@@ -1261,6 +1264,10 @@ msgstr "Uzavrie malé medzery, odstráni drobné hrany a plochy a otočí nespr�
 #: crates/ui-egui/src/report.rs
 msgid "Closed"
 msgstr "Uzavreté"
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Coarser While Moving:"
+msgstr "Hrubšie pri pohybe:"
 
 #: crates/doc/src/constraints.rs
 #: crates/ui-egui/src/workspace/constraints.rs
@@ -2282,9 +2289,9 @@ msgstr "Zorné pole"
 msgid "Field of View…"
 msgstr "Zorné pole…"
 
+#: crates/ui-egui/src/global_menu.rs
 #: crates/ui-egui/src/landing.rs
 #: crates/ui-egui/src/menubar.rs
-#: crates/ui-egui/src/workspace/toolbar.rs
 msgid "File"
 msgstr "Súbor"
 
@@ -2686,6 +2693,7 @@ msgstr "O koľko môžu byť trojuholníky mimo skutočnej plochy"
 msgid "How should ShapeCraft look?"
 msgstr "Ako má ShapeCraft vyzerať?"
 
+#: crates/kernel-rs/src/poly.rs
 #: crates/kernel/src/lib.rs
 msgid "IGES files"
 msgstr "Súbory IGES"
@@ -3401,6 +3409,7 @@ msgstr "Siete s materiálmi pre web, herné enginy a AR prehliadače."
 
 #: crates/doc/src/lib.rs
 #: crates/ui-egui/src/graphics.rs
+#: crates/ui-egui/src/workspace/prefs.rs
 msgid "Metal"
 msgstr "Kov"
 
@@ -3472,7 +3481,6 @@ msgstr "Modelovanie"
 msgid "More"
 msgstr "Viac"
 
-#: crates/ui-egui/src/onboarding.rs
 msgid "More options, like a right-click."
 msgstr "Ďalšie možnosti, ako pravé kliknutie."
 
@@ -4527,6 +4535,7 @@ msgstr "Port:"
 msgid "Portrait"
 msgstr "Na výšku"
 
+#: crates/ui-egui/src/landing.rs
 #: crates/ui-egui/src/workspace/panels/titlebar.rs
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Preferences"
@@ -4592,7 +4601,7 @@ msgstr "Programy"
 
 #: crates/doc/src/project.rs
 #: crates/engine/src/cmd/sketch.rs
-#: crates/ui-egui/src/workspace/toolbar.rs
+#: crates/ui-egui/src/workspace/panels/command_search.rs
 msgid "Project"
 msgstr "Premietnuť"
 
@@ -4706,7 +4715,6 @@ msgstr "Zatlačte šípku nadol, do podložky"
 msgid "Put the cup where you want it."
 msgstr "Dajte pohár tam, kde ho chcete mať."
 
-#: crates/ui-egui/src/plugins.rs
 msgid "Put your model in any scene from a sentence, with your own AI account (OpenRouter, OpenAI, Google Gemini) or an AI on your own computer (ComfyUI). No limits but your provider's."
 msgstr "Vložte model do akejkoľvek scény jednou vetou, s vlastným účtom AI (OpenRouter, OpenAI, Google Gemini) alebo s AI vo vašom počítači (ComfyUI). Bez limitov okrem limitov poskytovateľa."
 
@@ -4715,6 +4723,8 @@ msgstr "Vložte model do akejkoľvek scény jednou vetou, s vlastným účtom AI
 msgid "Quality"
 msgstr "Kvalita"
 
+#: crates/ui-egui/src/workspace/viewport/annotations.rs
+#: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Quantity"
 msgstr "Počet"
 
@@ -5052,6 +5062,7 @@ msgid "Rotate View"
 msgstr "Otočiť pohľad"
 
 #: crates/ui-egui/src/workspace/badges.rs
+#: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Rotated"
 msgstr "Otočené"
 
@@ -5083,6 +5094,8 @@ msgstr "Priamková"
 msgid "Run a shape along a path, then join parts with Union"
 msgstr "Viesť tvar po dráhe a spojiť diely nástrojom Zjednotiť"
 
+#: crates/kernel-rs/src/poly.rs
+#: crates/kernel-rs/src/step.rs
 #: crates/kernel/src/lib.rs
 msgid "STEP files"
 msgstr "Súbory STEP"
@@ -6140,7 +6153,6 @@ msgstr "Rozostup"
 msgid "Spacing Angle"
 msgstr "Uhol rozostupu"
 
-#: crates/ui-egui/src/workspace/viewport/annotations.rs
 #: crates/ui-egui/src/workspace/viewport/clicks.rs
 msgid "Spacing ⌄"
 msgstr "Rozostup ⌄"
@@ -7038,8 +7050,8 @@ msgid "Type the spacing, then Tab (or click Quantity) for how many. Done applies
 msgstr "Napíšte rozostup a potom Tab (alebo kliknite na Počet) pre počet. Hotovo potvrdí"
 
 #: crates/engine/src/cmd/edit.rs
+#: crates/ui-egui/src/global_menu.rs
 #: crates/ui-egui/src/menubar.rs
-#: crates/ui-egui/src/workspace/keys.rs
 msgid "Undo"
 msgstr "Späť"
 
@@ -7049,6 +7061,7 @@ msgstr "Rozložte iPhone a pokračujte: projekt je tam, kde ste ho nechali."
 
 #: crates/ui-egui/src/workspace/badges.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
+#: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Uniform"
 msgstr "Rovnomerné"
 
@@ -7167,7 +7180,6 @@ msgstr "Kedykoľvek použite čokoľvek: stylus a myš sa rozlíšia samy a prst
 msgid "Use either any time: the Pencil, a mouse and a trackpad are told apart by themselves; fingers always move the view."
 msgstr "Kedykoľvek použite čokoľvek: pero, myš a trackpad sa rozlíšia samy; prsty vždy hýbu pohľadom."
 
-#: crates/ui-egui/src/workspace/panels/command_search.rs
 msgid "Use the File menu for files"
 msgstr "Na súbory použite menu Súbor"
 
@@ -7748,7 +7760,6 @@ msgstr "Obrázky: {#}"
 msgid "{#} items"
 msgstr "Položky: {#}"
 
-#: crates/ui-egui/src/workspace/prefs.rs
 msgid "{#} match"
 msgstr "{#} zhodných"
 
@@ -7758,7 +7769,6 @@ msgstr "pred {#} min"
 msgid "{#} more waiting after this one."
 msgstr "Po tejto čaká ešte {#}."
 
-#: crates/ui-egui/src/workspace/prefs.rs
 msgid "{#} not yet"
 msgstr "{#} zatiaľ nie"
 
@@ -7780,7 +7790,6 @@ msgstr "Odpovede: {#}"
 msgid "{#} sketches"
 msgstr "Náčrty: {#}"
 
-#: crates/ui-egui/src/workspace/prefs.rs
 msgid "{#} with limits"
 msgstr "{#} s obmedzeniami"
 

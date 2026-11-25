@@ -33,17 +33,12 @@ impl Workspace {
     fn no_keyboard(&self) -> bool {
         const WHILE_S: f64 = 120.0;
         !crate::tablet::shows_shortcuts()
-            || !crate::tablet::touch_ui()
-                && (self.pen_input || self.finger_nav)
-                && self.typed_at.is_none_or(|t| self.now - t > WHILE_S)
+            || !crate::tablet::touch_ui() && (self.pen_input || self.finger_nav) && self.typed_at.is_none_or(|t| self.now - t > WHILE_S)
     }
 
     /// Whether the numpad shows: no keyboard to type with, a value being entered.
     pub(crate) fn numpad_open(&self) -> bool {
-        self.no_keyboard()
-            && self.numeric.is_some()
-            && self.numpad_at.is_some()
-            && (self.tool.takes_numbers() || self.dim_edit.is_some())
+        self.no_keyboard() && self.numeric.is_some() && self.numpad_at.is_some() && (self.tool.takes_numbers() || self.dim_edit.is_some())
     }
 
     pub(super) fn numpad(&mut self, ui: &Ui) {

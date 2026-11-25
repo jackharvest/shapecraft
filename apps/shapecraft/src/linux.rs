@@ -1,8 +1,8 @@
 //! Pens and fingers on Linux (Wayland), beside the mouse (#97): the window system's own records, from our winit
 //! (third_party/winit/PATCH.md), go through the touch model the Android app and the tablet use.
 
-use shapecraft_ui::{ShapeCraftApp, global_menu};
 use shapecraft_ui::tablet::{NativeTouch, Pointer, PointerPhase, PointerTool};
+use shapecraft_ui::{ShapeCraftApp, global_menu};
 use winit::platform::wayland::pointers::{self, Phase, Record, Tool};
 
 /// Tells the window system where the menus are, for a desktop with a global menu (KDE).

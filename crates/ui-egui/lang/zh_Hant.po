@@ -413,6 +413,7 @@ msgstr "鋁"
 
 #: crates/ui-egui/src/settings.rs
 #: crates/ui-egui/src/workspace/prefs.rs
+#: crates/ui-egui/src/workspace/viewport/detail.rs
 msgid "Always"
 msgstr "始終"
 
@@ -574,6 +575,8 @@ msgid "Auto-orientation"
 msgstr "自動定向"
 
 #: crates/ui-egui/src/graphics.rs
+#: crates/ui-egui/src/settings.rs
+#: crates/ui-egui/src/workspace/viewport/detail.rs
 msgid "Automatic"
 msgstr "自動"
 
@@ -1261,6 +1264,10 @@ msgstr "封閉小縫隙，去除極小的稜邊和麵，並翻轉朝向錯誤的
 #: crates/ui-egui/src/report.rs
 msgid "Closed"
 msgstr "已關閉"
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Coarser While Moving:"
+msgstr "移動時簡化顯示："
 
 #: crates/doc/src/constraints.rs
 #: crates/ui-egui/src/workspace/constraints.rs
@@ -2282,9 +2289,9 @@ msgstr "視野"
 msgid "Field of View…"
 msgstr "視野…"
 
+#: crates/ui-egui/src/global_menu.rs
 #: crates/ui-egui/src/landing.rs
 #: crates/ui-egui/src/menubar.rs
-#: crates/ui-egui/src/workspace/toolbar.rs
 msgid "File"
 msgstr "檔案"
 
@@ -2686,6 +2693,7 @@ msgstr "三角形可以偏離真實表面多少"
 msgid "How should ShapeCraft look?"
 msgstr "ShapeCraft 用什麼外觀？"
 
+#: crates/kernel-rs/src/poly.rs
 #: crates/kernel/src/lib.rs
 msgid "IGES files"
 msgstr "IGES 檔案"
@@ -3401,6 +3409,7 @@ msgstr "帶材質的網格，用於網頁、遊戲引擎和 AR 檢視器。"
 
 #: crates/doc/src/lib.rs
 #: crates/ui-egui/src/graphics.rs
+#: crates/ui-egui/src/workspace/prefs.rs
 msgid "Metal"
 msgstr "金屬"
 
@@ -3472,7 +3481,6 @@ msgstr "建模"
 msgid "More"
 msgstr "更多"
 
-#: crates/ui-egui/src/onboarding.rs
 msgid "More options, like a right-click."
 msgstr "更多選項，相當於右鍵點選。"
 
@@ -4527,6 +4535,7 @@ msgstr "埠："
 msgid "Portrait"
 msgstr "縱向"
 
+#: crates/ui-egui/src/landing.rs
 #: crates/ui-egui/src/workspace/panels/titlebar.rs
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Preferences"
@@ -4592,7 +4601,7 @@ msgstr "程式"
 
 #: crates/doc/src/project.rs
 #: crates/engine/src/cmd/sketch.rs
-#: crates/ui-egui/src/workspace/toolbar.rs
+#: crates/ui-egui/src/workspace/panels/command_search.rs
 msgid "Project"
 msgstr "投影"
 
@@ -4706,7 +4715,6 @@ msgstr "把箭頭向下推進杯墊"
 msgid "Put the cup where you want it."
 msgstr "把筆筒放到你想放的地方。"
 
-#: crates/ui-egui/src/plugins.rs
 msgid "Put your model in any scene from a sentence, with your own AI account (OpenRouter, OpenAI, Google Gemini) or an AI on your own computer (ComfyUI). No limits but your provider's."
 msgstr "用一句話把模型放進任何場景：用你自己的 AI 帳號（OpenRouter、OpenAI、Google Gemini）或電腦上的 AI（ComfyUI）。除了服務商的限制，沒有其他限制。"
 
@@ -4715,6 +4723,8 @@ msgstr "用一句話把模型放進任何場景：用你自己的 AI 帳號（Op
 msgid "Quality"
 msgstr "質量"
 
+#: crates/ui-egui/src/workspace/viewport/annotations.rs
+#: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Quantity"
 msgstr "數量"
 
@@ -5052,6 +5062,7 @@ msgid "Rotate View"
 msgstr "旋轉檢視"
 
 #: crates/ui-egui/src/workspace/badges.rs
+#: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Rotated"
 msgstr "已旋轉"
 
@@ -5083,6 +5094,8 @@ msgstr "直紋"
 msgid "Run a shape along a path, then join parts with Union"
 msgstr "讓形狀沿路徑移動，再用“合併”連線零件"
 
+#: crates/kernel-rs/src/poly.rs
+#: crates/kernel-rs/src/step.rs
 #: crates/kernel/src/lib.rs
 msgid "STEP files"
 msgstr "STEP 檔案"
@@ -6140,7 +6153,6 @@ msgstr "間距"
 msgid "Spacing Angle"
 msgstr "間隔角度"
 
-#: crates/ui-egui/src/workspace/viewport/annotations.rs
 #: crates/ui-egui/src/workspace/viewport/clicks.rs
 msgid "Spacing ⌄"
 msgstr "間距 ⌄"
@@ -7038,8 +7050,8 @@ msgid "Type the spacing, then Tab (or click Quantity) for how many. Done applies
 msgstr "輸入間距，按 Tab（或點“數量”）輸入個數。“完成”應用"
 
 #: crates/engine/src/cmd/edit.rs
+#: crates/ui-egui/src/global_menu.rs
 #: crates/ui-egui/src/menubar.rs
-#: crates/ui-egui/src/workspace/keys.rs
 msgid "Undo"
 msgstr "復原"
 
@@ -7049,6 +7061,7 @@ msgstr "展開 iPhone 繼續建模：專案還在你離開的地方。"
 
 #: crates/ui-egui/src/workspace/badges.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
+#: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Uniform"
 msgstr "均勻"
 
@@ -7167,7 +7180,6 @@ msgstr "隨時用哪個都行：觸控筆和滑鼠會自動區分，手指始終
 msgid "Use either any time: the Pencil, a mouse and a trackpad are told apart by themselves; fingers always move the view."
 msgstr "隨時用哪個都行：Pencil、滑鼠和觸控板會自動區分；手指始終移動檢視。"
 
-#: crates/ui-egui/src/workspace/panels/command_search.rs
 msgid "Use the File menu for files"
 msgstr "檔案請用“檔案”選單"
 
@@ -7748,7 +7760,6 @@ msgstr "{#} 張圖片"
 msgid "{#} items"
 msgstr "{#} 個條目"
 
-#: crates/ui-egui/src/workspace/prefs.rs
 msgid "{#} match"
 msgstr "{#} 項一致"
 
@@ -7758,7 +7769,6 @@ msgstr "{#} 分鐘前"
 msgid "{#} more waiting after this one."
 msgstr "之後還有 {#} 個在等待。"
 
-#: crates/ui-egui/src/workspace/prefs.rs
 msgid "{#} not yet"
 msgstr "{#} 項暫無"
 
@@ -7780,7 +7790,6 @@ msgstr "{#} 條回覆"
 msgid "{#} sketches"
 msgstr "{#} 個草圖"
 
-#: crates/ui-egui/src/workspace/prefs.rs
 msgid "{#} with limits"
 msgstr "{#} 項有限制"
 

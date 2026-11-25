@@ -412,6 +412,7 @@ msgstr ""
 
 #: crates/ui-egui/src/settings.rs
 #: crates/ui-egui/src/workspace/prefs.rs
+#: crates/ui-egui/src/workspace/viewport/detail.rs
 msgid "Always"
 msgstr ""
 
@@ -573,6 +574,8 @@ msgid "Auto-orientation"
 msgstr ""
 
 #: crates/ui-egui/src/graphics.rs
+#: crates/ui-egui/src/settings.rs
+#: crates/ui-egui/src/workspace/viewport/detail.rs
 msgid "Automatic"
 msgstr ""
 
@@ -1259,6 +1262,10 @@ msgstr ""
 
 #: crates/ui-egui/src/report.rs
 msgid "Closed"
+msgstr ""
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Coarser While Moving:"
 msgstr ""
 
 #: crates/doc/src/constraints.rs
@@ -2281,9 +2288,9 @@ msgstr ""
 msgid "Field of View…"
 msgstr ""
 
+#: crates/ui-egui/src/global_menu.rs
 #: crates/ui-egui/src/landing.rs
 #: crates/ui-egui/src/menubar.rs
-#: crates/ui-egui/src/workspace/toolbar.rs
 msgid "File"
 msgstr ""
 
@@ -2685,6 +2692,7 @@ msgstr ""
 msgid "How should ShapeCraft look?"
 msgstr ""
 
+#: crates/kernel-rs/src/poly.rs
 #: crates/kernel/src/lib.rs
 msgid "IGES files"
 msgstr ""
@@ -3400,6 +3408,7 @@ msgstr ""
 
 #: crates/doc/src/lib.rs
 #: crates/ui-egui/src/graphics.rs
+#: crates/ui-egui/src/workspace/prefs.rs
 msgid "Metal"
 msgstr ""
 
@@ -3471,7 +3480,6 @@ msgstr ""
 msgid "More"
 msgstr ""
 
-#: crates/ui-egui/src/onboarding.rs
 msgid "More options, like a right-click."
 msgstr ""
 
@@ -4526,6 +4534,7 @@ msgstr ""
 msgid "Portrait"
 msgstr ""
 
+#: crates/ui-egui/src/landing.rs
 #: crates/ui-egui/src/workspace/panels/titlebar.rs
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Preferences"
@@ -4591,7 +4600,7 @@ msgstr ""
 
 #: crates/doc/src/project.rs
 #: crates/engine/src/cmd/sketch.rs
-#: crates/ui-egui/src/workspace/toolbar.rs
+#: crates/ui-egui/src/workspace/panels/command_search.rs
 msgid "Project"
 msgstr ""
 
@@ -4705,7 +4714,6 @@ msgstr ""
 msgid "Put the cup where you want it."
 msgstr ""
 
-#: crates/ui-egui/src/plugins.rs
 msgid "Put your model in any scene from a sentence, with your own AI account (OpenRouter, OpenAI, Google Gemini) or an AI on your own computer (ComfyUI). No limits but your provider's."
 msgstr ""
 
@@ -4714,6 +4722,8 @@ msgstr ""
 msgid "Quality"
 msgstr ""
 
+#: crates/ui-egui/src/workspace/viewport/annotations.rs
+#: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Quantity"
 msgstr ""
 
@@ -5051,6 +5061,7 @@ msgid "Rotate View"
 msgstr ""
 
 #: crates/ui-egui/src/workspace/badges.rs
+#: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Rotated"
 msgstr ""
 
@@ -5082,6 +5093,8 @@ msgstr ""
 msgid "Run a shape along a path, then join parts with Union"
 msgstr ""
 
+#: crates/kernel-rs/src/poly.rs
+#: crates/kernel-rs/src/step.rs
 #: crates/kernel/src/lib.rs
 msgid "STEP files"
 msgstr ""
@@ -6139,7 +6152,6 @@ msgstr ""
 msgid "Spacing Angle"
 msgstr ""
 
-#: crates/ui-egui/src/workspace/viewport/annotations.rs
 #: crates/ui-egui/src/workspace/viewport/clicks.rs
 msgid "Spacing ⌄"
 msgstr ""
@@ -7037,8 +7049,8 @@ msgid "Type the spacing, then Tab (or click Quantity) for how many. Done applies
 msgstr ""
 
 #: crates/engine/src/cmd/edit.rs
+#: crates/ui-egui/src/global_menu.rs
 #: crates/ui-egui/src/menubar.rs
-#: crates/ui-egui/src/workspace/keys.rs
 msgid "Undo"
 msgstr ""
 
@@ -7048,6 +7060,7 @@ msgstr ""
 
 #: crates/ui-egui/src/workspace/badges.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
+#: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Uniform"
 msgstr ""
 
@@ -7166,7 +7179,6 @@ msgstr ""
 msgid "Use either any time: the Pencil, a mouse and a trackpad are told apart by themselves; fingers always move the view."
 msgstr ""
 
-#: crates/ui-egui/src/workspace/panels/command_search.rs
 msgid "Use the File menu for files"
 msgstr ""
 
@@ -7747,7 +7759,6 @@ msgstr ""
 msgid "{#} items"
 msgstr ""
 
-#: crates/ui-egui/src/workspace/prefs.rs
 msgid "{#} match"
 msgstr ""
 
@@ -7757,7 +7768,6 @@ msgstr ""
 msgid "{#} more waiting after this one."
 msgstr ""
 
-#: crates/ui-egui/src/workspace/prefs.rs
 msgid "{#} not yet"
 msgstr ""
 
@@ -7779,7 +7789,6 @@ msgstr ""
 msgid "{#} sketches"
 msgstr ""
 
-#: crates/ui-egui/src/workspace/prefs.rs
 msgid "{#} with limits"
 msgstr ""
 

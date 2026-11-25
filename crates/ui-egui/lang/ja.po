@@ -413,6 +413,7 @@ msgstr "アルミニウム"
 
 #: crates/ui-egui/src/settings.rs
 #: crates/ui-egui/src/workspace/prefs.rs
+#: crates/ui-egui/src/workspace/viewport/detail.rs
 msgid "Always"
 msgstr "常に"
 
@@ -574,6 +575,8 @@ msgid "Auto-orientation"
 msgstr "自動方向"
 
 #: crates/ui-egui/src/graphics.rs
+#: crates/ui-egui/src/settings.rs
+#: crates/ui-egui/src/workspace/viewport/detail.rs
 msgid "Automatic"
 msgstr "自動"
 
@@ -1261,6 +1264,10 @@ msgstr "小さなすきまを閉じ、極小のエッジと面を除き、裏返
 #: crates/ui-egui/src/report.rs
 msgid "Closed"
 msgstr "クローズ"
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Coarser While Moving:"
+msgstr "移動中は粗く表示:"
 
 #: crates/doc/src/constraints.rs
 #: crates/ui-egui/src/workspace/constraints.rs
@@ -2282,9 +2289,9 @@ msgstr "視野角"
 msgid "Field of View…"
 msgstr "視野角…"
 
+#: crates/ui-egui/src/global_menu.rs
 #: crates/ui-egui/src/landing.rs
 #: crates/ui-egui/src/menubar.rs
-#: crates/ui-egui/src/workspace/toolbar.rs
 msgid "File"
 msgstr "ファイル"
 
@@ -2686,6 +2693,7 @@ msgstr "三角形が本来の面からどれだけ離れてよいか"
 msgid "How should ShapeCraft look?"
 msgstr "ShapeCraftの見た目は？"
 
+#: crates/kernel-rs/src/poly.rs
 #: crates/kernel/src/lib.rs
 msgid "IGES files"
 msgstr "IGESファイル"
@@ -3401,6 +3409,7 @@ msgstr "Web、ゲームエンジン、ARビューア用のマテリアル付き�
 
 #: crates/doc/src/lib.rs
 #: crates/ui-egui/src/graphics.rs
+#: crates/ui-egui/src/workspace/prefs.rs
 msgid "Metal"
 msgstr "金属"
 
@@ -3472,7 +3481,6 @@ msgstr "モデリング"
 msgid "More"
 msgstr "その他"
 
-#: crates/ui-egui/src/onboarding.rs
 msgid "More options, like a right-click."
 msgstr "右クリックのようなその他のオプション。"
 
@@ -4527,6 +4535,7 @@ msgstr "ポート："
 msgid "Portrait"
 msgstr "縦"
 
+#: crates/ui-egui/src/landing.rs
 #: crates/ui-egui/src/workspace/panels/titlebar.rs
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Preferences"
@@ -4592,7 +4601,7 @@ msgstr "プログラム"
 
 #: crates/doc/src/project.rs
 #: crates/engine/src/cmd/sketch.rs
-#: crates/ui-egui/src/workspace/toolbar.rs
+#: crates/ui-egui/src/workspace/panels/command_search.rs
 msgid "Project"
 msgstr "投影"
 
@@ -4706,7 +4715,6 @@ msgstr "矢印をコースターの中へ押し下げます"
 msgid "Put the cup where you want it."
 msgstr "カップを好きな場所に置きましょう。"
 
-#: crates/ui-egui/src/plugins.rs
 msgid "Put your model in any scene from a sentence, with your own AI account (OpenRouter, OpenAI, Google Gemini) or an AI on your own computer (ComfyUI). No limits but your provider's."
 msgstr "一文でモデルをどんな場面にも。自分のAIアカウント（OpenRouter、OpenAI、Google Gemini）か、自分のコンピューターのAI（ComfyUI）を使います。制限は提供元のものだけ。"
 
@@ -4715,6 +4723,8 @@ msgstr "一文でモデルをどんな場面にも。自分のAIアカウント�
 msgid "Quality"
 msgstr "品質"
 
+#: crates/ui-egui/src/workspace/viewport/annotations.rs
+#: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Quantity"
 msgstr "数量"
 
@@ -5052,6 +5062,7 @@ msgid "Rotate View"
 msgstr "ビューを回転"
 
 #: crates/ui-egui/src/workspace/badges.rs
+#: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Rotated"
 msgstr "回転済み"
 
@@ -5083,6 +5094,8 @@ msgstr "線織面"
 msgid "Run a shape along a path, then join parts with Union"
 msgstr "形をパスに沿って動かし、結合で部品をつなぐ"
 
+#: crates/kernel-rs/src/poly.rs
+#: crates/kernel-rs/src/step.rs
 #: crates/kernel/src/lib.rs
 msgid "STEP files"
 msgstr "STEPファイル"
@@ -6140,7 +6153,6 @@ msgstr "間隔"
 msgid "Spacing Angle"
 msgstr "間隔の角度"
 
-#: crates/ui-egui/src/workspace/viewport/annotations.rs
 #: crates/ui-egui/src/workspace/viewport/clicks.rs
 msgid "Spacing ⌄"
 msgstr "間隔 ⌄"
@@ -7038,8 +7050,8 @@ msgid "Type the spacing, then Tab (or click Quantity) for how many. Done applies
 msgstr "間隔を入力し、Tab（または「数量」をクリック）で個数。「完了」で適用"
 
 #: crates/engine/src/cmd/edit.rs
+#: crates/ui-egui/src/global_menu.rs
 #: crates/ui-egui/src/menubar.rs
-#: crates/ui-egui/src/workspace/keys.rs
 msgid "Undo"
 msgstr "元に戻す"
 
@@ -7049,6 +7061,7 @@ msgstr "iPhoneを開いて続けましょう。プロジェクトはそのまま
 
 #: crates/ui-egui/src/workspace/badges.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
+#: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Uniform"
 msgstr "均一"
 
@@ -7167,7 +7180,6 @@ msgstr "いつでもどちらでも：スタイラスとマウスは自動で区
 msgid "Use either any time: the Pencil, a mouse and a trackpad are told apart by themselves; fingers always move the view."
 msgstr "いつでもどれでも：Pencil、マウス、トラックパッドは自動で区別され、指は常にビューを動かします。"
 
-#: crates/ui-egui/src/workspace/panels/command_search.rs
 msgid "Use the File menu for files"
 msgstr "ファイルにはファイルメニューを使います"
 
@@ -7748,7 +7760,6 @@ msgstr "{#}個の画像"
 msgid "{#} items"
 msgstr "{#}個の項目"
 
-#: crates/ui-egui/src/workspace/prefs.rs
 msgid "{#} match"
 msgstr "{#}件が一致"
 
@@ -7758,7 +7769,6 @@ msgstr "{#}分前"
 msgid "{#} more waiting after this one."
 msgstr "このあと{#}件が待っています。"
 
-#: crates/ui-egui/src/workspace/prefs.rs
 msgid "{#} not yet"
 msgstr "{#}件はまだ"
 
@@ -7780,7 +7790,6 @@ msgstr "返信{#}件"
 msgid "{#} sketches"
 msgstr "{#}個のスケッチ"
 
-#: crates/ui-egui/src/workspace/prefs.rs
 msgid "{#} with limits"
 msgstr "{#}件は制限あり"
 
