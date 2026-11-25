@@ -676,8 +676,7 @@ pub(super) fn selected_items_bounds(s: &Session) -> Option<(Vec<ItemId>, DVec3, 
 
 /// The picked construction planes and the corners of the space they take up on screen.
 pub(super) fn selected_planes_bounds(s: &Session) -> Option<(Vec<ItemId>, DVec3, DVec3)> {
-    let items: Vec<ItemId> =
-        s.selection.iter().filter_map(|p| if let Pick::Plane { plane } = p { Some(*plane) } else { None }).collect();
+    let items: Vec<ItemId> = s.selection.iter().filter_map(|p| if let Pick::Plane { plane } = p { Some(*plane) } else { None }).collect();
     let mut min = DVec3::splat(f64::INFINITY);
     let mut max = DVec3::splat(f64::NEG_INFINITY);
     for id in &items {

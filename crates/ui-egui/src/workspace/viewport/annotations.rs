@@ -653,7 +653,9 @@ impl Workspace {
             let perp = vec2(-sdir.y, sdir.x);
             painter.add(egui::Shape::convex_polygon(vec![tip + sdir * 12.0, tip + perp * 7.0, tip - perp * 7.0], col, Stroke::NONE));
             painter.circle_filled(s0, 4.0, col);
-            if sec.dragging.is_some() {
+            if let Some(t) = typed.filter(|_| self.section_typing()) {
+                value_field(&painter, s0 + sdir * 80.0 - vec2(13.0, 0.0), t);
+            } else if sec.dragging.is_some() {
                 value_box(&painter, tip + sdir * 24.0 + perp * 30.0, &format_length(sec.offset, units), None);
             } else {
                 // A white pill with the offset (s16-021).

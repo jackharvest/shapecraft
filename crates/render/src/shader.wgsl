@@ -381,6 +381,17 @@ fn vs_fill(v: FillIn) -> ColorOut {
     return o;
 }
 
+// A section's cut faces lie just behind the lines round them.
+@vertex
+fn vs_cap(v: FillIn) -> ColorOut {
+    var o: ColorOut;
+    o.clip = g.view_proj * vec4<f32>(v.pos, 1.0);
+    o.color = v.color;
+    o.local = vec2<f32>(0.0);
+    o.world = vec4<f32>(v.pos, 0.0);
+    return o;
+}
+
 @fragment
 fn fs_fill(v: ColorOut) -> @location(0) vec4<f32> {
     return v.color;

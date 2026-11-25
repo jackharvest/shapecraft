@@ -36,9 +36,33 @@ const DEFINED: Rgba = Rgba::hex(0x2ecd05);
 /// Transient geometry drawn by an active tool (rubber bands, previews, handles).
 #[derive(Clone, Debug)]
 pub enum Overlay {
-    Line { a: DVec3, b: DVec3, color: Rgba, width: f32 },
-    Dot { p: DVec3, color: Rgba, size: f32 },
-    Fill { tris: Vec<[DVec3; 3]>, color: Rgba },
+    Line {
+        a: DVec3,
+        b: DVec3,
+        color: Rgba,
+        width: f32,
+    },
+    /// Solid faces that hide what's behind them (a section's cut faces).
+    Cap {
+        tris: Vec<[DVec3; 3]>,
+        color: Rgba,
+    },
+    /// A line what's in front hides.
+    Edge {
+        a: DVec3,
+        b: DVec3,
+        color: Rgba,
+        width: f32,
+    },
+    Dot {
+        p: DVec3,
+        color: Rgba,
+        size: f32,
+    },
+    Fill {
+        tris: Vec<[DVec3; 3]>,
+        color: Rgba,
+    },
 }
 
 /// How bodies are drawn (View ▸ Wireframe / X-Ray / Shaded).
@@ -136,6 +160,8 @@ pub(crate) struct Built {
     pub dots: Vec<(DVec3, Rgba, f32)>,
     /// (triangles, color, overlay)
     pub fills: Vec<([DVec3; 3], Rgba, bool)>,
+    /// Drawn before the lines, hiding what's behind.
+    pub caps: Vec<([DVec3; 3], Rgba)>,
 }
 
 /// What the bodies' edges depend on. They don't depend on the camera, and a big model has far more of them than
@@ -307,6 +333,11 @@ pub(crate) fn build(scene: &SceneInput, camera: &Camera, size: DVec2) -> Built {
             let color = if chosen.whole(body) { c.selected } else { Rgba::hex(0xbdbdc0) };
             mesh_outline(&mut out, f, camera, color);
         }
+        // An exact body's round faces show their outlines: they can't be picked.
+        for body in scene.doc.bodies.iter().filter(|b| b.facets.is_none() && scene.doc.item_shown(b.id)) {
+            let color = if chosen.whole(body) { c.selected } else { Rgba::hex(0xbdbdc0) };
+            silhouettes(&mut out, &body.mesh, camera, color);
+        }
     }
     if scene.show_axes && !scene.presentation {
         let len = camera.distance * 50.0;
@@ -409,6 +440,10 @@ pub(crate) fn build(scene: &SceneInput, camera: &Camera, size: DVec2) -> Built {
         match o {
             Overlay::Line { a, b, color, width } => {
                 out.segments.push(Segment { a: *a, b: *b, color: *color, width: *width, overlay: true, clip: false })
+            }
+            Overlay::Cap { tris, color } => out.caps.extend(tris.iter().map(|t| (*t, *color))),
+            Overlay::Edge { a, b, color, width } => {
+                out.segments.push(Segment { a: *a, b: *b, color: *color, width: *width, overlay: false, clip: false })
             }
             Overlay::Dot { p, color, size } => out.dots.push((*p, *color, *size)),
             Overlay::Fill { tris, color } => out.fills.extend(tris.iter().map(|t| (*t, *color, true))),
@@ -850,6 +885,54 @@ impl Chosen {
 }
 
 /// A mesh body's outline as seen by `camera`.
+/// More triangles than this and a body goes without its outlines (they're found anew for every view).
+const SILHOUETTE_TRIANGLES: usize = 600_000;
+
+/// Where a body's round faces turn away from the viewer: across each triangle whose corners' normals disagree on it, the
+/// line along which the normal is square to the view.
+fn silhouettes(out: &mut Built, mesh: &Mesh, camera: &Camera, color: Rgba) {
+    if mesh.indices.len() / 3 > SILHOUETTE_TRIANGLES {
+        return;
+    }
+    let (eye, back) = (camera.eye(), camera.back());
+    let ortho = camera.ortho_amount() > 0.5;
+    let facing: Vec<f32> = mesh
+        .positions
+        .iter()
+        .zip(&mesh.normals)
+        .map(|(p, n)| {
+            let toward = if ortho { back } else { eye - DVec3::from(p.map(f64::from)) };
+            DVec3::from(n.map(f64::from)).dot(toward.normalize_or_zero()) as f32
+        })
+        .collect();
+    for t in mesh.indices.as_chunks::<3>().0 {
+        let Some(f) = t.iter().map(|i| facing.get(*i as usize).copied()).collect::<Option<Vec<f32>>>() else { continue };
+        if f.iter().all(|x| *x >= 0.0) || f.iter().all(|x| *x <= 0.0) {
+            continue;
+        }
+        let mut ends = [DVec3::ZERO; 2];
+        let mut found = 0;
+        for k in 0..3 {
+            let (i, j) = (k, (k + 1) % 3);
+            if f[i] * f[j] < 0.0 && found < 2 {
+                let at = |m: usize| DVec3::from(mesh.positions[t[m] as usize].map(f64::from));
+                ends[found] = at(i).lerp(at(j), f64::from(f[i] / (f[i] - f[j])));
+                found += 1;
+            }
+        }
+        // Through a corner exactly: from that corner to the crossing facing it.
+        if found == 1
+            && let Some(k) = (0..3).find(|k| f[*k] == 0.0)
+        {
+            ends[1] = DVec3::from(mesh.positions[t[k] as usize].map(f64::from));
+            found = 2;
+        }
+        if found == 2 {
+            out.segments.push(Segment { a: ends[0], b: ends[1], color, width: 1.2, overlay: true, clip: true });
+        }
+    }
+}
+
 fn mesh_outline(out: &mut Built, f: &shapecraft_doc::Facets, camera: &Camera, color: Rgba) {
     let eye = camera.eye();
     let back = camera.back();

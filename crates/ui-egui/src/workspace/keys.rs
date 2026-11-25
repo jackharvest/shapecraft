@@ -29,7 +29,7 @@ impl Workspace {
         // Tab while typing a value goes to the tool's next field (a rectangle's height), not to egui's focus
         // traversal, which would hand the keyboard to some text field and swallow the rest of the value. Before
         // anything is typed it would swallow the value to come.
-        if (self.numeric.is_some() || self.tool.takes_numbers())
+        if (self.numeric.is_some() || self.takes_values())
             && ui.input(|i| i.key_pressed(egui::Key::Tab))
             && let Some(id) = ui.memory(|m| m.focused())
         {
@@ -53,7 +53,7 @@ impl Workspace {
                 egui::Event::Paste(text) if self.drawings.is_none() && !self.visualizing => {
                     self.paste_text(&text);
                 }
-                egui::Event::Text(text) if self.tool.takes_numbers() || self.dim_edit.is_some() => {
+                egui::Event::Text(text) if self.takes_values() || self.dim_edit.is_some() => {
                     for ch in text.chars() {
                         self.type_numeric(ch);
                     }
@@ -218,6 +218,7 @@ impl Workspace {
             // A value that doesn't work keeps the box open with the reason under it.
             Key::Enter | Key::Tab if typing && !self.typed_ok() => {}
             Key::Enter if self.dim_edit.is_some() => self.commit_dim_edit(),
+            Key::Enter if typing && self.section_typing() => self.commit_section_value(),
             Key::Escape => self.escape(),
             // Return with nothing to finish opens Search Commands at the pointer (26.202, s36).
             Key::Enter if !typing && !self.is_live() && self.nothing_to_finish() => {
@@ -428,7 +429,7 @@ impl Workspace {
             }
             // + and - zoom in and out, about the pointer when it's over the view (as the wheel does), else the view's
             // middle (#34). Not while a value is being typed or a tool takes one: there "-" starts a negative number.
-            Key::Minus | Key::Plus | Key::Equals if !cmd && !typing && !self.tool.takes_numbers() && self.dim_edit.is_none() => {
+            Key::Minus | Key::Plus | Key::Equals if !cmd && !typing && !self.takes_values() && self.dim_edit.is_none() => {
                 let at = self.cursor.filter(|c| self.viewport_rect.contains(*c)).unwrap_or(self.viewport_rect.center());
                 self.anim = None;
                 let size = self.size();

@@ -310,6 +310,8 @@ pub struct Renderer {
     dot_pipeline: wgpu::RenderPipeline,
     fill_pipeline: wgpu::RenderPipeline,
     fill_overlay_pipeline: wgpu::RenderPipeline,
+    cap_pipeline: wgpu::RenderPipeline,
+    caps: Stream,
     image_pipeline: wgpu::RenderPipeline,
     image_layout: wgpu::BindGroupLayout,
     sampler: wgpu::Sampler,
@@ -695,6 +697,19 @@ impl Renderer {
                 blend: None,
             },
         );
+        let cap_pipeline = make(
+            &flat_layout,
+            PipelineSpec {
+                label: "section caps",
+                vs: "vs_cap",
+                fs: "fs_fill",
+                buffers: &fill_buf,
+                topology: tri,
+                depth_write: true,
+                depth_compare: LessEqual,
+                blend: None,
+            },
+        );
         let fill_overlay_pipeline = make(
             &flat_layout,
             PipelineSpec {
@@ -806,6 +821,8 @@ impl Renderer {
             dot_pipeline,
             fill_pipeline,
             fill_overlay_pipeline,
+            cap_pipeline,
+            caps: Stream::new("section caps"),
             image_pipeline,
             image_layout,
             sampler,
@@ -1412,7 +1429,8 @@ impl Renderer {
                     }
                 }
             }
-            let streams: [(&wgpu::RenderPipeline, &Stream); 9] = [
+            let streams: [(&wgpu::RenderPipeline, &Stream); 10] = [
+                (&self.cap_pipeline, &self.caps),
                 (&self.line_pipeline, &self.under),
                 (&self.line_pipeline, &self.edges),
                 (&self.line_pipeline, &self.lines),
@@ -1698,6 +1716,12 @@ impl Renderer {
         self.lines.upload(&self.device, &self.queue, &lines);
         self.line_overlays.upload(&self.device, &self.queue, &line_overlays);
         self.dots.upload(&self.device, &self.queue, &dots);
+        let mut caps = Vec::with_capacity(built.caps.len() * 3);
+        for (tri, col) in &built.caps {
+            let color = col.linear();
+            caps.extend(tri.iter().map(|p| FillVertex { pos: p.as_vec3().to_array(), color }));
+        }
+        self.caps.upload(&self.device, &self.queue, &caps);
         self.fills.upload(&self.device, &self.queue, &fills);
         self.fill_overlays.upload(&self.device, &self.queue, &fill_overlays);
     }
