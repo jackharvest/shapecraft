@@ -657,6 +657,33 @@ pub trait Kernel: Send + Sync {
         }
     }
 
+    /// Curves lying in `frame` as loose edges in one shape (a path for [`Kernel::sweep_path`]).
+    fn curves_shape(&self, frame: PlaneFrame, curves: &[PlanarCurve]) -> Result<Shape> {
+        let _ = (frame, curves);
+        Err(KernelError::InvalidInput("this kernel has no loose curves".into()))
+    }
+
+    /// One edge of a shape as its own shape.
+    fn edge(&self, shape: &Shape, edge: u32) -> Result<Shape> {
+        let _ = (shape, edge);
+        Err(KernelError::InvalidInput("this kernel has no loose edges".into()))
+    }
+
+    /// Sweeps a planar face along the edges of `path` joined into one chain (body edges, curves of several sketches).
+    /// With `at`, the profile belongs at the path's point nearest it and the whole path is swept from there; without
+    /// it, at the point of the path the profile is nearest to.
+    fn sweep_path(&self, profile: &Shape, path: &[Shape], at: Option<DVec3>, opts: &SweepOptions) -> Result<Shape> {
+        let _ = (profile, path, at, opts);
+        Err(KernelError::InvalidInput("this kernel can't sweep along edges".into()))
+    }
+
+    /// The solids a shape falls into when cut by a face's surface carried on past its edges: one, whole, when the
+    /// surface misses it.
+    fn split_by_face(&self, shape: &Shape, tool: &Shape, face: u32) -> Result<Vec<Shape>> {
+        let plane = self.face_plane(tool, face)?.ok_or_else(|| KernelError::InvalidInput("this kernel only cuts by flat faces".into()))?;
+        Ok(self.split_by_plane(shape, plane.origin, plane.normal).unwrap_or_else(|_| vec![shape.clone()]))
+    }
+
     fn write_step(&self, shapes: &[Shape], path: &Path) -> Result<()>;
 
     /// STEP in a given application protocol: 203, 214 or 242.

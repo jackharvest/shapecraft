@@ -905,6 +905,49 @@ impl Kernel for OcctKernel {
         })
     }
 
+    fn curves_shape(&self, frame: PlaneFrame, curves: &[PlanarCurve]) -> Result<Shape> {
+        if curves.is_empty() || curves.len() > 10_000 {
+            return Err(KernelError::InvalidInput("give 1 to 10000 curves".into()));
+        }
+        let (plane, kinds, data) = encode_curves(frame, curves)?;
+        finite("curves", &plane)?;
+        finite("curves", &data)?;
+        // SAFETY: buffers outlive the call and their sizes match `kinds`.
+        shape_out("curves", |out| unsafe { ffi::sk_curves_shape(plane.as_ptr(), kinds.as_ptr(), data.as_ptr(), kinds.len(), out) })
+    }
+
+    fn edge(&self, shape: &Shape, edge: u32) -> Result<Shape> {
+        let s = raw(shape)?;
+        // SAFETY: shape alive for the call.
+        shape_out("edge", |out| unsafe { ffi::sk_edge_shape(s, edge, out) })
+    }
+
+    fn sweep_path(&self, profile: &Shape, path: &[Shape], at: Option<DVec3>, opts: &SweepOptions) -> Result<Shape> {
+        if path.is_empty() || path.len() > 10_000 {
+            return Err(KernelError::InvalidInput("the sweep path needs 1 to 10000 curves".into()));
+        }
+        if !(opts.twist.is_finite() && opts.twist.abs() <= 36_000.0 && opts.scale.is_finite() && opts.scale > 1e-3 && opts.scale < 1e3) {
+            return Err(KernelError::InvalidInput("twist must be finite and scale between 0.001 and 1000".into()));
+        }
+        let at = at.map(|p| p.to_array());
+        finite("sweep", at.as_ref().map_or(&[][..], |p| &p[..]))?;
+        let f = raw(profile)?;
+        let ptrs = path.iter().map(raw).collect::<Result<Vec<_>>>()?;
+        let ap = at.as_ref().map_or(ptr::null(), |p| p.as_ptr());
+        let (twist, scale) = (opts.twist.to_radians(), opts.scale);
+        let (parallel, round) = (i32::from(opts.parallel), i32::from(opts.round));
+        // SAFETY: every buffer outlives the call; `ap` is null or points at 3 numbers.
+        blend_out("sweep", |out| unsafe { ffi::sk_sweep_path(f, ptrs.as_ptr(), ptrs.len(), ap, twist, scale, parallel, round, out) })
+    }
+
+    fn split_by_face(&self, shape: &Shape, tool: &Shape, face: u32) -> Result<Vec<Shape>> {
+        let (s, t) = (raw(shape)?, raw(tool)?);
+        let (mut arr, mut n) = (ptr::null_mut(), 0usize);
+        // SAFETY: shapes alive, out-pointers valid for the call.
+        check("split", unsafe { ffi::sk_split_face(s, t, face, &mut arr, &mut n) })?;
+        take_shapes(arr, n)
+    }
+
     fn write_step(&self, shapes: &[Shape], path: &Path) -> Result<()> {
         let _turn = file_turn();
         let ptrs = shapes.iter().map(raw).collect::<Result<Vec<_>>>()?;

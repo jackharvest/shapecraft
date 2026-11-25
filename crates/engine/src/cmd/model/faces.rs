@@ -423,14 +423,32 @@ fn round_face(s: &Session, b: &shapecraft_doc::Body, face: u32) -> Option<(f64, 
 pub(super) fn replace_face(s: &mut Session, p: &Params) -> Result<Value> {
     const CANT: &str = "The selected face can't be replaced.";
     let to: Value = p.parse("to")?;
-    let (o_t, n_t) = face_frame(s, &to)?;
+    let t = Params::new(&to);
+    // A round or free-form target: its surface, carried on past its edges.
+    let curved = if t.has("body") {
+        let id = t.id("body")?;
+        let b = s.doc.body(id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
+        let face = t.f64("face")? as u32;
+        s.kernel.face_plane(&b.shape, face)?.is_none().then(|| (b.shape.clone(), face))
+    } else {
+        None
+    };
     let (body, faces) = face_target(s, p, "select the faces to replace")?;
     if faces.is_empty() {
         return Err(EngineError::NotAvailable("select the faces to replace".into()));
     }
-    if Params::new(&to).has("body") && Params::new(&to).id("body")? == body && faces.contains(&(Params::new(&to).f64("face")? as u32)) {
+    if t.has("body") && t.id("body")? == body && faces.contains(&(t.f64("face")? as u32)) {
         return Err(EngineError::NotAvailable(CANT.into()));
     }
+    if let Some((target, face)) = curved {
+        let b = s.doc.body(body).ok_or_else(|| EngineError::BadParams(format!("no body {}", body.0)))?;
+        let shape = fit_faces_to_surface(s, &b.shape.clone(), &faces, &target, face, p.bool_or("flip", false))?
+            .ok_or_else(|| EngineError::NotAvailable(CANT.into()))?;
+        set_body_shape(s, body, shape)?;
+        s.selection.clear();
+        return Ok(json!({ "body": body.0 }));
+    }
+    let (o_t, n_t) = face_frame(s, &to)?;
     let b = s.doc.body(body).ok_or_else(|| EngineError::BadParams(format!("no body {}", body.0)))?;
     let t = n_t.normalize_or_zero();
     let marks: Vec<Mark> =
@@ -482,6 +500,96 @@ fn fit_faces_to_plane(s: &Session, shape: &Shape, faces: &[u32], o_t: DVec3, n_t
             if !below(s.kernel.mass_props(&piece)?.centroid) {
                 out = s.kernel.boolean(BoolOp::Subtract, &out, &piece)?;
             }
+        }
+    }
+    Ok(Some(out))
+}
+
+/// The body with its flat `faces` brought onto a curved face's surface: grown out to it where it lies outside, cut
+/// back to it where it lies inside (where the surface is met both ways, the nearer; `flip` takes the other). The
+/// neighbours carry on (tapered walls stay tapered) as far as the kernel can take them, else the walls go straight.
+/// `None` when a face isn't flat or the surface doesn't cover it.
+fn fit_faces_to_surface(s: &Session, shape: &Shape, faces: &[u32], target: &Shape, face: u32, flip: bool) -> Result<Option<Shape>> {
+    use shapecraft_kernel::SubShape;
+    /// What lies between a face and the surface, one way: where it stands on the face, how far it goes, the solid.
+    struct Between {
+        base: DVec3,
+        depth: f64,
+        outwards: bool,
+        piece: Shape,
+    }
+    let (bb, tb) = (s.kernel.bounds(shape)?, s.kernel.bounds(target)?);
+    let reach = bb.min.distance(bb.max) + tb.min.distance(tb.max) + (bb.min + bb.max).distance(tb.min + tb.max) / 2.0 + 1.0;
+    let near = reach * 1e-3;
+    let mut out = shape.clone();
+    for &f in faces {
+        let Some(fp) = s.kernel.face_plane(shape, f)? else { return Ok(None) };
+        let n = fp.normal.normalize_or_zero();
+        let profile = s.kernel.face(shape, f)?;
+        let pieces_of = |block: &Shape, outwards: bool, length: f64| -> Result<Vec<Between>> {
+            let way = if outwards { n } else { -n };
+            let skin = s.kernel.prism(&profile, way * 0.01)?;
+            let end = s.kernel.translate(&profile, way * length)?;
+            let mut found = Vec::new();
+            for piece in s.kernel.split_by_face(block, target, face)? {
+                let Ok(on) = s.kernel.boolean(BoolOp::Intersect, &piece, &skin).and_then(|c| s.kernel.mass_props(&c)) else { continue };
+                if !(on.volume.is_finite() && on.volume.abs() > 1e-9) {
+                    continue;
+                }
+                // What runs on to the far end isn't closed off by the surface.
+                if s.kernel.distance(&piece, SubShape::Whole, &end, SubShape::Whole)?.distance < 1e-6 {
+                    continue;
+                }
+                let pb = s.kernel.bounds(&piece)?;
+                let depth = (0..8)
+                    .map(|i| {
+                        let pick = |bit: u32, lo: f64, hi: f64| if i >> bit & 1 == 0 { lo } else { hi };
+                        let q = DVec3::new(pick(0, pb.min.x, pb.max.x), pick(1, pb.min.y, pb.max.y), pick(2, pb.min.z, pb.max.z));
+                        (q - fp.origin).dot(way)
+                    })
+                    .fold(0.0, f64::max);
+                let base = on.centroid - n * (on.centroid - fp.origin).dot(n);
+                found.push(Between { base, depth, outwards, piece });
+            }
+            Ok(found)
+        };
+        let mut all = pieces_of(&s.kernel.prism(&profile, n * reach)?, true, reach)?;
+        all.extend(pieces_of(&s.kernel.prism(&profile, -n * reach)?, false, reach)?);
+        // Over one part of the face, one way only.
+        let keep: Vec<bool> = all
+            .iter()
+            .map(|a| {
+                !all.iter().any(|b| {
+                    b.outwards != a.outwards
+                        && a.base.distance(b.base) < near
+                        && if flip { b.depth > a.depth } else { b.depth < a.depth || (b.depth == a.depth && b.outwards) }
+                })
+            })
+            .collect();
+        let mut kept: Vec<Between> = all.into_iter().zip(keep).filter_map(|(p, k)| k.then_some(p)).collect();
+        if kept.is_empty() {
+            return Ok(None);
+        }
+        // With the neighbours carried on: the slab an offset adds or takes away, cut the same way.
+        for outwards in [true, false] {
+            let depth = kept.iter().filter(|p| p.outwards == outwards).map(|p| p.depth).fold(0.0, f64::max);
+            if depth <= 0.0 {
+                continue;
+            }
+            let length = depth * 1.05 + 0.1;
+            let slab = s.kernel.offset_faces(shape, &[f], if outwards { length } else { -length }).and_then(|moved| {
+                let (a, b) = if outwards { (&moved, shape) } else { (shape, &moved) };
+                s.kernel.boolean(BoolOp::Subtract, a, b)
+            });
+            let Ok(slab) = slab else { continue };
+            for part in pieces_of(&slab, outwards, length).unwrap_or_default() {
+                if let Some(k) = kept.iter_mut().find(|k| k.outwards == outwards && k.base.distance(part.base) < near) {
+                    k.piece = part.piece;
+                }
+            }
+        }
+        for k in &kept {
+            out = s.kernel.boolean(if k.outwards { BoolOp::Union } else { BoolOp::Subtract }, &out, &k.piece)?;
         }
     }
     Ok(Some(out))

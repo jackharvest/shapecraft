@@ -20,6 +20,12 @@
 #include <ShapeFix_Face.hxx>
 #include <BRepExtrema_DistShapeShape.hxx>
 #include <BRepAlgoAPI_Splitter.hxx>
+#include <GeomLib.hxx>
+#include <Geom_BoundedSurface.hxx>
+#include <Precision.hxx>
+#include <BRepBuilderAPI_MakeVertex.hxx>
+#include <ShapeAnalysis_FreeBounds.hxx>
+#include <TopTools_HSequenceOfShape.hxx>
 #include <BRepOffsetAPI_NormalProjection.hxx>
 #include <BRepAlgoAPI_Defeaturing.hxx>
 #include <ShapeAnalysis_Surface.hxx>
@@ -2535,6 +2541,144 @@ int sk_split_plane(const SkShape* s, double ox, double oy, double oz, double nx,
 
 }  // extern "C"
 
+namespace {
+
+// The face's surface grown past its edges, far enough to run through everything within `reach` of `c`: whole
+// cylinders, cones (one side of the tip), spheres and tori; free-form surfaces carry on smoothly.
+bool grown_face(const TopoDS_Face& face, const gp_Pnt& c, double reach, TopoDS_Face& out) {
+  BRepAdaptor_Surface ad(face, Standard_True);
+  const double size = reach * 2.0 + 1.0;
+  switch (ad.GetType()) {
+    case GeomAbs_Plane: {
+      gp_Pln pl = ad.Plane();
+      double u, v;
+      ElSLib::Parameters(pl, c, u, v);
+      BRepBuilderAPI_MakeFace mf(pl, u - size, u + size, v - size, v + size);
+      if (!mf.IsDone()) return false;
+      out = mf.Face();
+      return true;
+    }
+    case GeomAbs_Cylinder: {
+      gp_Cylinder cy = ad.Cylinder();
+      double u, v;
+      ElSLib::Parameters(cy, c, u, v);
+      BRepBuilderAPI_MakeFace mf(cy, 0.0, 2.0 * M_PI, v - size, v + size);
+      if (!mf.IsDone()) return false;
+      out = mf.Face();
+      return true;
+    }
+    case GeomAbs_Cone: {
+      gp_Cone co = ad.Cone();
+      double u, v;
+      ElSLib::Parameters(co, c, u, v);
+      const double tip = -co.RefRadius() / std::sin(co.SemiAngle());
+      double lo = v - size, hi = v + size;
+      const bool above = (ad.FirstVParameter() + ad.LastVParameter()) / 2.0 > tip;
+      if (above) lo = std::max(lo, tip);
+      else hi = std::min(hi, tip);
+      if (hi - lo < 1e-9) return false;
+      BRepBuilderAPI_MakeFace mf(co, 0.0, 2.0 * M_PI, lo, hi);
+      if (!mf.IsDone()) return false;
+      out = mf.Face();
+      return true;
+    }
+    case GeomAbs_Sphere: {
+      BRepBuilderAPI_MakeFace mf(ad.Sphere());
+      if (!mf.IsDone()) return false;
+      out = mf.Face();
+      return true;
+    }
+    case GeomAbs_Torus: {
+      BRepBuilderAPI_MakeFace mf(ad.Torus());
+      if (!mf.IsDone()) return false;
+      out = mf.Face();
+      return true;
+    }
+    default: break;
+  }
+  Handle(Geom_Surface) surf = BRep_Tool::Surface(face);
+  if (Handle(Geom_RectangularTrimmedSurface) t = Handle(Geom_RectangularTrimmedSurface)::DownCast(surf); !t.IsNull())
+    surf = t->BasisSurface();
+  double u0, u1, v0, v1;
+  BRepTools::UVBounds(face, u0, u1, v0, v1);
+  Handle(Geom_BoundedSurface) bounded = Handle(Geom_BoundedSurface)::DownCast(surf);
+  if (bounded.IsNull()) {
+    // Swept surfaces: as they are, cut to a finite patch, then grown as B-splines.
+    double su0, su1, sv0, sv1;
+    surf->Bounds(su0, su1, sv0, sv1);
+    if (Precision::IsInfinite(su0)) su0 = u0 - size;
+    if (Precision::IsInfinite(su1)) su1 = u1 + size;
+    if (Precision::IsInfinite(sv0)) sv0 = v0 - size;
+    if (Precision::IsInfinite(sv1)) sv1 = v1 + size;
+    bounded = new Geom_RectangularTrimmedSurface(surf, su0, su1, sv0, sv1);
+    if (surf->IsUPeriodic() || surf->IsVPeriodic()) {
+      BRepBuilderAPI_MakeFace mf(bounded, 1e-6);
+      if (!mf.IsDone()) return false;
+      out = mf.Face();
+      return true;
+    }
+  }
+  for (int way = 0; way < 4; ++way) {
+    const Standard_Boolean in_u = way < 2 ? Standard_True : Standard_False;
+    const bool closed = in_u ? (bounded->IsUClosed() || bounded->IsUPeriodic()) : (bounded->IsVClosed() || bounded->IsVPeriodic());
+    if (closed) continue;
+    Handle(Geom_BoundedSurface) longer = bounded;
+    try {
+      GeomLib::ExtendSurfByLength(longer, reach, 1, in_u, (way % 2) ? Standard_True : Standard_False);
+      if (!longer.IsNull()) bounded = longer;
+    } catch (const Standard_Failure&) {
+    }
+  }
+  BRepBuilderAPI_MakeFace mf(bounded, 1e-6);
+  if (!mf.IsDone()) return false;
+  out = mf.Face();
+  return true;
+}
+
+int put_solids(const TopoDS_Shape& shape, SkShape*** out, size_t* count) {
+  std::vector<TopoDS_Shape> parts;
+  for (TopExp_Explorer ex(shape, TopAbs_SOLID); ex.More(); ex.Next()) parts.push_back(ex.Current());
+  auto arr = new SkShape*[parts.size()];
+  for (size_t i = 0; i < parts.size(); ++i) arr[i] = new SkShape{parts[i]};
+  *out = arr;
+  *count = parts.size();
+  return 0;
+}
+
+}  // namespace
+
+extern "C" {
+
+// The solids a shape falls into when cut by a face's surface, grown past its edges (one, whole, if it misses).
+int sk_split_face(const SkShape* s, const SkShape* tool, uint32_t face, SkShape*** out, size_t* count) {
+  return guard([&] {
+    *out = nullptr;
+    *count = 0;
+    TopoDS_Shape sub;
+    if (!sub_shape(tool->shape, 1, face, sub)) return fail("no such face");
+    Bnd_Box box;
+    BRepBndLib::Add(s->shape, box);
+    if (box.IsVoid()) return fail("nothing to split");
+    double x0, y0, z0, x1, y1, z1;
+    box.Get(x0, y0, z0, x1, y1, z1);
+    TopoDS_Face grown;
+    if (!grown_face(TopoDS::Face(sub), gp_Pnt((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2), std::sqrt(box.SquareExtent()), grown))
+      return fail("that face's surface can't be carried on");
+    BRepAlgoAPI_Splitter sp;
+    TopTools_ListOfShape args, tools;
+    args.Append(s->shape);
+    tools.Append(grown);
+    sp.SetArguments(args);
+    sp.SetTools(tools);
+    sp.SetFuzzyValue(1e-6);
+    sp.Build();
+    if (!sp.IsDone() || sp.HasErrors()) return fail("split failed");
+    return put_solids(sp.Shape(), out, count);
+  });
+}
+
+}  // extern "C"
+
 extern "C" {
 
 // A copy of one face of a shape, as its own shape (for lofting or sweeping a body's face).
@@ -2642,9 +2786,199 @@ int sk_sweep(const SkShape* face, const double* plane, const int* kinds, const d
   });
 }
 
+}  // extern "C"
+
+namespace {
+
 // Sweep with its settings: orientation (square to the path, or parallel to the profile), mitred or round corners,
 // and a twist (radians) and end scale applied to sections laid along the path, then lofted through. Holes in the
-// profile are swept the same way and cut out.
+// profile are swept the same way and cut out. With `at`, the profile belongs at that vertex of the path, whatever is
+// nearest, and the whole path is swept from there.
+int sweep_spine(const TopoDS_Shape& face, const TopoDS_Wire& spine, const TopoDS_Vertex& at, double twist, double scale,
+                int parallel, int round, SkShape** out) {
+  int spine_edges = 0;
+  for (TopExp_Explorer ex(spine, TopAbs_EDGE); ex.More(); ex.Next()) ++spine_edges;
+  TopExp_Explorer fx(face, TopAbs_FACE);
+  if (!fx.More()) return fail("the profile isn't a face");
+  const TopoDS_Face prof = TopoDS::Face(fx.Current());
+  BRepAdaptor_CompCurve along(spine);
+  // The path sampled with the length run so far, to tell how far along it each section is.
+  std::vector<std::pair<gp_Pnt, double>> samples;
+  {
+    const int m = 400;
+    double run = 0.0;
+    gp_Pnt last = along.Value(along.FirstParameter());
+    for (int i = 0; i <= m; ++i) {
+      gp_Pnt q = along.Value(along.FirstParameter() + (along.LastParameter() - along.FirstParameter()) * i / m);
+      run += q.Distance(last);
+      samples.push_back({q, run});
+      last = q;
+    }
+  }
+  const double length = samples.back().second;
+  auto fraction = [&](const gp_Pnt& c, gp_Vec& dir) {
+    size_t best = 0;
+    for (size_t i = 1; i < samples.size(); ++i)
+      if (samples[i].first.SquareDistance(c) < samples[best].first.SquareDistance(c)) best = i;
+    const size_t a = best > 0 ? best - 1 : 0, b = std::min(best + 1, samples.size() - 1);
+    dir = gp_Vec(samples[a].first, samples[b].first);
+    return length > 0.0 ? samples[best].second / length : 0.0;
+  };
+  const bool plain = std::abs(twist) < 1e-12 && std::abs(scale - 1.0) < 1e-12;
+  auto sweep_wire = [&](const TopoDS_Wire& w, TopoDS_Shape& res) -> bool {
+    BRepOffsetAPI_MakePipeShell mk(spine);
+    if (parallel) {
+      mk.SetMode(gp_Ax2(gp::Origin(), gp::DZ(), gp::DX()));
+    } else {
+      mk.SetMode(Standard_False);
+    }
+    mk.SetTransitionMode(round ? BRepBuilderAPI_RoundCorner : BRepBuilderAPI_RightCorner);
+    if (at.IsNull()) mk.Add(w, Standard_False, Standard_False);
+    else mk.Add(w, at, Standard_False, Standard_False);
+    if (plain) {
+      mk.Build();
+      if (!mk.IsDone() || !mk.MakeSolid()) return false;
+      res = mk.Shape();
+      return true;
+    }
+    const int count = std::clamp(8 + int(std::abs(twist) * 180.0 / M_PI / 10.0) + 4 * spine_edges, 8, 96);
+    TopTools_ListOfShape secs;
+    mk.Simulate(count, secs);
+    if (secs.Extent() < 2) return false;
+    BRepOffsetAPI_ThruSections loft(Standard_True, Standard_False);
+    // Simulate can repeat a section (at the path's end); a repeat would make the loft fail.
+    std::optional<gp_Pnt> prev;
+    int added = 0;
+    for (TopTools_ListIteratorOfListOfShape it(secs); it.More(); it.Next()) {
+      TopoDS_Wire sec;
+      for (TopExp_Explorer wx(it.Value(), TopAbs_WIRE); wx.More(); wx.Next()) {
+        sec = TopoDS::Wire(wx.Current());
+        break;
+      }
+      if (sec.IsNull()) return false;
+      GProp_GProps props;
+      BRepGProp::LinearProperties(sec, props);
+      const gp_Pnt c = props.CentreOfMass();
+      if (prev && prev->Distance(c) < 1e-7 * (1.0 + length)) continue;
+      prev = c;
+      BRepLib_FindSurface fs(sec, -1, Standard_True);
+      Handle(Geom_Plane) pl = fs.Found() ? Handle(Geom_Plane)::DownCast(fs.Surface()) : Handle(Geom_Plane)();
+      if (pl.IsNull()) return false;
+      gp_Dir axis = pl->Axis().Direction();
+      // How far along the path, and the same way round in every section: along it.
+      gp_Vec tangent;
+      const double t = fraction(c, tangent);
+      if (tangent.Magnitude() > 1e-12 && gp_Vec(axis).Dot(tangent) < 0.0) axis.Reverse();
+      gp_Trsf turn, size;
+      turn.SetRotation(gp_Ax1(c, axis), twist * t);
+      size.SetScale(c, 1.0 + (scale - 1.0) * t);
+      gp_Trsf both = size;
+      both.Multiply(turn);
+      loft.AddWire(TopoDS::Wire(BRepBuilderAPI_Transform(sec, both, Standard_True).Shape()));
+      ++added;
+    }
+    if (added < 2) return false;
+    loft.Build();
+    if (!loft.IsDone()) return false;
+    res = loft.Shape();
+    return true;
+  };
+  const TopoDS_Wire outer = BRepTools::OuterWire(prof);
+  TopoDS_Shape solid;
+  if (!sweep_wire(outer, solid)) return fail("sweep failed with these settings");
+  for (TopExp_Explorer wx(prof, TopAbs_WIRE); wx.More(); wx.Next()) {
+    if (wx.Current().IsSame(outer)) continue;
+    TopoDS_Shape hole;
+    if (!sweep_wire(TopoDS::Wire(wx.Current()), hole)) return fail("sweep failed for a hole in the profile");
+    BRepAlgoAPI_Cut cut(solid, hole);
+    if (!cut.IsDone()) return fail("couldn't cut a hole through the sweep");
+    solid = cut.Shape();
+  }
+  BRepCheck_Analyzer check(solid);
+  if (!check.IsValid()) return fail("sweep made an invalid solid (is the path too tight for the profile?)");
+  return put(out, solid);
+}
+
+// Edges (of any shapes, in any order) joined into one path; a gap of up to a thousandth is closed.
+bool path_wire(const SkShape* const* paths, size_t n, TopoDS_Wire& wire) {
+  TopTools_ListOfShape edges;
+  for (size_t i = 0; i < n; ++i)
+    for (TopExp_Explorer ex(paths[i]->shape, TopAbs_EDGE); ex.More(); ex.Next()) {
+      if (BRep_Tool::Degenerated(TopoDS::Edge(ex.Current()))) continue;
+      edges.Append(ex.Current().Oriented(TopAbs_FORWARD));
+    }
+  if (edges.IsEmpty()) return false;
+  BRepBuilderAPI_MakeWire mw;
+  mw.Add(edges);
+  if (mw.IsDone()) {
+    wire = mw.Wire();
+    return true;
+  }
+  Handle(TopTools_HSequenceOfShape) loose = new TopTools_HSequenceOfShape, wires = new TopTools_HSequenceOfShape;
+  for (TopTools_ListIteratorOfListOfShape it(edges); it.More(); it.Next()) loose->Append(it.Value());
+  ShapeAnalysis_FreeBounds::ConnectEdgesToWires(loose, 1e-3, Standard_False, wires);
+  if (wires->Length() != 1) return false;
+  ShapeFix_Wire fix;
+  fix.Load(TopoDS::Wire(wires->Value(1)));
+  fix.SetPrecision(1e-3);
+  fix.FixConnected();
+  wire = fix.Wire();
+  return !wire.IsNull();
+}
+
+// The path with a vertex at its point nearest `p` (one it has already, or the edge there cut in two).
+bool vertex_on_path(const TopoDS_Wire& wire, const gp_Pnt& p, TopoDS_Wire& cut, TopoDS_Vertex& at) {
+  TopoDS_Vertex probe = BRepBuilderAPI_MakeVertex(p);
+  double best = -1.0, param = 0.0;
+  TopoDS_Edge edge;
+  for (TopExp_Explorer ex(wire, TopAbs_EDGE); ex.More(); ex.Next()) {
+    BRepExtrema_DistShapeShape d(ex.Current(), probe);
+    if (!d.IsDone() || d.NbSolution() == 0 || (best >= 0.0 && d.Value() >= best)) continue;
+    best = d.Value();
+    edge = TopoDS::Edge(ex.Current());
+    if (d.SupportTypeShape1(1) == BRepExtrema_IsVertex) {
+      at = TopoDS::Vertex(d.SupportOnShape1(1));
+    } else {
+      at.Nullify();
+      d.ParOnEdgeS1(1, param);
+    }
+  }
+  if (best < 0.0) return false;
+  cut = wire;
+  if (!at.IsNull()) return true;
+  double t0, t1;
+  Handle(Geom_Curve) c = BRep_Tool::Curve(edge, t0, t1);
+  if (c.IsNull()) return false;
+  const TopoDS_Edge fwd = TopoDS::Edge(edge.Oriented(TopAbs_FORWARD));
+  at = BRepBuilderAPI_MakeVertex(c->Value(param));
+  BRepBuilderAPI_MakeEdge first(c, TopExp::FirstVertex(fwd), at, t0, param), second(c, at, TopExp::LastVertex(fwd), param, t1);
+  if (!first.IsDone() || !second.IsDone()) return false;
+  TopTools_ListOfShape edges;
+  for (TopExp_Explorer ex(wire, TopAbs_EDGE); ex.More(); ex.Next()) {
+    if (ex.Current().IsSame(edge)) {
+      edges.Append(first.Edge());
+      edges.Append(second.Edge());
+    } else {
+      edges.Append(ex.Current().Oriented(TopAbs_FORWARD));
+    }
+  }
+  BRepBuilderAPI_MakeWire mw;
+  mw.Add(edges);
+  if (!mw.IsDone()) return false;
+  cut = mw.Wire();
+  // The wire may hold its own copy of the vertex.
+  for (TopExp_Explorer ex(cut, TopAbs_VERTEX); ex.More(); ex.Next())
+    if (BRep_Tool::Pnt(TopoDS::Vertex(ex.Current())).Distance(BRep_Tool::Pnt(at)) < 1e-7) {
+      at = TopoDS::Vertex(ex.Current());
+      break;
+    }
+  return true;
+}
+
+}  // namespace
+
+extern "C" {
+
 int sk_sweep2(const SkShape* face, const double* plane, const int* kinds, const double* data, size_t n, double twist,
               double scale, int parallel, int round, SkShape** out) {
   return guard([&] {
@@ -2662,105 +2996,52 @@ int sk_sweep2(const SkShape* face, const double* plane, const int* kinds, const 
     BRepBuilderAPI_MakeWire mw;
     mw.Add(edges);
     if (!mw.IsDone()) return fail("the path isn't one connected chain");
-    const TopoDS_Wire spine = mw.Wire();
-    TopExp_Explorer fx(face->shape, TopAbs_FACE);
-    if (!fx.More()) return fail("the profile isn't a face");
-    const TopoDS_Face prof = TopoDS::Face(fx.Current());
-    BRepAdaptor_CompCurve along(spine);
-    // The path sampled with the length run so far, to tell how far along it each section is.
-    std::vector<std::pair<gp_Pnt, double>> samples;
-    {
-      const int m = 400;
-      double run = 0.0;
-      gp_Pnt last = along.Value(along.FirstParameter());
-      for (int i = 0; i <= m; ++i) {
-        gp_Pnt q = along.Value(along.FirstParameter() + (along.LastParameter() - along.FirstParameter()) * i / m);
-        run += q.Distance(last);
-        samples.push_back({q, run});
-        last = q;
-      }
+    return sweep_spine(face->shape, mw.Wire(), TopoDS_Vertex(), twist, scale, parallel, round, out);
+  });
+}
+
+// The curves as loose edges, one shape (encoded as in curve_edge).
+int sk_curves_shape(const double* plane, const int* kinds, const double* data, size_t n, SkShape** out) {
+  return guard([&] {
+    gp_Dir nd, xd;
+    if (!plane_dirs(plane, nd, xd)) return fail("bad plane");
+    TopoDS_Compound all;
+    BRep_Builder b;
+    b.MakeCompound(all);
+    size_t off = 0;
+    for (size_t i = 0; i < n; ++i) {
+      TopoDS_Edge e;
+      bool ok = false;
+      if (!curve_edge(kinds[i], data, off, nd, xd, e, ok)) return fail("unknown curve kind");
+      if (ok) b.Add(all, e);
     }
-    const double length = samples.back().second;
-    auto fraction = [&](const gp_Pnt& c, gp_Vec& dir) {
-      size_t best = 0;
-      for (size_t i = 1; i < samples.size(); ++i)
-        if (samples[i].first.SquareDistance(c) < samples[best].first.SquareDistance(c)) best = i;
-      const size_t a = best > 0 ? best - 1 : 0, b = std::min(best + 1, samples.size() - 1);
-      dir = gp_Vec(samples[a].first, samples[b].first);
-      return length > 0.0 ? samples[best].second / length : 0.0;
-    };
-    const bool plain = std::abs(twist) < 1e-12 && std::abs(scale - 1.0) < 1e-12;
-    auto sweep_wire = [&](const TopoDS_Wire& w, TopoDS_Shape& res) -> bool {
-      BRepOffsetAPI_MakePipeShell mk(spine);
-      if (parallel) {
-        mk.SetMode(gp_Ax2(gp::Origin(), nd, xd));
-      } else {
-        mk.SetMode(Standard_False);
-      }
-      mk.SetTransitionMode(round ? BRepBuilderAPI_RoundCorner : BRepBuilderAPI_RightCorner);
-      mk.Add(w, Standard_False, Standard_False);
-      if (plain) {
-        mk.Build();
-        if (!mk.IsDone() || !mk.MakeSolid()) return false;
-        res = mk.Shape();
-        return true;
-      }
-      const int count = std::clamp(8 + int(std::abs(twist) * 180.0 / M_PI / 10.0) + 4 * edges.Extent(), 8, 96);
-      TopTools_ListOfShape secs;
-      mk.Simulate(count, secs);
-      if (secs.Extent() < 2) return false;
-      BRepOffsetAPI_ThruSections loft(Standard_True, Standard_False);
-      // Simulate can repeat a section (at the path's end); a repeat would make the loft fail.
-      std::optional<gp_Pnt> prev;
-      int added = 0;
-      for (TopTools_ListIteratorOfListOfShape it(secs); it.More(); it.Next()) {
-        TopoDS_Wire sec;
-        for (TopExp_Explorer wx(it.Value(), TopAbs_WIRE); wx.More(); wx.Next()) {
-          sec = TopoDS::Wire(wx.Current());
-          break;
-        }
-        if (sec.IsNull()) return false;
-        GProp_GProps props;
-        BRepGProp::LinearProperties(sec, props);
-        const gp_Pnt c = props.CentreOfMass();
-        if (prev && prev->Distance(c) < 1e-7 * (1.0 + length)) continue;
-        prev = c;
-        BRepLib_FindSurface fs(sec, -1, Standard_True);
-        Handle(Geom_Plane) pl = fs.Found() ? Handle(Geom_Plane)::DownCast(fs.Surface()) : Handle(Geom_Plane)();
-        if (pl.IsNull()) return false;
-        gp_Dir axis = pl->Axis().Direction();
-        // How far along the path, and the same way round in every section: along it.
-        gp_Vec tangent;
-        const double t = fraction(c, tangent);
-        if (tangent.Magnitude() > 1e-12 && gp_Vec(axis).Dot(tangent) < 0.0) axis.Reverse();
-        gp_Trsf turn, size;
-        turn.SetRotation(gp_Ax1(c, axis), twist * t);
-        size.SetScale(c, 1.0 + (scale - 1.0) * t);
-        gp_Trsf both = size;
-        both.Multiply(turn);
-        loft.AddWire(TopoDS::Wire(BRepBuilderAPI_Transform(sec, both, Standard_True).Shape()));
-        ++added;
-      }
-      if (added < 2) return false;
-      loft.Build();
-      if (!loft.IsDone()) return false;
-      res = loft.Shape();
-      return true;
-    };
-    const TopoDS_Wire outer = BRepTools::OuterWire(prof);
-    TopoDS_Shape solid;
-    if (!sweep_wire(outer, solid)) return fail("sweep failed with these settings");
-    for (TopExp_Explorer wx(prof, TopAbs_WIRE); wx.More(); wx.Next()) {
-      if (wx.Current().IsSame(outer)) continue;
-      TopoDS_Shape hole;
-      if (!sweep_wire(TopoDS::Wire(wx.Current()), hole)) return fail("sweep failed for a hole in the profile");
-      BRepAlgoAPI_Cut cut(solid, hole);
-      if (!cut.IsDone()) return fail("couldn't cut a hole through the sweep");
-      solid = cut.Shape();
+    return put(out, all);
+  });
+}
+
+// One edge of a shape as its own shape.
+int sk_edge_shape(const SkShape* s, uint32_t edge, SkShape** out) {
+  return guard([&] {
+    TopoDS_Shape sub;
+    if (!sub_shape(s->shape, 2, edge, sub)) return fail("no such edge");
+    BRepBuilderAPI_Copy copy(sub);
+    return put(out, copy.Shape());
+  });
+}
+
+// Sweeps a face along the joined edges of `paths`; with `at`, the profile belongs at the path's point nearest it.
+int sk_sweep_path(const SkShape* face, const SkShape* const* paths, size_t n, const double* at, double twist, double scale,
+                  int parallel, int round, SkShape** out) {
+  return guard([&] {
+    TopoDS_Wire wire;
+    if (!path_wire(paths, n, wire)) return fail("the path isn't one connected chain");
+    TopoDS_Vertex v;
+    if (at) {
+      TopoDS_Wire cut;
+      if (!vertex_on_path(wire, gp_Pnt(at[0], at[1], at[2]), cut, v)) return fail("the path has no such point");
+      wire = cut;
     }
-    BRepCheck_Analyzer check(solid);
-    if (!check.IsValid()) return fail("sweep made an invalid solid (is the path too tight for the profile?)");
-    return put(out, solid);
+    return sweep_spine(face->shape, wire, v, twist, scale, parallel, round, out);
   });
 }
 

@@ -70,7 +70,7 @@ fn extrude_target(s: &Session, p: &Params) -> Result<ExtrudeTarget> {
 struct ExtrudeOptions {
     symmetric: bool,
     through_all: bool,
-    /// Extent ▸ To Object: up to the flat face or plane in "to".
+    /// Extent ▸ To Object: up to the face, plane or body in "to".
     to_object: bool,
     start_offset: f64,
     /// "auto" (join the body the profile is on, cutting when pushed in), "new", "union", "subtract" or "intersect".
@@ -113,6 +113,146 @@ fn flat_target(s: &Session, v: &Value) -> Result<(DVec3, DVec3)> {
     let b = s.doc.body(body).ok_or_else(|| EngineError::BadParams(format!("no body {}", body.0)))?;
     let fp = s.kernel.face_plane(&b.shape, face)?.ok_or_else(|| EngineError::NotAvailable("pick a flat face".into()))?;
     Ok((fp.origin, fp.normal))
+}
+
+/// What Extent ▸ To Object stops at.
+enum Until {
+    /// A face or plane parallel to the profile, this far along its normal.
+    Level(f64),
+    /// A tilted plane: a point on it and its normal.
+    Plane(DVec3, DVec3),
+    /// A round, free-form or tilted face, carried on past its edges.
+    Face(Shape, u32),
+    /// A whole body.
+    Body(Shape),
+}
+
+fn until_target(s: &Session, to: &Value, start: DVec3, normal: DVec3) -> Result<Until> {
+    let t = Params::new(to);
+    if t.has("body") {
+        let id = t.id("body")?;
+        let b = s.doc.body(id).ok_or_else(|| EngineError::BadParams(format!("no body {}", id.0)))?;
+        if b.is_mesh() {
+            return Err(EngineError::NotAvailable("a mesh body can't be extruded to".into()));
+        }
+        if !t.has("face") {
+            return Ok(Until::Body(b.shape.clone()));
+        }
+        let face = t.f64("face")? as u32;
+        if s.kernel.face_plane(&b.shape, face)?.is_none() {
+            return Ok(Until::Face(b.shape.clone(), face));
+        }
+    }
+    let (o, n) = flat_target(s, to)?;
+    if n.cross(normal).length() > 1e-6 * n.length().max(1e-12) {
+        return if n.normalize_or_zero().dot(normal).abs() < 1e-3 {
+            Err(EngineError::NotAvailable("that face runs along the extrusion, so it never meets it".into()))
+        } else {
+            Ok(Until::Plane(o, n))
+        };
+    }
+    let d = (o - start).dot(normal);
+    if d.abs() < 1e-9 {
+        return Err(EngineError::NotAvailable("that face is level with the profile".into()));
+    }
+    Ok(Until::Level(d))
+}
+
+/// How far to pull before cutting back to the target: through all of it, on the side it's on (the way `distance` goes
+/// when it's on both).
+fn until_reach(s: &Session, until: &Until, faces: &[Shape], start: DVec3, normal: DVec3, distance: f64) -> Result<f64> {
+    use shapecraft_kernel::SubShape;
+    let mut reach: f64 = 1.0;
+    let mut side = distance.signum();
+    let mut through = |shape: &Shape| -> Result<()> {
+        let bb = s.kernel.bounds(shape)?;
+        reach = reach.max(bb.min.distance(start) + bb.min.distance(bb.max));
+        Ok(())
+    };
+    for f in faces {
+        through(f)?;
+    }
+    match until {
+        Until::Plane(o, n) => {
+            let Some(f) = faces.first() else { return Ok(reach * side) };
+            let (_, c) = s.kernel.measure(f, SubShape::Face(0))?;
+            let mut far: f64 = 0.0;
+            for f in faces {
+                let bb = s.kernel.bounds(f)?;
+                for i in 0..8 {
+                    let pick = |bit: u32, lo: f64, hi: f64| if i >> bit & 1 == 0 { lo } else { hi };
+                    let q = DVec3::new(pick(0, bb.min.x, bb.max.x), pick(1, bb.min.y, bb.max.y), pick(2, bb.min.z, bb.max.z));
+                    far = far.max(((o - q).dot(*n) / normal.dot(*n)).abs());
+                }
+            }
+            reach += far * 1.01;
+            let d = (o - c).dot(*n) / normal.dot(*n);
+            if d.abs() > 1e-9 {
+                side = d.signum();
+            }
+        }
+        Until::Face(shape, face) => {
+            through(shape)?;
+            let Some(f) = faces.first() else { return Ok(reach * side) };
+            // On which side the face is, seen from the profile's middle.
+            let (_, c) = s.kernel.measure(f, SubShape::Face(0))?;
+            let (_, m) = s.kernel.measure(shape, SubShape::Face(*face))?;
+            let near = s.kernel.distance(f, SubShape::Whole, shape, SubShape::Face(*face))?;
+            let along = if near.distance > 1e-6 { (near.b - near.a).dot(normal) } else { (m - c).dot(normal) };
+            if along.abs() > 1e-6 {
+                side = along.signum();
+            }
+        }
+        Until::Body(shape) => {
+            through(shape)?;
+            let Some(f) = faces.first() else { return Ok(reach * side) };
+            let near = s.kernel.distance(f, SubShape::Whole, shape, SubShape::Whole)?;
+            let along = (near.b - near.a).dot(normal);
+            if along.abs() > 1e-6 {
+                side = along.signum();
+            }
+        }
+        Until::Level(d) => return Ok(*d),
+    }
+    Ok((reach * 1.1 + 1.0) * side)
+}
+
+/// The part of a long pulled block between its profile and the target.
+fn cut_back(s: &Session, until: &Until, faces: &[Shape], dir: DVec3, block: Shape) -> Result<Shape> {
+    use shapecraft_kernel::SubShape;
+    const SHORT: &str = "the profile doesn't all meet that when pulled straight";
+    let pieces = match until {
+        Until::Level(_) => return Ok(block),
+        Until::Plane(o, n) => s.kernel.split_by_plane(&block, *o, *n).map_err(|_| EngineError::NotAvailable(SHORT.into()))?,
+        Until::Face(shape, face) => s.kernel.split_by_face(&block, shape, *face)?,
+        Until::Body(shape) => {
+            let left = s.kernel.boolean(BoolOp::Subtract, &block, shape)?;
+            s.kernel.solids(&left)?
+        }
+    };
+    if pieces.is_empty() || (pieces.len() < 2 && !matches!(until, Until::Body(_))) {
+        return Err(EngineError::NotAvailable(SHORT.into()));
+    }
+    // A thin skin on the profile tells the pieces that stand on it; the far end must not be one of them.
+    let skin = extrude_block(s, faces, dir.normalize_or_zero() * 0.01, 0.0, false)?;
+    let ends = faces.iter().map(|f| s.kernel.translate(f, dir)).collect::<std::result::Result<Vec<_>, _>>()?;
+    let mut kept: Option<Shape> = None;
+    for piece in pieces {
+        let shared = s.kernel.boolean(BoolOp::Intersect, &piece, &skin).and_then(|c| s.kernel.mass_props(&c)).map_or(0.0, |m| m.volume);
+        if !(shared.is_finite() && shared > 1e-9) {
+            continue;
+        }
+        for end in &ends {
+            if s.kernel.distance(&piece, SubShape::Whole, end, SubShape::Whole)?.distance < 1e-6 {
+                return Err(EngineError::NotAvailable(SHORT.into()));
+            }
+        }
+        kept = Some(match kept {
+            Some(k) => s.kernel.boolean(BoolOp::Union, &k, &piece)?,
+            None => piece,
+        });
+    }
+    kept.ok_or_else(|| EngineError::NotAvailable(SHORT.into()))
 }
 
 /// How far past `origin` along `normal` (both ways) every body reaches: what Through All pulls to.
@@ -383,17 +523,21 @@ pub(super) fn extrude(s: &mut Session, p: &Params) -> Result<Value> {
     } else {
         faces.iter().map(|f| s.kernel.translate(f, plane_normal * opts.start_offset)).collect::<std::result::Result<Vec<_>, _>>()?
     };
+    let until = if opts.to_object {
+        let to = p.parse::<Value>("to").map_err(|_| EngineError::NotAvailable("pick the face or plane to extrude to".into()))?;
+        until_target(s, &to, start, plane_normal)?
+    } else {
+        Until::Level(0.0)
+    };
     let length = if opts.through_all {
         reach_through_all(s, start, plane_normal)? * distance.signum()
     } else if opts.to_object {
-        // Up to a flat face or plane: as far along the normal as it is (either way).
-        let (o, _) =
-            flat_target(s, &p.parse::<Value>("to").map_err(|_| EngineError::NotAvailable("pick the face or plane to extrude to".into()))?)?;
-        let d = (o - start).dot(plane_normal);
-        if d.abs() < 1e-9 {
-            return Err(EngineError::NotAvailable("that face is level with the profile".into()));
+        match &until {
+            // Up to a parallel face or plane: as far along the normal as it is (either way).
+            Until::Level(d) => *d,
+            // Long enough to go through; cut back below.
+            Until::Plane(..) | Until::Face(..) | Until::Body(_) => until_reach(s, &until, &faces, start, plane_normal, distance)?,
         }
-        d
     } else {
         distance
     };
@@ -418,7 +562,13 @@ pub(super) fn extrude(s: &mut Session, p: &Params) -> Result<Value> {
         },
         None => (None, -1.0),
     };
-    let block = extrude_block(s, &faces, dir, draft, opts.symmetric)?;
+    let block = match until {
+        Until::Level(_) => extrude_block(s, &faces, dir, draft, opts.symmetric)?,
+        _ if opts.symmetric => {
+            return Err(EngineError::NotAvailable("a symmetric extrude needs a flat face parallel to the profile".into()));
+        }
+        _ => cut_back(s, &until, &faces, dir, extrude_block(s, &faces, dir, draft, false)?)?,
+    };
     let op = match opts.result.as_str() {
         "new" => None,
         "union" => Some(BoolOp::Union),

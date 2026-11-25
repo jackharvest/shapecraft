@@ -1,5 +1,6 @@
 //! Revolve, loft and sweep, and the profiles (sketch regions or flat faces) they take.
 
+use glam::DVec3;
 use serde_json::{Value, json};
 use shapecraft_doc::{ItemId, Pick};
 use shapecraft_kernel::{Axis, BoolOp, Shape};
@@ -255,46 +256,27 @@ pub(super) fn sweep(s: &mut Session, p: &Params) -> Result<Value> {
     } else {
         *selected_profiles(s).first().ok_or_else(|| EngineError::NotAvailable("select a region or flat face to sweep".into()))?
     };
-    let (path_sketch, entities) = if p.has("path") {
-        let v: Value = p.parse("path")?;
-        let pp = Params::new(&v);
-        let sk = pp.id("sketch")?;
-        let ents = if pp.has("entities") {
-            pp.parse::<Vec<f64>>("entities")?.into_iter().map(|e| e as u32).collect()
-        } else {
-            let n = s.doc.sketch(sk).map_or(0, |k| k.entities.len());
-            (0..n as u32).collect()
-        };
-        (sk, ents)
-    } else {
-        let mut sketch = None;
-        let mut ents = Vec::new();
-        for pk in &s.selection {
-            if let Pick::SketchEntity { sketch: sk, entity } = *pk
-                && sketch.is_none_or(|x| x == sk)
-            {
-                sketch = Some(sk);
-                ents.push(entity);
-            }
+    let path = if p.has("path") {
+        match p.parse::<Value>("path")? {
+            Value::Array(list) => list.iter().map(|v| path_part(s, v)).collect::<Result<Vec<_>>>()?.concat(),
+            v => path_part(s, &v)?,
         }
-        (sketch.ok_or_else(|| EngineError::NotAvailable("select the sketch curves to sweep along".into()))?, ents)
+    } else {
+        s.selection
+            .iter()
+            .filter_map(|pk| match *pk {
+                Pick::SketchEntity { sketch, entity } => Some(PathPart::Curve { sketch, entity }),
+                Pick::Edge { body, edge } => Some(PathPart::Edge { body, edge }),
+                _ => None,
+            })
+            .collect()
     };
-    if entities.len() > 10_000 {
+    if path.is_empty() {
+        return Err(EngineError::NotAvailable("select the sketch curves or edges to sweep along".into()));
+    }
+    if path.len() > 10_000 {
         return Err(EngineError::BadParams("too many path curves".into()));
     }
-    let sk = s.doc.sketch(path_sketch).ok_or_else(|| EngineError::BadParams(format!("no sketch {}", path_sketch.0)))?;
-    // Each entity becomes one or more curves; keep only the chosen ones.
-    let mut path = Vec::new();
-    for &i in &entities {
-        let e = sk.entities.get(i as usize).ok_or_else(|| EngineError::BadParams(format!("no sketch curve {i}")))?;
-        let mut one = sk.clone();
-        one.entities = vec![e.clone()];
-        path.extend(one.curves());
-    }
-    if path.is_empty() {
-        return Err(EngineError::NotAvailable("the sweep path is empty".into()));
-    }
-    let frame = sk.frame();
     let face = profile_face(s, profile)?;
     let result = result_param(p)?;
     // The Sweep card (26.0): Scale, Orientation, Twist and Corner type.
@@ -312,11 +294,235 @@ pub(super) fn sweep(s: &mut Session, p: &Params) -> Result<Value> {
             c => return Err(EngineError::BadParams(format!("corners are mitre or round, not '{c}'"))),
         },
     };
-    let shape = s.kernel.sweep_with(&face, frame, &path, &opts)?;
+    let position = match p.opt_str("position").unwrap_or("auto") {
+        "auto" => Position::Auto,
+        "intersection" => Position::Intersection,
+        "point" => Position::Point,
+        "endpoint" => Position::Endpoint,
+        o => return Err(EngineError::BadParams(format!("position is auto, intersection, point or endpoint, not '{o}'"))),
+    };
+    let shape = sweep_shape(s, &face, &path, position, &opts)?;
     let body = place_result(s, shape, result, None, BoolOp::Union)?;
-    let mut used = vec![path_sketch];
-    used.extend(profile_sketch(profile));
+    let mut used: Vec<ItemId> = path.iter().filter_map(PathPart::sketch).chain(profile_sketch(profile)).collect();
+    used.sort_unstable();
+    used.dedup();
     consume_sketches(s, &used);
     s.selection = vec![Pick::Body { body }];
     Ok(json!({ "body": body.0 }))
+}
+
+/// One piece of a sweep's path: a sketch curve or a body's edge.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum PathPart {
+    Curve { sketch: ItemId, entity: u32 },
+    Edge { body: ItemId, edge: u32 },
+}
+
+impl PathPart {
+    fn sketch(&self) -> Option<ItemId> {
+        match *self {
+            PathPart::Curve { sketch, .. } => Some(sketch),
+            PathPart::Edge { .. } => None,
+        }
+    }
+}
+
+/// `{"sketch": id, "entities": [n]?}` (a sketch's curves, all of them by default) or `{"body": id, "edge": n | "edges":
+/// [n]}`.
+fn path_part(s: &Session, v: &Value) -> Result<Vec<PathPart>> {
+    let pp = Params::new(v);
+    if pp.has("body") {
+        let body = pp.id("body")?;
+        let edges: Vec<f64> = if pp.has("edges") { pp.parse("edges")? } else { vec![pp.f64("edge")?] };
+        return Ok(edges.into_iter().map(|e| PathPart::Edge { body, edge: e as u32 }).collect());
+    }
+    let sketch = pp.id("sketch")?;
+    let entities: Vec<f64> = if pp.has("entities") {
+        pp.parse("entities")?
+    } else {
+        (0..s.doc.sketch(sketch).map_or(0, |k| k.entities.len())).map(|i| i as f64).collect()
+    };
+    Ok(entities.into_iter().map(|e| PathPart::Curve { sketch, entity: e as u32 }).collect())
+}
+
+/// Sweep's Profile Position: which point of the path the profile belongs to.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Position {
+    Auto,
+    Intersection,
+    Point,
+    Endpoint,
+}
+
+fn entity_curves(s: &Session, sketch: ItemId, entity: u32) -> Result<(shapecraft_kernel::PlaneFrame, Vec<shapecraft_kernel::PlanarCurve>)> {
+    let sk = s.doc.sketch(sketch).ok_or_else(|| EngineError::BadParams(format!("no sketch {}", sketch.0)))?;
+    let e = sk.entities.get(entity as usize).ok_or_else(|| EngineError::BadParams(format!("no sketch curve {entity}")))?;
+    let mut one = sk.clone();
+    one.entities = vec![e.clone()];
+    Ok((sk.frame(), one.curves()))
+}
+
+fn sweep_shape(
+    s: &Session,
+    face: &Shape,
+    path: &[PathPart],
+    position: Position,
+    opts: &shapecraft_kernel::SweepOptions,
+) -> Result<Shape> {
+    // Curves of one sketch go to the kernel as they are.
+    let one_sketch = path.first().and_then(PathPart::sketch).filter(|k| path.iter().all(|p| p.sketch() == Some(*k)));
+    let planar = match one_sketch {
+        Some(_) => {
+            let mut all = Vec::new();
+            let mut frame = None;
+            for part in path {
+                if let PathPart::Curve { sketch, entity } = *part {
+                    let (f, curves) = entity_curves(s, sketch, entity)?;
+                    frame = Some(f);
+                    all.extend(curves);
+                }
+            }
+            frame.map(|f| (f, all))
+        }
+        None => None,
+    };
+    if let Some((_, curves)) = &planar
+        && curves.is_empty()
+    {
+        return Err(EngineError::NotAvailable("the sweep path is empty".into()));
+    }
+    let mut shapes = Vec::new();
+    for part in path {
+        shapes.push(match *part {
+            PathPart::Curve { sketch, entity } => {
+                let (frame, curves) = entity_curves(s, sketch, entity)?;
+                if curves.is_empty() {
+                    continue;
+                }
+                match s.kernel.curves_shape(frame, &curves) {
+                    Ok(shape) => shape,
+                    // A kernel without loose curves still sweeps along one sketch.
+                    Err(e) => match &planar {
+                        Some((f, all)) if matches!(position, Position::Auto) => return Ok(s.kernel.sweep_with(face, *f, all, opts)?),
+                        _ => return Err(e.into()),
+                    },
+                }
+            }
+            PathPart::Edge { body, edge } => {
+                let b = s.doc.body(body).ok_or_else(|| EngineError::BadParams(format!("no body {}", body.0)))?;
+                s.kernel.edge(&b.shape, edge)?
+            }
+        });
+    }
+    let at = attach_point(s, face, &shapes, position)?;
+    match planar {
+        Some((frame, curves)) if at.is_none() => Ok(s.kernel.sweep_with(face, frame, &curves, opts)?),
+        _ => Ok(s.kernel.sweep_path(face, &shapes, at, opts)?),
+    }
+}
+
+/// Points along an edge's curve, close enough to find crossings on.
+fn along(c: &shapecraft_kernel::EdgeCurve) -> Vec<DVec3> {
+    use shapecraft_kernel::EdgeCurve;
+    const N: usize = 64;
+    match c {
+        EdgeCurve::Line { a, b } => vec![*a, *b],
+        EdgeCurve::Other { points } => points.clone(),
+        EdgeCurve::Circle { center, normal, radius } => {
+            let n = normal.normalize_or(DVec3::Z);
+            let x = n.any_orthonormal_vector() * *radius;
+            let y = n.cross(x);
+            (0..=N).map(|i| std::f64::consts::TAU * i as f64 / N as f64).map(|t| *center + x * t.cos() + y * t.sin()).collect()
+        }
+        EdgeCurve::Arc { a, mid, b } => match arc_frame(*a, *mid, *b) {
+            Some((c, x, y, sweep)) => (0..=N).map(|i| sweep * i as f64 / N as f64).map(|t| c + x * t.cos() + y * t.sin()).collect(),
+            None => vec![*a, *mid, *b],
+        },
+    }
+}
+
+/// The circle through three points: its center, the radius vector to `a`, the one a quarter turn on towards `b`, and
+/// the angle to `b`.
+fn arc_frame(a: DVec3, mid: DVec3, b: DVec3) -> Option<(DVec3, DVec3, DVec3, f64)> {
+    let (u, v) = (mid - a, b - a);
+    let n = u.cross(v);
+    let nn = n.length_squared();
+    if nn < 1e-24 {
+        return None;
+    }
+    let c = a + (u.length_squared() * v.cross(n) + v.length_squared() * n.cross(u)) / (2.0 * nn);
+    let x = a - c;
+    let y = n.normalize().cross(x);
+    let r = b - c;
+    let mut sweep = r.dot(y).atan2(r.dot(x));
+    if sweep <= 0.0 {
+        sweep += std::f64::consts::TAU;
+    }
+    Some((c, x, y, sweep))
+}
+
+/// The point of the path the profile belongs to. `None` leaves it to the kernel: the profile where it is, at the end
+/// of the path it stands on (what Auto finds first) or the point nearest to it.
+fn attach_point(s: &Session, face: &Shape, path: &[Shape], position: Position) -> Result<Option<DVec3>> {
+    use shapecraft_kernel::SubShape;
+    let Some(plane) = s.kernel.face_plane(face, 0)? else { return Ok(None) };
+    let n = plane.normal.normalize_or(DVec3::Z);
+    let (_, center) = s.kernel.measure(face, SubShape::Face(0))?;
+    let mut runs: Vec<Vec<DVec3>> = Vec::new();
+    for shape in path {
+        for e in 0..s.kernel.edge_count(shape)? {
+            runs.push(along(&s.kernel.edge_curve(shape, e)?));
+        }
+    }
+    let size = runs.iter().flatten().map(|q| q.distance(center)).fold(1.0, f64::max);
+    let tol = size * 1e-6;
+    // The path's loose ends: end points no other piece shares.
+    let tips: Vec<DVec3> = runs.iter().flat_map(|r| [r.first().copied(), r.last().copied()]).flatten().collect();
+    let ends = tips.iter().enumerate().filter(|(i, a)| !tips.iter().enumerate().any(|(j, b)| j != *i && a.distance(*b) < 1e-3)).map(|(_, a)| *a);
+    let nearest = |pts: Vec<DVec3>| pts.into_iter().min_by(|a, b| a.distance(center).total_cmp(&b.distance(center)));
+    let crossings = || -> Vec<DVec3> {
+        let side = |q: DVec3| (q - plane.origin).dot(n);
+        runs.iter()
+            .flat_map(|r| r.windows(2))
+            .filter_map(|w| {
+                let (da, db) = (side(w[0]), side(w[1]));
+                if da.abs() <= tol {
+                    return Some(w[0]);
+                }
+                if db.abs() <= tol {
+                    return Some(w[1]);
+                }
+                (da * db < 0.0).then(|| w[0] + (w[1] - w[0]) * (da / (da - db)))
+            })
+            .collect()
+    };
+    Ok(match position {
+        Position::Endpoint => {
+            let ends: Vec<DVec3> = ends.collect();
+            // A closed path has none: its nearest joint.
+            nearest(if ends.is_empty() { tips.clone() } else { ends })
+        }
+        Position::Point => {
+            let mut best: Option<(f64, DVec3)> = None;
+            for shape in path {
+                let d = s.kernel.distance(face, SubShape::Whole, shape, SubShape::Whole)?;
+                if best.is_none_or(|(b, _)| d.distance < b) {
+                    best = Some((d.distance, d.b));
+                }
+            }
+            best.map(|(_, q)| q)
+        }
+        Position::Intersection => Some(
+            nearest(crossings()).ok_or_else(|| EngineError::NotAvailable("the path doesn't cross the profile's plane".into()))?,
+        ),
+        Position::Auto => {
+            let ends: Vec<DVec3> = ends.collect();
+            let start = if ends.is_empty() { tips.first().copied() } else { None };
+            if ends.into_iter().chain(start).any(|q| (q - plane.origin).dot(n).abs() <= tol) {
+                None
+            } else {
+                nearest(crossings())
+            }
+        }
+    })
 }

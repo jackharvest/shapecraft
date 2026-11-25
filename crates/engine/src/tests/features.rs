@@ -837,3 +837,156 @@ fn shelling_a_round_cornered_tube_never_ends_the_app() {
     let _ = s.preview("shell", &json!({"thickness": 0.8, "body": 3, "faces": [2]}));
     assert!((volume(&mut s) - before).abs() < 1e-9);
 }
+
+/// Sweep along a body's edges, along curves of two sketches, and with the profile in the middle of its path.
+#[test]
+fn sweep_follows_edges_and_several_sketches() {
+    let mut s = session();
+    // A box; a bead swept round its top rim from a circle standing on one corner's edge.
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("rectangle", &json!({"corner": [0, 0], "opposite": [40, 30]})).unwrap();
+    s.execute("extrude", &json!({"sketch": s.active_sketch.unwrap().0, "region": 0, "distance": 10})).unwrap();
+    let body = s.doc.bodies[0].id;
+    let top: Vec<u32> = (0..s.kernel.edge_count(&s.doc.bodies[0].shape).unwrap())
+        .filter(|&e| match s.kernel.edge_curve(&s.doc.bodies[0].shape, e).unwrap() {
+            shapecraft_kernel::EdgeCurve::Line { a, b } => a.z > 9.9 && b.z > 9.9,
+            _ => false,
+        })
+        .collect();
+    assert_eq!(top.len(), 4);
+    s.execute("sketch", &json!({"origin": [20, 0, 10], "normal": [1, 0, 0]})).unwrap();
+    s.execute("circle", &json!({"center": [0, 0], "radius": 1})).unwrap();
+    let c = s.active_sketch.unwrap();
+    s.execute(
+        "sweep",
+        &json!({"profile": {"sketch": c.0, "region": 0}, "path": [{"body": body.0, "edges": top}], "result": "new"}),
+    )
+    .unwrap();
+    let bead = s.doc.bodies.last().unwrap();
+    let v = s.kernel.mass_props(&bead.shape).unwrap().volume.abs();
+    // Mitred corners: exactly the circle's area times the rim's length.
+    let want = std::f64::consts::PI * 140.0;
+    assert!((v - want).abs() < want * 1e-3, "{v} vs {want}");
+
+    // An L-shaped path: one leg in each of two sketches, the profile at its start.
+    let mut s = session();
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("line", &json!({"a": [0, 0], "b": [30, 0]})).unwrap();
+    let a = s.active_sketch.unwrap();
+    s.execute("sketch", &json!({"origin": [30, 0, 0], "normal": [0, -1, 0]})).unwrap();
+    let sk = s.active_sketch.unwrap();
+    let up = s.doc.sketch(sk).unwrap().plane;
+    let to2 = |p: glam::DVec3| { let d = p - up.origin; json!([d.dot(up.x), d.dot(up.y)]) };
+    s.execute("line", &json!({"a": to2(glam::dvec3(30.0, 0.0, 0.0)), "b": to2(glam::dvec3(30.0, 0.0, 20.0))})).unwrap();
+    s.execute("sketch", &json!({"origin": [0, 0, 0], "normal": [1, 0, 0]})).unwrap();
+    s.execute("circle", &json!({"center": [0, 0], "radius": 2})).unwrap();
+    let c = s.active_sketch.unwrap();
+    s.execute("sweep", &json!({"profile": {"sketch": c.0, "region": 0}, "path": [{"sketch": a.0}, {"sketch": sk.0}], "result": "new"})).unwrap();
+    let want = std::f64::consts::PI * 4.0 * 50.0;
+    assert!((volume(&mut s) - want).abs() < want * 1e-3, "{} vs {want}", volume(&mut s));
+
+    // The profile half way along its line: the whole line is swept, both ways.
+    for position in ["auto", "intersection", "point"] {
+        let mut s = session();
+        s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+        s.execute("line", &json!({"a": [-30, 0], "b": [10, 0]})).unwrap();
+        let a = s.active_sketch.unwrap();
+        s.execute("sketch", &json!({"origin": [0, 0, 0], "normal": [1, 0, 0]})).unwrap();
+        s.execute("circle", &json!({"center": [0, 0], "radius": 2})).unwrap();
+        let c = s.active_sketch.unwrap();
+        s.execute("sweep", &json!({"profile": {"sketch": c.0, "region": 0}, "path": {"sketch": a.0}, "result": "new", "position": position})).unwrap();
+        let b = s.kernel.bounds(&s.doc.bodies[0].shape).unwrap();
+        assert!((b.min.x + 30.0).abs() < 1e-3 && (b.max.x - 10.0).abs() < 1e-3, "{position}: {b:?}");
+    }
+    // A profile away from the path: from its nearest end, or refused where they don't cross.
+    let mut s = session();
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("line", &json!({"a": [0, 0], "b": [40, 0]})).unwrap();
+    let a = s.active_sketch.unwrap();
+    s.execute("sketch", &json!({"origin": [-5, 0, 0], "normal": [1, 0, 0]})).unwrap();
+    s.execute("circle", &json!({"center": [0, 0], "radius": 2})).unwrap();
+    let c = s.active_sketch.unwrap();
+    let mut sweep = json!({"profile": {"sketch": c.0, "region": 0}, "path": {"sketch": a.0}, "result": "new", "position": "intersection"});
+    assert!(s.execute("sweep", &sweep).is_err());
+    sweep["position"] = json!("endpoint");
+    s.execute("sweep", &sweep).unwrap();
+    let want = std::f64::consts::PI * 4.0 * 40.0;
+    assert!((volume(&mut s) - want).abs() < want * 1e-3, "{}", volume(&mut s));
+}
+
+/// Extent ▸ To Object stops at round faces, tilted planes and whole bodies.
+#[test]
+fn extrude_reaches_round_faces_tilted_planes_and_bodies() {
+    // A cylinder lying along y, radius 10, its axis at z = 30; a 4×4 post from the ground up to it.
+    let scene = || {
+        let mut s = session();
+        s.execute("sketch", &json!({"plane": "xz"})).unwrap();
+        let sk = s.active_sketch.unwrap();
+        let up = s.doc.sketch(sk).unwrap().plane;
+        let d = glam::dvec3(0.0, 0.0, 30.0) - up.origin;
+        s.execute("circle", &json!({"center": [d.dot(up.x), d.dot(up.y)], "radius": 10})).unwrap();
+        s.execute("extrude", &json!({"sketch": sk.0, "region": 0, "distance": 20, "sides": "symmetric"})).unwrap();
+        let cyl = s.doc.bodies[0].id;
+        let shape = s.doc.bodies[0].shape.clone();
+        let side = (0..s.kernel.face_count(&shape).unwrap()).find(|&f| s.kernel.face_plane(&shape, f).unwrap().is_none()).unwrap();
+        s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+        s.execute("rectangle", &json!({"corner": [-2, -2], "opposite": [2, 2]})).unwrap();
+        (s, cyl, side)
+    };
+    // ∫ over the 4×4 square of 30 − √(100 − x²).
+    let under = 4.0 * (120.0 - 2.0 * (2.0 * 96f64.sqrt() / 2.0 + 50.0 * 0.2f64.asin()));
+    for to in [0, 1] {
+        let (mut s, cyl, side) = scene();
+        let to = if to == 0 { json!({"body": cyl.0, "face": side}) } else { json!({"body": cyl.0}) };
+        let sk = s.active_sketch.unwrap();
+        s.execute("extrude", &json!({"sketch": sk.0, "region": 0, "extent": "to_object", "to": to, "result": "new"})).unwrap();
+        let v = s.kernel.mass_props(&s.doc.bodies[1].shape).unwrap().volume;
+        assert!((v - under).abs() < 1e-3, "{v} vs {under}");
+        // Editable: it follows when the cylinder moves.
+        assert!(s.doc.history.iter().all(|h| h.error.is_none()));
+    }
+    // A profile wider than the cylinder can't all meet it.
+    let (mut s, cyl, side) = scene();
+    s.execute("rectangle", &json!({"corner": [-15, -5], "opposite": [15, 5]})).unwrap();
+    let sk = s.active_sketch.unwrap();
+    let n = s.doc.sketch(sk).unwrap().regions.len();
+    let regions: Vec<usize> = (0..n).collect();
+    let e = s.execute("extrude", &json!({"sketch": sk.0, "regions": regions, "extent": "to_object", "to": {"body": cyl.0, "face": side}})).unwrap_err();
+    assert!(e.to_string().contains("doesn't all meet"), "{e}");
+    // A tilted plane: a wedge top.
+    let mut s = session();
+    s.execute("plane_3points", &json!({"points": [[0, 0, 10], [10, 0, 20], [0, 10, 10]]})).unwrap();
+    let pl = s.doc.planes.last().unwrap().id;
+    s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+    s.execute("rectangle", &json!({"corner": [0, 0], "opposite": [10, 10]})).unwrap();
+    s.execute("extrude", &json!({"sketch": s.active_sketch.unwrap().0, "region": 0, "extent": "to_object", "to": {"plane": pl.0}})).unwrap();
+    assert!((volume(&mut s) - 1500.0).abs() < 1e-3, "{}", volume(&mut s));
+}
+
+/// Replace Face onto a round face: the block's top takes the cylinder's shape, grown and cut as needed.
+#[test]
+fn replace_face_takes_a_round_faces_shape() {
+    let mut s = session();
+    // A tunnel mold: a cylinder along y, axis at z = 0, radius 30.
+    s.execute("sketch", &json!({"plane": "xz"})).unwrap();
+    let sk = s.active_sketch.unwrap();
+    s.execute("circle", &json!({"center": [0, 0], "radius": 30})).unwrap();
+    s.execute("extrude", &json!({"sketch": sk.0, "region": 0, "distance": 5})).unwrap();
+    let cyl = s.doc.bodies[0].id;
+    let shape = s.doc.bodies[0].shape.clone();
+    let side = (0..s.kernel.face_count(&shape).unwrap()).find(|&f| s.kernel.face_plane(&shape, f).unwrap().is_none()).unwrap();
+    for (height, what) in [(20.0, "below"), (28.0, "across"), (40.0, "above")] {
+        let mut s2 = session();
+        s2.doc = s.doc.clone();
+        s2.execute("sketch", &json!({"plane": "xy"})).unwrap();
+        s2.execute("rectangle", &json!({"corner": [-15, 20], "opposite": [15, 40]})).unwrap();
+        let out = s2.execute("extrude", &json!({"sketch": s2.active_sketch.unwrap().0, "region": 0, "distance": height, "result": "new"})).unwrap();
+        let (body, top) = (out.value["body"].as_u64().unwrap(), out.value["face"].as_u64().unwrap());
+        s2.execute("replace_face", &json!({"body": body, "faces": [top], "to": {"body": cyl.0, "face": side}})).unwrap_or_else(|e| panic!("{what}: {e}"));
+        let b = s2.doc.bodies.iter().find(|b| b.id.0 == body).unwrap();
+        let v = s2.kernel.mass_props(&b.shape).unwrap().volume;
+        // 20 × ∫ √(900 − x²) over −15…15.
+        let want = 20.0 * (15.0 * 675f64.sqrt() + 900.0 * 0.5f64.asin());
+        assert!((v - want).abs() < want * 1e-5, "{what}: {v} vs {want}");
+    }
+}
