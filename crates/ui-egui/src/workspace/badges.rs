@@ -32,6 +32,10 @@ pub enum Badge {
     Definition,
     /// Circular Pattern's Orientation: Uniform / Rotated.
     Orientation,
+    /// Fill: how the faces meet at one edge of the network (its place among the marks).
+    FillSide(u16),
+    /// Fill: every edge at once.
+    FillAll,
 }
 
 /// What a badge shows: the chosen option's icon, or a short text.
@@ -59,6 +63,17 @@ const DISTANCE_TYPES: [(&str, Icon, shapecraft_doc::Along); 3] = [
 ];
 const SIDES: [(&str, Icon); 2] = [("One-Sided", Icon::Extrude), ("Symmetric", Icon::ExtrudeSymmetric)];
 
+/// Fill's continuities, in the menu's order.
+const CONTINUITIES: [&str; 3] = ["g0", "g1", "g2"];
+
+fn continuity_name(c: &str) -> &'static str {
+    match c {
+        "g1" => "G1",
+        "g2" => "G2",
+        _ => "G0",
+    }
+}
+
 /// Where this frame's badges were painted, for clicks.
 const RECTS: &str = "tool-badges";
 
@@ -85,6 +100,7 @@ impl Workspace {
             Tool::Loft(t) => Some((t.result, 0)),
             Tool::CircularPattern(t) if !t.items.is_empty() => Some((t.result, 0)),
             Tool::Sweep(t) => Some((t.result, 0)),
+            Tool::Fill(t) => Some((t.result, 0)),
             _ => None,
         }
     }
@@ -210,6 +226,18 @@ impl Workspace {
                     out.push((Badge::Result, Face::Icon(RESULTS[i].2)));
                 }
             }
+            // Fill: each edge's continuity, Set All, and its Result.
+            Tool::Fill(t) if t.request().is_some() => {
+                if self.session.doc.bodies.iter().any(|b| b.visible)
+                    && let Some(i) = self.badge_current(Badge::Result)
+                {
+                    out.push((Badge::Result, Face::Icon(RESULTS[i].2)));
+                }
+                out.push((Badge::FillAll, Face::Text("Set All ⌄")));
+                for (i, (_, c)) in t.marks.iter().enumerate() {
+                    out.push((Badge::FillSide(i as u16), Face::Text(continuity_name(c))));
+                }
+            }
             // The manual's pattern control badges: Definition, then (bodies) Orientation and Result.
             Tool::CircularPattern(t) if t.about.is_some() => {
                 out.push((Badge::Definition, Face::Text(if t.spacing { "Spacing" } else { "Total" })));
@@ -314,6 +342,19 @@ impl Workspace {
                 Tool::CircularPattern(t) => Some(usize::from(!t.uniform)),
                 _ => None,
             },
+            Badge::FillSide(i) => match &self.tool {
+                Tool::Fill(t) => t.marks.get(usize::from(i)).map(|m| CONTINUITIES.iter().position(|c| *c == m.1).unwrap_or(0)),
+                _ => None,
+            },
+            // Nothing checked unless every edge agrees.
+            Badge::FillAll => match &self.tool {
+                Tool::Fill(t) => {
+                    let first = t.marks.first()?.1;
+                    let same = t.marks.iter().all(|m| m.1 == first);
+                    Some(if same { CONTINUITIES.iter().position(|c| *c == first).unwrap_or(0) } else { usize::MAX })
+                }
+                _ => None,
+            },
         }
     }
 
@@ -333,6 +374,9 @@ impl Workspace {
             Badge::Definition => ("Definition", vec![("Total Angle", None, true), ("Spacing Angle", None, true)]),
             Badge::Orientation => {
                 ("Orientation", vec![("Uniform", Some(Icon::Translate), true), ("Rotated", Some(Icon::RotateAxis), true)])
+            }
+            Badge::FillSide(_) | Badge::FillAll => {
+                ("Continuity", vec![("G0 - Positional", None, true), ("G1 - Tangent", None, true), ("G2 - Curvature", None, true)])
             }
             Badge::DistanceType => ("Distance Type", DISTANCE_TYPES.iter().map(|d| (d.0, Some(d.1), true)).collect()),
         }
@@ -374,6 +418,17 @@ impl Workspace {
             }
             return;
         }
+        if let (Badge::FillSide(_) | Badge::FillAll, Tool::Fill(t)) = (b, &self.tool) {
+            let mut t = t.clone();
+            let Some(to) = CONTINUITIES.get(i).copied() else { return };
+            match b {
+                Badge::FillSide(k) => t.set_side(&self.session, usize::from(k), to),
+                _ => t.set_all(&self.session, to),
+            }
+            self.tool = Tool::Fill(t);
+            self.preview = None;
+            return;
+        }
         if let (Badge::SizeType, Tool::Fillet(t)) = (b, &self.tool) {
             let mut t = t.clone();
             t.chordal = i == 1;
@@ -413,6 +468,11 @@ impl Workspace {
                 }
             }
             (Badge::Result, Tool::Sweep(t)) => {
+                if let Some(r) = RESULTS.get(i) {
+                    t.result = r.1;
+                }
+            }
+            (Badge::Result, Tool::Fill(t)) => {
                 if let Some(r) = RESULTS.get(i) {
                     t.result = r.1;
                 }

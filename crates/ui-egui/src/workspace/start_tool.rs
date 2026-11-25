@@ -65,6 +65,7 @@ impl Workspace {
             self.toast(crate::tablet::VIEW_ONLY_NOTE);
             return;
         }
+        self.tool_from_nothing = self.session.selection.is_empty();
         // The key of the tool a pick already started leaves it as it is (s24 matrix).
         let same = match &self.tool {
             Tool::OffsetFace(_) => kind == ToolKind::OffsetFace,
@@ -665,8 +666,20 @@ impl Workspace {
             ToolKind::Loft => {
                 self.remember("loft");
                 let t = tools::LoftTool::from_selection(&self.session);
-                self.session.selection = t.profiles.clone();
+                self.session.selection = t.picks();
                 self.tool = Tool::Loft(t);
+            }
+            // A loop of one body's edges is closed at once; anything else picks the network.
+            ToolKind::Fill => {
+                let edges = !self.session.selection.is_empty() && self.session.selection.iter().all(|p| matches!(p, Pick::Edge { .. }));
+                if edges {
+                    let _ = self.run("fill", json!({}));
+                    return;
+                }
+                self.remember("fill");
+                let t = tools::FillTool::from_selection(&self.session);
+                self.session.selection = t.picks();
+                self.tool = Tool::Fill(t);
             }
             ToolKind::Sweep => match tools::SweepTool::from_selection(&self.session) {
                 Some(t) => {

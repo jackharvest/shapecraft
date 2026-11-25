@@ -1137,22 +1137,41 @@ impl Workspace {
             }
             Tool::Pattern(_) => {}
             Tool::Loft(mut t) => {
-                if let Some((p, _)) = self.pick_at(c)
-                    && t.click(p)
-                {
-                    self.session.selection = t.profiles.clone();
-                    self.preview = None;
-                }
-                self.tool = Tool::Loft(t);
-            }
-            Tool::Sweep(mut t) => {
-                if let Some((p, _)) = self.pick_at(c)
-                    && t.click(p)
-                {
+                let hit = self.pick_at(c).map(|(p, _)| p);
+                if hit.is_some_and(|p| t.click(p)) {
                     self.session.selection = t.picks();
                     self.preview = None;
                 }
+                let ready = hit.is_none() && t.request().is_some();
+                self.tool = Tool::Loft(t);
+                // A click on nothing finishes it, as Done does.
+                if ready {
+                    self.commit_tool();
+                }
+            }
+            Tool::Sweep(mut t) => {
+                let hit = self.pick_at(c).map(|(p, _)| p);
+                if hit.is_some_and(|p| t.click(p)) {
+                    self.session.selection = t.picks();
+                    self.preview = None;
+                }
+                let ready = hit.is_none() && t.request().is_some();
                 self.tool = Tool::Sweep(t);
+                if ready {
+                    self.commit_tool();
+                }
+            }
+            Tool::Fill(mut t) => {
+                let hit = self.pick_at(c).map(|(p, _)| p);
+                if hit.is_some_and(|p| t.click(&self.session, p)) {
+                    self.session.selection = t.picks();
+                    self.preview = None;
+                }
+                let ready = hit.is_none() && t.request().is_some();
+                self.tool = Tool::Fill(t);
+                if ready {
+                    self.commit_tool();
+                }
             }
             Tool::Idle
             | Tool::Await { .. }

@@ -276,6 +276,7 @@ fn tool_for(id: &str) -> Option<crate::workspace::toolbar::ToolKind> {
         "revolve" => K::Revolve,
         "loft" => K::Loft,
         "sweep" => K::Sweep,
+        "fill" => K::Fill,
         "offset_face" => K::OffsetFace,
         "replace_face" => K::ReplaceFace,
         "thread" => K::Thread,

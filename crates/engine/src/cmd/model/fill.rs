@@ -535,7 +535,7 @@ pub(super) fn fill(s: &mut Session, p: &Params) -> Result<Value> {
     let shape = solid(s, p)?;
     let result = result_param(p)?;
     let body = place_result(s, shape, result, None, BoolOp::Union)?;
-    s.selection = vec![Pick::Body { body }];
+    s.selection.clear();
     Ok(json!({ "body": body.0 }))
 }
 

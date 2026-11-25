@@ -297,6 +297,7 @@ impl Workspace {
             Tool::Revolve(t) => t.params(t.angle).is_some(),
             Tool::Loft(t) => t.request().is_some(),
             Tool::Sweep(t) => t.request().is_some(),
+            Tool::Fill(t) => t.request().is_some(),
             Tool::Shell(t) => t.thickness.abs() > 1e-9,
             Tool::OffsetPlane(t) => t.distance.abs() > 1e-9,
             _ => false,

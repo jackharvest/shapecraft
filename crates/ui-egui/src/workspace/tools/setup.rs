@@ -1120,13 +1120,41 @@ fn toggle(list: &mut Vec<Pick>, p: Pick) {
     }
 }
 
+/// A path or guide pick list as the commands take it: each sketch's curves together, then each body's edges.
+pub(crate) fn curves_json(picks: &[Pick]) -> Vec<serde_json::Value> {
+    let mut out: Vec<(ItemId, bool, Vec<u32>)> = Vec::new();
+    for p in picks {
+        let (id, edge, n) = match *p {
+            Pick::SketchEntity { sketch, entity } => (sketch, false, entity),
+            Pick::Edge { body, edge } => (body, true, edge),
+            _ => continue,
+        };
+        match out.iter_mut().find(|(i, e, _)| *i == id && *e == edge) {
+            Some((_, _, list)) => list.push(n),
+            None => out.push((id, edge, vec![n])),
+        }
+    }
+    out.into_iter()
+        .map(|(id, edge, list)| if edge { json!({ "body": id.0, "edges": list }) } else { json!({ "sketch": id.0, "entities": list }) })
+        .collect()
+}
+
 impl LoftTool {
     pub fn from_selection(s: &Session) -> Self {
-        Self { profiles: s.selection.iter().copied().filter(is_profile).collect(), ruled: false, result: "new" }
+        Self {
+            profiles: s.selection.iter().copied().filter(is_profile).collect(),
+            guides: s.selection.iter().copied().filter(|p| matches!(p, Pick::SketchEntity { .. } | Pick::Edge { .. })).collect(),
+            set: serde_json::Map::new(),
+            result: "new",
+        }
     }
 
-    /// A click on a region or face adds it as the next profile (or drops it).
+    /// A click on a region or face adds it as the next profile (or drops it); one on a curve or edge, as a guide.
     pub fn click(&mut self, p: Pick) -> bool {
+        if matches!(p, Pick::SketchEntity { .. } | Pick::Edge { .. }) {
+            toggle(&mut self.guides, p);
+            return true;
+        }
         if !is_profile(&p) {
             return false;
         }
@@ -1134,18 +1162,99 @@ impl LoftTool {
         true
     }
 
+    pub fn picks(&self) -> Vec<Pick> {
+        self.profiles.iter().chain(&self.guides).copied().collect()
+    }
+
     pub fn request(&self) -> Option<(&'static str, serde_json::Value)> {
         let profiles: Vec<_> = self.profiles.iter().filter_map(profile_json).collect();
         (profiles.len() >= 2).then(|| {
             let mut v = json!({ "profiles": profiles });
-            if self.ruled {
-                v["ruled"] = json!(true);
+            if !self.guides.is_empty() {
+                v["guides"] = json!(curves_json(&self.guides));
+            }
+            for (key, value) in &self.set {
+                v[key] = value.clone();
             }
             if !matches!(self.result, "" | "new") {
                 v["result"] = json!(self.result);
             }
             ("loft", v)
         })
+    }
+}
+
+impl FillTool {
+    pub fn from_selection(s: &Session) -> Self {
+        let mut t = Self {
+            profiles: s.selection.iter().copied().filter(is_profile).collect(),
+            guides: s.selection.iter().copied().filter(|p| matches!(p, Pick::SketchEntity { .. })).collect(),
+            continuity: "g0",
+            result: "new",
+            ..Self::default()
+        };
+        t.refresh(s);
+        t
+    }
+
+    /// Profiles and sketch curves toggle (body edges can't be guides there either).
+    pub fn click(&mut self, s: &Session, p: Pick) -> bool {
+        match p {
+            Pick::SketchEntity { .. } => toggle(&mut self.guides, p),
+            _ if is_profile(&p) => toggle(&mut self.profiles, p),
+            _ => return false,
+        }
+        self.refresh(s);
+        true
+    }
+
+    pub fn picks(&self) -> Vec<Pick> {
+        self.profiles.iter().chain(&self.guides).copied().collect()
+    }
+
+    /// Works out where the badges go (when the picks make a closed network).
+    pub fn refresh(&mut self, s: &Session) {
+        self.marks.clear();
+        let Some(sides) = self.params().and_then(|p| shapecraft_engine::cmd::fill_sides(s, &p).ok()) else { return };
+        let choice = |side: &shapecraft_engine::cmd::FillSide| ["g0", "g1", "g2"][usize::from(side.order.min(2))];
+        self.marks = sides.iter().filter(|x| !x.fixed).map(|x| (x.mid, choice(x))).collect();
+    }
+
+    pub fn set_side(&mut self, s: &Session, i: usize, to: &'static str) {
+        let Some((at, _)) = self.marks.get(i).copied() else { return };
+        self.sides.retain(|(q, _)| q.distance(at) > 1e-6);
+        self.sides.push((at, to));
+        self.refresh(s);
+    }
+
+    pub fn set_all(&mut self, s: &Session, to: &'static str) {
+        self.continuity = to;
+        self.sides.clear();
+        self.refresh(s);
+    }
+
+    pub fn params(&self) -> Option<serde_json::Value> {
+        if self.profiles.is_empty() && self.guides.is_empty() {
+            return None;
+        }
+        let profiles: Vec<_> = self.profiles.iter().filter_map(profile_json).collect();
+        let mut v = json!({ "profiles": profiles, "guides": curves_json(&self.guides) });
+        if self.continuity != "g0" {
+            v["continuity"] = json!(self.continuity);
+        }
+        if !self.sides.is_empty() {
+            let sides: Vec<_> = self.sides.iter().map(|(q, c)| json!({ "at": [q.x, q.y, q.z], "continuity": c })).collect();
+            v["sides"] = json!(sides);
+        }
+        if !matches!(self.result, "" | "new") {
+            v["result"] = json!(self.result);
+        }
+        Some(v)
+    }
+
+    /// Only a closed network can be filled.
+    pub fn request(&self) -> Option<(&'static str, serde_json::Value)> {
+        if self.marks.is_empty() { None } else { self.params().map(|p| ("fill", p)) }
     }
 }
 
@@ -1171,27 +1280,8 @@ impl SweepTool {
         }
     }
 
-    /// The path as the command takes it: each sketch's curves together, then each body's edges.
-    fn path_json(&self) -> Vec<serde_json::Value> {
-        let mut out: Vec<(ItemId, bool, Vec<u32>)> = Vec::new();
-        for p in &self.path {
-            let (id, edge, n) = match *p {
-                Pick::SketchEntity { sketch, entity } => (sketch, false, entity),
-                Pick::Edge { body, edge } => (body, true, edge),
-                _ => continue,
-            };
-            match out.iter_mut().find(|(i, e, _)| *i == id && *e == edge) {
-                Some((_, _, list)) => list.push(n),
-                None => out.push((id, edge, vec![n])),
-            }
-        }
-        out.into_iter()
-            .map(|(id, edge, list)| if edge { json!({ "body": id.0, "edges": list }) } else { json!({ "sketch": id.0, "entities": list }) })
-            .collect()
-    }
-
     pub fn request(&self) -> Option<(&'static str, serde_json::Value)> {
-        let mut path = self.path_json();
+        let mut path = curves_json(&self.path);
         if path.is_empty() {
             return None;
         }

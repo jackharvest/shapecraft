@@ -370,6 +370,39 @@ pub(super) fn end(ws: &mut Workspace, apply: bool) {
     }
 }
 
+/// A chip's ×: the step goes on without that pick (all of them when `k` is past the end).
+pub(super) fn drop_one(ws: &mut Workspace, step: usize, slot: Slot, k: usize) {
+    if let Some(ed) = ws.pick_edit.as_mut() {
+        if k < ed.picks.len() {
+            ed.picks.remove(k);
+        } else {
+            ed.picks.clear();
+        }
+        let picks = ed.picks.clone();
+        ws.session.selection = picks;
+        return;
+    }
+    let all = ws.session.all_steps();
+    let Some(h) = all.get(step) else { return };
+    let mut list = picks(h, &slot);
+    if k < list.len() {
+        list.remove(k);
+    } else {
+        list.clear();
+    }
+    // Nothing left to work on: pick it again instead.
+    if list.is_empty() && !slot.optional {
+        begin(ws, step, slot, Map::new());
+        if let Some(ed) = ws.pick_edit.as_mut() {
+            ed.picks.clear();
+        }
+        ws.session.selection.clear();
+        return;
+    }
+    let m = params(&slot, &list);
+    let _ = ws.run("edit_step", json!({ "step": step, "params": m }));
+}
+
 /// The card closed (or a tool started) while picking: put everything back.
 pub(super) fn tend(ws: &mut Workspace) {
     if ws.pick_edit.as_ref().is_some_and(|e| Some(e.step) != ws.history.open || !matches!(ws.tool, Tool::Idle)) {

@@ -269,6 +269,8 @@ pub struct Workspace {
     pub cut_edit: Option<(usize, Vec<ItemId>)>,
     /// A fillet's or chamfer's Edge ▸ Edit...: the edges being picked again with the model rolled back (#89).
     pub(crate) edge_edit: Option<step_card::EdgeEdit>,
+    /// The running tool was started with nothing picked: its column is the idle one.
+    pub(crate) tool_from_nothing: bool,
     /// Any other step's picks being picked again from its card, with the model rolled back.
     pub(crate) pick_edit: Option<step_picks::PickEdit>,
     /// The bodies the open step's cut works on, found for a revision (the card asks every frame).
@@ -629,6 +631,15 @@ pub(crate) struct Preview {
     key: String,
     computed_at: f64,
     pub doc: Option<shapecraft_doc::Document>,
+    /// Why there's nothing to show.
+    pub error: Option<String>,
+}
+
+impl Preview {
+    fn new(key: String, now: f64, made: std::result::Result<shapecraft_doc::Document, shapecraft_engine::EngineError>) -> Self {
+        let error = made.as_ref().err().map(ToString::to_string);
+        Preview { key, computed_at: now, doc: made.ok(), error }
+    }
 }
 
 /// How long the "pen may not be connected" bubble stays.
@@ -767,6 +778,7 @@ impl Workspace {
             cut_edit: None,
             edge_edit: None,
             pick_edit: None,
+            tool_from_nothing: false,
             cut_found: Default::default(),
             through: None,
             menu_hover: None,
@@ -1052,6 +1064,7 @@ impl Workspace {
                     | Tool::Scale(_)
                     | Tool::Loft(_)
                     | Tool::Sweep(_)
+                    | Tool::Fill(_)
                     | Tool::BodyEdgeOffset(_)
                     | Tool::OffsetPlane(_)
                     | Tool::Boolean(_)
@@ -1392,7 +1405,7 @@ mod pull_limit {
             // Pulled to 10 at once; sizes up to 2.97 work.
             size = l.reach(if step == 0 { 1.0 } else { 10.0 });
             let doc = (size <= 2.97).then(shapecraft_doc::Document::default);
-            let mut p = Preview { key: format!("{size}"), computed_at: 0.0, doc };
+            let mut p = Preview { key: format!("{size}"), computed_at: 0.0, doc, error: None };
             l.learn(size, &mut p);
             assert!(p.doc.is_some(), "something rounded shows all the way ({size})");
         }

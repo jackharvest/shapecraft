@@ -794,10 +794,9 @@ impl Workspace {
                 }
             }
         }
-        // Loft and Sweep's Result badge (26.190). Where it sits wasn't observed: here, between the profiles (Loft)
-        // or beside the profile (Sweep).
+        // Loft's Result badge sits at its last profile's middle, Sweep's beside the profile.
         let profiles: Vec<shapecraft_doc::Pick> = match &self.tool {
-            Tool::Loft(t) => t.profiles.clone(),
+            Tool::Loft(t) => t.profiles.last().copied().into_iter().collect(),
             Tool::Sweep(t) => vec![t.profile],
             _ => Vec::new(),
         };
@@ -806,7 +805,40 @@ impl Workspace {
         if !middles.is_empty()
             && let Some(at) = self.to_screen(middles.iter().sum::<DVec3>() / middles.len() as f64)
         {
-            crate::workspace::badges::paint_row(self, ui, &painter, at + vec2(0.0, -34.0), vec2(1.0, 0.0));
+            let lift = if matches!(self.tool, Tool::Loft(_)) { 0.0 } else { -34.0 };
+            crate::workspace::badges::paint_row(self, ui, &painter, at + vec2(0.0, lift), vec2(1.0, 0.0));
+        }
+        // Fill: a badge on every edge of the network, Set All in the middle of them.
+        if let Tool::Fill(t) = &self.tool
+            && !t.marks.is_empty()
+        {
+            use crate::workspace::badges::{Badge, Face};
+            let spots: Vec<Option<Pos2>> = t.marks.iter().map(|m| self.to_screen(m.0)).collect();
+            let seen: Vec<Pos2> = spots.iter().flatten().copied().collect();
+            if !seen.is_empty() {
+                let mid = seen.iter().fold(egui::Vec2::ZERO, |a, p| a + p.to_vec2()) / seen.len() as f32;
+                let mut drawn = Vec::new();
+                for (b, face) in self.badges() {
+                    let at = match b {
+                        Badge::FillSide(i) => spots.get(usize::from(i)).copied().flatten(),
+                        Badge::FillAll => Some(mid.to_pos2()),
+                        _ => None,
+                    };
+                    if let Some(at) = at {
+                        let open = self.badge_menu.is_some_and(|(o, _)| o == b);
+                        let face = if b == Badge::FillAll { Face::Text("Set All ⌄") } else { face };
+                        drawn.push((b, crate::workspace::badges::paint(&painter, at, face, open)));
+                    }
+                }
+                // The Result badge on the profile picked last.
+                let at = t
+                    .profiles
+                    .last()
+                    .and_then(|p| crate::workspace::tools::ExtrudeTool::profile_middle(&self.session, *p))
+                    .and_then(|m| self.to_screen(m))
+                    .unwrap_or(mid.to_pos2() + vec2(0.0, 26.0));
+                crate::workspace::badges::paint_row_after(self, ui, &painter, at, vec2(1.0, 0.0), drawn);
+            }
         }
         let angle_box = match &self.tool {
             // 26.200 shows the angle beside the handle on the profile (below); the box is for when there's none.

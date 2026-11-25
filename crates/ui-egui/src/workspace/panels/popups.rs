@@ -190,6 +190,7 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
                 Tool::Pattern(_) | Tool::CircularPattern(_) => Icon::Pattern,
                 Tool::Loft(_) => Icon::Loft,
                 Tool::Sweep(_) => Icon::Sweep,
+                Tool::Fill(_) => Icon::Fill,
                 Tool::Trim { .. } => Icon::Trim,
                 Tool::Project => Icon::Project,
                 Tool::Text { .. } => Icon::Text,

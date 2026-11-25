@@ -72,7 +72,69 @@ enum Source {
         with: usize,
         keep: bool,
     },
+    /// Loft, Sweep or Fill, running.
+    Feature(&'static str),
     Step(usize),
+}
+
+const LOFT_ENDS: &[(&str, &str, bool)] = &[("None", "none", true), ("G1", "g1", true), ("G2", "g2", true)];
+
+/// The settings of Loft, Sweep and Fill, running or as a step: `counts` is how many of each pick, `get` a setting.
+fn feature_rows(kind: &str, counts: &[usize], get: &dyn Fn(&str) -> Option<Value>) -> (Vec<Row>, String) {
+    let text = |key: &str, choices: &'static [(&'static str, &'static str, bool)]| {
+        let set = get(key).and_then(|v| v.as_str().map(str::to_string));
+        choices.iter().find(|c| Some(c.1) == set.as_deref()).unwrap_or(&choices[0]).0
+    };
+    let number = |key: &str, default: f64| get(key).and_then(|v| v.as_f64()).unwrap_or(default);
+    let on = |key: &str| get(key).and_then(|v| v.as_bool()).unwrap_or(false);
+    let expr = |key: &str| get(key).and_then(|v| v.as_str().map(str::to_string));
+    let count = |i: usize| counts.get(i).copied().unwrap_or(0);
+    let mut rows = match kind {
+        "loft" => vec![
+            Row::Picks("Profiles", "face", count(0)),
+            Row::Switch("Periodic Loft", "periodic", on("periodic")),
+            Row::Picks("Guides", "edge", count(1)),
+            Row::Choice("Start Continuity", "start_continuity", text("start_continuity", LOFT_ENDS), LOFT_ENDS),
+            Row::Number("Start Magnitude", "start_magnitude", FieldKind::Factor, number("start_magnitude", 1.0), expr("start_magnitude")),
+            Row::Choice("End Continuity", "end_continuity", text("end_continuity", LOFT_ENDS), LOFT_ENDS),
+            Row::Number("End Magnitude", "end_magnitude", FieldKind::Factor, number("end_magnitude", 1.0), expr("end_magnitude")),
+            Row::Switch("Ruled", "ruled", on("ruled")),
+        ],
+        "sweep" => vec![
+            Row::Picks("Profile", "face", count(0)),
+            Row::Picks("Path", "edge", count(1)),
+            Row::Choice("Profile Position", "position", text("position", POSITIONS), POSITIONS),
+            Row::Choice("Orientation", "orientation", text("orientation", ORIENTATIONS), ORIENTATIONS),
+            Row::Number("Twist", "twist", FieldKind::Angle, number("twist", 0.0), expr("twist")),
+            Row::Number("Scale", "scale", FieldKind::Factor, number("scale", 1.0), expr("scale")),
+            Row::Choice("Corner Type", "corners", text("corners", CORNERS), CORNERS),
+        ],
+        _ => vec![Row::Picks("Boundary Profiles", "face", count(0)), Row::Picks("Guide Curves", "edge", count(1))],
+    };
+    let result = get("result").and_then(|v| v.as_str().map(str::to_string)).unwrap_or_default();
+    let lit = RESULTS.iter().position(|r| *r == result).unwrap_or(0);
+    rows.push(Row::Segments("Result", "", &[Icon::Body, Icon::Union, Icon::Subtract, Icon::Intersect], lit, "result", RESULTS));
+    (rows, ["New Body", "Union", "Subtract", "Intersect"][lit].to_string())
+}
+
+/// A pick row with nothing in it says what to pick.
+fn nothing_picked(label: &str) -> &'static str {
+    match label {
+        "Guides" => "Select edges or curves...",
+        "Guide Curves" => "Select sketch edges...",
+        "Path" => "Select edges or curves...",
+        _ => "Select...",
+    }
+}
+
+/// The running Loft, Sweep or Fill: its picks, row by row.
+fn tool_picks(tool: &Tool) -> [Vec<shapecraft_doc::Pick>; 2] {
+    match tool {
+        Tool::Loft(t) => [t.profiles.clone(), t.guides.clone()],
+        Tool::Sweep(t) => [vec![t.profile], t.path.clone()],
+        Tool::Fill(t) => [t.profiles.clone(), t.guides.clone()],
+        _ => [Vec::new(), Vec::new()],
+    }
 }
 
 /// One setting of the card.
@@ -442,6 +504,23 @@ fn step_rows(ws: &Workspace, i: usize) -> Option<(String, Vec<Row>, String)> {
     if step.kind == "fillet" {
         return Some((step.label.clone(), fillet_rows(&step_fillet(ws, i)?), String::new()));
     }
+    if matches!(step.kind.as_str(), "loft" | "sweep")
+        || step.kind == "fill" && step.entries.first().is_some_and(|e| e.params.get("body").is_none())
+    {
+        let counts: Vec<usize> = step_picks::slots(&step.kind).iter().map(|s| step_picks::picks(step, s).len()).collect();
+        let e = step.entries.first()?;
+        let vars = &ws.session.doc.variables;
+        let get = |key: &str| -> Option<Value> {
+            let v = e.params.get(key)?.clone();
+            // A typed expression shows as it was typed, and counts as what it works out to.
+            match (&v, matches!(key, "twist" | "scale" | "start_magnitude" | "end_magnitude")) {
+                (Value::String(x), true) => shapecraft_doc::expr::eval(x, vars).ok().map(|n| json!(n)),
+                _ => Some(v),
+            }
+        };
+        let (rows, sub) = feature_rows(&step.kind, &counts, &get);
+        return Some((step.label.clone(), rows, sub));
+    }
     if step.kind == "thread" {
         return Some((step.label.clone(), thread_rows(&step_thread(ws, i)?), String::new()));
     }
@@ -460,16 +539,6 @@ fn step_rows(ws: &Workspace, i: usize) -> Option<(String, Vec<Row>, String)> {
     }
     for f in feature.fields {
         rows.push(Row::Number(f.label, f.key, f.kind, history::value(step, f, vars), history::expression(step, f).map(str::to_string)));
-    }
-    // Sweep's card (26.0): Orientation and Corner type beside Scale and Twist.
-    if step.kind == "sweep" {
-        let param = |key: &str, choices: &'static [(&'static str, &'static str, bool)]| {
-            let set = step.entries.first().and_then(|e| e.params.get(key)).and_then(Value::as_str);
-            choices.iter().find(|c| Some(c.1) == set).unwrap_or(&choices[0]).0
-        };
-        rows.insert(2, Row::Choice("Profile Position", "position", param("position", POSITIONS), POSITIONS));
-        rows.insert(3, Row::Choice("Orientation", "orientation", param("orientation", ORIENTATIONS), ORIENTATIONS));
-        rows.push(Row::Choice("Corner Type", "corners", param("corners", CORNERS), CORNERS));
     }
     Some((step.label.clone(), rows, String::new()))
 }
@@ -502,6 +571,9 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
         Tool::Extrude(_) => Some("extrude"),
         Tool::Fillet(t) if !t.chamfer => Some("fillet"),
         Tool::Thread(_) => Some("thread"),
+        Tool::Loft(_) => Some("loft"),
+        Tool::Sweep(_) => Some("sweep"),
+        Tool::Fill(_) => Some("fill"),
         _ => None,
     };
     if tool_name != ws.card.seen_tool {
@@ -514,6 +586,9 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
         Tool::Extrude(t) if ws.options_menu.is_some() => Source::Tool(Box::new(t.clone())),
         Tool::Fillet(t) if ws.options_menu.is_some() && !t.chamfer => Source::Fillet(Box::new(t.clone())),
         Tool::Thread(t) if ws.options_menu.is_some() => Source::Thread(Box::new(t.clone())),
+        Tool::Loft(_) if ws.options_menu.is_some() => Source::Feature("loft"),
+        Tool::Sweep(_) if ws.options_menu.is_some() => Source::Feature("sweep"),
+        Tool::Fill(_) if ws.options_menu.is_some() => Source::Feature("fill"),
         Tool::Mirror(t) if ws.options_menu.is_some() && t.split => Source::Split { items: t.items.len(), with: t.with.len(), keep: t.keep },
         Tool::Idle if ws.show_history && ws.drawings.is_none() && !ws.visualizing && ws.settings.card_on_history_edit => {
             match ws.history.open {
@@ -539,13 +614,31 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
             ],
             String::new(),
         ),
+        Source::Feature(kind) => {
+            let counts = tool_picks(&ws.tool).map(|p| p.len());
+            let (set, result) = match &ws.tool {
+                Tool::Loft(t) => (t.set.clone(), t.result),
+                Tool::Sweep(t) => (t.set.clone(), t.result),
+                Tool::Fill(t) => (serde_json::Map::new(), t.result),
+                _ => return,
+            };
+            let get = |key: &str| if key == "result" { Some(json!(result)) } else { set.get(key).cloned() };
+            let (rows, sub) = feature_rows(kind, &counts, &get);
+            (["Loft", "Sweep", "Fill (Beta)"][["loft", "sweep", "fill"].iter().position(|k| k == kind).unwrap_or(0)].to_string(), rows, sub)
+        }
         Source::Step(i) => match step_rows(ws, *i) {
             Some(r) => r,
             None => return,
         },
     };
+    // Why nothing comes of the picks, in a red bar over the settings.
+    let error: Option<String> = match &source {
+        Source::Feature(_) => ws.preview.as_ref().and_then(|p| p.error.clone()),
+        _ => None,
+    };
+    let bar = if error.is_some() { 44.0 } else { 0.0 };
     let units = ws.session.doc.units;
-    let height = 42.0 + 10.0 + rows.iter().map(|r| if matches!(r, Row::Picks(..)) { 62.0 } else { ROW }).sum::<f32>();
+    let height = bar + 42.0 + 10.0 + rows.iter().map(|r| if matches!(r, Row::Picks(..)) { 62.0 } else { ROW }).sum::<f32>();
     let bounds = ui.ctx().content_rect();
     // Where it was dragged last (kept on screen), else over the foot of the Items sidebar.
     let home = pos2(bounds.left() + 4.0, bounds.bottom() - 5.0 - height);
@@ -566,6 +659,9 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
     let mut edge_click: Option<usize> = None;
     let mut cut_clear: Option<usize> = None;
     let mut slot_click: Option<(usize, Slot)> = None;
+    let mut slot_drop: Option<(usize, Slot, usize)> = None;
+    // A pick let go of in the running tool's card: which row, which pick.
+    let mut drop_pick: Option<(usize, usize)> = None;
     egui::Area::new(ui.scope_id().with("step-card")).fixed_pos(card.min).order(egui::Order::Foreground).show(ui.ctx(), |ui| {
         let (rect, _) = ui.allocate_exact_size(card.size(), Sense::click());
         let p = ui.painter().clone();
@@ -599,7 +695,19 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
             p.circle_filled(more + vec2(dx, 0.0), 0.9, link_blue());
         }
         p.hline(rect.x_range(), rect.top() + 37.0, Stroke::new(1.0, theme::c(0x4d4a4a)));
-        let inner = Rect::from_min_max(pos2(rect.left() + 5.0, rect.top() + 42.0), pos2(rect.right() - 5.0, rect.bottom() - 5.0));
+        if let Some(why) = &error {
+            let r = Rect::from_min_size(pos2(rect.left() + 5.0, rect.top() + 42.0), vec2(rect.width() - 10.0, 38.0));
+            p.rect_filled(r, radius(6), theme::c(0x6b2c30));
+            icons::paint(
+                &p,
+                Rect::from_center_size(pos2(r.left() + 16.0, r.center().y), vec2(13.0, 13.0)),
+                Icon::Warning,
+                Tokens::danger(),
+            );
+            let text = p.layout(crate::i18n::tr_s(why.clone()), theme::body(11.5), Color32::WHITE, r.width() - 40.0);
+            p.galley(pos2(r.left() + 30.0, r.center().y - text.size().y.min(36.0) / 2.0), text, Color32::WHITE);
+        }
+        let inner = Rect::from_min_max(pos2(rect.left() + 5.0, rect.top() + 42.0 + bar), pos2(rect.right() - 5.0, rect.bottom() - 5.0));
         p.rect_filled(inner, radius(7), inner_bg());
         let lx = inner.left() + 11.0;
         let rx = inner.right() - 11.0;
@@ -639,8 +747,13 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
                             None => matches!((&source, ws.profile_edit.as_ref()), (Source::Step(i), Some((s, ..))) if s == i),
                         };
                     let link = Rect::from_min_max(pos2(rx - 50.0, y + 8.0), pos2(rx, y + 28.0));
-                    // Split Body's rows are only their chips (s29-027).
-                    let editable = !matches!(source, Source::Split { .. });
+                    // Split Body's rows are only their chips (s29-027); a running tool's are always being picked, as the dot
+                    // at their right says.
+                    let editable = !matches!(source, Source::Split { .. } | Source::Feature(_));
+                    if matches!(source, Source::Feature(_)) {
+                        p.circle_filled(pos2(rx - 6.0, y + 48.0), 6.5, Tokens::accent().gamma_multiply(0.3));
+                        p.circle_filled(pos2(rx - 6.0, y + 48.0), 2.8, Tokens::accent());
+                    }
                     if editable {
                         p.text(
                             pos2(rx, y + 18.0),
@@ -683,24 +796,45 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
                         (None, true) => ws.profile_edit.as_ref().map_or(*count, |(_, _, r)| r.len()),
                         (None, false) => *count,
                     };
-                    let g = p.layout_no_wrap(
-                        crate::i18n::tr_s(format!("{count} {noun}{}", if count == 1 { "" } else { "s" })),
-                        theme::strong(10.5),
-                        Tokens::text_strong(),
-                    );
-                    let chip = Rect::from_min_size(pos2(lx, y + 39.0), vec2(g.size().x + 27.0, 18.0));
-                    p.rect_filled(chip, radius(9), theme::c(0x4a4848));
-                    p.galley(pos2(chip.left() + 6.0, chip.center().y - g.size().y / 2.0), g, Tokens::text_strong());
-                    let xc = pos2(chip.right() - 9.0, chip.center().y);
-                    p.circle_filled(xc, 5.0, Color32::from_white_alpha(170));
-                    p.text(xc, Align2::CENTER_CENTER, "×", theme::strong(8.0), theme::c(0x4a4848));
-                    // The × lets go of what the chip counts: for a cut, the bodies, picked again with Edit...
-                    if let Some(i) = cut_step
-                        && ui
-                            .interact(Rect::from_center_size(xc, vec2(16.0, 16.0)), ui.scope_id().with(("cut-clear", n)), Sense::click())
-                            .clicked()
-                    {
-                        cut_clear = Some(i);
+                    if count == 0 && (slot.is_some() || matches!(source, Source::Feature(_))) {
+                        p.text(pos2(lx, y + 48.0), Align2::LEFT_CENTER, tr(nothing_picked(label)), theme::body(11.5), Tokens::text_dim());
+                        y += h;
+                        continue;
+                    }
+                    // One chip for each pick while a few fit, else one for all of them.
+                    let each = (slot.is_some() || matches!(source, Source::Feature(_))) && count <= 4;
+                    let picking = slot_editing || matches!(source, Source::Feature(_));
+                    let row_of = rows.iter().take(n).filter(|r| matches!(r, Row::Picks(..))).count();
+                    let mut cx = lx;
+                    for k in 0..if each { count } else { 1 } {
+                        let m = if each { 1 } else { count };
+                        let g = p.layout_no_wrap(
+                            crate::i18n::tr_s(format!("{m} {noun}{}", if m == 1 { "" } else { "s" })),
+                            theme::strong(10.5),
+                            Tokens::text_strong(),
+                        );
+                        let chip = Rect::from_min_size(pos2(cx, y + 39.0), vec2(g.size().x + 27.0, 18.0));
+                        cx = chip.right() + 4.0;
+                        p.rect_filled(chip, radius(9), if picking { Tokens::accent() } else { theme::c(0x4a4848) });
+                        p.galley(pos2(chip.left() + 6.0, chip.center().y - g.size().y / 2.0), g, Tokens::text_strong());
+                        let xc = pos2(chip.right() - 9.0, chip.center().y);
+                        p.circle_filled(xc, 5.0, Color32::from_white_alpha(170));
+                        p.text(xc, Align2::CENTER_CENTER, "×", theme::strong(8.0), theme::c(0x4a4848));
+                        // The × lets go of what the chip counts: for a cut, the bodies, picked again with Edit...
+                        let off = ui.interact(
+                            Rect::from_center_size(xc, vec2(16.0, 16.0)),
+                            ui.scope_id().with(("chip-clear", n, k)),
+                            Sense::click(),
+                        );
+                        if off.clicked() {
+                            let which = if each { k } else { usize::MAX };
+                            match (cut_step, slot) {
+                                (Some(i), _) => cut_clear = Some(i),
+                                (None, Some((i, slot))) => slot_drop = Some((i, slot, which)),
+                                _ if matches!(source, Source::Feature(_)) => drop_pick = Some((row_of, which)),
+                                _ => {}
+                            }
+                        }
                     }
                 }
                 Row::Segments(label, sub, icons_, lit, key, values) => {
@@ -733,7 +867,7 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
                     let knob = if *on { track.right() - 10.0 } else { track.left() + 10.0 };
                     p.circle_filled(pos2(knob, cy), 8.0, Color32::WHITE);
                     if ui.interact(track, ui.scope_id().with(("card-switch", *key)), Sense::click()).clicked() {
-                        if *key == "keep" || *key == "flip" {
+                        if matches!(*key, "keep" | "flip" | "periodic" | "ruled") {
                             change = Some((key, json!(!*on)));
                         } else {
                             pick_hint = Some(if *key == "tangent_edges" {
@@ -786,7 +920,7 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
                     let mid = Rect::from_min_max(pos2(minus.right(), field.top()), pos2(plus.left(), field.bottom()));
                     let step = match kind {
                         FieldKind::Length => units.scale(),
-                        _ if *key == "curvature" => 0.1,
+                        _ if *key == "curvature" || key.ends_with("_magnitude") => 0.1,
                         _ => 1.0,
                     };
                     if ui.interact(minus, ui.scope_id().with(("card-minus", *key)), Sense::click()).clicked() {
@@ -939,6 +1073,38 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
     if let Some(i) = cut_clear {
         cut_begin(ws, i, true);
     }
+    if let Some((i, slot, k)) = slot_drop {
+        step_picks::drop_one(ws, i, slot, k);
+    }
+    if let Some((row, k)) = drop_pick {
+        let drop = |list: &mut Vec<shapecraft_doc::Pick>| {
+            if k == usize::MAX {
+                list.clear();
+            } else if k < list.len() {
+                list.remove(k);
+            }
+        };
+        let mut tool = std::mem::replace(&mut ws.tool, Tool::Idle);
+        match (&mut tool, row) {
+            (Tool::Loft(t), 0) => drop(&mut t.profiles),
+            (Tool::Loft(t), _) => drop(&mut t.guides),
+            (Tool::Sweep(t), 1) => drop(&mut t.path),
+            (Tool::Fill(t), 0) => drop(&mut t.profiles),
+            (Tool::Fill(t), _) => drop(&mut t.guides),
+            _ => {}
+        }
+        if let Tool::Fill(t) = &mut tool {
+            t.refresh(&ws.session);
+        }
+        ws.session.selection = match &tool {
+            Tool::Loft(t) => t.picks(),
+            Tool::Sweep(t) => t.picks(),
+            Tool::Fill(t) => t.picks(),
+            _ => Vec::new(),
+        };
+        ws.tool = tool;
+        ws.preview = None;
+    }
     if let Some((i, slot)) = slot_click {
         if ws.pick_edit.as_ref().is_some_and(|e| e.step == i && e.slot == slot) {
             step_picks::end(ws, true);
@@ -953,6 +1119,31 @@ pub(super) fn show(ws: &mut Workspace, ui: &mut Ui) {
 
 fn apply(ws: &mut Workspace, source: Source, key: &'static str, value: Value) {
     match source {
+        Source::Feature(_) => {
+            let result = RESULTS.iter().find(|r| Some(**r) == value.as_str()).copied().unwrap_or("new");
+            match &mut ws.tool {
+                Tool::Loft(t) if key == "result" => t.result = result,
+                Tool::Sweep(t) if key == "result" => t.result = result,
+                Tool::Fill(t) if key == "result" => t.result = result,
+                // Periodic and Ruled leave no room for each other, nor for tangents.
+                Tool::Loft(t) => {
+                    let on = value.as_bool() == Some(true);
+                    if on && key == "ruled" {
+                        t.set.clear();
+                    } else if on && key == "periodic" {
+                        t.set.retain(|k, _| !matches!(k.as_str(), "ruled" | "start_continuity" | "end_continuity"));
+                    } else if key.ends_with("_continuity") && value.as_str() != Some("none") {
+                        t.set.retain(|k, _| !matches!(k.as_str(), "ruled" | "periodic"));
+                    }
+                    t.set.insert(key.into(), value);
+                }
+                Tool::Sweep(t) => {
+                    t.set.insert(key.into(), value);
+                }
+                _ => {}
+            }
+            ws.preview = None;
+        }
         Source::Split { keep, .. } => {
             if key == "keep" && value.as_bool() != Some(keep) {
                 ws.ui_action(super::toolbar::UiAction::ToolOption);
@@ -1095,6 +1286,16 @@ fn apply(ws: &mut Workspace, source: Source, key: &'static str, value: Value) {
             };
             if key == "start" {
                 params.insert("start_plane".into(), Value::Null);
+            }
+            // Periodic and Ruled lofts have no tangent ends, nor each other.
+            let not_with: &[&str] = match key {
+                "ruled" if value.as_bool() == Some(true) => &["periodic", "start_continuity", "end_continuity", "guides"],
+                "periodic" if value.as_bool() == Some(true) => &["ruled", "start_continuity", "end_continuity", "guides"],
+                "start_continuity" | "end_continuity" if value.as_str() != Some("none") => &["ruled", "periodic"],
+                _ => &[],
+            };
+            for k in not_with {
+                params.insert((*k).into(), Value::Null);
             }
             params.insert(if key == "start" { "start_offset" } else { key }.into(), value);
             let _ = ws.run("edit_step", json!({ "step": i, "params": params }));

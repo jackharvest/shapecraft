@@ -460,7 +460,7 @@ pub(super) fn sidebar(ws: &mut Workspace, ui: &mut Ui, r: Rect) {
         drawn += 1;
         let open = ws.history.open == Some(i) && !future;
         let lit = sketching.is_some() && step.kind == "sketch" && step.sketch == sketching;
-        let dim = future || step.suppressed || busy && filter.is_some() || sketching.is_some();
+        let dim = future || step.suppressed || busy || sketching.is_some();
         let text_color = if lit {
             theme::c(0x919094)
         } else if dim {

@@ -411,7 +411,7 @@ pub fn tree() -> Vec<(&'static str, Vec<Entry>)> {
                 item("Split Body", None, Tool(ToolKind::SplitBody), Bodies),
                 item("Revolve", Some("V"), Tool(ToolKind::Revolve), InProject),
                 item("Sweep", Some("W"), Tool(ToolKind::Sweep), InProject),
-                item("Fill (Beta)", None, Command("fill"), SelectionWith(Feature::Fill)),
+                item("Fill (Beta)", None, Tool(ToolKind::Fill), InProject),
                 item("Replace Face", None, Tool(ToolKind::ReplaceFace), Bodies),
                 item("Project as Edge", None, Tool(ToolKind::ProjectEdge), Bodies),
                 item("Wrap & Emboss", None, Tool(ToolKind::WrapEmboss), Bodies),

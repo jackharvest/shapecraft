@@ -144,7 +144,6 @@ pub(super) fn tool_options(ws: &Workspace) -> Vec<(ToolDef, bool)> {
         Tool::Translate { copy, .. } => vec![(toolbar::COPY_OPTION, *copy)],
         // Bodies only: sketch curves keep their sketch's frame.
         Tool::Move(t) if !t.items.is_empty() => vec![(toolbar::AUTO_ORIENT_OPTION, ws.auto_orient())],
-        Tool::Loft(t) => vec![(toolbar::RULED_OPTION, t.ruled)],
         Tool::CircularPattern(t) if !t.items.is_empty() => vec![(toolbar::UNIFORM_OPTION, t.uniform)],
         Tool::Pattern(_) => vec![(toolbar::PATTERN_TYPE, false)],
         Tool::BodyEdgeOffset(_) => vec![(toolbar::OFFSET_EDGE_TYPE, false)],
@@ -269,6 +268,7 @@ pub(in crate::workspace) fn is_active(ws: &Workspace, def: &ToolDef) -> bool {
         | (Action::Tool(K::ScaleNonUniform), Tool::Scale(_))
         | (Action::Tool(K::Loft), Tool::Loft(_))
         | (Action::Tool(K::Sweep), Tool::Sweep(_))
+        | (Action::Tool(K::Fill), Tool::Fill(_))
         | (Action::Tool(K::Trim), Tool::Trim { .. })
         | (Action::Tool(K::OffsetEdge), Tool::OffsetEdge(_))
         | (Action::Tool(K::RotateAxis), Tool::RotateAxis(_))
@@ -590,6 +590,7 @@ impl Workspace {
             Tool::Sweep(_) => Some(ToolKind::Sweep),
             Tool::Revolve(_) => Some(ToolKind::Revolve),
             Tool::Loft(_) => Some(ToolKind::Loft),
+            Tool::Fill(_) => Some(ToolKind::Fill),
             Tool::Thread(_) => Some(ToolKind::Thread),
             Tool::Extrude(_) if self.options_menu.is_some() => Some(ToolKind::Extrude),
             Tool::Fillet(t) if self.options_menu.is_some() && !t.chamfer => Some(ToolKind::Fillet),
@@ -727,7 +728,7 @@ impl Workspace {
             if let Some(i) = toolbar::group_full(ui, pos2(x, y), group, &[], &trim_on, &tail_disabled, labels, &format!("tail{k}"), None) {
                 clicked = group.get(i).copied();
                 // The running Replace Face (or Thread) clicked again: its card.
-                if trim_on.get(i).copied().unwrap_or(false) && matches!(self.tool, Tool::Onto(_) | Tool::Mirror(_) | Tool::Thread(_)) {
+                if trim_on.get(i).copied().unwrap_or(false) && (matches!(self.tool, Tool::Onto(_)) || self.card_tool()) {
                     self.options_menu = if self.options_menu.is_some() { None } else { Some(pos2(x, y)) };
                     self.popup_opened_at = self.now;
                     clicked = None;

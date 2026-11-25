@@ -1634,6 +1634,7 @@ impl ShapeCraftApp {
                     "rotate_axis" => K::RotateAxis,
                     "offset_edge" => K::OffsetEdge,
                     "sweep" => K::Sweep,
+                    "fill" => K::Fill,
                     "translate" => K::Translate,
                     "union" => K::Union,
                     "subtract" => K::Subtract,

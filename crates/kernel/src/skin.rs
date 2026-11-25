@@ -653,11 +653,9 @@ fn line_up(rings: &mut [Ring], hits: &[Vec<(f64, f64)>]) -> Result<(Vec<Remap>, 
             }
         }
         // Corners of a section with fewer: a crease where they fall.
-        for i in 0..n {
-            if inner[i].len() != count {
-                for c in &inner[i] {
-                    hard.push(lo + scale(i, *c) * (hi - lo));
-                }
+        for (own, span) in inner.iter().zip(&spans) {
+            if own.len() != count {
+                hard.extend(own.iter().map(|c| lo + (c - span.0) / (span.1 - span.0).max(1e-12) * (hi - lo)));
             }
         }
     }
@@ -738,13 +736,7 @@ impl Skin<'_> {
             let first = t <= v[1] && g2[0] && s.is_some();
             let last = t >= v[n - 2] && g2[1] && e.is_some();
             if first || last {
-                let (lo, hi) = if n == 2 {
-                    (v[0], v[1])
-                } else if first {
-                    (v[0], v[1])
-                } else {
-                    (v[n - 2], v[n - 1])
-                };
+                let (lo, hi) = if first || n == 2 { (v[0], v[1]) } else { (v[n - 2], v[n - 1]) };
                 let h = hi - lo;
                 let far = |t: f64| c.slopes(poles, t);
                 let (d0, c0) = if (lo - v[0]).abs() < 1e-15 && g2[0] { s.unwrap_or_default() } else { far(lo) };

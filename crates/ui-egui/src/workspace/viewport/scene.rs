@@ -50,6 +50,63 @@ impl Workspace {
                 .collect();
             out.push(Overlay::Fill { tris, color: Rgba::hex(0x8a7cf0).with_alpha(235) });
         }
+        // Loft's, Sweep's and Fill's picks show through the solid they make: regions and curves orange, faces blue.
+        let (profiles, curves): (Vec<Pick>, Vec<Pick>) = match &self.tool {
+            Tool::Loft(t) => (t.profiles.clone(), t.guides.clone()),
+            Tool::Sweep(t) => (vec![t.profile], t.path.clone()),
+            Tool::Fill(t) => (t.profiles.clone(), t.guides.clone()),
+            _ => (Vec::new(), Vec::new()),
+        };
+        for p in &profiles {
+            match *p {
+                Pick::Region { sketch, region } => {
+                    let Some(sk) = self.session.doc.sketch(sketch) else { continue };
+                    let Some(r) = sk.regions().iter().find(|r| r.index == region) else { continue };
+                    let tris =
+                        r.triangles.iter().map(|t| [sk.plane.to_world(t[0]), sk.plane.to_world(t[1]), sk.plane.to_world(t[2])]).collect();
+                    out.push(Overlay::Fill { tris, color: Rgba::hex(0xc98a2b).with_alpha(150) });
+                }
+                Pick::Face { body, face } => {
+                    let Some(b) = self.session.doc.body(body) else { continue };
+                    let m = &b.mesh;
+                    let v = |i: u32| m.positions.get(i as usize).map(|p| DVec3::new(p[0] as f64, p[1] as f64, p[2] as f64));
+                    let tris = m
+                        .indices
+                        .as_chunks::<3>()
+                        .0
+                        .iter()
+                        .enumerate()
+                        .filter(|(t, _)| m.triangle_faces.get(*t) == Some(&face))
+                        .filter_map(|(_, tri)| Some([v(tri[0])?, v(tri[1])?, v(tri[2])?]))
+                        .collect();
+                    out.push(Overlay::Fill { tris, color: Rgba::hex(0x24a6cf).with_alpha(150) });
+                }
+                _ => {}
+            }
+        }
+        for p in &curves {
+            let orange = Rgba::hex(0xf2a341);
+            match *p {
+                Pick::SketchEntity { sketch, entity } => {
+                    let Some(sk) = self.session.doc.sketch(sketch) else { continue };
+                    let Some(e) = sk.entities.get(entity as usize) else { continue };
+                    for line in e.outlines() {
+                        for w in line.windows(2) {
+                            out.push(Overlay::Line { a: sk.plane.to_world(w[0]), b: sk.plane.to_world(w[1]), color: orange, width: 2.2 });
+                        }
+                    }
+                }
+                Pick::Edge { body, edge } => {
+                    let Some(b) = self.session.doc.body(body) else { continue };
+                    let Some(k) = b.mesh.edge_ids.iter().position(|e| *e == edge) else { continue };
+                    for w in b.mesh.edges.get(k).map(Vec::as_slice).unwrap_or_default().windows(2) {
+                        let at = |q: [f32; 3]| DVec3::from(q.map(f64::from));
+                        out.push(Overlay::Line { a: at(w[0]), b: at(w[1]), color: orange, width: 2.2 });
+                    }
+                }
+                _ => {}
+            }
+        }
         // Project as Edge's items are teal throughout (s11-134/135); regions are meshed here, they're small.
         if let Tool::Onto(t) = &self.tool
             && t.project

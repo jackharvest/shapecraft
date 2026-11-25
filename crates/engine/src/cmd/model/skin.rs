@@ -38,8 +38,7 @@ pub(super) fn chains(s: &Session, parts: &[PathPart]) -> Result<Vec<Vec<DVec3>>>
     }
     let mut out: Vec<Vec<DVec3>> = Vec::new();
     while let Some(mut chain) = runs.pop() {
-        loop {
-            let (Some(a), Some(z)) = (chain.first().copied(), chain.last().copied()) else { break };
+        while let (Some(a), Some(z)) = (chain.first().copied(), chain.last().copied()) {
             let hit = runs.iter().enumerate().find_map(|(i, r)| {
                 let (p, q) = (*r.first()?, *r.last()?);
                 [(p.distance(z), 0), (q.distance(z), 1), (q.distance(a), 2), (p.distance(a), 3)]

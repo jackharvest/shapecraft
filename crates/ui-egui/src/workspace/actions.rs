@@ -134,13 +134,6 @@ impl Workspace {
                         self.commit_tool();
                     }
                 }
-                Tool::Loft(t) => {
-                    t.ruled = !t.ruled;
-                    // A loft on screen is made again with straight or smooth walls.
-                    if self.is_live() {
-                        self.commit_tool();
-                    }
-                }
                 Tool::RotateAxis(t) => t.copy = !t.copy,
                 Tool::Boolean(t) => t.next_keep(),
                 Tool::Onto(t) if !t.project => {

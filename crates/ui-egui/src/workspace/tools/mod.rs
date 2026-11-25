@@ -85,6 +85,7 @@ pub enum Tool {
     Scale(ScaleTool),
     Loft(LoftTool),
     Sweep(SweepTool),
+    Fill(FillTool),
     /// The sketch curve under the cursor and where on it (sketch coordinates).
     Trim {
         target: Option<(u32, DVec2)>,
@@ -544,8 +545,24 @@ pub struct OffsetEdgeTool {
 #[derive(Clone, Debug, Default)]
 pub struct LoftTool {
     pub profiles: Vec<Pick>,
-    /// Straight walls from profile to profile (the ≡ menu's Ruled).
-    pub ruled: bool,
+    /// Sketch curves and edges the walls follow.
+    pub guides: Vec<Pick>,
+    /// The card's settings, as the command takes them (ruled, periodic, continuities and magnitudes).
+    pub set: serde_json::Map<String, serde_json::Value>,
+    /// The Result badge's choice; empty or "new" makes a new body.
+    pub result: &'static str,
+}
+
+/// Fill: boundary profiles and guide curves around what to fill, and how the faces meet what's beside each edge.
+#[derive(Clone, Debug, Default)]
+pub struct FillTool {
+    pub profiles: Vec<Pick>,
+    pub guides: Vec<Pick>,
+    /// How the faces meet what's beside every edge ("g0", "g1" or "g2"), and the edges set on their own (where).
+    pub continuity: &'static str,
+    pub sides: Vec<(DVec3, &'static str)>,
+    /// Where the badges go, once the picks make a closed network: each edge's middle and its choice.
+    pub marks: Vec<(DVec3, &'static str)>,
     /// The Result badge's choice; empty or "new" makes a new body.
     pub result: &'static str,
 }
@@ -1388,6 +1405,7 @@ impl Tool {
             Tool::Mirror(_)
             | Tool::Loft(_)
             | Tool::Sweep(_)
+            | Tool::Fill(_)
             | Tool::Trim { .. }
             | Tool::Extend { .. }
             | Tool::Plane3 { .. }
@@ -1479,6 +1497,9 @@ impl Tool {
             }
             Tool::Pattern(_) => ("Linear Pattern", "Pull an arrow to repeat along it. Click Quantity for how many"),
             Tool::Loft(_) => ("Loft", "Pick two or more profiles or faces, in order, to blend a solid through them."),
+            Tool::Fill(_) => {
+                ("Fill (Beta)", "Pick the profiles and curves around what to fill, then choose how the faces meet at each edge.")
+            }
             Tool::Sweep(_) => ("Sweep (W)", "Pick a profile, then the curves or edges to sweep it along."),
             Tool::SketchFillet { .. } => ("Fillet", "Drag the arrow to set the radius; click corners to add or take them away."),
             Tool::Trim { .. } => ("Trim (T)", "Click any piece of a curve between crossings to cut it away."),

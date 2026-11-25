@@ -230,6 +230,7 @@ impl Workspace {
             Tool::OffsetPlane(t) => Some(t.request(t.distance)),
             Tool::Loft(t) => t.request(),
             Tool::Sweep(t) => t.request(),
+            Tool::Fill(t) => t.request(),
             Tool::Revolve(t) => {
                 let a = t.angle;
                 t.params(a).map(|p| ("revolve", p))
@@ -270,8 +271,8 @@ impl Workspace {
         {
             return;
         }
-        let doc = if self.is_live() { self.session.preview_amend(id, &params).ok() } else { self.session.preview(id, &params).ok() };
-        self.preview = Some(Preview { key, computed_at: self.now, doc });
+        let made = if self.is_live() { self.session.preview_amend(id, &params) } else { self.session.preview(id, &params) };
+        self.preview = Some(Preview::new(key, self.now, made));
     }
 
     /// A body face pushed out (Extrude on a face, not a cut) once it has a result, live or previewed: it shows the

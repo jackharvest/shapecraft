@@ -257,7 +257,8 @@ pub(super) fn loft(s: &mut Session, p: &Params) -> Result<Value> {
     let body = place_result(s, shape, result, None, BoolOp::Union)?;
     let used: Vec<ItemId> = profiles.iter().filter_map(|pr| profile_sketch(*pr)).collect();
     consume_sketches(s, &used);
-    s.selection = vec![Pick::Body { body }];
+    // Nothing stays picked.
+    s.selection.clear();
     Ok(json!({ "body": body.0 }))
 }
 
@@ -343,7 +344,8 @@ pub(super) fn sweep(s: &mut Session, p: &Params) -> Result<Value> {
     used.sort_unstable();
     used.dedup();
     consume_sketches(s, &used);
-    s.selection = vec![Pick::Body { body }];
+    // Nothing stays picked.
+    s.selection.clear();
     Ok(json!({ "body": body.0 }))
 }
 

@@ -215,11 +215,21 @@ impl Workspace {
                     }
                 }
             }
+            // Done leaves nothing picked.
             Tool::Loft(t) => {
                 if let Some((id, params)) = t.request()
-                    && self.run(id, params).is_some()
+                    && (self.run_off_thread(id, params).is_some() || self.working.is_some())
                 {
                     self.tool = Tool::Idle;
+                    self.session.selection.clear();
+                }
+            }
+            Tool::Fill(t) => {
+                if let Some((id, params)) = t.request()
+                    && (self.run_off_thread(id, params).is_some() || self.working.is_some())
+                {
+                    self.tool = Tool::Idle;
+                    self.session.selection.clear();
                 }
             }
             Tool::Boolean(t) => {
@@ -270,6 +280,7 @@ impl Workspace {
                     && self.run(id, params).is_some()
                 {
                     self.tool = Tool::Idle;
+                    self.session.selection.clear();
                 }
             }
             Tool::Revolve(mut t) => {

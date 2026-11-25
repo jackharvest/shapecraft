@@ -17,7 +17,7 @@ use super::{Preview, Workspace};
 use crate::theme::{self, Tokens, radius};
 
 /// The steps that run off the window's thread: the pulled tools whose kernel work can run long on a slow processor.
-pub(crate) const HEAVY: &[&str] = &["offset_face", "shell", "fillet", "chamfer", "thread"];
+pub(crate) const HEAVY: &[&str] = &["offset_face", "shell", "fillet", "chamfer", "thread", "loft", "fill"];
 /// The History edits that rebuild the model from their step on: a late edit of a long history, or of an import's
 /// steps, runs many steps again. They work off the window's thread the same way (but are no live step: the next
 /// tool starts its own).
@@ -198,7 +198,7 @@ impl Workspace {
                 Ok(doc) => {
                     let key = job.key.clone();
                     self.preview_job = None;
-                    self.preview = Some(Preview { key, computed_at: self.now, doc: doc.ok() });
+                    self.preview = Some(Preview::new(key, self.now, doc));
                 }
                 Err(TryRecvError::Empty) => return,
                 Err(TryRecvError::Disconnected) => self.preview_job = None,
@@ -221,7 +221,7 @@ impl Workspace {
             return;
         }
         match rx.recv_timeout(PREVIEW_INLINE) {
-            Ok(doc) => self.preview = Some(Preview { key, computed_at: self.now, doc: doc.ok() }),
+            Ok(doc) => self.preview = Some(Preview::new(key, self.now, doc)),
             Err(_) => self.preview_job = Some(PreviewJob { key, rx }),
         }
     }

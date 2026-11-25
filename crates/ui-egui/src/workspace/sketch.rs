@@ -154,6 +154,7 @@ impl Workspace {
     pub(super) fn idle_column(&self) -> bool {
         matches!(self.tool, Tool::Await { kind: super::toolbar::ToolKind::Move, .. })
             || self.card_tool() && self.options_menu.is_some()
+            || self.tool_from_nothing && matches!(self.tool, Tool::Loft(_) | Tool::Sweep(_) | Tool::Fill(_))
             // A body face started with E keeps the face set, Extrude lit, until it's pulled.
             || matches!(&self.tool, Tool::Extrude(t) if !matches!(t.target, super::tools::Target::Face { .. }))
                 && (!self.predicted || self.is_live())
@@ -172,7 +173,7 @@ impl Workspace {
         matches!(&self.tool, Tool::Extrude(_))
             || matches!(&self.tool, Tool::Fillet(t) if !t.chamfer)
             || matches!(&self.tool, Tool::Mirror(t) if t.split)
-            || matches!(&self.tool, Tool::Thread(_))
+            || matches!(&self.tool, Tool::Thread(_) | Tool::Loft(_) | Tool::Sweep(_) | Tool::Fill(_))
     }
 
     pub(super) fn sketch_column_no_plane(&self) -> bool {

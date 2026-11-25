@@ -78,6 +78,7 @@ pub enum ToolKind {
     WrapEmboss,
     /// Thread: a screw thread on a cylindrical face.
     Thread,
+    Fill,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -323,7 +324,7 @@ pub const REGION: &[ToolDef] = &[
     t(Icon::SplitBody, "Split Body", "", Soon),
     t(Icon::Revolve, "Revolve", "V", Tool(ToolKind::Revolve)),
     t(Icon::Sweep, "Sweep", "W", Tool(ToolKind::Sweep)),
-    t(Icon::Fill, "Fill (Beta)", "", Command("fill")),
+    t(Icon::Fill, "Fill (Beta)", "", Tool(ToolKind::Fill)),
     t(Icon::OffsetEdge, "Offset Edge", "O", Tool(ToolKind::OffsetEdge)),
     t(Icon::ProjectSketch, "Project as Sketch", "P", Tool(ToolKind::Project)),
     t(Icon::ProjectEdge, "Project as Edge", "", Tool(ToolKind::ProjectEdge)),
@@ -356,7 +357,7 @@ pub const FACE: &[ToolDef] = &[
     // The rest goes behind More when the window is too short, which it usually is (s11-122); with only Isolate
     // below (a tool running) Sweep and Replace Face fit (s11-123).
     t(Icon::Sweep, "Sweep", "W", Tool(ToolKind::Sweep)),
-    t(Icon::Fill, "Fill (Beta)", "", Command("fill")),
+    t(Icon::Fill, "Fill (Beta)", "", Tool(ToolKind::Fill)),
     t(Icon::ReplaceFace, "Replace Face", "", Tool(ToolKind::ReplaceFace)),
     t(Icon::OffsetEdge, "Offset Edge", "O", Tool(ToolKind::OffsetEdge)),
     t(Icon::ProjectSketch, "Project as Sketch", "P", Tool(ToolKind::Project)),
@@ -484,7 +485,7 @@ pub const CURVED_FACE: &[ToolDef] = &[
     t(Icon::RotateAxis, "Rotate Around Axis", "", Tool(ToolKind::RotateAxis)),
     t(Icon::Mirror, "Mirror", "", Tool(ToolKind::Mirror)),
     t(Icon::SplitBody, "Split Body", "", Tool(ToolKind::SplitBody)),
-    t(Icon::Fill, "Fill (Beta)", "", Command("fill")),
+    t(Icon::Fill, "Fill (Beta)", "", Tool(ToolKind::Fill)),
     t(Icon::ReplaceFace, "Replace Face", "", Tool(ToolKind::ReplaceFace)),
     t(Icon::ProjectSketch, "Project as Sketch", "P", Tool(ToolKind::Project)),
     t(Icon::ProjectEdge, "Project as Edge", "", Tool(ToolKind::ProjectEdge)),
@@ -514,7 +515,7 @@ pub const FACES: &[ToolDef] = &[
     t(Icon::Extrude, "Extrude", "E", Tool(ToolKind::Extrude)),
     t(Icon::Shell, "Shell", "H", Tool(ToolKind::Shell)),
     t(Icon::Loft, "Loft", "", Tool(ToolKind::Loft)),
-    t(Icon::Fill, "Fill (Beta)", "", Command("fill")),
+    t(Icon::Fill, "Fill (Beta)", "", Tool(ToolKind::Fill)),
     t(Icon::ReplaceFace, "Replace Face", "", Tool(ToolKind::ReplaceFace)),
     // Two flat faces only; left_toolbar.rs drops them otherwise.
     t(Icon::Axis, "Axis - 2 Planes", "", Command("axis_2planes")),
@@ -698,7 +699,7 @@ const TOOLS: &[ToolDef] = &[
     t(Icon::SplitBody, "Split Body", "", Tool(ToolKind::SplitBody)),
     t(Icon::Revolve, "Revolve", "V", Tool(ToolKind::Revolve)),
     t(Icon::Sweep, "Sweep", "W", Tool(ToolKind::Sweep)),
-    t(Icon::Fill, "Fill (Beta)", "", Command("fill")),
+    t(Icon::Fill, "Fill (Beta)", "", Tool(ToolKind::Fill)),
     t(Icon::ReplaceFace, "Replace Face", "", Tool(ToolKind::ReplaceFace)),
     t(Icon::ProjectEdge, "Project as Edge", "", Tool(ToolKind::ProjectEdge)),
     t(Icon::WrapEmboss, "Wrap & Emboss", "", Tool(ToolKind::WrapEmboss)),
@@ -798,11 +799,9 @@ pub fn chip_with(ui: &Ui, anchor: Pos2, def: &ToolDef, sub_text: Option<&str>, l
 /// Fillet), and the buttons that hold one (Tools; More when one went behind it).
 pub fn is_new(def: &ToolDef) -> bool {
     match def.action {
-        Action::Command("fill") | Action::Tool(ToolKind::SketchFillet) => true,
+        Action::Tool(ToolKind::Fill | ToolKind::SketchFillet) => true,
         Action::Flyout(Category::Overflow) => OVERFLOW_NEW.with(std::cell::Cell::get),
-        Action::Flyout(cat) => {
-            flyout(cat).iter().any(|d| matches!(d.action, Action::Command("fill") | Action::Tool(ToolKind::SketchFillet)))
-        }
+        Action::Flyout(cat) => flyout(cat).iter().any(|d| matches!(d.action, Action::Tool(ToolKind::Fill | ToolKind::SketchFillet))),
         _ => false,
     }
 }
@@ -833,7 +832,7 @@ pub fn option_feature(key: &str, value: &str) -> Option<Feature> {
 /// The kernel feature a tool needs, when it's one not every kernel has.
 pub fn feature_of(def: &ToolDef) -> Option<Feature> {
     match def.action {
-        Action::Command("fill") => Some(Feature::Fill),
+        Action::Tool(ToolKind::Fill) => Some(Feature::Fill),
         Action::Tool(ToolKind::WrapEmboss) => Some(Feature::WrapEmboss),
         Action::Tool(ToolKind::ProjectEdge) => Some(Feature::ProjectAsEdge),
         _ => None,
