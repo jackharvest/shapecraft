@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use glam::{DVec2, DVec3};
 use shapecraft_doc::{Document, ItemId, Pick, Sketch, SketchPlane};
+use shapecraft_kernel::Mesh;
 
 use crate::{Camera, Rgba, SceneColors};
 
@@ -160,10 +161,10 @@ pub(crate) fn edges_key(scene: &SceneInput) -> u64 {
 /// What one body's edges depend on ([`edges_of`]): its mesh, the picks and the pointer where they are on it, and how
 /// the view draws edges. The renderer keeps each body's edges by this, so the pointer moving from one face to
 /// another makes two bodies' edges again and not every body's.
-pub(crate) fn edges_of_key(scene: &SceneInput, body: &shapecraft_doc::Body, chosen: &Chosen) -> u64 {
+pub(crate) fn edges_of_key(scene: &SceneInput, body: &shapecraft_doc::Body, mesh: &Arc<Mesh>, chosen: &Chosen) -> u64 {
     let mut h = DefaultHasher::new();
     body.id.hash(&mut h);
-    Arc::as_ptr(&body.mesh).hash(&mut h);
+    Arc::as_ptr(mesh).hash(&mut h);
     scene.doc.item_shown(body.id).hash(&mut h);
     chosen.on(body.id).hash(&mut h);
     scene.hover.filter(|p| p.body() == Some(body.id)).hash(&mut h);
@@ -173,14 +174,14 @@ pub(crate) fn edges_of_key(scene: &SceneInput, body: &shapecraft_doc::Body, chos
     h.finish()
 }
 
-/// One body's edges, onto `out`.
-pub(crate) fn edges_of(scene: &SceneInput, body: &shapecraft_doc::Body, chosen: &Chosen, out: &mut Vec<Segment>) {
+/// One body's edges, onto `out`: those of `mesh`, its own or a coarser copy of it.
+pub(crate) fn edges_of(scene: &SceneInput, body: &shapecraft_doc::Body, mesh: &Mesh, chosen: &Chosen, out: &mut Vec<Segment>) {
     let c = &scene.colors;
     // The Visualize look draws no edges, only the outline of what's picked (a picked face isn't filled there).
     if scene.presentation {
-        for (i, (line, &edge)) in body.mesh.edges.iter().zip(&body.mesh.edge_ids).enumerate() {
+        for (i, (line, &edge)) in mesh.edges.iter().zip(&mesh.edge_ids).enumerate() {
             let picked = chosen.edge(body.id, edge)
-                || body.mesh.edge_faces.get(i).is_some_and(|ab| ab.iter().any(|f| *f != u32::MAX && chosen.face(body.id, *f)));
+                || mesh.edge_faces.get(i).is_some_and(|ab| ab.iter().any(|f| *f != u32::MAX && chosen.face(body.id, *f)));
             if picked {
                 for w in line.windows(2) {
                     let a = DVec3::new(w[0][0] as f64, w[0][1] as f64, w[0][2] as f64);
@@ -198,13 +199,12 @@ pub(crate) fn edges_of(scene: &SceneInput, body: &shapecraft_doc::Body, chosen: 
         _ => None,
     };
     let solid_view = scene.display.solid() && scene.active_sketch.is_none();
-    for (i, (line, &edge)) in body.mesh.edges.iter().zip(&body.mesh.edge_ids).enumerate() {
+    for (i, (line, &edge)) in mesh.edges.iter().zip(&mesh.edge_ids).enumerate() {
         let pick = Pick::Edge { body: body.id, edge };
-        let around_hovered_face = hovered_face.is_some_and(|f| body.mesh.edge_faces.get(i).is_some_and(|ab| ab.contains(&f)));
+        let around_hovered_face = hovered_face.is_some_and(|f| mesh.edge_faces.get(i).is_some_and(|ab| ab.contains(&f)));
         // Picked edges, the outline of picked faces and of a body hovered in the Items list also show faintly
         // where faces hide them (a pocket's floor, a body inside another), as the faces do in the renderer.
-        let around_picked_face =
-            body.mesh.edge_faces.get(i).is_some_and(|ab| ab.iter().any(|f| *f != u32::MAX && chosen.face(body.id, *f)));
+        let around_picked_face = mesh.edge_faces.get(i).is_some_and(|ab| ab.iter().any(|f| *f != u32::MAX && chosen.face(body.id, *f)));
         let through = if chosen.edge(body.id, edge) {
             Some((c.selected.with_alpha(150), 2.0))
         } else if around_picked_face {

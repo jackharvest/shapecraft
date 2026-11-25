@@ -1885,6 +1885,7 @@ impl ShapeCraftApp {
                     "renaming": ws.renaming.is_some(),
                     "selection": ws.session.selection,
                     "camera": { "target": ws.camera.target.to_array(), "yaw": ws.camera.yaw, "pitch": ws.camera.pitch, "distance": ws.camera.distance },
+                    "drawn": drawn_state(ws),
                     "banner": ws.seen_banner,
                     "column": ws.seen_column,
                     "bottom": ws.seen_bottom,
@@ -3032,6 +3033,12 @@ pub(crate) fn open_page(url: &str) {
 }
 
 /// The Export dialog's SVG settings from the last SVG export, and what an SVG would draw now.
+/// ui.state's "drawn": what the last frame drew of the bodies.
+fn drawn_state(ws: &Workspace) -> Value {
+    let (d, preparing) = ws.gpu.drawn();
+    json!({ "triangles": d.triangles, "segments": d.segments, "coarse": d.coarse, "preparing": preparing })
+}
+
 fn svg_from_settings(d: &mut ExportDialog, s: &crate::settings::Settings, session: &shapecraft_engine::Session) {
     use shapecraft_doc::Pick;
     d.svg_join = s.svg_join;

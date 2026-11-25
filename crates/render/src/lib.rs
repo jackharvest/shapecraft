@@ -11,11 +11,12 @@ mod display_copy;
 mod dof;
 mod envmap;
 mod gpu;
+mod lod;
 mod pick;
 mod scene;
 
 pub use camera::{Camera, StandardView};
 pub use colors::{Rgba, SceneColors};
-pub use gpu::{Frame, RenderError, Renderer, closed_outward};
+pub use gpu::{Detail, Drawn, Frame, RenderError, Renderer, closed_outward};
 pub use pick::{PickContext, pick, pick_through};
 pub use scene::{DisplayMode, Overlay, PlaneTile, SceneInput, Segment, grid_step};

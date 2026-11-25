@@ -1481,6 +1481,10 @@ fn general_tab(ui: &mut Ui, r: Rect, s: &mut Settings, shortcuts: bool) -> (bool
     // Everything in `crate::motion`: off for the slowest machines (the camera has its own switch in View).
     row_label(&p, col, y, "Animations:");
     check(ui, pos2(col, y), "pref-fancy", &mut s.fancy_animations, "Fancy animations");
+    y += pitch;
+    // Heavy bodies drawn coarser while the view turns, pans or zooms.
+    row_label(&p, col, y, "Coarser While Moving:");
+    popup(ui, pos2(col, y), 120.0, "pref-coarse", &mut s.coarse_moving, &super::viewport::detail::CHOICES);
     y += 24.0;
     sep(&p, y);
     y += 24.0;

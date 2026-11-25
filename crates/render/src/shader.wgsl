@@ -95,7 +95,9 @@ struct MeshIn {
 };
 
 struct MeshOut {
-    @builtin(position) clip: vec4<f32>,
+    // Drawn again with an Equal depth test (the nearest surface of a faded or picked body): the same point has to come
+    // out at the very same depth every time.
+    @invariant @builtin(position) clip: vec4<f32>,
     @location(0) normal: vec3<f32>,
     @location(1) @interpolate(flat) face: u32,
     @location(2) world: vec3<f32>,

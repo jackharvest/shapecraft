@@ -20,6 +20,8 @@ pub struct ViewportGpu {
     /// The blurred view for the frosted sidebars (set by `draw`).
     pub glass: Option<TextureId>,
     pub error: Option<String>,
+    /// How much of the bodies the next frame draws.
+    pub detail: shapecraft_render::Detail,
 }
 
 impl ViewportGpu {
@@ -44,6 +46,7 @@ impl ViewportGpu {
             };
         }
         let renderer = self.renderer.as_mut()?;
+        renderer.detail = self.detail;
         let frame = match renderer.render(scene, camera, px) {
             Ok(f) => f,
             Err(e) => {
@@ -105,6 +108,11 @@ impl ViewportGpu {
         }
     }
 
+    /// What the last frame drew of the bodies, and whether coarser copies are still being made.
+    pub fn drawn(&self) -> (shapecraft_render::Drawn, bool) {
+        self.renderer.as_ref().map(|r| (r.drawn(), r.preparing())).unwrap_or_default()
+    }
+
     /// Renders a thumbnail with the same renderer (RGBA8).
     pub fn thumbnail(&mut self, scene: &SceneInput, camera: &Camera, px: (u32, u32)) -> Option<(u32, u32, Vec<u8>)> {
         let mut own;
@@ -115,6 +123,8 @@ impl ViewportGpu {
                 &mut own
             }
         };
+        // A picture always has all of it.
+        r.detail = shapecraft_render::Detail { within_px: None, ..r.detail };
         r.render(scene, camera, px).ok()?;
         r.read_pixels().ok()
     }

@@ -474,6 +474,8 @@ pub struct Workspace {
     /// A tool's refusal shown in place of the hint banner for a while (Split Body, s12-004): text and until when.
     pub notice: Option<(String, f64)>,
     pub gpu: ViewportGpu,
+    /// Whether the view is moving, and how coarse bodies may be drawn meanwhile.
+    pub(crate) moving: viewport::detail::Moving,
     /// The free area between the sidebars: toolbars, banners and pills are laid out in it.
     pub viewport_rect: Rect,
     /// Where the 3D view is drawn: the whole window under the title bar, as observed (the sidebars float over
@@ -882,6 +884,7 @@ impl Workspace {
             report_problem: false,
             notice: None,
             gpu: ViewportGpu::default(),
+            moving: Default::default(),
             viewport_rect: Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0)),
             view_rect: Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0)),
             overflow: Vec::new(),

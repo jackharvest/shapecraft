@@ -19,6 +19,7 @@ mod annotations;
 mod circular;
 mod clicks;
 mod curve_drag;
+pub(crate) mod detail;
 mod dimensions;
 mod gizmo;
 mod gpu;
@@ -215,6 +216,14 @@ impl Workspace {
             boxing: boxed.is_some(),
             bare: matches!(self.tool, Tool::Trim { .. } | Tool::Extend { .. }),
         };
+        // While the view moves, heavy bodies may show coarser (#25).
+        let triangles = shown.bodies.iter().filter(|b| shown.item_shown(b.id)).map(|b| b.mesh.indices.len() / 3).sum();
+        let (detail, again) =
+            self.moving.frame(&self.settings.coarse_moving, &self.camera, triangles, self.now, ui.input(|i| i.unstable_dt));
+        self.gpu.detail = detail;
+        if again {
+            ui.ctx().request_repaint();
+        }
         let texture = self.gpu.draw(ui.ctx(), render_state, &scene, &self.camera, px);
         match texture {
             Some(id) => {

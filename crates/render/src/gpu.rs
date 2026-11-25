@@ -184,6 +184,22 @@ pub(crate) fn off_screen(view_proj: &glam::Mat4, (lo, hi): ([f32; 3], [f32; 3]))
     all(&|c| c.x < -c.w) || all(&|c| c.x > c.w) || all(&|c| c.y < -c.w) || all(&|c| c.y > c.w) || all(&|c| c.z < 0.0) || all(&|c| c.z > c.w)
 }
 
+/// How much of the world a pixel covers where a box (corners low, high) is nearest the eye.
+fn pixel_at(camera: &Camera, (lo, hi): ([f32; 3], [f32; 3]), height: f64) -> f64 {
+    if camera.is_ortho() {
+        return camera.world_per_pixel(height);
+    }
+    let (eye, back) = (camera.eye(), camera.back());
+    let depth = (0..8)
+        .map(|i| {
+            let at = |axis: usize| f64::from(if i >> axis & 1 == 0 { lo[axis] } else { hi[axis] });
+            -(glam::DVec3::new(at(0), at(1), at(2)) - eye).dot(back)
+        })
+        .fold(f64::MAX, f64::min);
+    // Around or behind the eye: as near as can be.
+    2.0 * depth.max(0.0) * (camera.fov_y / 2.0).tan() / height.max(1.0)
+}
+
 /// Two triangles per segment, as (the depth-tested ones, the ones on top).
 fn line_vertices(segments: &[Segment]) -> (Vec<LineVertex>, Vec<LineVertex>) {
     let mut lines = Vec::new();
@@ -333,7 +349,39 @@ pub struct Renderer {
     /// Set where textures can't be viewed in another format.
     display_copy: Option<crate::display_copy::DisplayCopy>,
     glass_generation: u64,
+    /// Coarser copies of heavy bodies, and what to do with them this frame.
+    lods: crate::lod::Lods,
+    pub detail: Detail,
+    prepared: Detail,
+    /// The copies' edges, each body's in its own stretch, made when the view moves.
+    coarse_edges: Stream,
+    coarse_edge_overlays: Stream,
+    coarse_key: Option<(u64, u64)>,
+    coarse_lines: HashMap<(shapecraft_doc::ItemId, usize), BodyLines>,
+    coarse_spans: HashMap<(shapecraft_doc::ItemId, usize), [std::ops::Range<u32>; 2]>,
+    drawn: Drawn,
 }
+
+/// How much of the bodies to draw.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Detail {
+    /// Make coarser copies of heavy bodies, for when they're wanted.
+    pub prepare: bool,
+    /// While the view moves: draw the coarsest copy that's within this many pixels of the body.
+    pub within_px: Option<f32>,
+}
+
+/// What the last frame drew of the bodies.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Drawn {
+    pub triangles: usize,
+    pub segments: usize,
+    /// Bodies drawn as a coarser copy.
+    pub coarse: usize,
+}
+
+/// Room for a body's full mesh and its copies among the uploaded ones.
+const KEYS: usize = 4;
 
 /// The globals uniform, and beside it the custom environment's radiance and irradiance maps and their sampler.
 fn globals_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
@@ -788,6 +836,15 @@ impl Renderer {
             decals,
             dof,
             display_copy,
+            lods: Default::default(),
+            detail: Detail::default(),
+            prepared: Detail::default(),
+            coarse_edges: Stream::new("coarse edges"),
+            coarse_edge_overlays: Stream::new("coarse edges on top"),
+            coarse_key: None,
+            coarse_lines: HashMap::new(),
+            coarse_spans: HashMap::new(),
+            drawn: Drawn::default(),
             glass_generation: 0,
         }
     }
@@ -1001,6 +1058,22 @@ impl Renderer {
         for b in self.bodies.values_mut() {
             b.used = false;
         }
+        // Coarser copies (#25). Surface analysis colours follow the mesh itself, so it always shows the full one.
+        let analysed = matches!(scene.display, DisplayMode::Zebra { .. } | DisplayMode::Curvature { .. });
+        let within = self.detail.within_px.filter(|_| self.detail.prepare && !analysed);
+        if self.detail.prepare {
+            self.lods.begin();
+        } else if self.detail != self.prepared {
+            self.lods.forget();
+            self.coarse_lines.clear();
+            self.coarse_spans.clear();
+            self.coarse_key = None;
+        }
+        self.prepared = self.detail;
+        // The copy each body shows this frame (0 = the full mesh), those off screen left out.
+        let mut level_of: HashMap<shapecraft_doc::ItemId, usize> = HashMap::new();
+        let mut copies: Vec<(&shapecraft_doc::Body, Arc<[crate::lod::Level]>)> = Vec::new();
+        self.drawn = Drawn::default();
         let sketching = scene.active_sketch.is_some() && !scene.presentation && scene.display.solid();
         let on_face = scene.active_sketch.and_then(|id| scene.doc.sketch(id)).is_some_and(|s| s.on_body.is_some());
         let view_proj = camera.view_proj(px);
@@ -1010,7 +1083,7 @@ impl Renderer {
         let mut through_draws = Vec::new();
         let chosen = crate::scene::Chosen::of(scene.selection);
         for body in scene.doc.bodies.iter().filter(|b| scene.doc.item_shown(b.id)) {
-            let key = body.id.0 as usize;
+            let mut key = body.id.0 as usize * KEYS;
             // A body with no triangles (an import can arrive with one) has nothing to draw, and slicing its empty
             // vertex and index buffers panics: skip it before anything is uploaded or queued (#39).
             if body.mesh.indices.is_empty() {
@@ -1076,10 +1149,39 @@ impl Renderer {
             if scene.hover == Some(Pick::Body { body: body.id }) {
                 uni.flags[3] = 1;
             }
-            let Some(gpu) = self.body_gpu(key, &body.mesh, &body.face_colors) else { continue };
-            if body.mesh.bounds().is_some_and(|b| off_screen(&view_proj, b)) {
+            if self.body_gpu(key, &body.mesh, &body.face_colors).is_none() {
                 continue;
             }
+            let copies_of = if self.detail.prepare { Some(self.lods.of(&body.mesh)) } else { None };
+            let levels: &[crate::lod::Level] = copies_of.as_deref().unwrap_or_default();
+            // Copies already on the graphics card stay there for the next time the view moves.
+            for (i, l) in levels.iter().enumerate() {
+                if let Some(b) = self.bodies.get_mut(&(key + i + 1))
+                    && Arc::ptr_eq(&b.mesh, &l.mesh)
+                {
+                    b.used = true;
+                }
+            }
+            let bounds = body.mesh.bounds();
+            if bounds.is_some_and(|b| off_screen(&view_proj, b)) {
+                continue;
+            }
+            let level = match (within, bounds) {
+                (Some(px_error), Some(bounds)) => {
+                    let pixel = pixel_at(camera, bounds, px.y);
+                    levels.iter().take(KEYS - 1).rposition(|l| l.error <= f64::from(px_error) * pixel).map_or(0, |i| i + 1)
+                }
+                _ => 0,
+            };
+            level_of.insert(body.id, level);
+            let mesh = level.checked_sub(1).and_then(|i| levels.get(i)).map_or(&body.mesh, |l| &l.mesh).clone();
+            key += level;
+            if within.is_some() && !levels.is_empty() {
+                copies.extend(copies_of.clone().map(|l| (body, l)));
+            }
+            self.drawn.triangles += mesh.indices.len() / 3;
+            self.drawn.coarse += usize::from(level > 0);
+            let Some(gpu) = self.body_gpu(key, &mesh, &body.face_colors) else { continue };
             let bytes = bytemuck::bytes_of(&uni);
             if gpu.written != bytes {
                 gpu.written = bytes.to_vec();
@@ -1106,7 +1208,7 @@ impl Renderer {
             self.decals
                 .prepare(&self.device, &self.queue, scene.doc)
                 .into_iter()
-                .map(|(d, b)| (d, b as usize))
+                .map(|(d, b)| (d, b as usize * KEYS + level_of.get(&shapecraft_doc::ItemId(b)).copied().unwrap_or(0)))
                 .filter(|(d, b)| draws.contains(b) || (d & crate::decal::MATERIAL == 0 && see_draws.contains(b)))
                 .collect()
         } else {
@@ -1123,12 +1225,12 @@ impl Renderer {
             let mut remade = Vec::new();
             let mut segments = Vec::new();
             for body in scene.doc.bodies.iter().filter(|b| scene.doc.item_shown(b.id)) {
-                let key = edges_of_key(scene, body, &chosen);
+                let key = edges_of_key(scene, body, &body.mesh, &chosen);
                 let made = match kept.remove(&body.id) {
                     Some(made) if made.0 == key => made,
                     _ => {
                         segments.clear();
-                        edges_of(scene, body, &chosen, &mut segments);
+                        edges_of(scene, body, &body.mesh, &chosen, &mut segments);
                         let (drawn, on_top) = line_vertices(&segments);
                         remade.push(spans.len());
                         (key, drawn, on_top)
@@ -1168,6 +1270,16 @@ impl Renderer {
             }
             self.body_spans = spans;
         }
+        if !copies.is_empty() {
+            self.coarse_edges_for(scene, key, &copies);
+        }
+        // Which stretches of the edges to draw: all of them, or each body's own where copies are shown.
+        let coarse = self.drawn.coarse > 0;
+        let edge_parts = coarse.then(|| self.edge_parts(&level_of));
+        self.drawn.segments = match &edge_parts {
+            Some(p) => p.iter().flatten().flatten().map(|r| r.len() / 6).sum(),
+            None => (self.edges.len + self.edge_overlays.len) as usize / 6,
+        };
         let built = build(scene, camera, px);
         self.upload(&built);
 
@@ -1310,6 +1422,26 @@ impl Renderer {
                 (&self.dot_pipeline, &self.dots),
             ];
             for (pipeline, stream) in streams {
+                if let Some([full, copied]) = &edge_parts
+                    && let Some((which, coarse)) = if std::ptr::eq(stream, &self.edges) {
+                        Some((0, &self.coarse_edges))
+                    } else if std::ptr::eq(stream, &self.edge_overlays) {
+                        Some((1, &self.coarse_edge_overlays))
+                    } else {
+                        None
+                    }
+                {
+                    for (stream, parts) in [(stream, &full[which]), (coarse, &copied[which])] {
+                        if let Some(slice) = stream.slice().filter(|_| !parts.is_empty()) {
+                            pass.set_pipeline(pipeline);
+                            pass.set_vertex_buffer(0, slice);
+                            for part in parts {
+                                pass.draw(part.clone(), 0..1);
+                            }
+                        }
+                    }
+                    continue;
+                }
                 if let Some(slice) = stream.slice() {
                     pass.set_pipeline(pipeline);
                     pass.set_vertex_buffer(0, slice);
@@ -1391,6 +1523,83 @@ impl Renderer {
             glass: self.blur.display(),
             glass_generation: self.glass_generation,
         })
+    }
+
+    /// What the last frame drew of the bodies.
+    pub fn drawn(&self) -> Drawn {
+        self.drawn
+    }
+
+    /// Coarser copies are still being made.
+    pub fn preparing(&self) -> bool {
+        self.lods.busy()
+    }
+
+    /// The copies' edges, made again when what they depend on changes (or more copies arrived).
+    fn coarse_edges_for(&mut self, scene: &SceneInput, key: u64, copies: &[(&shapecraft_doc::Body, Arc<[crate::lod::Level]>)]) {
+        // Bodies come on screen as the view turns, so what's there counts too.
+        let known = copies.iter().all(|(b, l)| (1..=l.len().min(KEYS - 1)).all(|i| self.coarse_spans.contains_key(&(b.id, i))));
+        if known && self.coarse_key == Some((key, self.lods.arrived)) {
+            return;
+        }
+        self.coarse_key = Some((key, self.lods.arrived));
+        let chosen = Chosen::of(scene.selection);
+        // Bodies out of sight for now keep theirs, unless they're gone.
+        self.coarse_lines.retain(|(id, _), _| scene.doc.body(*id).is_some());
+        let mut segments = Vec::new();
+        for (body, levels) in copies {
+            for (i, l) in levels.iter().enumerate().take(KEYS - 1) {
+                let key = edges_of_key(scene, body, &l.mesh, &chosen);
+                if self.coarse_lines.get(&(body.id, i + 1)).is_none_or(|made| made.0 != key) {
+                    segments.clear();
+                    edges_of(scene, body, &l.mesh, &chosen, &mut segments);
+                    let (drawn, on_top) = line_vertices(&segments);
+                    self.coarse_lines.insert((body.id, i + 1), (key, drawn, on_top));
+                }
+            }
+        }
+        let mut all: [Vec<LineVertex>; 2] = Default::default();
+        self.coarse_spans.clear();
+        for (id, made) in &self.coarse_lines {
+            let mut spans = [0..0, 0..0];
+            for ((all, lines), span) in all.iter_mut().zip([&made.1, &made.2]).zip(&mut spans) {
+                let from = all.len() as u32;
+                all.extend_from_slice(lines);
+                *span = from..all.len() as u32;
+            }
+            self.coarse_spans.insert(*id, spans);
+        }
+        self.coarse_edges.upload(&self.device, &self.queue, &all[0]);
+        self.coarse_edge_overlays.upload(&self.device, &self.queue, &all[1]);
+    }
+
+    /// The stretches of the full and of the copies' edges to draw, each as (tested against depth, on top).
+    fn edge_parts(&self, level_of: &HashMap<shapecraft_doc::ItemId, usize>) -> [[Vec<std::ops::Range<u32>>; 2]; 2] {
+        let mut out: [[Vec<std::ops::Range<u32>>; 2]; 2] = Default::default();
+        let mut add = |from: usize, which: usize, part: std::ops::Range<u32>| {
+            let parts = &mut out[from][which];
+            match parts.last_mut() {
+                Some(last) if last.end == part.start => last.end = part.end,
+                _ if part.is_empty() => {}
+                _ => parts.push(part),
+            }
+        };
+        let mut at = [0u32; 2];
+        for (id, drawn, on_top) in &self.body_spans {
+            let full = [at[0]..at[0] + *drawn as u32, at[1]..at[1] + *on_top as u32];
+            at = [full[0].end, full[1].end];
+            let copy = match level_of.get(id) {
+                // Out of sight.
+                None => continue,
+                Some(0) => None,
+                Some(level) => self.coarse_spans.get(&(*id, *level)),
+            };
+            let (from, spans) = copy.map_or((0, &full), |c| (1, c));
+            for (which, span) in spans.iter().enumerate() {
+                add(from, which, span.clone());
+            }
+        }
+        out
     }
 
     /// Keeps a texture per visible picture (made when the picture is new) and writes its corners and opacity.

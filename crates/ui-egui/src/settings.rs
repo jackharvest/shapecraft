@@ -32,6 +32,8 @@ pub struct Settings {
     pub pan_invert_y: bool,
     pub rendering_quality: String,
     pub tessellation_quality: String,
+    /// Coarser While Moving: one of `viewport::detail::CHOICES`.
+    pub coarse_moving: String,
     pub always_advanced_import: bool,
     pub tutorial_clicks: bool,
     pub tutorial_keys: bool,
@@ -160,6 +162,7 @@ impl Default for Settings {
             pan_invert_y: false,
             rendering_quality: "High".into(),
             tessellation_quality: "High (Default)".into(),
+            coarse_moving: "Automatic".into(),
             always_advanced_import: true,
             tutorial_clicks: false,
             tutorial_keys: false,
