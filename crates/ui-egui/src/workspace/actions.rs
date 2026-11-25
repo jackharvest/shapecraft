@@ -297,6 +297,12 @@ impl Workspace {
             UiAction::ShotCapture => self.wants_capture = true,
             UiAction::Noop => {}
             UiAction::InsertImage => self.wants_image = true,
+            // Picking the file or project is the app's (as in the menus); it comes back through an import.
+            UiAction::InsertFile | UiAction::InsertProject if crate::tablet::view_only() => {
+                self.toast(crate::tablet::VIEW_ONLY_NOTE);
+            }
+            UiAction::InsertFile => self.app_request = Some(crate::menubar::AppAction::Import),
+            UiAction::InsertProject => self.app_request = Some(crate::menubar::AppAction::ImportProject),
             UiAction::ImportMaterial => self.wants_material = true,
             UiAction::ImportDecal => self.wants_decal = true,
             UiAction::Variables => {

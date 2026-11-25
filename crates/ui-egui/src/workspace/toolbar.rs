@@ -131,6 +131,9 @@ pub enum UiAction {
     Shortcuts,
     Variables,
     InsertImage,
+    /// Insert ▸ File and Project: the file window, and the sheet of local projects.
+    InsertFile,
+    InsertProject,
     /// An annotation tool on a drawing sheet (see `annotate::DrawTool::from_index`).
     DrawTool(u8),
     /// A Views tool on a drawing sheet (see `sheet_views::ViewTool::from_index`), and its Done / Cancel.
@@ -644,8 +647,8 @@ pub const DELETE: ToolDef = t(Icon::Delete, "Delete", "", Command("delete"));
 const INSERT: &[ToolDef] = &[
     t(Icon::Variable, "Variable", "⇧⌘V", U(UiAction::Variables)),
     t(Icon::DImage, "Image", "", U(UiAction::InsertImage)),
-    t(Icon::FolderFilled, "File", "⇧⌘I", Command("import_file")),
-    t(Icon::Merged, "Project", "⇧⌘P", Soon),
+    t(Icon::FolderFilled, "File", "⇧⌘I", U(UiAction::InsertFile)),
+    t(Icon::Merged, "Project", "⇧⌘P", U(UiAction::InsertProject)),
 ];
 
 const CONSTRUCT: &[ToolDef] = &[

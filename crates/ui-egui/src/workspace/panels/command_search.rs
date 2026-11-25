@@ -4,8 +4,62 @@ use egui::{Align2, Color32, Rect, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
 use serde_json::json;
 
 use crate::icons::{self, Icon};
+use crate::menubar::AppAction;
 use crate::theme::{self, Tokens, radius};
 use crate::workspace::Workspace;
+use crate::workspace::export::Format;
+use crate::workspace::toolbar::UiAction;
+
+/// Bookkeeping commands that only scripts, a panel or the History sidebar use stay out of the list: they act on something
+/// that panel picked, and have nothing to act on here.
+fn searchable(id: &str) -> bool {
+    const ELSEWHERE: &[&str] = &[
+        "select",
+        "inspect",
+        "exit_sketching",
+        "set_units",
+        "edit_step",
+        "edit_sketch_step",
+        "delete_step",
+        "suppress_step",
+        "rename_step",
+        "set_breakpoint",
+        "set_entity",
+        "set_variable",
+        "delete_variable",
+        "save_view",
+        "annotate",
+        "delete_annotation",
+        "update_annotation",
+        "delete_drawing",
+        "update_drawing",
+        "image_settings",
+        "set_face_color",
+        "delete_constraint",
+        "offset_body_edge",
+        "constrain",
+        "restore_merged",
+        "select_text",
+        "break_curve",
+        "change_sketch_plane",
+        "duplicate_sketch",
+        "move_to_folder",
+        "place_item",
+        "plane_size",
+        "add_drawing_view",
+        "update_drawing_view",
+        "delete_drawing_view",
+        "rename_decal_image",
+        "delete_decal_image",
+        "place_decal",
+        "update_decal",
+        "delete_decal",
+        "rename_environment",
+        "delete_environment",
+        "visual_settings",
+    ];
+    !ELSEWHERE.contains(&id)
+}
 
 /// ⌘F: a popover listing commands with their shortcuts, recent ones first.
 pub(super) fn command_search(ws: &mut Workspace, ui: &mut Ui) {
@@ -13,40 +67,9 @@ pub(super) fn command_search(ws: &mut Workspace, ui: &mut Ui) {
     let mut entries: Vec<(&'static str, &'static str, &'static str)> = Vec::new();
     let q = search.query.to_lowercase();
     let registry = shapecraft_engine::registry();
-    // Bookkeeping commands that only scripts and the History sidebar use stay out of the list.
-    let visible = |id: &str| {
-        !matches!(
-            id,
-            "select"
-                | "inspect"
-                | "exit_sketching"
-                | "set_units"
-                | "edit_step"
-                | "edit_sketch_step"
-                | "delete_step"
-                | "suppress_step"
-                | "rename_step"
-                | "set_breakpoint"
-                | "set_entity"
-                | "set_variable"
-                | "delete_variable"
-                | "save_view"
-                | "annotate"
-                | "delete_annotation"
-                | "update_annotation"
-                | "delete_drawing"
-                | "update_drawing"
-                | "image_settings"
-                | "set_face_color"
-                | "delete_constraint"
-                | "offset_body_edge"
-                | "constrain"
-                | "restore_merged"
-        )
-    };
     if q.is_empty() {
         // Only what a person can run from here: the History sidebar's Edit Sketch needs its step, for one.
-        for id in ws.recent_commands.iter().filter(|id| visible(id)) {
+        for id in ws.recent_commands.iter().filter(|id| searchable(id)) {
             if let Some(c) = registry.iter().find(|c| c.id == *id) {
                 entries.push((c.id, c.label, c.shortcut.unwrap_or("")));
             }
@@ -55,7 +78,7 @@ pub(super) fn command_search(ws: &mut Workspace, ui: &mut Ui) {
         // Names starting with the query first, then a word starting with it, then anywhere; each alphabetical
         // (as observed: "e" → Ellipse, Extrude - One-Sided, …).
         let mut found: Vec<(u8, &'static str, &'static str, &'static str)> = Vec::new();
-        for c in registry.iter().filter(|c| visible(c.id)) {
+        for c in registry.iter().filter(|c| searchable(c.id)) {
             let l = c.label.to_lowercase();
             let rank = if l.starts_with(&q) {
                 0
@@ -244,7 +267,7 @@ fn tool_for(id: &str) -> Option<crate::workspace::toolbar::ToolKind> {
         "text" => K::Text,
         "trim" => K::Trim,
         "offset_edge" => K::OffsetEdge,
-        "project" => K::Project,
+        "project" | "project_sketch" => K::Project,
         "sketch_fillet" => K::SketchFillet,
         "extrude" => K::Extrude,
         "fillet" => K::Fillet,
@@ -258,7 +281,8 @@ fn tool_for(id: &str) -> Option<crate::workspace::toolbar::ToolKind> {
         "thread" => K::Thread,
         "project_edge" => K::ProjectEdge,
         "split_body" => K::SplitBody,
-        "rotate" => K::Move,
+        "wrap_emboss" => K::WrapEmboss,
+        "rotate" | "move_edge" | "move_faces" => K::Move,
         "translate" => K::Translate,
         "mirror" => K::Mirror,
         "pattern" => K::Pattern,
@@ -279,15 +303,56 @@ fn tool_for(id: &str) -> Option<crate::workspace::toolbar::ToolKind> {
     })
 }
 
+/// What a command that needs a file, a name or a place is run through when it's picked from search: the window or
+/// mode its menu item opens. Run bare, it would only complain about the parameter it didn't get (#98).
+fn ui_for(id: &str) -> Option<UiAction> {
+    Some(match id {
+        "import_file" => UiAction::InsertFile,
+        "import_project" => UiAction::InsertProject,
+        "insert_image" | "insert_sheet_image" => UiAction::InsertImage,
+        "import_decal" => UiAction::ImportDecal,
+        "import_material" => UiAction::ImportMaterial,
+        "measure" => UiAction::Measure,
+        "create_drawing" => UiAction::CreateDrawing,
+        "rename" => UiAction::Rename,
+        "rename_project" => UiAction::RenameProject,
+        _ => return None,
+    })
+}
+
+/// The Export dialog's format for an export command.
+fn export_for(id: &str) -> Option<Format> {
+    Some(match id {
+        "export_shapr" => Format::Shapr,
+        "export_parasolid" => Format::Parasolid,
+        "export_step" => Format::Step,
+        "export_stl" => Format::Stl,
+        "export_obj" => Format::Obj,
+        "export_3mf" => Format::ThreeMf,
+        "export_glb" => Format::Glb,
+        "export_fbx" => Format::Fbx,
+        "export_vrml" => Format::Vrml,
+        "export_usdz" => Format::Usdz,
+        "export_iges" => Format::Iges,
+        "export_sketch" => Format::DxfSketch,
+        "export_drawing" => Format::DxfDrawing,
+        _ => return None,
+    })
+}
+
 fn run_by_id(ws: &mut Workspace, id: &'static str) {
-    match id {
-        "save" | "export_step" | "export_stl" | "import_file" => ws.toast("Use the File menu for files"),
-        other => match tool_for(other) {
-            Some(kind) => ws.start_tool(kind),
-            None => {
-                let _ = ws.run(other, json!({}));
-            }
-        },
+    if let Some(format) = export_for(id) {
+        ws.app_request = Some(AppAction::ExportAs(format));
+    } else if id == "save" {
+        ws.app_request = Some(AppAction::Save);
+    } else if id == "import_environment" {
+        ws.wants_environment = true;
+    } else if let Some(u) = ui_for(id) {
+        ws.ui_action(u);
+    } else if let Some(kind) = tool_for(id) {
+        ws.start_tool(kind);
+    } else {
+        let _ = ws.run(id, json!({}));
     }
 }
 
@@ -297,5 +362,90 @@ pub(crate) fn select_all(ctx: &egui::Context, id: egui::Id, len: usize) {
         let range = egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(len));
         state.cursor.set_char_range(Some(range));
         state.store(ctx, id);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use shapecraft_doc::Pick;
+
+    use super::*;
+    use crate::workspace::toolbar::{self, Action, Category};
+
+    fn workspace() -> Workspace {
+        let session = shapecraft_engine::Session::new(Arc::new(shapecraft_kernel_occt::OcctKernel::new()), "Search");
+        Workspace::new(session, crate::settings::Settings::default())
+    }
+
+    /// The same with a box, a plane and a sketch, and this picked.
+    fn working(pick: usize) -> Workspace {
+        let mut ws = workspace();
+        let mut run = |id: &str, p: serde_json::Value| ws.session.execute(id, &p).unwrap().value;
+        let sketch = run("sketch", json!({ "plane": "xy" }))["sketch"].clone();
+        run("rectangle", json!({ "corner": [0, 0], "opposite": [10, 10] }));
+        run("extrude", json!({ "sketch": sketch, "region": 0, "distance": 10 }));
+        run("offset_plane", json!({ "from": "xy", "distance": 30 }));
+        run("sketch", json!({ "plane": "xy" }));
+        run("line", json!({ "a": [20, 0], "b": [30, 0] }));
+        let body = ws.session.doc.bodies[0].id;
+        let pick = match pick {
+            0 => None,
+            1 => Some(Pick::Body { body }),
+            2 => Some(Pick::Face { body, face: 0 }),
+            3 => Some(Pick::Edge { body, edge: 0 }),
+            _ => Some(Pick::Plane { plane: ws.session.doc.planes[0].id }),
+        };
+        if pick.is_some() {
+            ws.session.execute("exit_sketching", &json!({})).unwrap();
+        }
+        ws.session.selection = pick.into_iter().collect();
+        ws
+    }
+
+    /// Nothing a person can pick answers with a script's complaint about a parameter ("'path' must be a string", #98).
+    fn complaint(ws: &Workspace) -> Option<String> {
+        let mut said = ws.toasts.iter().filter(|t| t.failure.is_some()).map(|t| t.text.clone());
+        said.find(|t| t.starts_with('\'') || t.contains(" must be ") || t.contains("missing"))
+    }
+
+    #[test]
+    fn insert_file_and_project_open_their_windows() {
+        for (label, wanted) in [("File", AppAction::Import), ("Project", AppAction::ImportProject)] {
+            let mut ws = workspace();
+            let def = toolbar::flyout(Category::Insert).iter().find(|d| d.label == label).copied().unwrap();
+            ws.act(def.action, def.label);
+            assert_eq!(ws.app_request, Some(wanted), "{label}");
+            assert_eq!(complaint(&ws), None);
+        }
+    }
+
+    #[test]
+    fn nothing_in_search_asks_for_a_parameter() {
+        let mut bad = Vec::new();
+        for c in shapecraft_engine::registry().iter().filter(|c| searchable(c.id)) {
+            for pick in 0..5 {
+                let mut ws = working(pick);
+                run_by_id(&mut ws, c.id);
+                bad.extend(complaint(&ws).map(|m| (c.id, pick, m)));
+            }
+        }
+        assert!(bad.is_empty(), "{bad:#?}");
+    }
+
+    #[test]
+    fn no_button_asks_for_a_parameter() {
+        let mut bad = Vec::new();
+        for c in [Category::Insert, Category::Construct, Category::Plane, Category::Axis, Category::Transform, Category::Tools] {
+            for d in toolbar::flyout(c).iter().filter(|d| matches!(d.action, Action::Command(_))) {
+                for pick in 0..5 {
+                    let mut ws = working(pick);
+                    ws.act(d.action, d.label);
+                    bad.extend(complaint(&ws).map(|m| (d.label, pick, m)));
+                }
+            }
+        }
+        assert!(bad.is_empty(), "{bad:#?}");
     }
 }
