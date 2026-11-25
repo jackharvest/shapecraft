@@ -2343,6 +2343,10 @@ msgstr ""
 msgid "Fillet Sketch"
 msgstr ""
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Fillet and Chamfer:"
+msgstr ""
+
 #: crates/ui-egui/src/whats_new.rs
 msgid "Fillet and Split Body show a card with every setting of the step, both while the tool runs and when you edit it from History. Drag the card anywhere; its ⋯ menu decides when it opens."
 msgstr ""
@@ -4969,7 +4973,7 @@ msgstr ""
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Revolve"
 msgstr ""
 
@@ -6262,6 +6266,10 @@ msgstr ""
 msgid "Stone & Ceramic"
 msgstr ""
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Stop at the biggest size that fits"
+msgstr ""
+
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Studio"
 msgstr ""
@@ -7070,7 +7078,7 @@ msgstr ""
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Union"
 msgstr ""
 

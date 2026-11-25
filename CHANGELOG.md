@@ -16,8 +16,8 @@ belong, and other languages fit.** Much of this comes from BAR × SUK's careful 
   numpad. Thanks [@johanl19](https://github.com/johanl19) (#97).
 - **KDE's global menu** shows ShapeCraft's menus (Plasma on Wayland), and the window leaves its own row out while it does.
   Thanks [@johanl19](https://github.com/johanl19) (#97).
-- **A fillet or chamfer stops at the biggest size the part can take** while you pull it. Pulled farther, the edge used to go
-  sharp again. A cylinder's end pulled all the way is a dome.
+- **A fillet or chamfer can stop at the biggest size the part can take** while you pull it, instead of going sharp again:
+  Preferences ▸ General ▸ Fillet and Chamfer. A cylinder's end pulled all the way is then a dome.
 - **Colors change on the model as you drag** in Visualization, for bodies, faces and the backdrop. The whole drag is one undo.
 - **Preferences on the projects screen of a tablet**, at the bottom of the sidebar.
 - **A pen without a button can open the right-click menu**: Preferences ▸ Tablet ▸ Hold still, then lift.

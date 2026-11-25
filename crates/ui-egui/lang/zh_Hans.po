@@ -2344,6 +2344,10 @@ msgstr "圆角尺寸类型"
 msgid "Fillet Sketch"
 msgstr "草图圆角"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Fillet and Chamfer:"
+msgstr "圆角和倒角："
+
 #: crates/ui-egui/src/whats_new.rs
 msgid "Fillet and Split Body show a card with every setting of the step, both while the tool runs and when you edit it from History. Drag the card anywhere; its ⋯ menu decides when it opens."
 msgstr "圆角和分割实体会显示一张卡片，列出该步骤的所有设置，使用工具时和从历史记录编辑时都有。卡片可随意拖动，⋯ 菜单决定何时打开。"
@@ -4970,7 +4974,7 @@ msgstr "反转滚动方向"
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Revolve"
 msgstr "回转"
 
@@ -6263,6 +6267,10 @@ msgstr "重现步骤（可选）"
 msgid "Stone & Ceramic"
 msgstr "石材与陶瓷"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Stop at the biggest size that fits"
+msgstr "停在可容纳的最大尺寸"
+
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Studio"
 msgstr "工作室"
@@ -7071,7 +7079,7 @@ msgstr "统一方向"
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Union"
 msgstr "合并"
 

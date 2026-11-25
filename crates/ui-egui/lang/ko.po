@@ -2344,6 +2344,10 @@ msgstr "필릿 크기 유형"
 msgid "Fillet Sketch"
 msgstr "스케치 필릿"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Fillet and Chamfer:"
+msgstr "필렛 및 모따기:"
+
 #: crates/ui-egui/src/whats_new.rs
 msgid "Fillet and Split Body show a card with every setting of the step, both while the tool runs and when you edit it from History. Drag the card anywhere; its ⋯ menu decides when it opens."
 msgstr "필릿과 바디 분할은 단계의 모든 설정을 카드로 보여 줍니다. 도구 사용 중에도, 기록에서 편집할 때도. 카드는 어디로든 옮길 수 있고 ⋯ 메뉴에서 열리는 때를 정합니다."
@@ -4970,7 +4974,7 @@ msgstr "스크롤 방향 반전"
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Revolve"
 msgstr "회전체"
 
@@ -6263,6 +6267,10 @@ msgstr "재현 순서(선택)"
 msgid "Stone & Ceramic"
 msgstr "돌과 세라믹"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Stop at the biggest size that fits"
+msgstr "가능한 최대 크기에서 멈추기"
+
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Studio"
 msgstr "스튜디오"
@@ -7071,7 +7079,7 @@ msgstr "균일한 방향"
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Union"
 msgstr "합집합"
 

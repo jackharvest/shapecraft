@@ -2344,6 +2344,10 @@ msgstr "Tipo misura raccordo"
 msgid "Fillet Sketch"
 msgstr "Raccordo schizzo"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Fillet and Chamfer:"
+msgstr "Raccordo e smusso:"
+
 #: crates/ui-egui/src/whats_new.rs
 msgid "Fillet and Split Body show a card with every setting of the step, both while the tool runs and when you edit it from History. Drag the card anywhere; its ⋯ menu decides when it opens."
 msgstr "Raccordo e Dividi corpo mostrano una scheda con tutte le impostazioni del passo, sia durante lo strumento sia dalla cronologia. Trascinala dove vuoi; il menu ⋯ decide quando si apre."
@@ -4970,7 +4974,7 @@ msgstr "Inverti direzione di scorrimento"
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Revolve"
 msgstr "Rivoluzione"
 
@@ -6263,6 +6267,10 @@ msgstr "Passaggi per riprodurlo (facoltativo)"
 msgid "Stone & Ceramic"
 msgstr "Pietra e ceramica"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Stop at the biggest size that fits"
+msgstr "Fermati alla dimensione massima possibile"
+
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Studio"
 msgstr "Studio"
@@ -7071,7 +7079,7 @@ msgstr "Orientamento uniforme"
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Union"
 msgstr "Unione"
 

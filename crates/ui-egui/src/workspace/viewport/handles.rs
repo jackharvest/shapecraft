@@ -344,12 +344,13 @@ impl Workspace {
                     if self.pull_limit.chamfer != t.chamfer {
                         self.pull_limit = crate::workspace::PullLimit { chamfer: t.chamfer, ..Default::default() };
                     }
-                    t.radius = self.pull_limit.reach(v.abs());
+                    let limited = self.settings.fillet_limit;
+                    t.radius = if limited { self.pull_limit.reach(v.abs()) } else { v.abs() };
                     if t.radius < v.abs() {
                         ui.ctx().request_repaint();
                     }
                     // Let go past the limit: the biggest that worked.
-                    if released && self.pull_limit.good > 0.0 && self.pull_limit.bad.is_some_and(|b| v.abs() >= b) {
+                    if limited && released && self.pull_limit.good > 0.0 && self.pull_limit.bad.is_some_and(|b| v.abs() >= b) {
                         t.radius = self.pull_limit.good;
                     }
                 }

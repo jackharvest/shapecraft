@@ -400,7 +400,7 @@ pub(crate) fn window(ui: &mut Ui, full: Rect, tab: &mut usize, s: &mut Settings,
 }
 
 /// The Preferences window's height, and the space kept above and below it on a short screen.
-const PREFS_H: f32 = 848.0;
+const PREFS_H: f32 = 902.0;
 const PREFS_MARGIN: f32 = 12.0;
 
 /// Advanced runs longer in other languages.
@@ -1477,6 +1477,9 @@ fn general_tab(ui: &mut Ui, r: Rect, s: &mut Settings, shortcuts: bool) -> (bool
     y += pitch;
     row_label(&p, col, y, "Sketches:");
     check(ui, pos2(col, y), "pref-keep-sketches", &mut s.keep_sketches, "Stay shown until every region is used");
+    y += pitch;
+    row_label(&p, col, y, "Fillet and Chamfer:");
+    check(ui, pos2(col, y), "pref-fillet-limit", &mut s.fillet_limit, "Stop at the biggest size that fits");
     y += pitch;
     // Everything in `crate::motion`: off for the slowest machines (the camera has its own switch in View).
     row_label(&p, col, y, "Animations:");

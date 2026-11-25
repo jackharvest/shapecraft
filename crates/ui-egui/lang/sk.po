@@ -2344,6 +2344,10 @@ msgstr "Typ veľkosti zaoblenia"
 msgid "Fillet Sketch"
 msgstr "Zaobliť náčrt"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Fillet and Chamfer:"
+msgstr "Zaoblenie a skosenie:"
+
 #: crates/ui-egui/src/whats_new.rs
 msgid "Fillet and Split Body show a card with every setting of the step, both while the tool runs and when you edit it from History. Drag the card anywhere; its ⋯ menu decides when it opens."
 msgstr "Zaoblenie a Rozdeliť teleso ukazujú kartu so všetkými nastaveniami kroku, počas nástroja aj pri úprave z histórie. Presuňte ju, kam chcete; ponuka ⋯ určuje, kedy sa otvorí."
@@ -4970,7 +4974,7 @@ msgstr "Obrátiť smer posúvania"
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Revolve"
 msgstr "Rotovať"
 
@@ -6263,6 +6267,10 @@ msgstr "Kroky na zopakovanie (nepovinné)"
 msgid "Stone & Ceramic"
 msgstr "Kameň a keramika"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Stop at the biggest size that fits"
+msgstr "Zastaviť pri najväčšej možnej veľkosti"
+
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Studio"
 msgstr "Štúdio"
@@ -7071,7 +7079,7 @@ msgstr "Jednotná orientácia"
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Union"
 msgstr "Zjednotiť"
 

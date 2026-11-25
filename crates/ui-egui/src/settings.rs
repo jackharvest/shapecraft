@@ -129,6 +129,9 @@ pub struct Settings {
     pub pen_hold_menu: bool,
     /// Preferences ▸ General: a sketch stays shown until every one of its regions has been used, not just every curve.
     pub keep_sketches: bool,
+    /// Preferences ▸ General: a fillet or chamfer pulled farther than the part can take stays at the biggest that works
+    /// (off: the edge goes sharp while it's too big, and letting go there leaves it so).
+    pub fillet_limit: bool,
     /// Preferences ▸ Tablet: on a touch screen, starting a sketch also shows the plane squares, as with a mouse
     /// (off: the pen's first stroke picks the floor or the face under it).
     pub touch_plane_squares: bool,
@@ -207,6 +210,7 @@ impl Default for Settings {
             pen_circles: true,
             pen_hold_menu: false,
             keep_sketches: false,
+            fillet_limit: false,
             touch_plane_squares: false,
             kernel: "occt".into(),
             import_mode: "Quality".into(),

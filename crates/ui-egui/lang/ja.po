@@ -2344,6 +2344,10 @@ msgstr "フィレットのサイズの種類"
 msgid "Fillet Sketch"
 msgstr "スケッチフィレット"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Fillet and Chamfer:"
+msgstr "フィレットと面取り:"
+
 #: crates/ui-egui/src/whats_new.rs
 msgid "Fillet and Split Body show a card with every setting of the step, both while the tool runs and when you edit it from History. Drag the card anywhere; its ⋯ menu decides when it opens."
 msgstr "フィレットとボディを分割では、そのステップの全設定がカードに表示されます。ツールの使用中も履歴からの編集時も。カードは自由に動かせ、⋯メニューで開く条件を選べます。"
@@ -4970,7 +4974,7 @@ msgstr "スクロール方向を反転"
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Revolve"
 msgstr "回転体"
 
@@ -6263,6 +6267,10 @@ msgstr "再現手順（任意）"
 msgid "Stone & Ceramic"
 msgstr "石・セラミック"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Stop at the biggest size that fits"
+msgstr "入る最大の大きさで止める"
+
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Studio"
 msgstr "スタジオ"
@@ -7071,7 +7079,7 @@ msgstr "均一な向き"
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Union"
 msgstr "結合"
 

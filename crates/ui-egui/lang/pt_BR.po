@@ -2344,6 +2344,10 @@ msgstr "Tipo de medida do arredondamento"
 msgid "Fillet Sketch"
 msgstr "Arredondar esboço"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Fillet and Chamfer:"
+msgstr "Filete e chanfro:"
+
 #: crates/ui-egui/src/whats_new.rs
 msgid "Fillet and Split Body show a card with every setting of the step, both while the tool runs and when you edit it from History. Drag the card anywhere; its ⋯ menu decides when it opens."
 msgstr "Arredondamento e Dividir corpo mostram um cartão com todos os ajustes do passo, durante a ferramenta e ao editar pelo histórico. Arraste-o para onde quiser; o menu ⋯ decide quando ele abre."
@@ -4970,7 +4974,7 @@ msgstr "Inverter direção da rolagem"
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Revolve"
 msgstr "Revolução"
 
@@ -6263,6 +6267,10 @@ msgstr "Passos para reproduzir (opcional)"
 msgid "Stone & Ceramic"
 msgstr "Pedra e cerâmica"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Stop at the biggest size that fits"
+msgstr "Parar no maior tamanho possível"
+
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Studio"
 msgstr "Estúdio"
@@ -7071,7 +7079,7 @@ msgstr "Orientação uniforme"
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Union"
 msgstr "União"
 

@@ -2344,6 +2344,10 @@ msgstr "Verrundungsmaß"
 msgid "Fillet Sketch"
 msgstr "Skizze verrunden"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Fillet and Chamfer:"
+msgstr "Verrundung und Fase:"
+
 #: crates/ui-egui/src/whats_new.rs
 msgid "Fillet and Split Body show a card with every setting of the step, both while the tool runs and when you edit it from History. Drag the card anywhere; its ⋯ menu decides when it opens."
 msgstr "Verrundung und Körper teilen zeigen eine Karte mit allen Einstellungen des Schritts, beim Arbeiten und beim Bearbeiten im Verlauf. Zieh die Karte, wohin du willst; ihr ⋯-Menü legt fest, wann sie aufgeht."
@@ -4970,7 +4974,7 @@ msgstr "Scrollrichtung umkehren"
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Revolve"
 msgstr "Drehen"
 
@@ -6263,6 +6267,10 @@ msgstr "Schritte zum Nachstellen (freiwillig)"
 msgid "Stone & Ceramic"
 msgstr "Stein & Keramik"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Stop at the biggest size that fits"
+msgstr "Bei der größten passenden Größe anhalten"
+
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Studio"
 msgstr "Studio"
@@ -7071,7 +7079,7 @@ msgstr "Einheitliche Ausrichtung"
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Union"
 msgstr "Vereinigung"
 

@@ -2344,6 +2344,10 @@ msgstr "Тип размера скругления"
 msgid "Fillet Sketch"
 msgstr "Скругление в эскизе"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Fillet and Chamfer:"
+msgstr "Скругление и фаска:"
+
 #: crates/ui-egui/src/whats_new.rs
 msgid "Fillet and Split Body show a card with every setting of the step, both while the tool runs and when you edit it from History. Drag the card anywhere; its ⋯ menu decides when it opens."
 msgstr "«Скругление» и «Разделить тело» показывают карточку со всеми параметрами шага, и во время работы, и при правке из истории. Перетащите её куда угодно; меню ⋯ решает, когда она открывается."
@@ -4970,7 +4974,7 @@ msgstr "Обратная прокрутка"
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Revolve"
 msgstr "Вращать"
 
@@ -6263,6 +6267,10 @@ msgstr "Как повторить (необязательно)"
 msgid "Stone & Ceramic"
 msgstr "Камень и керамика"
 
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Stop at the biggest size that fits"
+msgstr "Остановиться на наибольшем возможном размере"
+
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Studio"
 msgstr "Студия"
@@ -7071,7 +7079,7 @@ msgstr "Единая ориентация"
 
 #: crates/engine/src/cmd/model/mod.rs
 #: crates/engine/src/history.rs
-#: crates/ui-egui/src/menubar.rs
+#: crates/shapr/src/lib.rs
 msgid "Union"
 msgstr "Объединение"
 
