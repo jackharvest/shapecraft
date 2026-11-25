@@ -819,7 +819,7 @@ fn sketch_entity(curve: &shapecraft_shapr::SketchCurve) -> Option<(SketchEntity,
 }
 
 /// A sketch as Shapr3D's sketch rows describe it: lines, arcs, circles and fit splines (rectangles and polygons as
-/// their sides).
+/// their sides, letters as their outlines).
 fn shapr_sketch(sk: &Sketch) -> shapecraft_shapr::Sketch {
     use shapecraft_shapr::SketchCurve as C;
     let normal = sk.plane.x.cross(sk.plane.y).normalize_or_zero();
@@ -856,7 +856,33 @@ fn shapr_sketch(sk: &Sketch) -> shapecraft_shapr::Sketch {
             SketchEntity::Spline { points } => {
                 curves.push(C::Spline { id: 0, points: points.iter().map(|p| p.to_array()).collect(), poles: Vec::new(), construction })
             }
-            _ => {}
+            // No rows of these kinds are known: as fit splines through close points (an ellipse in two halves), off by less
+            // than a thousandth of their size; letters as their outlines.
+            SketchEntity::Ellipse { .. } | SketchEntity::ControlSpline { .. } => {
+                let outline = e.outline();
+                let parts = if matches!(e, SketchEntity::Ellipse { .. }) { 2 } else { 1 };
+                for k in 0..parts {
+                    let n = outline.len().saturating_sub(1);
+                    let (from, to) = (n * k / parts, n * (k + 1) / parts);
+                    let steps = (to - from).min(24);
+                    if steps == 0 {
+                        continue;
+                    }
+                    let points: Vec<[f64; 2]> =
+                        (0..=steps).filter_map(|i| outline.get(from + (to - from) * i / steps)).map(|p| p.to_array()).collect();
+                    curves.push(C::Spline { id: 0, points, poles: Vec::new(), construction });
+                }
+            }
+            SketchEntity::Text { .. } => {
+                for line in e.outlines() {
+                    if curves.len() + line.len() > 20_000 {
+                        break;
+                    }
+                    for w in line.windows(2).filter(|w| w[0].distance(w[1]) > 1e-6) {
+                        curves.push(C::Line { id: 0, a: w[0].to_array(), b: w[1].to_array(), construction });
+                    }
+                }
+            }
         }
     }
     shapecraft_shapr::Sketch {

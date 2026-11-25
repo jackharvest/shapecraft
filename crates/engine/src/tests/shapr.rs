@@ -569,3 +569,35 @@ fn our_shapr_files_bring_their_history_back() {
     assert!(!w.doc.history.iter().any(|h| h.kind == "fillet"));
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Ellipses, control-point splines and letters go into a .shapr file too, as curves it has rows for.
+#[test]
+fn shapr_export_keeps_every_sketch_curve() {
+    let mut s = super::session();
+    s.execute("sketch", &serde_json::json!({"plane": "xy"})).unwrap();
+    s.execute("ellipse", &serde_json::json!({"center": [0, 0], "rx": 10, "ry": 4})).unwrap();
+    s.execute("text", &serde_json::json!({"at": [30, 0], "text": "L", "size": 10})).unwrap();
+    s.execute("exit_sketching", &serde_json::json!({})).unwrap();
+    let dir = std::env::temp_dir().join(format!("sc-shapr-curves-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("a.shapr");
+    s.execute("export_shapr", &serde_json::json!({"path": path})).unwrap();
+    // What the file itself holds (opened here again, our own copy of the sketch comes back instead).
+    let read = shapecraft_shapr::Project::read(&shapecraft_shapr::ShaprFile::read(&path).unwrap()).unwrap();
+    use shapecraft_shapr::SketchCurve as C;
+    let curves = &read.sketches[0].curves;
+    let ends: Vec<[f64; 2]> = curves
+        .iter()
+        .filter_map(|c| if let C::Spline { points, .. } = c { Some([points[0], points[points.len() - 1]]) } else { None })
+        .flatten()
+        .collect();
+    assert_eq!(ends.len(), 4, "the ellipse in two halves");
+    assert!(
+        (ends[1][0] - ends[2][0]).hypot(ends[1][1] - ends[2][1]) < 1e-9 && (ends[0][0] - ends[3][0]).hypot(ends[0][1] - ends[3][1]) < 1e-6
+    );
+    assert!(curves.iter().filter(|c| matches!(c, C::Line { .. })).count() >= 6, "the letter's outline");
+    let mut t = super::session();
+    t.execute("import_file", &serde_json::json!({"path": path})).unwrap();
+    assert_eq!(t.doc.sketches[0].entities.len(), 2);
+    let _ = std::fs::remove_dir_all(&dir);
+}

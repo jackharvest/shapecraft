@@ -282,23 +282,23 @@ fn export_sketch_planes(s: &mut Session, p: &Params, path: &std::path::Path, dwg
     let hidden = p.bool_or("hidden", false);
     let list: Vec<&shapecraft_doc::Sketch> =
         s.doc.sketches.iter().filter(|k| !k.entities.is_empty() && (hidden || s.doc.item_shown(k.id))).collect();
-    let mut planes: Vec<(shapecraft_doc::SketchPlane, String, Vec<(SketchEntity, bool)>)> = Vec::new();
+    let mut planes: Vec<(shapecraft_doc::SketchPlane, Drawing)> = Vec::new();
     for k in list {
         let same = |q: &shapecraft_doc::SketchPlane| {
             q.normal().dot(k.plane.normal()) > 1.0 - 1e-9 && (q.origin - k.plane.origin).dot(q.normal()).abs() < 1e-6
         };
         let own = k.entities.iter().enumerate().map(|(i, e)| (e.clone(), k.construction.contains(&(i as u32))));
-        match planes.iter_mut().find(|(q, ..)| same(q)) {
-            Some((q, _, ents)) => {
+        match planes.iter_mut().find(|(q, _)| same(q)) {
+            Some((q, (_, ents))) => {
                 let m = formats::plane_to_plane(&k.plane, q);
                 ents.extend(own.flat_map(|(e, c)| formats::entity_in_frame(&e, &m).into_iter().map(move |e| (e, c))));
             }
-            None => planes.push((k.plane, k.name.replace(['/', '\\', ':'], "-"), own.collect())),
+            None => planes.push((k.plane, (k.name.replace(['/', '\\', ':'], "-"), own.collect()))),
         }
     }
     let ext = if dwg { "dwg" } else { "dxf" };
     let mut files: Vec<(String, Vec<u8>)> = Vec::new();
-    for (_, name, ents) in &planes {
+    for (_, (name, ents)) in &planes {
         let bytes = if dwg { formats::write_dwg(ents).map_err(EngineError::BadParams)? } else { formats::write_dxf(ents).into_bytes() };
         files.push((format!("{name}.{ext}"), bytes));
     }
