@@ -1051,12 +1051,18 @@ pub(super) fn export_shapr(s: &mut Session, p: &Params) -> Result<Value> {
     }
     // Copies of the Shapr3D-made bodies kept as they are, for reading the file here again before Shapr3D rebuilds it.
     for r in link.iter().flat_map(|l| &l.bodies).filter(|r| kept.contains(&r.body)) {
-        if s.doc.body(r.body).is_none() || !w.needs_body_copy(r.step) {
+        let item = r.item_name_id.filter(|i| w.needs_item_copy(r.step, *i));
+        if s.doc.body(r.body).is_none_or(|b| b.facets.is_some() && item.is_some()) || (item.is_none() && !w.needs_body_copy(r.step)) {
             continue;
         }
         let shape = crate::cmd::model::working_shape(s, r.body, false)?;
         if let [xt] = parasolid_parts(s, &shape)?.as_slice() {
-            w.stash_body(r.step, xt).map_err(bad)?;
+            match item {
+                Some(item) => w.stash_item(item, xt).map_err(bad)?,
+                None => {
+                    w.stash_body(r.step, xt).map_err(bad)?;
+                }
+            }
         }
     }
     // Sketches: Shapr3D's own get their circles moved or resized when they changed here; new ones are added (lines,

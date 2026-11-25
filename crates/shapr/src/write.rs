@@ -113,6 +113,8 @@ pub struct Writer {
     seq: u64,
     /// Exact late topology selectors verified from the original cached calls, before they are cleared.
     verified_targets: HashMap<(i64, i64), i64>,
+    /// Items of imported bodies that a step moved or rebuilt: what's kept of them is more than their prototype.
+    changed_imports: HashSet<i64>,
 }
 
 /// Verify only transforms with one explicitly selected topology and one modified current partition.
@@ -296,7 +298,16 @@ impl Writer {
             "INSERT INTO HistoryTreeNodes VALUES (1, 0, ?1)",
             [pack(&Value::Array(vec![Value::from("<root>"), Value::Array(Vec::new())]))],
         )?;
-        let mut w = Self { db, next_node: 2, next_name: 1, next_meta: 1, next_import: 0, seq: 0, verified_targets: HashMap::new() };
+        let mut w = Self {
+            db,
+            next_node: 2,
+            next_name: 1,
+            next_meta: 1,
+            next_import: 0,
+            seq: 0,
+            verified_targets: HashMap::new(),
+            changed_imports: HashSet::new(),
+        };
         let nonce = w.uuid();
         w.db.conn.execute("INSERT INTO Settings (SettingName, SettingValue) VALUES ('ProjectStateNonce', ?1)", [nonce])?;
         let id = w.folder_id();
@@ -311,6 +322,14 @@ impl Writer {
     pub fn patch(base: &ShaprFile) -> Result<Self> {
         let db = base.db()?;
         let verified_targets = verified_cached_targets(&db.conn)?;
+        let mut changed_imports = crate::changed_imports(&db.conn)?;
+        // A file we wrote before: what it kept is written again.
+        if crate::has_table(&db.conn, "ShapeCraftItems") {
+            let mut q = db.conn.prepare("SELECT ItemNameID FROM ShapeCraftItems")?;
+            changed_imports.extend(q.query_map([], |r| r.get::<_, i64>(0))?.flatten().take(100_000));
+            drop(q);
+            db.conn.execute_batch("DELETE FROM ShapeCraftItems;")?;
+        }
         db.conn.execute_batch("DELETE FROM BodyRevisionBlocks; DELETE FROM BodyRevisionDeltas; DELETE FROM PersistedCalls;")?;
         adopt_old_stash(&db.conn)?;
         let next_node = max_id(&db, "HistoryTreeNodes", "HistoryTreeNodeID")? + 1;
@@ -318,7 +337,7 @@ impl Writer {
         let next_meta = max_id(&db, "Metadata", "MetadataID")? + 1;
         let next_import = (max_id(&db, "HistoryImportedPrototypes", "ImportedPrototypeID")? + 1)
             .max(max_id(&db, "HistoryImportedBodies", "ImportedBodyID")? + 1);
-        Ok(Self { db, next_node, next_name, next_meta, next_import, seq: 0, verified_targets })
+        Ok(Self { db, next_node, next_name, next_meta, next_import, seq: 0, verified_targets, changed_imports })
     }
 
     fn folder_id(&mut self) -> String {
@@ -585,7 +604,11 @@ impl Writer {
     /// Move exactly the body identified by an item anchor.
     pub fn move_body_item(&mut self, creator: i64, item: i64, by: [f64; 3]) -> Result<bool> {
         let Some(name) = self.item_body_name(creator, item)? else { return Ok(false) };
-        self.move_body_target(creator, Some(name), by)
+        let moved = self.move_body_target(creator, Some(name), by)?;
+        if moved {
+            self.changed_imports.insert(item);
+        }
+        Ok(moved)
     }
 
     fn move_body_target(&mut self, creator: i64, exact: Option<i64>, by: [f64; 3]) -> Result<bool> {
@@ -1153,6 +1176,19 @@ impl Writer {
             .and_then(|b| unpack(&b))
             .and_then(|v| v.as_array()?.get(3)?.as_str().map(str::to_string));
         !matches!(op.as_deref(), None | Some("MaterializeImportedBodies"))
+    }
+
+    /// Whether an imported body has to be kept as it is ([`Self::stash_item`]): its prototype alone wouldn't give it back.
+    pub fn needs_item_copy(&self, creator: i64, item: i64) -> bool {
+        self.changed_imports.contains(&item) && !self.needs_body_copy(creator)
+    }
+
+    /// Keeps a copy of an imported body (a Parasolid part) where only we look ("ShapeCraftItems"), as
+    /// [`Self::stash_body`] does for the others.
+    pub fn stash_item(&mut self, item: i64, xt: &[u8]) -> Result<()> {
+        self.db.conn.execute_batch(crate::ITEMS_SCHEMA)?;
+        self.db.conn.execute("INSERT INTO ShapeCraftItems (ItemNameID, Body) VALUES (?1, ?2)", (item, xt))?;
+        Ok(())
     }
 
     pub fn stash_body(&mut self, creator: i64, xt: &[u8]) -> Result<bool> {

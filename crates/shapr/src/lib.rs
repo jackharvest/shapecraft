@@ -530,7 +530,11 @@ impl Project {
         let (extra_bodies, extra_unreadable) = uncovered_import_bodies(c, &p.steps, &gone, &paint)?;
         p.bodies.extend(extra_bodies);
         name_bodies(c, &p.steps, &p.items, &p.folders, &gone, &mut p.bodies)?;
-        apply_moves(c, &p.steps, &mut p.bodies)?;
+        kept_items(c, &mut p.bodies)?;
+        // A copy shares another body's partition: there is none of its own to write changes back into.
+        if place_bodies(c, &p.steps, &p.items, &mut p.bodies)? {
+            p.patchable = false;
+        }
         p.bodies.retain(|b| b.partition.is_none_or(|id| !gone.contains(&id)));
         // Only bodies still in the model count as lost: a deleted body's partition stays in the file.
         p.unreadable = unreadable
@@ -568,6 +572,10 @@ pub(crate) const HISTORY_SCHEMA: &str =
 
 pub(crate) const STASH_SCHEMA: &str =
     "CREATE TABLE IF NOT EXISTS \"ShapeCraftBodies\" (\"HistoryTreeNodeID\" INTEGER NOT NULL, \"Body\" BLOB NOT NULL);";
+
+/// Imported bodies a later step moved or rebuilt, by item: their prototypes alone don't give them back.
+pub(crate) const ITEMS_SCHEMA: &str =
+    "CREATE TABLE IF NOT EXISTS \"ShapeCraftItems\" (\"ItemNameID\" INTEGER NOT NULL, \"Body\" BLOB NOT NULL);";
 
 /// The names a step's parameter uses ([7, name] anywhere in it).
 fn name_refs(v: &Value, out: &mut Vec<i64>) {
@@ -1071,6 +1079,50 @@ fn items(c: &rusqlite::Connection, folders: &[Folder], item_by_meta: &mut std::c
     Ok(out)
 }
 
+/// What a call does to whole bodies, each by its tag.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Change {
+    /// Placed by this matrix of the call's, on top of where it was.
+    Move(i64, usize),
+    /// A new body that shows another's partition, where that one is.
+    Copy(i64, i64),
+    Remove(i64),
+}
+
+/// A call's placements (slot 3): `[true, [matrices, [[tag, [false] or [true, the tag copied], [false] or [true, index
+/// of its matrix]], …]]]`. A body neither copied nor placed is removed.
+fn placements_of(call: &[Value]) -> (Vec<Vec<f64>>, Vec<Change>) {
+    let inner = call
+        .get(3)
+        .and_then(Value::as_array)
+        .filter(|x| x.first().and_then(Value::as_bool) == Some(true))
+        .and_then(|x| x.get(1))
+        .and_then(Value::as_array);
+    let Some(inner) = inner else { return Default::default() };
+    let matrices = inner
+        .first()
+        .and_then(Value::as_array)
+        .map(|m| m.iter().map(|m| m.as_array().map(|a| a.iter().filter_map(Value::as_f64).collect()).unwrap_or_default()).collect())
+        .unwrap_or_default();
+    let given = |v: Option<&Value>| -> Option<i64> {
+        v.and_then(Value::as_array)
+            .filter(|x| x.first().and_then(Value::as_bool) == Some(true))
+            .and_then(|x| x.get(1))
+            .and_then(Value::as_i64)
+    };
+    let mut changes = Vec::new();
+    for e in inner.get(1).and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_array) {
+        let Some(tag) = e.first().and_then(Value::as_i64) else { continue };
+        let (copied, placed) = (given(e.get(1)), given(e.get(2)));
+        changes.extend(copied.map(|from| Change::Copy(tag, from)));
+        changes.extend(placed.and_then(|i| usize::try_from(i).ok()).map(|i| Change::Move(tag, i)));
+        if copied.is_none() && placed.is_none() {
+            changes.push(Change::Remove(tag));
+        }
+    }
+    (matrices, changes)
+}
+
 /// Bodies a later step removed keep their partition; the cached call results say which. A call's data is
 /// `[0, [0], modified, removed, _, created]`: `created` lists `[index, partition, 3, tag]`; `removed` (Delete) lists
 /// `[tag, …]`; `modified` lists `[partition, [true, [[true, pmark before], after, …]]]` where `after` is `[false]` when
@@ -1133,9 +1185,22 @@ fn drop_removed(c: &rusqlite::Connection, steps: &[Step], bodies: &mut Vec<Body>
                 gone.remove(&pid);
             }
         }
-        for r in list(3).iter().flat_map(|g| g.as_array().cloned().unwrap_or_default()) {
-            if let Some(pid) = r.as_array().and_then(|x| x.first()).and_then(Value::as_i64).and_then(|t| tag_of.get(&t)) {
-                gone.insert(*pid);
+        for change in placements_of(a).1 {
+            match change {
+                Change::Copy(tag, from) => {
+                    if let Some(pid) = tag_of.get(&from).copied() {
+                        tag_of.insert(tag, pid);
+                    }
+                }
+                // Its partition goes with the last body that shows it.
+                Change::Remove(tag) => {
+                    if let Some(pid) = tag_of.remove(&tag)
+                        && !tag_of.values().any(|p| *p == pid)
+                    {
+                        gone.insert(pid);
+                    }
+                }
+                Change::Move(..) => {}
             }
         }
         if let Some(Value::Array(changed)) = list(2).get(1) {
@@ -1224,12 +1289,267 @@ fn call_partitions(c: &rusqlite::Connection, bodies: &[Body]) -> Result<BTreeMap
     Ok(calls)
 }
 
-/// Shapr3D keeps a Move/Rotate that is a body's last change out of its cached partition (the move lives in the
-/// partition's delta); a later step that changes the body bakes it in. So each move with no later change to its
-/// bodies is applied here, from the matrix its cached call keeps.
-fn apply_moves(c: &rusqlite::Connection, steps: &[Step], bodies: &mut [Body]) -> Result<()> {
+/// One body as the steps left it: the partition it shows, and where.
+#[derive(Clone, Debug)]
+struct Instance {
+    partition: i64,
+    motion: glam::DMat4,
+    /// The step that copied it, for a body that shows another's partition.
+    copied_by: Option<i64>,
+}
+
+/// Every step's cached calls in order: (step, call).
+fn ordered_calls<'a>(c: &rusqlite::Connection, steps: &'a [Step]) -> Result<Vec<(&'a Step, Value)>> {
+    let mut calls: BTreeMap<i64, Vec<(Vec<i64>, Value)>> = BTreeMap::new();
+    for (k, d) in call_rows(c)? {
+        let key = k.as_array();
+        if let Some(node) = key.and_then(|a| a.first()).and_then(Value::as_i64) {
+            let sub = key.and_then(|a| a.get(1)).and_then(Value::as_array);
+            let sub = sub.map(|a| a.iter().filter_map(Value::as_i64).collect()).unwrap_or_default();
+            calls.entry(node).or_default().push((sub, d));
+        }
+    }
+    let mut out = Vec::new();
+    for step in steps {
+        let mut mine = calls.remove(&step.node).unwrap_or_default();
+        mine.sort_by(|a, b| a.0.cmp(&b.0));
+        out.extend(mine.into_iter().map(|(_, d)| (step, d)));
+    }
+    Ok(out)
+}
+
+/// A column-major 4×4 in meters as a motion in millimeters.
+fn motion(m: &[f64]) -> Option<glam::DMat4> {
+    let (rot, shift) = rigid_matrix(m)?;
+    Some(glam::DMat4::from_mat3_translation(rot, shift))
+}
+
+/// Steps whose call may list a partition for the first time because they made a body.
+const MAKES_BODIES: &[&str] = &["MaterializeImportedBodies", "Extrude", "Revolve", "Loft", "Sweep"];
+
+/// The bodies by tag, followed through the steps (#45). A step that rebuilds a body's partition bakes its placement in.
+/// `known` are the partitions there is a body for: where the file names no tag for one, the tag is the partition.
+fn instances(calls: &[(&Step, Value)], known: &std::collections::HashSet<i64>) -> BTreeMap<i64, Instance> {
+    let mut all: BTreeMap<i64, Instance> =
+        known.iter().map(|p| (*p, Instance { partition: *p, motion: glam::DMat4::IDENTITY, copied_by: None })).collect();
+    let mut seen = std::collections::HashSet::new();
+    for (step, call) in calls {
+        let Some(a) = call.as_array() else { continue };
+        let list = |slot: usize| {
+            a.get(slot)
+                .and_then(Value::as_array)
+                .filter(|x| x.first().and_then(Value::as_bool) == Some(true))
+                .and_then(|x| x.get(1))
+                .and_then(Value::as_array)
+        };
+        for e in list(5).into_iter().flatten().filter_map(Value::as_array).flatten().filter_map(Value::as_array) {
+            let (Some(pid), Some(tag)) = (e.get(1).and_then(Value::as_i64), e.get(3).and_then(Value::as_i64)) else { continue };
+            // Named by its tag from here on.
+            if tag != pid && all.get(&pid).is_some_and(|i| i.partition == pid && i.copied_by.is_none()) {
+                all.remove(&pid);
+            }
+            seen.insert(pid);
+            all.insert(tag, Instance { partition: pid, motion: glam::DMat4::IDENTITY, copied_by: None });
+        }
+        for e in list(2).and_then(|l| l.get(1)).and_then(Value::as_array).into_iter().flatten().filter_map(Value::as_array) {
+            let Some(pid) = e.first().and_then(Value::as_i64) else { continue };
+            for i in all.values_mut().filter(|i| i.partition == pid) {
+                i.motion = glam::DMat4::IDENTITY;
+            }
+            // A partition nothing made: a step that changed or used up a copy gave it one of its own, and the file doesn't
+            // say whose it was. The copies so far may be it.
+            let used_up = e.get(1).and_then(|x| x.as_array()?.get(1)?.as_array()?.get(1)?.as_array()?.first()?.as_bool()) == Some(false);
+            if seen.insert(pid) && (used_up || !MAKES_BODIES.contains(&step.op.as_str())) {
+                all.retain(|_, i| i.copied_by.is_none());
+            }
+        }
+        let (matrices, changes) = placements_of(a);
+        for change in changes {
+            match change {
+                Change::Copy(tag, from) => {
+                    if let Some(source) = all.get(&from).cloned() {
+                        all.insert(tag, Instance { copied_by: Some(step.node), ..source });
+                    }
+                }
+                Change::Move(tag, i) => {
+                    if let (Some(body), Some(m)) = (all.get_mut(&tag), matrices.get(i).and_then(|m| motion(m))) {
+                        body.motion = m * body.motion;
+                    }
+                }
+                Change::Remove(tag) => {
+                    all.remove(&tag);
+                }
+            }
+        }
+    }
+    all
+}
+
+/// The items of imported bodies that a later step moved or rebuilt.
+pub(crate) fn changed_imports(c: &rusqlite::Connection) -> Result<std::collections::HashSet<i64>> {
+    let mut out = std::collections::HashSet::new();
+    let has = ["HistoryNames", "HistoryNameAnchoringPoints", "MetadataAssignments"].iter().all(|t| has_table(c, t));
+    if !has || !has_calls(c) {
+        return Ok(out);
+    }
+    let steps = history_steps(c)?;
+    let slots = import_slots(c, &steps)?;
+    let calls = ordered_calls(c, &steps)?;
+    let placed = instances(&calls, &slots.iter().filter_map(|(_, pid)| *pid).collect());
+    let mut rebuilt = std::collections::HashSet::new();
+    for (_, call) in calls.iter().filter(|(s, _)| s.op != "MaterializeImportedBodies") {
+        let changed = call.as_array().and_then(|a| a.get(2)?.as_array()?.get(1)?.as_array()?.get(1)?.as_array());
+        rebuilt.extend(changed.into_iter().flatten().filter_map(|e| e.as_array()?.first()?.as_i64()));
+    }
+    let mut bodies: Vec<Body> = slots
+        .iter()
+        .filter(|(_, pid)| {
+            pid.is_some_and(|pid| {
+                let moved = |i: &Instance| !i.motion.abs_diff_eq(glam::DMat4::IDENTITY, 1e-12);
+                rebuilt.contains(&pid) || placed.values().any(|i| i.partition == pid && i.copied_by.is_none() && moved(i))
+            })
+        })
+        .map(|(import, _)| Body {
+            partition: None,
+            import: Some(*import),
+            folder: Vec::new(),
+            step: None,
+            name: None,
+            item_name_id: None,
+            brep: Default::default(),
+            color: None,
+            hidden: false,
+            mesh: None,
+        })
+        .collect();
+    let items = items(c, &[], &mut Default::default())?;
+    name_bodies(c, &steps, &items, &[], &Default::default(), &mut bodies)?;
+    out.extend(bodies.iter().filter_map(|b| b.item_name_id));
+    Ok(out)
+}
+
+/// In a file we wrote that nothing has rebuilt since: the imported bodies that aren't just their prototypes any more.
+fn kept_items(c: &rusqlite::Connection, bodies: &mut [Body]) -> Result<()> {
+    if bodies.iter().any(|b| b.partition.is_some()) || !has_table(c, "ShapeCraftItems") {
+        return Ok(());
+    }
+    let mut q = c.prepare("SELECT ItemNameID, Body FROM ShapeCraftItems")?;
+    let rows: Vec<(i64, Vec<u8>)> = q.query_map([], |r| Ok((r.get::<_, i64>(0)?, blob(r.get(1)?))))?.flatten().take(100_000).collect();
+    for (item, data) in rows {
+        let Some(b) = bodies.iter_mut().find(|b| b.item_name_id == Some(item) && b.import.is_some()) else { continue };
+        if let Ok(read) = shapecraft_xt::parse(&data).and_then(|f| shapecraft_xt::bodies(&f))
+            && let [body] = read.as_slice()
+        {
+            b.brep = body.brep.clone();
+            b.mesh = None;
+        }
+    }
+    Ok(())
+}
+
+/// Puts each body where the steps left it: a move that is a body's last change is left out of its cached partition and
+/// kept in the call instead (#45). Copies a step made that way are bodies of their own; returns whether there are any.
+fn place_bodies(c: &rusqlite::Connection, steps: &[Step], items: &[Item], bodies: &mut Vec<Body>) -> Result<bool> {
     // Files from before about 2025 keep no cached calls.
     if !has_calls(c) {
+        return Ok(false);
+    }
+    let calls = ordered_calls(c, steps)?;
+    // A body that came from its import's prototype stands for the partition the import step would have cached.
+    let slots = import_slots(c, steps)?;
+    let slot_of = |b: &Body| b.partition.or_else(|| slots.iter().find(|(id, _)| Some(*id) == b.import).and_then(|(_, pid)| *pid));
+    let known: std::collections::HashSet<i64> = bodies.iter().filter_map(slot_of).collect();
+    let placed = instances(&calls, &known);
+    // Tags the file doesn't explain: those moves go by the step that made the body.
+    let explained: std::collections::HashSet<i64> = placed.keys().copied().collect();
+    let mut unexplained = Vec::new();
+    for (step, call) in &calls {
+        if step.op != "Transform" {
+            continue;
+        }
+        let Some(a) = call.as_array() else { continue };
+        let (matrices, changes) = placements_of(a);
+        let moves: Vec<(i64, usize)> =
+            changes.iter().filter_map(|c| if let Change::Move(t, i) = c { Some((*t, *i)) } else { None }).collect();
+        let copies = changes.iter().any(|c| matches!(c, Change::Copy(..)));
+        if !copies
+            && !moves.is_empty()
+            && moves.iter().all(|(t, _)| !explained.contains(t))
+            && let Some(m) = moves.first().and_then(|(_, i)| matrices.get(*i)).and_then(|m| rigid_matrix(m))
+        {
+            unexplained.push((step.node, m));
+        }
+    }
+    // The copies first, from the shapes as the file has them: a copy's own placement starts from its source's.
+    let mut copies = Vec::new();
+    for i in placed.values() {
+        if let Some(step) = i.copied_by
+            && let Some(source) = bodies.iter().find(|b| slot_of(b) == Some(i.partition))
+        {
+            let mut b = source.clone();
+            (b.partition, b.import, b.step, b.name, b.item_name_id, b.hidden) = (None, None, Some(step), None, None, false);
+            copies.push((step, b, i.motion));
+        }
+    }
+    // A body that was copied and then deleted leaves its partition to the copy.
+    let own = |p: i64| placed.values().any(|i| i.partition == p && i.copied_by.is_none());
+    let copied = |p: i64| placed.values().any(|i| i.partition == p && i.copied_by.is_some());
+    bodies.retain(|b| slot_of(b).is_none_or(|p| own(p) || !copied(p)));
+    for i in placed.values().filter(|i| i.copied_by.is_none() && !i.motion.abs_diff_eq(glam::DMat4::IDENTITY, 1e-12)) {
+        for b in bodies.iter_mut().filter(|b| slot_of(b) == Some(i.partition)) {
+            put(b, i.motion);
+        }
+    }
+    apply_moves(c, steps, bodies, &unexplained)?;
+    let any = !copies.is_empty();
+    // The copy's item hangs off a name its step made.
+    let mut named = names_made_by(c)?;
+    for (step, mut b, m) in copies {
+        put(&mut b, m);
+        let item = named.get_mut(&step).and_then(|ids| {
+            let at =
+                ids.iter().position(|id| items.iter().any(|i| i.name_id == *id) && bodies.iter().all(|b| b.item_name_id != Some(*id)))?;
+            Some(ids.remove(at))
+        });
+        if let Some(item) = item.and_then(|id| items.iter().find(|i| i.name_id == id)) {
+            b.name = Some(item.name.clone());
+            b.item_name_id = Some(item.name_id);
+            b.folder = item.folder.clone();
+            b.hidden = item.hidden;
+            b.color = item.color.or(b.color);
+        }
+        bodies.push(b);
+    }
+    Ok(any)
+}
+
+fn put(b: &mut Body, m: glam::DMat4) {
+    let (rot, shift) = (glam::DMat3::from_mat4(m), m.w_axis.truncate());
+    b.brep.transform_rigid(rot, shift);
+    if let Some(mesh) = &mut b.mesh {
+        mesh.points.iter_mut().for_each(|p| *p = rot * *p + shift);
+    }
+}
+
+/// The names each step made (`HistoryNames` 18 and 19 keyed by its call).
+fn names_made_by(c: &rusqlite::Connection) -> Result<BTreeMap<i64, Vec<i64>>> {
+    let mut made: BTreeMap<i64, Vec<i64>> = BTreeMap::new();
+    if has_table(c, "HistoryNames") {
+        let mut q = c.prepare("SELECT NameID, Data FROM HistoryNames WHERE Type IN (18, 19) ORDER BY NameID")?;
+        for (id, data) in q.query_map([], |r| Ok((r.get::<_, i64>(0)?, text(r.get(1)?))))?.flatten().take(1_000_000) {
+            let Ok(v) = serde_json::from_str::<serde_json::Value>(&data) else { continue };
+            if let Some(node) = v["callKey"]["nodeID"].as_i64() {
+                made.entry(node).or_default().push(id);
+            }
+        }
+    }
+    Ok(made)
+}
+
+/// The moves whose bodies the file doesn't name by tag, by the steps that created their targets: `moves` is (the
+/// Transform, what it does). Each move with no later change to its bodies is applied.
+fn apply_moves(c: &rusqlite::Connection, steps: &[Step], bodies: &mut [Body], moves: &[(i64, (glam::DMat3, glam::DVec3))]) -> Result<()> {
+    if moves.is_empty() {
         return Ok(());
     }
     let calls = call_partitions(c, bodies)?;
@@ -1253,41 +1573,22 @@ fn apply_moves(c: &rusqlite::Connection, steps: &[Step], bodies: &mut [Body]) ->
             a.iter().for_each(|x| named(x, out));
         }
     }
-    // A Transform's result call is keyed [node, [2]].
-    let mut results: BTreeMap<i64, Value> = BTreeMap::new();
-    {
-        for (k, d) in call_rows(c)? {
-            let key = k.as_array().map(|a| {
-                (a.first().and_then(Value::as_i64), a.get(1).and_then(Value::as_array).and_then(|e| e.first()).and_then(Value::as_i64))
-            });
-            if let (Some((Some(node), Some(2))), Some(d)) = (key, Some(d)) {
-                results.insert(node, d);
-            }
-        }
-    }
-    for (i, step) in steps.iter().enumerate().filter(|(_, s)| s.op == "Transform") {
+    for (i, step) in steps.iter().enumerate() {
+        let Some((_, motion)) = moves.iter().find(|(node, _)| *node == step.node) else { continue };
         let Some((_, target)) = step.params.first() else { continue };
         let mut refs = Vec::new();
         named(target, &mut refs);
+        let targets = refs.len();
         let creators: Vec<i64> = refs.into_iter().filter_map(creator).collect();
-        let Some(data) = results.get(&step.node) else { continue };
-        // [_, _, _, [true, [[matrix], …]], …]: the 4×4 (column-major, meters).
-        let matrix = Some(data).and_then(|d| d.as_array()?.get(3)?.as_array()?.get(1)?.as_array()?.first()?.as_array()?.first().cloned());
-        let Some(motion) = matrix
-            .as_ref()
-            .and_then(|m| m.as_array().map(|a| a.iter().filter_map(Value::as_f64).collect::<Vec<_>>()))
-            .and_then(|m| rigid_matrix(&m))
-        else {
-            continue;
-        };
         let later: Vec<i64> = steps[i + 1..].iter().flat_map(|s| calls.get(&s.node).cloned().unwrap_or_default()).collect();
-        for b in bodies.iter_mut().filter(|b| b.step.is_some_and(|s| creators.contains(&s))) {
-            if b.partition.is_some_and(|p| !later.contains(&p)) {
-                b.brep.transform_rigid(motion.0, motion.1);
-                if let Some(m) = &mut b.mesh {
-                    m.points.iter_mut().for_each(|p| *p = motion.0 * *p + motion.1);
-                }
-            }
+        let hits = |b: &Body| b.step.is_some_and(|s| creators.contains(&s)) && b.partition.is_some_and(|p| !later.contains(&p));
+        // An import makes many bodies and a move names a few: the step alone can't say which.
+        let from_import = creators.iter().any(|n| steps.iter().any(|s| s.node == *n && s.op == "MaterializeImportedBodies"));
+        if from_import && bodies.iter().filter(|b| hits(b)).count() > targets {
+            continue;
+        }
+        for b in bodies.iter_mut().filter(|b| hits(b)) {
+            put(b, glam::DMat4::from_mat3_translation(motion.0, motion.1));
         }
     }
     Ok(())
@@ -2965,6 +3266,98 @@ mod older_layout_tests {
     }
 
     /// Mid-2024 to early-2026 files: no cached calls, deleted partition rows and empty blocks are skipped.
+    /// #45: which bodies a move places is in the call itself. An import of three; the first moved, the second and third
+    /// moved together, the second again; the first copied, the copy moved on; the second rebuilt by a later step; the
+    /// third deleted.
+    #[test]
+    fn moves_copies_and_deletes_follow_the_calls_tags() -> Result<()> {
+        let no = || Value::Array(vec![Value::from(false)]);
+        let yes = |v: Value| Value::Array(vec![Value::from(true), v]);
+        let arr = Value::Array;
+        let int = |i: i64| Value::from(i);
+        let up = |mm: f64| {
+            let mut m: Vec<f64> = glam::DMat4::IDENTITY.to_cols_array().to_vec();
+            m[14] = mm / 1000.0;
+            arr(m.into_iter().map(Value::from).collect())
+        };
+        let entry = |tag: i64, from: Option<i64>, matrix: Option<i64>| {
+            let given = |x: Option<i64>| x.map_or_else(no, |i| yes(int(i)));
+            arr(vec![int(tag), given(from), given(matrix)])
+        };
+        let call = |modified: Value, placed: Value, created: Value| arr(vec![int(0), arr(vec![int(0)]), modified, placed, no(), created]);
+        let none = || yes(arr(vec![arr(vec![]), arr(vec![]), arr(vec![])]));
+        let places = |m: Vec<Value>, e: Vec<Value>| call(none(), yes(arr(vec![arr(m), arr(e)])), no());
+        let created = yes(arr(vec![arr((0..3).map(|i| arr(vec![int(i), int(10 + i), int(3), int(i)])).collect())]));
+        let after = yes(arr(vec![yes(int(6)), yes(int(7))]));
+        let rebuilt = yes(arr(vec![arr(vec![]), arr(vec![arr(vec![int(11), after])]), arr(vec![])]));
+        let data = vec![
+            call(no(), no(), created),
+            places(vec![up(20.0)], vec![entry(0, None, Some(0))]),
+            places(vec![up(5.0), up(6.0)], vec![entry(1, None, Some(0)), entry(2, None, Some(1))]),
+            places(vec![up(17.0)], vec![entry(1, None, Some(0))]),
+            places(vec![up(3.0)], vec![entry(7, Some(0), Some(0))]),
+            call(rebuilt, no(), no()),
+            places(vec![up(1.0)], vec![entry(1, None, Some(0))]),
+            places(vec![], vec![entry(2, None, None)]),
+        ];
+        let steps: Vec<Step> =
+            (0..8).map(|i| Step { node: 100 + i, name: String::new(), op: "Transform".into(), params: vec![] }).collect();
+        let c = rusqlite::Connection::open_in_memory()?;
+        c.execute_batch("CREATE TABLE PersistedCalls (CallKey BLOB, CallData BLOB)")?;
+        for (s, d) in steps.iter().zip(&data) {
+            let key = pack(&arr(vec![int(s.node), arr(vec![int(0)])]));
+            c.execute("INSERT INTO PersistedCalls VALUES (?1, ?2)", (key, pack(d)))?;
+        }
+        let gone = drop_removed(&c, &steps, &mut Vec::new())?;
+        assert_eq!(gone.into_iter().collect::<Vec<_>>(), [12], "only the deleted one, not the moved ones");
+        let placed = instances(&ordered_calls(&c, &steps)?, &[10, 11, 12].into_iter().collect());
+        let z = |tag: i64| placed.get(&tag).map(|i| (i.partition, (i.motion.w_axis.z * 1000.0).round() / 1000.0, i.copied_by));
+        assert_eq!(z(0), Some((10, 20.0, None)));
+        assert_eq!(z(1), Some((11, 1.0, None)), "the moves before it was rebuilt are in its shape already");
+        assert_eq!(z(2), None);
+        assert_eq!(z(7), Some((10, 23.0, Some(104))), "the copy starts where its source is");
+        assert_eq!(placed.len(), 3);
+        Ok(())
+    }
+
+    /// A later step that uses a copy up gives it a partition of its own without saying whose it was.
+    #[test]
+    fn a_copy_a_later_step_used_up_is_not_left_standing() {
+        let int = |i: i64| Value::from(i);
+        let arr = Value::Array;
+        let yes = |v: Value| Value::Array(vec![Value::from(true), v]);
+        let no = || Value::Array(vec![Value::from(false)]);
+        let copy = yes(arr(vec![arr(vec![]), arr(vec![arr(vec![int(4), yes(int(1)), no()])])]));
+        let copy = arr(vec![int(0), Value::Nil, no(), copy, no(), no()]);
+        let used = |pid: i64, after: Value| arr(vec![int(pid), yes(arr(vec![yes(int(4)), after]))]);
+        let union = yes(arr(vec![arr(vec![]), arr(vec![used(3086, yes(int(6))), used(3087, no())]), arr(vec![])]));
+        let union = arr(vec![int(0), Value::Nil, union, no(), no(), no()]);
+        let step = |node: i64, op: &str| Step { node, name: String::new(), op: op.into(), params: vec![] };
+        let (pattern, join) = (step(1, "LinearPattern"), step(2, "Union"));
+        let known = [1].into_iter().collect();
+        assert_eq!(instances(&[(&pattern, copy.clone())], &known).len(), 2);
+        assert_eq!(instances(&[(&pattern, copy), (&join, union)], &known).len(), 1);
+    }
+
+    /// Where a file names no tags, the tag is the partition; junk is passed over.
+    #[test]
+    fn a_tag_the_file_doesnt_name_is_the_partition() {
+        let m = glam::DMat4::from_translation(glam::DVec3::new(0.0, 0.0, 0.007)).to_cols_array();
+        let m = Value::Array(m.into_iter().map(Value::from).collect());
+        let yes = |v: Value| Value::Array(vec![Value::from(true), v]);
+        let no = || Value::Array(vec![Value::from(false)]);
+        let entry = |tag: i64, i: i64| Value::Array(vec![Value::from(tag), no(), yes(Value::from(i))]);
+        let placed = yes(Value::Array(vec![
+            Value::Array(vec![m]),
+            Value::Array(vec![entry(6199, 0), entry(6199, 9), entry(6199, -1), Value::from(3), entry(5, 0)]),
+        ]));
+        let call = Value::Array(vec![Value::from(0), Value::Nil, no(), placed, no(), no()]);
+        let step = Step { node: 1, name: String::new(), op: "Transform".into(), params: vec![] };
+        let all = instances(&[(&step, call)], &[6199].into_iter().collect());
+        assert_eq!(all.len(), 1);
+        assert!((all[&6199].motion.w_axis.z - 7.0).abs() < 1e-9);
+    }
+
     #[test]
     fn deleted_partition_rows_are_not_bodies() -> Result<()> {
         let c = rusqlite::Connection::open_in_memory()?;

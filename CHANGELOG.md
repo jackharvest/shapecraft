@@ -3,19 +3,39 @@
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
 ## 0.12.12-alpha
-**Other languages fit, Settings and Plugins are translated throughout, and a fillet stops at its limit.** Most of this comes from
-BAR × SUK's careful test of the Android app in Russian. Thank you!
+**Big models turn smoothly on slow computers, pens and touch screens work on Linux, moved bodies in `.shapr` files are where they
+belong, and other languages fit.** Much of this comes from BAR × SUK's careful test of the Android app in Russian. Thank you!
 ### New
+- **Big models draw coarser while the view moves**, and whole again the moment it stops. It only goes as far as your computer
+  needs to keep up, so on a fast one nothing changes: a 1.9-million-triangle model turned at 30 frames a second on a 2016
+  laptop and now turns at 58. Preferences ▸ General ▸ Coarser While Moving: Automatic, Always or Never (#25).
+- **Pens on Linux** (Wayland): a pen hovers, picks and draws, its button is a right-click, and it never turns the view.
+  Thanks [@johanl19](https://github.com/johanl19) (#97).
+- **Touch screens on Linux** (Wayland): one finger turns the view, two pan and pinch; a tap picks and holding opens the
+  right-click menu until a pen is used, which then does the picking. With no keyboard in use, sizes are tapped in on the
+  numpad. Thanks [@johanl19](https://github.com/johanl19) (#97).
+- **KDE's global menu** shows ShapeCraft's menus (Plasma on Wayland), and the window leaves its own row out while it does.
+  Thanks [@johanl19](https://github.com/johanl19) (#97).
 - **A fillet or chamfer stops at the biggest size the part can take** while you pull it. Pulled farther, the edge used to go
   sharp again. A cylinder's end pulled all the way is a dome.
 - **Colors change on the model as you drag** in Visualization, for bodies, faces and the backdrop. The whole drag is one undo.
 - **Preferences on the projects screen of a tablet**, at the bottom of the sidebar.
 - **A pen without a button can open the right-click menu**: Preferences ▸ Tablet ▸ Hold still, then lift.
 ### Changed
+- **No window buttons on a maximized window** where KDE takes the borders off maximized windows. Thanks
+  [@johanl19](https://github.com/johanl19) (#97).
 - **Plugins, Advanced, reports and the update notes follow your language.** Their translations were there but weren't used.
   The last missing texts are in all eleven languages.
 - Russian: Visualize and Decal have their proper names.
 ### Fixed
+- **Insert ▸ File and Insert ▸ Project open their windows.** File said `'path' must be a string`, and Project "is coming soon".
+  Thanks [@Staratel](https://github.com/Staratel) (#98).
+- **Everything command search lists can be run from it**: Import, Export, Save, Insert Image, Create Drawing and others
+  complained about a missing value. What only works from its own panel is no longer listed (#98).
+- **Moved bodies in a `.shapr` file are where they belong.** Bodies a Move/Rotate had placed could come in unmoved, at
+  another body's place, or not at all; copies made by one were missing. Moves, rotations, copies and deletions are now read
+  for exactly the bodies they name, and saving keeps them. Thanks [@pablohc](https://github.com/pablohc) (#45).
+- A faded or picked body's nearest surface could show speckles on some graphics cards.
 - **Long words stay in their place**: Preferences' tabs, labels, pop-up buttons and Sync's rows; the buttons under the Items
   list; Visualization's pop-ups and a decal's file name; the Area Selection card.
 - **What's New swipes sideways on a tablet**, and the Tutorials page scrolls under the title bar, not over it.
