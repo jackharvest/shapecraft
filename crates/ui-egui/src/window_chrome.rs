@@ -1,6 +1,8 @@
 //! The window's frame where we draw all of it (Linux): a desktop's own title bar would stack on top of ours, so the
 //! window has no decorations and these are the minimize, maximize and close buttons, the resize edges and the drag area.
 
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use egui::viewport::ResizeDirection;
 use egui::{Color32, CursorIcon, Pos2, Rect, Sense, Stroke, Ui, ViewportCommand, pos2, vec2};
 
@@ -20,9 +22,41 @@ pub fn own_frame() -> bool {
     OWN_FRAME && !crate::tablet::on_tablet()
 }
 
+/// The window is maximized on a desktop that takes the borders off maximized windows: no buttons either.
+static HIDDEN: AtomicBool = AtomicBool::new(false);
+static WAS_MAXIMIZED: AtomicBool = AtomicBool::new(false);
+
 /// [`BUTTONS_W`] where there are window buttons to make room for.
 pub fn buttons_w() -> f32 {
-    if own_frame() { BUTTONS_W } else { 0.0 }
+    if own_frame() && !HIDDEN.load(Ordering::Relaxed) { BUTTONS_W } else { 0.0 }
+}
+
+/// KDE's "hide titlebar and frame" of maximized windows (kwinrc, [Windows] BorderlessMaximizedWindows).
+fn borderless_when_maximized(kwinrc: &str) -> bool {
+    let mut windows = false;
+    let mut on = false;
+    for line in kwinrc.lines().map(str::trim) {
+        if line.starts_with('[') {
+            windows = line == "[Windows]";
+        } else if windows && let Some((key, value)) = line.split_once('=') {
+            // "Key[$i]" is the same key, locked by the administrator.
+            if key.split('[').next().unwrap_or(key).trim() == "BorderlessMaximizedWindows" {
+                on = value.trim().eq_ignore_ascii_case("true");
+            }
+        }
+    }
+    on
+}
+
+/// Whether this desktop does that, read when the window has just been maximized.
+fn desktop_hides_borders() -> bool {
+    if !std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|d| d.split(':').any(|d| d == "KDE")) {
+        return false;
+    }
+    let dir = std::env::var_os("XDG_CONFIG_HOME")
+        .map(std::path::PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| std::path::PathBuf::from(h).join(".config")));
+    dir.and_then(|d| std::fs::read_to_string(d.join("kwinrc")).ok()).is_some_and(|t| borderless_when_maximized(&t))
 }
 
 #[derive(Clone, Copy)]
@@ -118,6 +152,13 @@ pub fn show(ui: &mut Ui) {
     }
     if !maximized {
         resize_edges(ui, full);
+        HIDDEN.store(false, Ordering::Relaxed);
+    } else if !WAS_MAXIMIZED.load(Ordering::Relaxed) {
+        HIDDEN.store(desktop_hides_borders(), Ordering::Relaxed);
+    }
+    WAS_MAXIMIZED.store(maximized, Ordering::Relaxed);
+    if HIDDEN.load(Ordering::Relaxed) {
+        return;
     }
     let ink = if focused { theme::c(0x9d9c9d) } else { theme::c(0x686566) };
     let at = |slot: f32| pos2(full.right() - (slot + 0.5) * BUTTON_STEP, full.top() + 25.0);
@@ -129,5 +170,19 @@ pub fn show(ui: &mut Ui) {
     }
     if button(ui, Button::Minimize, at(2.0), maximized, ink) {
         ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::borderless_when_maximized;
+
+    #[test]
+    fn kdes_setting_is_read_from_its_own_group() {
+        assert!(borderless_when_maximized("[Plugins]\nx=1\n\n[Windows]\nPlacement=Smart\nBorderlessMaximizedWindows=true\n"));
+        assert!(!borderless_when_maximized("[Windows]\nBorderlessMaximizedWindows=false\n"));
+        assert!(!borderless_when_maximized("[Other]\nBorderlessMaximizedWindows=true\n[Windows]\n"));
+        assert!(borderless_when_maximized("[Windows]\nBorderlessMaximizedWindows[$i]=true"));
+        assert!(!borderless_when_maximized(""));
     }
 }

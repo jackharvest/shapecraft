@@ -23,6 +23,33 @@ use crate::window::{Window, WindowAttributes};
 
 pub use crate::window::Theme;
 
+/// ShapeCraft patch: pens and, once [`pointers::record_touches`] is asked for, fingers, as records the app takes each
+/// frame with [`pointers::take`] (see PATCH.md).
+#[path = "pointers.rs"]
+pub mod pointers;
+
+static APP_MENU: std::sync::OnceLock<(String, String)> = std::sync::OnceLock::new();
+static APP_MENU_SET: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// ShapeCraft patch: where the app's menus are on the session bus (a bus name and an object path), told to the
+/// compositor for every window made from now on (KDE's `org_kde_kwin_appmenu`).
+pub fn set_app_menu(service: &str, path: &str) {
+    let _ = APP_MENU.set((service.to_string(), path.to_string()));
+}
+
+/// ShapeCraft patch: a window's compositor was told so.
+pub fn app_menu_announced() -> bool {
+    APP_MENU_SET.load(std::sync::atomic::Ordering::Relaxed)
+}
+
+pub(crate) fn app_menu() -> Option<&'static (String, String)> {
+    APP_MENU.get()
+}
+
+pub(crate) fn mark_app_menu_announced() {
+    APP_MENU_SET.store(true, std::sync::atomic::Ordering::Relaxed);
+}
+
 /// Additional methods on [`ActiveEventLoop`] that are specific to Wayland.
 pub trait ActiveEventLoopExtWayland {
     /// True if the [`ActiveEventLoop`] uses Wayland.

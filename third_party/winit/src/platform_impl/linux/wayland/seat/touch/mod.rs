@@ -12,8 +12,32 @@ use sctk::seat::touch::{TouchData, TouchHandler};
 use crate::dpi::LogicalPosition;
 use crate::event::{Touch, TouchPhase, WindowEvent};
 
+use crate::platform::wayland::pointers::{self, Phase, Record, Tool};
 use crate::platform_impl::wayland::state::WinitState;
-use crate::platform_impl::wayland::{self, DeviceId};
+use crate::platform_impl::wayland::{self, DeviceId, WindowId};
+
+/// ShapeCraft patch: a finger as a record, where the app asked for those; `false` sends the window event.
+fn record(state: &mut WinitState, window: WindowId, id: i32, at: LogicalPosition<f64>, scale: f64, phase: Phase) -> bool {
+    if !pointers::touches_recorded() {
+        return false;
+    }
+    let at = at.to_physical::<f32>(scale);
+    state.record_pointers(
+        window,
+        vec![Record {
+            tool: Tool::Finger,
+            id: id as u64,
+            phase,
+            x: at.x,
+            y: at.y,
+            pressure: 1.0,
+            buttons: 0,
+            button: 0,
+            scroll: (0.0, 0.0),
+        }],
+    );
+    true
+}
 
 impl TouchHandler for WinitState {
     fn down(
@@ -44,6 +68,9 @@ impl TouchHandler for WinitState {
         // Update the state of the point.
         let location = LogicalPosition::<f64>::from(position);
         seat_state.touch_map.insert(id, TouchPoint { surface, location });
+        if record(self, window_id, id, location, scale_factor, Phase::Down) {
+            return;
+        }
 
         self.events_sink.push_window_event(
             WindowEvent::Touch(Touch {
@@ -87,6 +114,10 @@ impl TouchHandler for WinitState {
             Some(window) => window.lock().unwrap().scale_factor(),
             None => return,
         };
+
+        if record(self, window_id, id, touch_point.location, scale_factor, Phase::Up) {
+            return;
+        }
 
         self.events_sink.push_window_event(
             WindowEvent::Touch(Touch {
@@ -132,6 +163,10 @@ impl TouchHandler for WinitState {
         };
 
         touch_point.location = LogicalPosition::<f64>::from(position);
+        let location = touch_point.location;
+        if record(self, window_id, id, location, scale_factor, Phase::Move) {
+            return;
+        }
 
         self.events_sink.push_window_event(
             WindowEvent::Touch(Touch {
@@ -139,7 +174,7 @@ impl TouchHandler for WinitState {
                     DeviceId,
                 )),
                 phase: TouchPhase::Moved,
-                location: touch_point.location.to_physical(scale_factor),
+                location: location.to_physical(scale_factor),
                 force: None,
                 id: id as u64,
             }),
@@ -156,12 +191,17 @@ impl TouchHandler for WinitState {
             },
         };
 
-        for (id, touch_point) in seat_state.touch_map.drain() {
+        let points: Vec<_> = seat_state.touch_map.drain().collect();
+        for (id, touch_point) in points {
             let window_id = wayland::make_wid(&touch_point.surface);
             let scale_factor = match self.windows.get_mut().get(&window_id) {
                 Some(window) => window.lock().unwrap().scale_factor(),
                 None => return,
             };
+
+            if record(self, window_id, id, touch_point.location, scale_factor, Phase::Cancel) {
+                continue;
+            }
 
             let location = touch_point.location.to_physical(scale_factor);
 

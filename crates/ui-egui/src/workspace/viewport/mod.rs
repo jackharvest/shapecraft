@@ -57,6 +57,17 @@ impl Workspace {
         to_d(p) - to_d(self.view_rect.min)
     }
 
+    /// A pen or a finger is what's being used: on a touch screen, or beside a desktop's mouse.
+    pub(in crate::workspace) fn by_hand(&self) -> bool {
+        crate::tablet::touch_ui() || self.pen_input || self.finger_nav
+    }
+
+    /// Fingers only move the view where the pen does the rest: on a tablet, and on a desktop with a pen. With no pen to
+    /// do it, a finger's tap on a desktop's touch screen picks like a click.
+    fn finger_moves_only(&self) -> bool {
+        self.finger_nav && (crate::tablet::touch_ui() || crate::tablet::pen_seen())
+    }
+
     pub(in crate::workspace) fn size(&self) -> DVec2 {
         DVec2::new(self.view_rect.width() as f64, self.view_rect.height() as f64)
     }
@@ -92,12 +103,12 @@ impl Workspace {
             && cursor.is_some_and(|p| paint::field_rect(ui.ctx()).is_some_and(|r| r.contains(p)));
         // A finger on a touch screen only turns the view: the drawing stays aimed where the pen left it, so an
         // unfinished line or rectangle doesn't follow the finger (#14).
-        let finger = self.finger_nav && crate::tablet::touch_ui();
+        let finger = self.finger_moves_only();
         if !over_field && !finger {
             self.cursor = cursor;
         }
         self.viewport_hot = resp.hovered() || resp.dragged();
-        if self.finger_nav {
+        if self.finger_moves_only() {
             // A finger on a touch screen only moves the view, as on iPad: no picking, no hover, no
             // handles (the pen does those). A double tap zooms to the face under it.
             self.hover = None;
@@ -309,7 +320,7 @@ impl Workspace {
         }
         // A touch screen has no Escape key: an unfinished line, rectangle or other shape gets Cancel at the bottom,
         // which drops just that shape and keeps the tool armed (#14).
-        if crate::tablet::touch_ui()
+        if self.by_hand()
             && let Some(fresh) = self.tool.without_pending()
             && self.bottom_actions(ui, false).is_some()
         {

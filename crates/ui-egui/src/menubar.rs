@@ -892,7 +892,7 @@ pub enum Menus {
 
 impl Menus {
     /// The platform's menus for the desktop app. Call on the main thread once the app exists.
-    pub fn install(wake: impl Fn() + Send + Sync + 'static) -> Option<Menus> {
+    pub fn install(wake: impl Fn() + Send + Sync + Clone + 'static) -> Option<Menus> {
         #[cfg(target_os = "macos")]
         return MenuBar::install(wake).map(Menus::Native);
         #[cfg(not(target_os = "macos"))]
@@ -939,15 +939,37 @@ impl Menus {
 pub struct WindowMenu {
     state: MenuState,
     pending: Vec<MenuAction>,
+    /// The same menus on the desktop's global menu (KDE), where there is one.
+    #[cfg(target_os = "linux")]
+    global: Option<crate::global_menu::GlobalMenu>,
 }
 
 impl WindowMenu {
-    pub fn install(_wake: impl Fn() + Send + Sync + 'static) -> Option<WindowMenu> {
-        Some(WindowMenu::default())
+    pub fn install(wake: impl Fn() + Send + Sync + Clone + 'static) -> Option<WindowMenu> {
+        #[cfg(target_os = "linux")]
+        return Some(WindowMenu { global: crate::global_menu::GlobalMenu::start(wake), ..Default::default() });
+        #[cfg(not(target_os = "linux"))]
+        {
+            let _ = wake;
+            Some(WindowMenu::default())
+        }
     }
 
     pub fn update(&mut self, state: MenuState) {
         self.state = state;
+        #[cfg(target_os = "linux")]
+        if let Some(g) = &mut self.global {
+            g.update(state, || window_tree(state.in_project));
+            self.pending.extend(g.poll());
+        }
+    }
+
+    /// The desktop shows the menus.
+    fn shown_outside(&self) -> bool {
+        #[cfg(target_os = "linux")]
+        return self.global.as_ref().is_some_and(crate::global_menu::GlobalMenu::shown);
+        #[cfg(not(target_os = "linux"))]
+        false
     }
 
     /// Actions picked since the last frame (never by a single key: those stay the workspace's here).
@@ -958,6 +980,9 @@ impl WindowMenu {
     /// The menu titles in a row from `at` (the left end of the row's center line), over whatever the screen drew
     /// there. The home screen leaves out the menus it can't use; in a project they all stay, so none of them move.
     pub fn show(&mut self, ui: &mut egui::Ui, at: egui::Pos2) {
+        if self.shown_outside() {
+            return;
+        }
         let menus = window_tree(self.state.in_project);
         let rect = egui::Rect::from_min_max(egui::pos2(at.x, at.y - 13.0), egui::pos2(ui.max_rect().right(), at.y + 13.0));
         let builder = egui::UiBuilder::new().id_salt("window-menu").max_rect(rect);

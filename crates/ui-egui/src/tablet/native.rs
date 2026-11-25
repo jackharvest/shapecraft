@@ -81,11 +81,6 @@ impl NativeTouch {
             }
         }
         for p in pointers.unwrap_or_default() {
-            let device = match p.tool {
-                PointerTool::Finger => Device::Touch,
-                PointerTool::Pen => Device::Pen,
-                PointerTool::Mouse => Device::Mouse,
-            };
             if let PointerPhase::Scroll(delta) = p.phase {
                 rest.push(Event::MouseWheel {
                     unit: egui::MouseWheelUnit::Line,
@@ -94,23 +89,65 @@ impl NativeTouch {
                     source: egui::MouseWheelSource::Unknown,
                     modifiers: self.router.mods,
                 });
-                continue;
+            } else {
+                self.feed(p, now);
             }
-            let kind = match p.phase {
-                PointerPhase::Down => Kind::Down,
-                PointerPhase::Move => Kind::Move,
-                PointerPhase::Up => Kind::Up,
-                PointerPhase::Cancel => Kind::Cancel,
-                PointerPhase::Hover => Kind::Hover,
-                PointerPhase::Leave => Kind::Leave,
-                PointerPhase::Scroll(_) => continue,
-            };
-            self.router.pointer(kind, device, p.id, p.pos, p.button, now);
         }
-        self.router.tick(now);
-        let (events, nav) = self.router.take();
+        let events = self.route(now, ws);
         rest.extend(events);
         raw.events = rest;
+    }
+
+    fn feed(&mut self, p: Pointer, now: Instant) {
+        let device = match p.tool {
+            PointerTool::Finger => Device::Touch,
+            PointerTool::Pen => Device::Pen,
+            PointerTool::Mouse => Device::Mouse,
+        };
+        let kind = match p.phase {
+            PointerPhase::Down => Kind::Down,
+            PointerPhase::Move => Kind::Move,
+            PointerPhase::Up => Kind::Up,
+            PointerPhase::Cancel => Kind::Cancel,
+            PointerPhase::Hover => Kind::Hover,
+            PointerPhase::Leave => Kind::Leave,
+            PointerPhase::Scroll(_) => return,
+        };
+        self.router.pointer(kind, device, p.id, p.pos, p.button, now);
+    }
+
+    /// On a desktop with a touch screen or a pen beside the mouse (Linux): the mouse's events are its own and stay, and
+    /// `pointers` (fingers and pens only) become the router's. The mouse takes over when it's used again.
+    pub fn input_beside_mouse(&mut self, raw: &mut RawInput, pointers: Vec<Pointer>, mut ws: Option<&mut Workspace>) {
+        let now = Instant::now();
+        for e in &raw.events {
+            if let Event::ModifiersChanged(m) | Event::Key { modifiers: m, .. } | Event::PointerButton { modifiers: m, .. } = e {
+                self.router.mods = *m;
+            }
+        }
+        let mouse = |e: &Event| matches!(e, Event::PointerMoved(_) | Event::PointerButton { .. } | Event::MouseWheel { .. });
+        if pointers.is_empty() && raw.events.iter().any(mouse) {
+            self.router.mouse_used();
+        }
+        // A keyboard in use needs no numpad beside it.
+        if raw.events.iter().any(|e| matches!(e, Event::Key { .. }))
+            && let Some(ws) = ws.as_deref_mut()
+        {
+            ws.typed_at = Some(ws.now);
+        }
+        for p in pointers {
+            self.feed(p, now);
+        }
+        // Nothing but fingers: a finger held still is the right-click too.
+        self.router.hold_menu = !super::pen_seen();
+        let events = self.route(now, ws);
+        raw.events.extend(events);
+    }
+
+    /// The router's events for this frame; its view changes go to the workspace.
+    fn route(&mut self, now: Instant, ws: Option<&mut Workspace>) -> Vec<Event> {
+        self.router.tick(now);
+        let (events, nav) = self.router.take();
         if let Some(ws) = ws {
             ws.touch_drag = self.router.finger;
             ws.finger_nav = self.router.device == Device::Touch;
@@ -131,6 +168,7 @@ impl NativeTouch {
                 }
             }
         }
+        events
     }
 
     /// The pointer used last: the pen, a finger or a mouse.
@@ -191,6 +229,23 @@ mod tests {
         assert!((411.0 / fit(914.0, 411.0) - 640.0).abs() < 1e-3);
         // Upright: 1000 points wide.
         assert!((411.0 / fit(411.0, 914.0) - 1000.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn a_mouse_beside_the_pen_stays_the_mouse() {
+        let mut t = NativeTouch::default();
+        let at = egui::pos2(100.0, 200.0);
+        let pen = |phase, button| Pointer { tool: PointerTool::Pen, id: 1, phase, pos: at, button };
+        let mut raw = RawInput::default();
+        t.input_beside_mouse(&mut raw, vec![pen(PointerPhase::Hover, 0), pen(PointerPhase::Down, 0), pen(PointerPhase::Up, 0)], None);
+        let pressed = |e: &Event| matches!(e, Event::PointerButton { pressed: true, button: egui::PointerButton::Primary, .. });
+        assert!(raw.events.iter().any(pressed));
+        assert_eq!(t.last_tool(), PointerTool::Pen);
+        // A mouse move reaches the app as it came, once, and picks with a mouse's reach again.
+        let mut raw = RawInput { events: vec![Event::PointerMoved(at)], ..Default::default() };
+        t.input_beside_mouse(&mut raw, Vec::new(), None);
+        assert_eq!(raw.events, [Event::PointerMoved(at)]);
+        assert_eq!(t.last_tool(), PointerTool::Mouse);
     }
 
     #[test]

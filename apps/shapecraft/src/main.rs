@@ -9,6 +9,9 @@
 // No console window beside the app on Windows; debug builds keep it for their logs.
 #![cfg_attr(all(windows, not(debug_assertions)), windows_subsystem = "windows")]
 
+#[cfg(target_os = "linux")]
+mod linux;
+
 use std::path::PathBuf;
 use std::sync::Arc;
 
@@ -76,6 +79,9 @@ fn run() -> anyhow::Result<()> {
         Some(icon) => viewport.with_icon(icon),
         None => viewport,
     };
+    // The menus' address for the desktop's global menu, before the window opens.
+    #[cfg(target_os = "linux")]
+    linux::announce_menus();
     let run = |pass: &[&'static str], opts: Options| {
         let wgpu_options = graphics::configuration(&choice, &saved.gpu, pass);
         let native = eframe::NativeOptions { viewport: viewport.clone(), wgpu_options, ..Default::default() };
@@ -85,7 +91,10 @@ fn run() -> anyhow::Result<()> {
             native,
             Box::new(move |cc| {
                 system_theme::watch(&cc.egui_ctx);
-                Ok(Box::new(ShapeCraftApp::new(kernel, opts, &cc.egui_ctx)))
+                let app = ShapeCraftApp::new(kernel, opts, &cc.egui_ctx);
+                #[cfg(target_os = "linux")]
+                let app = linux::Desktop::new(app);
+                Ok(Box::new(app))
             }),
         )
     };

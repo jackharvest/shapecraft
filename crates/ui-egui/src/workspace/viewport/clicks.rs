@@ -63,7 +63,7 @@ impl Workspace {
             }
             // On a touch screen a tap on the open field (its "123" key) is for the field: it puts the numpad beside
             // it rather than reaching the drawing under it (#84).
-            if crate::tablet::touch_ui() && super::paint::field_rect(ui.ctx()).is_some_and(|r| r.contains(at)) {
+            if self.by_hand() && super::paint::field_rect(ui.ctx()).is_some_and(|r| r.contains(at)) {
                 self.numpad_at = Some(at);
                 return;
             }
@@ -441,8 +441,7 @@ impl Workspace {
         let Some(origin) = self.sketch_drag else { return false };
         // The pencil's Line on a touch screen: a quick stroke that bends round becomes a circle about where it
         // started, growing with the pen. Preferences ▸ Tablet turns it off.
-        if crate::tablet::touch_ui()
-            && self.pen_input
+        if self.pen_input
             && let Some(at) = ui.input(|i| i.pointer.interact_pos())
             && self.pen_stroke.push(at, self.now)
             && self.settings.pen_circles
@@ -464,7 +463,7 @@ impl Workspace {
                 // A dragged line is one segment, not the start of a chain; after a pen circle Line is armed again.
                 if let Tool::Line { .. } = self.tool {
                     self.tool = Tool::Line { first: None, last: None };
-                } else if crate::tablet::touch_ui() && self.pen_input && matches!(self.tool, Tool::Circle { center: None }) {
+                } else if self.pen_input && matches!(self.tool, Tool::Circle { center: None }) {
                     self.tool = Tool::Line { first: None, last: None };
                 }
             }

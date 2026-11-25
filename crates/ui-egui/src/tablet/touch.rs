@@ -112,6 +112,8 @@ pub(super) struct Router {
     /// A finger drives the pointer: the workspace turns the view on drags instead of drawing or box-selecting.
     pub finger: bool,
     finger_until: u64,
+    /// A finger held still over the 3D view is a right-click as well (a desktop's touch screen, without a pen).
+    pub hold_menu: bool,
 }
 
 impl Default for Router {
@@ -133,6 +135,7 @@ impl Default for Router {
             frame: 0,
             finger: false,
             finger_until: 0,
+            hold_menu: false,
         }
     }
 }
@@ -163,6 +166,15 @@ impl Router {
         let mods = self.mods;
         *self = Self { mods, ..Self::default() };
         self.now.push(Event::PointerGone);
+    }
+
+    /// A mouse beside the touch screen was used: it's the pointer again, unless a finger or the pen is down.
+    pub fn mouse_used(&mut self) {
+        if self.fingers.is_empty() && !self.pen_down && self.now.is_empty() && self.later.is_empty() {
+            self.device = Device::Mouse;
+            self.finger = false;
+            self.finger_until = 0;
+        }
     }
 
     fn button(&self, pos: Pos2, button: PointerButton, pressed: bool) -> Event {
@@ -500,7 +512,7 @@ impl Router {
         match &mut self.mode {
             Mode::Hold { at, decided: false } => {
                 let at = *at;
-                if !over_view {
+                if !over_view || self.hold_menu {
                     self.now.push(self.button(at, PointerButton::Secondary, true));
                     self.after(1, self.button(at, PointerButton::Secondary, false));
                 }

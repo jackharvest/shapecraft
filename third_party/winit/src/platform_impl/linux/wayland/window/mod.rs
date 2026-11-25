@@ -179,6 +179,11 @@ impl Window {
             xdg_activation.activate(token.token, &surface);
         }
 
+        // ShapeCraft patch: KDE's global menu.
+        if let Some(menus) = state.kwin_appmenu.as_ref() {
+            menus.announce(&surface, &queue_handle);
+        }
+
         // XXX Do initial commit.
         window.commit();
 

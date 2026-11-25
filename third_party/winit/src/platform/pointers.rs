@@ -1,4 +1,4 @@
-//! ShapeCraft patch: pointers with their tool, shared by the Android and iOS backends (see PATCH.md).
+//! ShapeCraft patch: pointers with their tool, shared by the Android, iOS and Wayland backends (see PATCH.md).
 
 use std::sync::Mutex;
 
@@ -71,6 +71,19 @@ pub(crate) fn push(r: Record) {
         }
         v.push(r);
     }
+}
+
+static TOUCHES: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// On Wayland: fingers are recorded too, and no longer arrive as `WindowEvent::Touch` (an app that turns those into mouse
+/// events couldn't tell them from the real mouse's).
+pub fn record_touches(on: bool) {
+    TOUCHES.store(on, std::sync::atomic::Ordering::Relaxed);
+}
+
+#[allow(dead_code)]
+pub(crate) fn touches_recorded() -> bool {
+    TOUCHES.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 /// Everything recorded since the last call, oldest first.

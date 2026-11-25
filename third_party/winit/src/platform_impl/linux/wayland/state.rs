@@ -29,7 +29,9 @@ use crate::platform_impl::wayland::seat::{
     PointerConstraintsState, RelativePointerState, TextInputState, WinitPointerData,
     WinitPointerDataExt, WinitSeatState,
 };
+use crate::platform_impl::wayland::types::kwin_appmenu::KWinAppMenuManager;
 use crate::platform_impl::wayland::types::kwin_blur::KWinBlurManager;
+use crate::platform_impl::wayland::types::tablet::TabletState;
 use crate::platform_impl::wayland::types::wp_fractional_scaling::FractionalScalingManager;
 use crate::platform_impl::wayland::types::wp_viewporter::ViewporterState;
 use crate::platform_impl::wayland::types::xdg_activation::XdgActivationState;
@@ -106,6 +108,12 @@ pub struct WinitState {
     /// Fractional scaling manager.
     pub fractional_scaling_manager: Option<FractionalScalingManager>,
 
+    /// ShapeCraft patch: pens.
+    pub tablet_state: Option<TabletState>,
+
+    /// ShapeCraft patch: KDE's global menu.
+    pub kwin_appmenu: Option<KWinAppMenuManager>,
+
     /// KWin blur manager.
     pub kwin_blur_manager: Option<KWinBlurManager>,
 
@@ -144,8 +152,12 @@ impl WinitState {
         let seat_state = SeatState::new(globals, queue_handle);
 
         let mut seats = AHashMap::default();
+        let tablet_state = TabletState::new(globals, queue_handle).ok();
         for seat in seat_state.seats() {
-            seats.insert(seat.id(), WinitSeatState::new());
+            let mut winit_seat = WinitSeatState::new();
+            winit_seat.tablet_seat =
+                tablet_state.as_ref().map(|t| t.tablet_seat(&seat, queue_handle));
+            seats.insert(seat.id(), winit_seat);
         }
 
         let (viewporter_state, fractional_scaling_manager) =
@@ -176,6 +188,8 @@ impl WinitState {
             window_events_sink: Default::default(),
             viewporter_state,
             fractional_scaling_manager,
+            tablet_state,
+            kwin_appmenu: KWinAppMenuManager::new(globals, queue_handle).ok(),
             kwin_blur_manager: KWinBlurManager::new(globals, queue_handle).ok(),
 
             seats,

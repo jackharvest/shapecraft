@@ -414,6 +414,8 @@ pub struct Workspace {
     pub pen_input: bool,
     /// The pencil was held still here: an Area Selection starts once it moves (iPad: long-press, then drag).
     pub pen_held: Option<egui::Pos2>,
+    /// When the keyboard was last used, on a desktop with a pen or touch screen beside it.
+    pub typed_at: Option<f64>,
     /// How much wider edges, curves and snaps reach than for a mouse: more for a pencil or a finger (tablet). Above
     /// 1, what is lit up also holds on until the pointer is well away, so a tap picks what the hover showed.
     pub pick_slop: f32,
@@ -855,6 +857,7 @@ impl Workspace {
             finger_nav: false,
             pen_input: false,
             pen_held: None,
+            typed_at: None,
             pick_slop: 1.0,
             items_w_here: None,
             viewport_hot: false,

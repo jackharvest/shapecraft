@@ -9,7 +9,7 @@ The changes, both marked "ShapeCraft patch":
 - `src/platform/android.rs`: a `pointers` module, a queue of `Record`s the app takes each frame.
 - `src/platform_impl/android/mod.rs`: `record_pointers`, called first for every `MotionEvent`.
 
-Nothing else differs from the release, and nothing changes on other platforms. Drop this folder and the
+Nothing else differs from the release but what is listed below. Drop this folder and the
 `[patch.crates-io]` entry in the workspace `Cargo.toml` once eframe uses a winit that reports pointer kinds (0.31).
 
 iOS (same patch, later): the `pointers` module moved to `src/platform/pointers.rs`, shared by Android and iOS
@@ -36,3 +36,13 @@ needs exists at the oldest API it supports.
 Android (later, #95): those records alone never drew a frame. Hover, mouse buttons and scrolling send no window event
 and the app takes the records as it draws, so a pen hovering over a still view lit nothing. `handle_input_event` now
 sets the redraw flag for them.
+
+Wayland (later, #97): `src/platform_impl/linux/wayland/types/tablet.rs` binds `zwp_tablet_manager_v2` and records pens
+(hover, tip, barrel buttons, eraser) as `pointers::Record`s; winit 0.30 has no tablets on Wayland. The module is exposed
+by `src/platform/wayland.rs`. With `pointers::record_touches(true)`, `seat/touch/mod.rs` records fingers too instead of
+sending `WindowEvent::Touch`, so an app can tell them from the mouse. `record_pointers` asks for a redraw, since the app
+takes the records as it draws. Touched for it: `state.rs`, `seat/mod.rs`, `types/mod.rs`.
+
+Wayland, KDE's global menu (#97): `types/kwin_appmenu.rs` tells the compositor where the app's menus are
+(`org_kde_kwin_appmenu`) for every new window, once the app said so with `platform::wayland::set_app_menu`. Touched for
+it: `state.rs`, `window/mod.rs`, `types/mod.rs`.

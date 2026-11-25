@@ -10,6 +10,7 @@ use sctk::reexports::client::protocol::wl_seat::WlSeat;
 use sctk::reexports::client::protocol::wl_touch::WlTouch;
 use sctk::reexports::client::{Connection, Proxy, QueueHandle};
 use sctk::reexports::protocols::wp::relative_pointer::zv1::client::zwp_relative_pointer_v1::ZwpRelativePointerV1;
+use sctk::reexports::protocols::wp::tablet::zv2::client::zwp_tablet_seat_v2::ZwpTabletSeatV2;
 use sctk::reexports::protocols::wp::text_input::zv3::client::zwp_text_input_v3::ZwpTextInputV3;
 
 use sctk::seat::pointer::{ThemeSpec, ThemedPointer};
@@ -36,6 +37,9 @@ use touch::TouchPoint;
 pub struct WinitSeatState {
     /// The pointer bound on the seat.
     pointer: Option<Arc<ThemedPointer<WinitPointerData>>>,
+
+    /// ShapeCraft patch: the pens on the seat.
+    pub tablet_seat: Option<ZwpTabletSeatV2>,
 
     /// The touch bound on the seat.
     touch: Option<WlTouch>,
@@ -202,10 +206,13 @@ impl SeatHandler for WinitState {
     fn new_seat(
         &mut self,
         _connection: &Connection,
-        _queue_handle: &QueueHandle<Self>,
+        queue_handle: &QueueHandle<Self>,
         seat: WlSeat,
     ) {
-        self.seats.insert(seat.id(), WinitSeatState::new());
+        let mut winit_seat = WinitSeatState::new();
+        winit_seat.tablet_seat =
+            self.tablet_state.as_ref().map(|t| t.tablet_seat(&seat, queue_handle));
+        self.seats.insert(seat.id(), winit_seat);
     }
 
     fn remove_seat(
@@ -214,7 +221,9 @@ impl SeatHandler for WinitState {
         _queue_handle: &QueueHandle<Self>,
         seat: WlSeat,
     ) {
-        let _ = self.seats.remove(&seat.id());
+        if let Some(tablets) = self.seats.remove(&seat.id()).and_then(|s| s.tablet_seat) {
+            tablets.destroy();
+        }
         self.on_keyboard_destroy(&seat.id());
     }
 }

@@ -28,9 +28,19 @@ const ROWS: [&[(Pad, &str, f32)]; 4] = [
 ];
 
 impl Workspace {
-    /// Whether the numpad shows: a touch screen without a keyboard, a value being entered.
-    pub(crate) fn numpad_open(&self) -> bool {
+    /// Values may have to be tapped in: a touch screen with no keyboard, or a pen or finger in use on a desktop whose
+    /// keyboard hasn't been touched for a while (a 2-in-1 folded over).
+    fn no_keyboard(&self) -> bool {
+        const WHILE_S: f64 = 120.0;
         !crate::tablet::shows_shortcuts()
+            || !crate::tablet::touch_ui()
+                && (self.pen_input || self.finger_nav)
+                && self.typed_at.is_none_or(|t| self.now - t > WHILE_S)
+    }
+
+    /// Whether the numpad shows: no keyboard to type with, a value being entered.
+    pub(crate) fn numpad_open(&self) -> bool {
+        self.no_keyboard()
             && self.numeric.is_some()
             && self.numpad_at.is_some()
             && (self.tool.takes_numbers() || self.dim_edit.is_some())
@@ -41,7 +51,7 @@ impl Workspace {
         // dimension's or Thread's size tapped, a Distance Type picked): there is no other way to type into it (#84).
         if self.numpad_at.is_none()
             && self.numeric.is_some()
-            && !crate::tablet::shows_shortcuts()
+            && self.no_keyboard()
             && let Some(f) = crate::workspace::viewport::paint::field_rect(ui.ctx())
         {
             self.numpad_at = Some(f.center());

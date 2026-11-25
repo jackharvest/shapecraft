@@ -12,6 +12,8 @@ pub mod crash_log;
 pub mod dialogs;
 pub mod folder_access;
 mod glide;
+#[cfg(target_os = "linux")]
+pub mod global_menu;
 pub mod graphics;
 pub mod i18n;
 pub mod icons;
