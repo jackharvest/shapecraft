@@ -2660,10 +2660,10 @@ int sk_face_at(const SkShape* s, uint32_t face, const double* pts, const double*
     const TopoDS_Face f = TopoDS::Face(sub);
     Handle(Geom_Surface) surf = BRep_Tool::Surface(f);
     if (surf.IsNull()) return fail("the face has no surface");
-    ShapeAnalysis_Surface near(surf);
+    ShapeAnalysis_Surface nearest(surf);
     const double sign = f.Orientation() == TopAbs_REVERSED ? -1.0 : 1.0;
     for (size_t i = 0; i < n; ++i) {
-      gp_Pnt2d uv = near.ValueOfUV(gp_Pnt(pts[3 * i], pts[3 * i + 1], pts[3 * i + 2]), 1e-6);
+      gp_Pnt2d uv = nearest.ValueOfUV(gp_Pnt(pts[3 * i], pts[3 * i + 1], pts[3 * i + 2]), 1e-6);
       GeomLProp_SLProps props(surf, uv.X(), uv.Y(), 2, 1e-9);
       if (!props.IsNormalDefined()) return fail("the face has no normal there");
       gp_Vec nv(props.Normal());
