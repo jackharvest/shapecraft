@@ -102,19 +102,19 @@ It's an **alpha**, so keep backups of anything precious, and tell us when someth
 
 - **Sketching:** lines, arcs, splines, rectangles, circles, polygons and text, with snapping, inference,
   constraints, driving dimensions and linked patterns. Type a size at any time.
-- **Modeling:** extrude, revolve, sweep, loft, fillet (radius or chordal, G1 or G2, setback corners, curvature),
+- **Modeling:** extrude, revolve, sweep, loft (with guides), fill, fillet (radius or chordal, G1 or G2, setback corners, curvature),
   chamfer, shell, offset face, booleans, split, mirror, patterns, move and rotate with linked or unlinked copies,
   wrap and emboss.
 - **History:** every step stays editable on its Parameter Card; change a number and the model rebuilds.
 - **Files:** projects are folders (`project.json` plus STEP). Open and save STEP, IGES, Parasolid XT, STL, 3MF, OBJ
   and `.shapr`; open SolidWorks, NX and Solid Edge parts (`.sldprt`, `.prt`, `.par`) and JT; export glTF, FBX, VRML, and 2D drawings to PDF, SVG, DXF and DWG.
-- **Visualize:** materials you drag onto bodies, HDR panoramas, display modes, section views.
+- **Visualize:** materials you drag onto bodies (glass and glowing ones too), HDR panoramas, display modes, section views.
 - **Plugins:** add only what you want from Preferences ▸ Plugins. **Generative Render** puts your model in any
   scene you describe, using your own OpenRouter, OpenAI or Gemini account or a ComfyUI on your computer, with no
   limits of ours ([docs/generative-render.md](docs/generative-render.md)). Plugins run sealed off, and anyone can
   write one ([docs/plugins.md](docs/plugins.md)).
 - **Navigation presets** for twelve apps' mouse conventions, plus trackpad gestures; orbit and pan can be flipped
-  per axis.
+  per axis, and orbit can turn freely.
 - **Twelve interface languages**, light and dark themes, Vulkan, Metal, DirectX 12 and OpenGL, with a software
   fallback. If a GPU drops out mid-session, it saves and restarts on another.
 

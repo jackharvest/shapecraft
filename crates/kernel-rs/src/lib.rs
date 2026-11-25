@@ -643,7 +643,7 @@ impl Kernel for RustKernel {
         match feature {
             F::SketchRegions => Limited("splines and cut ellipses are followed as fine polylines"),
             F::OffsetEdge => Limited("chains of ellipses or splines are offset one curve at a time"),
-            F::Sweep => Limited("no twist, scale or orientation settings, no closed paths"),
+            F::Sweep => Limited("no twist, scale or orientation settings, no closed paths, no body edges as the path"),
             F::Booleans => Limited("bodies that only touch can be refused; each cut slows as a face gathers holes"),
             F::Revolve => Limited("a thread takes a few seconds"),
             F::OffsetFaces => Limited("faces beside fillets or chamfers can be refused"),
@@ -659,7 +659,9 @@ impl Kernel for RustKernel {
             F::SetbackCorners => Missing,
             F::ProjectAsEdge => Limited("closed outlines that land inside one flat face"),
             F::Iges => Limited("solids and shells (B-rep); files of loose trimmed surfaces need Open CASCADE"),
-            F::Extrude | F::DraftAngles | F::Loft | F::PushPull | F::Chamfer | F::Shell | F::SplitBody => Full,
+            F::Loft => Limited("no guide curves, tangent ends or periodic lofts"),
+            F::Extrude => Limited("To Object takes flat faces and planes"),
+            F::DraftAngles | F::PushPull | F::Chamfer | F::Shell | F::SplitBody => Full,
             F::Drawings | F::Measure | F::MeshBodies | F::StepFiles | F::ExactImports => Full,
         }
     }

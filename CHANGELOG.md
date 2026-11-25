@@ -2,6 +2,34 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## Unreleased
+**Loft follows guides, Fill spans curves, Sweep runs along edges, and the view can turn freely.**
+### New
+- **Loft has guide curves**, Tangent and Curvature ends with a strength each, and Periodic Loft, which closes a row of profiles
+  into a ring.
+- **Fill spans sketch profiles and guide curves**, not only a loop of edges. Each edge has a badge for how the new face meets its
+  neighbor: G0, G1 or G2, or Set All at once.
+- **Sweep runs along body edges and several sketches.** Profile Position says where the profile sits on the path: Auto, Path
+  Intersection, Closest Point or Closest Endpoint.
+- **Extrude ▸ To Object and Replace Face meet curved faces.** To Object also takes a whole body or a tilted plane, and the
+  arrow can be pulled to a curved face.
+- **A step's card picks its inputs again**: profiles, path, guides, faces, planes and targets, each with its own row. Click to
+  add or remove, then Done.
+- **A picked plane has its tools**: Scale, Project as Sketch, Axis - Perp. to Face, Text, Rotate Around Axis and Mirror.
+- **Free Orbit**: Preferences ▸ General ▸ Orbit ▸ Turn freely in every direction turns the view about the screen, past
+  straight up and down. Off unless you want it. Thanks [@jon-daemon](https://github.com/jon-daemon) (#99).
+- **Section View outlines and fills what it cuts**, and its offset can be typed. Wireframe draws the outlines of round faces.
+- **Materials**: Glass and glowing ones, with Opacity, Transmission, IOR, Emission and Roughness sliders and texture rotation;
+  Pick Face Color; Reset to Default Material; materials read from GLB files and kept in GLB and USDZ exports.
+- **Export**: Include Vertex Colors (OBJ, GLB), Include Mesh Bodies, and Save Each Sketch Plane Separately (DXF, DWG).
+- **Import Planar Curves as Sketches**: loose curves in a STEP file come in as sketches (Import Preferences ▸ Custom).
+### Changed
+- **After Done nothing stays picked** in Loft, Sweep and Fill, and a click on nothing finishes them. Why a set of picks makes
+  nothing is said in a red bar on the card.
+- Plane and axis steps are named as their tools are ("Plane - 3 Points").
+### Fixed
+- **Ellipses, control-point splines and text are kept in `.shapr` exports.**
+
 ## 0.12.12-alpha
 **Big models turn smoothly on slow computers, pens and touch screens work on Linux, moved bodies in `.shapr` files are where they
 belong, and other languages fit.** Much of this comes from BAR × SUK's careful test of the Android app in Russian. Thank you!
