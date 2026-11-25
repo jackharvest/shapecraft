@@ -589,7 +589,7 @@ fn width(painter: &egui::Painter, face: Face) -> f32 {
 pub(super) fn paint(painter: &egui::Painter, center: Pos2, face: Face, open: bool) -> Rect {
     let ink = super::viewport::PILL_INK;
     let text = match face {
-        Face::Text(t) => Some(painter.layout_no_wrap(t.to_string(), theme::strong(9.5), ink)),
+        Face::Text(t) => Some(painter.layout_no_wrap(crate::i18n::tr(t).to_string(), theme::strong(9.5), ink)),
         Face::Icon(_) => None,
     };
     let w = text.as_ref().map_or(19.0, |g| (g.size().x + 9.0).max(19.0));

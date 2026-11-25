@@ -355,6 +355,10 @@ msgstr "Después de cada cambio"
 msgid "Align"
 msgstr "Alinear"
 
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Align To"
+msgstr "Alinear con"
+
 #: crates/engine/src/history.rs
 #: crates/ui-egui/src/workspace/viewport/in_place.rs
 msgid "Alignment"
@@ -580,27 +584,35 @@ msgstr "Auto-orientación"
 msgid "Automatic"
 msgstr "Automático"
 
-#: crates/engine/src/history.rs
 #: crates/ui-egui/src/menubar.rs
 #: crates/ui-egui/src/workspace/history.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "Axis"
 msgstr "Eje"
 
+#: crates/engine/src/history.rs
 #: crates/ui-egui/src/workspace/panels/left_toolbar.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Axis - 2 Planes"
 msgstr "Eje - 2 planos"
 
+#: crates/engine/src/history.rs
+msgid "Axis - 2 Points"
+msgstr "Eje - 2 puntos"
+
+#: crates/engine/src/history.rs
 #: crates/ui-egui/src/workspace/panels/left_toolbar.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Axis - Along Edge"
 msgstr "Eje - A lo largo de arista"
 
+#: crates/engine/src/history.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Axis - Cylinder/Cone"
 msgstr "Eje - Cilindro/Cono"
 
 #: crates/engine/src/cmd/construct.rs
+#: crates/engine/src/history.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Axis - Perp. to Face"
 msgstr "Eje - Perp. a cara"
@@ -774,6 +786,11 @@ msgstr "Abajo"
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Bottom of View"
 msgstr "Parte inferior de la vista"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Boundary Profiles"
+msgstr "Perfiles de contorno"
 
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Bright Exhibition Space"
@@ -1037,6 +1054,7 @@ msgstr "Anotaciones circulares:"
 msgid "Circular Pattern"
 msgstr "Patrón circular"
 
+#: crates/doc/src/lib.rs
 #: crates/ui-egui/src/workspace/history.rs
 msgid "Clear"
 msgstr "Borrar"
@@ -1065,6 +1083,10 @@ msgstr "Haz clic en un círculo o arco"
 #: crates/ui-egui/src/workspace/annotate.rs
 msgid "Click a circle or arc, then a circle, arc or line"
 msgstr "Haz clic en un círculo o arco y luego en un círculo, arco o línea"
+
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Click a face"
+msgstr "Haz clic en una cara"
 
 #: crates/ui-egui/src/workspace/panels/popups.rs
 msgid "Click a face to start. Return finishes; Escape cancels."
@@ -1203,6 +1225,10 @@ msgstr "Haz clic en tres puntos de caras"
 msgid "Click three points on the circle"
 msgstr "Haz clic en tres puntos del círculo"
 
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Click to add or remove, then Done"
+msgstr "Haz clic para añadir o quitar y luego en Listo"
+
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Click to pick this kernel (takes effect after a restart)"
 msgstr "Haz clic para elegir este núcleo (se aplica al reiniciar)"
@@ -1239,6 +1265,10 @@ msgstr "Haz clic en dos puntos de caras o aristas"
 msgid "Click two straight edges"
 msgstr "Haz clic en dos aristas rectas"
 
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Click what to use instead, then Done"
+msgstr "Haz clic en lo que quieras usar en su lugar y luego en Listo"
+
 #: crates/ui-egui/src/workspace/annotate.rs
 msgid "Click where the note goes, type, then press Return"
 msgstr "Haz clic donde va la nota, escribe y pulsa Intro"
@@ -1264,6 +1294,14 @@ msgstr "Cierra huecos pequeños, elimina aristas y caras diminutas y da la vuelt
 #: crates/ui-egui/src/report.rs
 msgid "Closed"
 msgstr "Cerrada"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Closest Endpoint"
+msgstr "Extremo más cercano"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Closest Point"
+msgstr "Punto más cercano"
 
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Coarser While Moving:"
@@ -2032,6 +2070,7 @@ msgid "Duplicate"
 msgstr "Duplicar"
 
 #: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "Edge"
 msgstr "Arista"
 
@@ -2080,9 +2119,21 @@ msgstr "Elipse"
 msgid "Emboss"
 msgstr "Relieve"
 
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Emission"
+msgstr "Emisión"
+
 #: crates/ui-egui/src/menubar.rs
 msgid "Enclosing Folder"
 msgstr "Carpeta contenedora"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "End Continuity"
+msgstr "Continuidad final"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "End Magnitude"
+msgstr "Magnitud final"
 
 #: crates/ui-egui/src/workspace/viewport/snap.rs
 msgid "Endpoint"
@@ -2130,6 +2181,10 @@ msgstr "Toda forma empieza como un dibujo. Dibuja un círculo."
 #: crates/ui-egui/src/onboarding.rs
 msgid "Every shortcut, as on the computer."
 msgstr "Todos los atajos, como en el ordenador."
+
+#: crates/ui-egui/src/workspace/export.rs
+msgid "Every shown sketch, zipped when there are several"
+msgstr "Todos los bocetos visibles, en un ZIP si hay varios"
 
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Every tool and option, nothing greyed out"
@@ -2261,15 +2316,26 @@ msgstr "Extruir, empujar y tirar"
 msgid "Extrusion"
 msgstr "Extrusión"
 
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Face"
+msgstr "Cara"
+
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Face to Align"
+msgstr "Cara que se alinea"
+
 #: crates/ui-egui/src/workspace/area.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "Faces"
 msgstr "Caras"
 
 #: crates/ui-egui/src/workspace/panels/popups.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "Faces to Replace"
 msgstr "Caras que reemplazar"
 
 #: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "Faces to Thread"
 msgstr "Caras para roscar"
 
@@ -2313,8 +2379,8 @@ msgid "Fill"
 msgstr "Rellenar"
 
 #: crates/engine/src/cmd/model/mod.rs
+#: crates/engine/src/history.rs
 #: crates/ui-egui/src/menubar.rs
-#: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Fill (Beta)"
 msgstr "Rellenar (Beta)"
 
@@ -2478,9 +2544,17 @@ msgstr "Frontal"
 msgid "Front, Left, Top, Isometric"
 msgstr "Frontal, izquierda, superior, isométrica"
 
+#: crates/doc/src/lib.rs
+msgid "Frosted"
+msgstr "Esmerilado"
+
 #: crates/ui-egui/src/workspace/step_card.rs
 msgid "Full Length"
 msgstr "Longitud completa"
+
+#: crates/ui-egui/src/workspace/badges.rs
+msgid "G0 - Positional"
+msgstr "G0 - Posición"
 
 #: crates/ui-egui/src/workspace/badges.rs
 #: crates/ui-egui/src/workspace/step_card.rs
@@ -2552,6 +2626,11 @@ msgid "Give the stand a color."
 msgstr "Dale un color al soporte."
 
 #: crates/doc/src/lib.rs
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Glass"
+msgstr "Vidrio"
+
+#: crates/doc/src/lib.rs
 msgid "Glossy"
 msgstr "Brillante"
 
@@ -2593,9 +2672,19 @@ msgstr "Posición de la cuadrícula"
 msgid "Ground Plane"
 msgstr "Plano de suelo"
 
+#: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Guide Curves"
+msgstr "Curvas guía"
+
 #: crates/ui-egui/src/workspace/panels/right_popover.rs
 msgid "Guide Points"
 msgstr "Puntos guía"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Guides"
+msgstr "Guías"
 
 #: crates/ui-egui/src/tutorials.rs
 msgid "Half a knob's outline, spun all the way round, is a knob."
@@ -2702,6 +2791,10 @@ msgstr "¿Qué aspecto debe tener ShapeCraft?"
 msgid "IGES files"
 msgstr "Archivos IGES"
 
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "IOR"
+msgstr "Índice de refracción"
+
 #: crates/report/src/draft.rs
 #: crates/report/src/github.rs
 #: crates/ui-egui/src/report.rs
@@ -2758,6 +2851,10 @@ msgstr "Importar material…"
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Import Panorama…"
 msgstr "Importar panorama…"
+
+#: crates/ui-egui/src/workspace/import_prefs.rs
+msgid "Import Planar Curves as Sketches"
+msgstr "Importar curvas planas como bocetos"
 
 #: crates/ui-egui/src/workspace/import_prefs.rs
 msgid "Import Preferences"
@@ -2824,9 +2921,17 @@ msgstr "Incluir colores de los cuerpos"
 msgid "Include Hidden Items"
 msgstr "Incluir elementos ocultos"
 
+#: crates/ui-egui/src/workspace/export.rs
+msgid "Include Mesh Bodies"
+msgstr "Incluir cuerpos de malla"
+
 #: crates/ui-egui/src/workspace/step_card.rs
 msgid "Include Tangent Edges"
 msgstr "Incluir aristas tangentes"
+
+#: crates/ui-egui/src/workspace/export.rs
+msgid "Include Vertex Colors"
+msgstr "Incluir colores de vértice"
 
 #: crates/ui-egui/src/workspace/export.rs
 msgid "Include Visualization Materials"
@@ -2968,6 +3073,7 @@ msgid "Item"
 msgstr "Elemento"
 
 #: crates/ui-egui/src/workspace/panels/items.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Items"
 msgstr "Elementos"
@@ -3265,6 +3371,10 @@ msgstr "Buscando…"
 msgid "Loose"
 msgstr "Holgado"
 
+#: crates/ui-egui/src/workspace/import_prefs.rs
+msgid "Loose curves lying in a plane come in as sketches; off, they're left out."
+msgstr "Las curvas sueltas que están en un plano entran como bocetos; si no, se omiten."
+
 #: crates/ui-egui/src/app.rs
 #: crates/ui-egui/src/workspace/export.rs
 #: crates/ui-egui/src/workspace/prefs.rs
@@ -3326,6 +3436,7 @@ msgid "Match your system, or keep it light or dark."
 msgstr "Igual que tu sistema, o siempre claro u oscuro."
 
 #: crates/engine/src/formats/fbx.rs
+#: crates/ui-egui/src/app.rs
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Material"
 msgstr "Material"
@@ -3428,8 +3539,8 @@ msgid "Middle drag and wheel"
 msgstr "Arrastre central y rueda"
 
 #: crates/engine/src/cmd/construct.rs
-#: crates/engine/src/history.rs
 #: crates/ui-egui/src/menubar.rs
+#: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Midplane"
 msgstr "Plano medio"
 
@@ -3459,6 +3570,10 @@ msgstr "Distancia mínima"
 #: crates/shapr/src/lib.rs
 msgid "Mirror"
 msgstr "Espejo"
+
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Mirror Plane"
+msgstr "Plano de simetría"
 
 #: crates/ui-egui/src/menubar.rs
 msgid "Mirror Sketch"
@@ -3748,6 +3863,7 @@ msgid "Non-uniform"
 msgstr "No uniforme"
 
 #: crates/ui-egui/src/workspace/measure.rs
+#: crates/ui-egui/src/workspace/step_card.rs
 #: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "None"
 msgstr "Ninguno"
@@ -3946,6 +4062,7 @@ msgstr "Solo se inventa la escena que lo rodea"
 
 #: crates/ui-egui/src/workspace/decals.rs
 #: crates/ui-egui/src/workspace/panels/right_popover.rs
+#: crates/ui-egui/src/workspace/visual.rs
 msgid "Opacity"
 msgstr "Opacidad"
 
@@ -3985,6 +4102,10 @@ msgstr "Abre Explorar para ver qué puedes añadir."
 #: crates/ui-egui/src/updates.rs
 msgid "Open Download Page"
 msgstr "Abrir página de descarga"
+
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Open Faces"
+msgstr "Caras abiertas"
 
 #: crates/ui-egui/src/report.rs
 msgid "Open Issue to Paste"
@@ -4113,6 +4234,10 @@ msgstr "PDF del dibujo"
 msgid "PICK IT FOR"
 msgstr "ELÍGELO PARA"
 
+#: crates/ui-egui/src/workspace/export.rs
+msgid "Painted faces keep their colors"
+msgstr "Las caras pintadas conservan su color"
+
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Pan"
 msgstr "Desplazar"
@@ -4176,6 +4301,15 @@ msgstr "Pegado en su sitio: 1 elemento"
 msgid "Pasted in place: {#} items"
 msgstr "Pegados en su sitio: {#} elementos"
 
+#: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Path"
+msgstr "Trayectoria"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Path Intersection"
+msgstr "Intersección con la trayectoria"
+
 #: crates/ui-egui/src/menubar.rs
 #: crates/ui-egui/src/workspace/history.rs
 #: crates/ui-egui/src/workspace/mod.rs
@@ -4234,6 +4368,10 @@ msgstr "Pentágono"
 msgid "Period"
 msgstr "Punto"
 
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Periodic Loft"
+msgstr "Solevación periódica"
+
 #: crates/doc/src/constraints.rs
 #: crates/ui-egui/src/workspace/constraints.rs
 msgid "Perpendicular"
@@ -4250,6 +4388,10 @@ msgstr "Perspectiva"
 #: crates/ui-egui/src/tutorials.rs
 msgid "Phone Stand"
 msgstr "Soporte para el móvil"
+
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Pick Face Color"
+msgstr "Tomar color de una cara"
 
 #: crates/ui-egui/src/workspace/start_tool.rs
 #: crates/ui-egui/src/workspace/tools/mod.rs
@@ -4282,6 +4424,9 @@ msgid "Pick a profile or a face, and an axis to spin it around into a solid."
 msgstr "Elige un perfil o una cara y un eje en torno al que girarlo para hacer un sólido."
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
+msgid "Pick a profile, then the curves or edges to sweep it along."
+msgstr "Elige un perfil y luego las curvas o aristas a lo largo de las que barrerlo."
+
 msgid "Pick a profile, then the path to sweep it along."
 msgstr "Elige un perfil y luego la trayectoria por la que barrerlo."
 
@@ -4296,6 +4441,10 @@ msgstr "Elige un extremo, la esquina y luego el otro extremo"
 #: crates/ui-egui/src/onboarding.rs
 msgid "Pick and press. Hovering lights what a tap picks."
 msgstr "Elige y pulsa. Al pasar por encima se ilumina lo que elegirá el toque."
+
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Pick at least one"
+msgstr "Elige al menos uno"
 
 #: crates/ui-egui/src/workspace/step_card.rs
 msgid "Pick at least one body to cut"
@@ -4337,7 +4486,6 @@ msgstr "Elige la app que tus manos ya conocen y girar, desplazar y acercar funci
 msgid "Pick the edges again: open the step's body and fillet them anew"
 msgstr "Elige de nuevo las aristas: abre el cuerpo del paso y redondéalas otra vez"
 
-#: crates/ui-egui/src/workspace/step_card.rs
 msgid "Pick the face or plane while extruding: open the step's sketch and extrude again"
 msgstr "Elige la cara o el plano al extruir: abre el boceto del paso y extruye de nuevo"
 
@@ -4352,6 +4500,10 @@ msgstr "Elige las caras que quitar y vacía el cuerpo; arrastra la flecha o escr
 #: crates/ui-egui/src/workspace/step_card.rs
 msgid "Pick the profile again, then Done"
 msgstr "Elige de nuevo el perfil y pulsa Hecho"
+
+#: crates/ui-egui/src/workspace/tools/mod.rs
+msgid "Pick the profiles and curves around what to fill, then choose how the faces meet at each edge."
+msgstr "Elige los perfiles y las curvas que rodean lo que quieres rellenar y luego cómo se unen las caras en cada arista."
 
 #: crates/ui-egui/src/workspace/measure.rs
 msgid "Pick three points: an end, the corner, the other end."
@@ -4415,12 +4567,25 @@ msgstr "Píxeles por pulgada; el tamaño se guarda también en milímetros"
 msgid "Planar"
 msgstr "Plano"
 
-#: crates/engine/src/history.rs
 #: crates/ui-egui/src/menubar.rs
 #: crates/ui-egui/src/workspace/history.rs
+#: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Plane"
 msgstr "Plano"
 
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Plane #1"
+msgstr "Plano 1"
+
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Plane #2"
+msgstr "Plano 2"
+
+#: crates/engine/src/history.rs
+msgid "Plane - 3 Points"
+msgstr "Plano - 3 puntos"
+
+#: crates/engine/src/history.rs
 #: crates/ui-egui/src/workspace/panels/left_toolbar.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Plane - Midplane"
@@ -4433,13 +4598,22 @@ msgid "Plane - Offset"
 msgstr "Plano - Desfase"
 
 #: crates/engine/src/cmd/construct.rs
+#: crates/engine/src/history.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Plane - On Curve at Point"
 msgstr "Plano - En curva en punto"
 
+#: crates/engine/src/history.rs
+msgid "Plane - Parallel to Face"
+msgstr "Plano - Paralelo a la cara"
+
+#: crates/engine/src/history.rs
+msgid "Plane - Perp. to Edge"
+msgstr "Plano - Perp. a la arista"
+
 #: crates/engine/src/cmd/construct.rs
+#: crates/engine/src/history.rs
 #: crates/ui-egui/src/workspace/panels/left_toolbar.rs
-#: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Plane - Through Edge"
 msgstr "Plano - Por arista"
 
@@ -4595,8 +4769,18 @@ msgstr "Ajuste de impresión"
 
 #: crates/ui-egui/src/workspace/history.rs
 #: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "Profile"
 msgstr "Perfil"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Profile Position"
+msgstr "Posición del perfil"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Profiles"
+msgstr "Perfiles"
 
 #: crates/ui-egui/src/workspace/slicers.rs
 #: crates/update/src/apply.rs
@@ -4614,6 +4798,7 @@ msgid "Project (P)"
 msgstr "Proyectar (P)"
 
 #: crates/ui-egui/src/workspace/panels/popups.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "Project Onto"
 msgstr "Proyectar sobre"
 
@@ -4839,6 +5024,10 @@ msgstr "Rectángulo (R)"
 msgid "Redo"
 msgstr "Rehacer"
 
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Reference"
+msgstr "Referencia"
+
 #: crates/ui-egui/src/report.rs
 msgid "Refresh"
 msgstr "Actualizar"
@@ -4879,6 +5068,7 @@ msgid "Replace Face"
 msgstr "Reemplazar cara"
 
 #: crates/ui-egui/src/workspace/panels/popups.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "Replacing Face"
 msgstr "Cara de reemplazo"
 
@@ -4900,6 +5090,10 @@ msgstr "Informar…"
 #: crates/ui-egui/src/workspace/viewport/clicks.rs
 msgid "Require holding shift"
 msgstr "Exigir mantener Mayús"
+
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Reset to Default Material"
+msgstr "Restablecer el material predeterminado"
 
 #: crates/ui-egui/src/workspace/shortcuts.rs
 msgid "Reset to Defaults"
@@ -5065,6 +5259,18 @@ msgstr "Girar 45° hacia arriba"
 msgid "Rotate View"
 msgstr "Girar vista"
 
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Rotate X"
+msgstr "Girar X"
+
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Rotate Y"
+msgstr "Girar Y"
+
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Rotate Z"
+msgstr "Girar Z"
+
 #: crates/ui-egui/src/workspace/badges.rs
 #: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Rotated"
@@ -5078,6 +5284,10 @@ msgstr "Rotación"
 msgid "Rough"
 msgstr "Rugoso"
 
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Roughness"
+msgstr "Rugosidad"
+
 #: crates/ui-egui/src/workspace/step_card.rs
 msgid "Round"
 msgstr "Redondo"
@@ -5090,6 +5300,7 @@ msgstr "Redondea una arista viva."
 msgid "Round the rim so it's soft to the touch."
 msgstr "Redondea el borde para que sea suave al tacto."
 
+#: crates/ui-egui/src/workspace/step_card.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Ruled"
 msgstr "Reglada"
@@ -5140,6 +5351,10 @@ msgstr "Guardar cambios"
 #: crates/ui-egui/src/workspace/export.rs
 msgid "Save Each 1st-Level Item Separately"
 msgstr "Guardar por separado cada elemento de primer nivel"
+
+#: crates/ui-egui/src/workspace/export.rs
+msgid "Save Each Sketch Plane Separately"
+msgstr "Guardar cada plano de boceto por separado"
 
 #: crates/ui-egui/src/plugins.rs
 msgid "Save Image…"
@@ -5481,6 +5696,10 @@ msgstr "Selecciona las dos asas"
 msgid "Select edges or a body to round"
 msgstr "Selecciona aristas o un cuerpo que redondear"
 
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Select edges or curves..."
+msgstr "Selecciona aristas o curvas..."
+
 #: crates/ui-egui/src/workspace/start_tool.rs
 #: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Select edges or faces to create an offset sketch"
@@ -5514,6 +5733,10 @@ msgstr "Selecciona curvas de boceto que ampliar o reducir"
 msgid "Select sketch curves to turn"
 msgstr "Selecciona curvas de boceto que girar"
 
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Select sketch edges..."
+msgstr "Selecciona curvas del boceto..."
+
 #: crates/ui-egui/src/workspace/keys.rs
 #: crates/ui-egui/src/workspace/panels/items.rs
 msgid "Select something to rename"
@@ -5543,11 +5766,14 @@ msgstr "Selecciona la línea curva"
 msgid "Select the face or plane the extrusion starts from"
 msgstr "Selecciona la cara o el plano desde el que empieza la extrusión"
 
+#: crates/ui-egui/src/workspace/tools/mod.rs
+msgid "Select the face, plane or body to extrude to"
+msgstr "Selecciona la cara, el plano o el cuerpo hasta el que extruir"
+
 #: crates/ui-egui/src/workspace/start_tool.rs
 msgid "Select the faces to open, then Shell"
 msgstr "Selecciona las caras que abrir y luego Vaciado"
 
-#: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Select the flat face or plane to extrude to"
 msgstr "Selecciona la cara plana o el plano hasta el que extruir"
 
@@ -5647,6 +5873,10 @@ msgstr "Selecciona la cuña"
 msgid "Select the widest edge"
 msgstr "Selecciona la arista más ancha"
 
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Select..."
+msgstr "Seleccionar..."
+
 #: crates/ui-egui/src/plugins.rs
 #: plugins/official/generative-render/src/lib.rs
 msgid "Selected Faces"
@@ -5679,6 +5909,11 @@ msgstr "Enviado como incidencia #{#}"
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Serve ShapeCraft to browsers"
 msgstr "Ofrecer ShapeCraft a navegadores"
+
+#: crates/ui-egui/src/workspace/badges.rs
+#: crates/ui-egui/src/workspace/viewport/annotations.rs
+msgid "Set All ⌄"
+msgstr "Todas ⌄"
 
 #: crates/ui-egui/src/plugins.rs
 msgid "Set Up Connections…"
@@ -6226,9 +6461,17 @@ msgstr "Ratón estándar, trackpad"
 msgid "Start"
 msgstr "Inicio"
 
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Start Continuity"
+msgstr "Continuidad inicial"
+
 #: crates/ui-egui/src/landing.rs
 msgid "Start Here"
 msgstr "Empieza aquí"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Start Magnitude"
+msgstr "Magnitud inicial"
 
 #: crates/ui-egui/src/onboarding.rs
 #: crates/ui-egui/src/setup.rs
@@ -6238,6 +6481,11 @@ msgstr "Empezar a modelar"
 #: crates/ui-egui/src/workspace/step_card.rs
 msgid "Start Offset"
 msgstr "Desfase inicial"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Start Plane"
+msgstr "Plano inicial"
 
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Start ShapeCraft with:"
@@ -6466,6 +6714,11 @@ msgstr "Toca dos veces el soporte para seleccionarlo entero"
 #: crates/ui-egui/src/tutorials.rs
 msgid "Tap the tray twice to select all of it"
 msgstr "Toca dos veces la bandeja para seleccionarla entera"
+
+#: crates/engine/src/formats/threemf.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Target"
+msgstr "Objetivo"
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Targets"
@@ -6809,6 +7062,10 @@ msgstr "Deslizar con tres dedos"
 msgid "Through All"
 msgstr "Por todo"
 
+#: crates/doc/src/lib.rs
+msgid "Tinted"
+msgstr "Tintado"
+
 #: crates/ui-egui/src/menubar.rs
 msgid "Tip"
 msgstr "Consejo"
@@ -6842,6 +7099,7 @@ msgid "Title Block"
 msgstr "Cajetín"
 
 #: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "To Object"
 msgstr "A objeto"
 
@@ -6872,8 +7130,8 @@ msgid "Toolbar"
 msgstr "Barra de herramientas"
 
 #: crates/ui-egui/src/menubar.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
-#: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Tools"
 msgstr "Herramientas"
 
@@ -6922,10 +7180,15 @@ msgstr "Trasladar"
 msgid "Translate (N)"
 msgstr "Trasladar (N)"
 
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Transmission"
+msgstr "Transmisión"
+
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Transparency"
 msgstr "Transparencia"
 
+#: crates/doc/src/lib.rs
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Transparent"
 msgstr "Transparente"
@@ -7012,6 +7275,7 @@ msgid "Twelve languages"
 msgstr "Doce idiomas"
 
 #: crates/engine/src/history.rs
+#: crates/ui-egui/src/workspace/step_card.rs
 msgid "Twist"
 msgstr "Torsión"
 
@@ -7194,6 +7458,10 @@ msgstr "Usa el menú Archivo para los archivos"
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Used Materials"
 msgstr "Materiales usados"
+
+#: crates/doc/src/lib.rs
+msgid "Utility"
+msgstr "Utilidades"
 
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Value"

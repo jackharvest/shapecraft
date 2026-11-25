@@ -355,6 +355,10 @@ msgstr "每次更改后"
 msgid "Align"
 msgstr "对齐"
 
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Align To"
+msgstr "对齐到"
+
 #: crates/engine/src/history.rs
 #: crates/ui-egui/src/workspace/viewport/in_place.rs
 msgid "Alignment"
@@ -580,27 +584,35 @@ msgstr "自动定向"
 msgid "Automatic"
 msgstr "自动"
 
-#: crates/engine/src/history.rs
 #: crates/ui-egui/src/menubar.rs
 #: crates/ui-egui/src/workspace/history.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "Axis"
 msgstr "轴"
 
+#: crates/engine/src/history.rs
 #: crates/ui-egui/src/workspace/panels/left_toolbar.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Axis - 2 Planes"
 msgstr "轴 - 两平面"
 
+#: crates/engine/src/history.rs
+msgid "Axis - 2 Points"
+msgstr "轴 - 两点"
+
+#: crates/engine/src/history.rs
 #: crates/ui-egui/src/workspace/panels/left_toolbar.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Axis - Along Edge"
 msgstr "轴 - 沿边"
 
+#: crates/engine/src/history.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Axis - Cylinder/Cone"
 msgstr "轴 - 圆柱/圆锥"
 
 #: crates/engine/src/cmd/construct.rs
+#: crates/engine/src/history.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Axis - Perp. to Face"
 msgstr "轴 - 垂直于面"
@@ -774,6 +786,11 @@ msgstr "下"
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Bottom of View"
 msgstr "视图底部"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Boundary Profiles"
+msgstr "边界轮廓"
 
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Bright Exhibition Space"
@@ -1037,6 +1054,7 @@ msgstr "圆的标注："
 msgid "Circular Pattern"
 msgstr "圆形阵列"
 
+#: crates/doc/src/lib.rs
 #: crates/ui-egui/src/workspace/history.rs
 msgid "Clear"
 msgstr "清除"
@@ -1065,6 +1083,10 @@ msgstr "点击圆或圆弧"
 #: crates/ui-egui/src/workspace/annotate.rs
 msgid "Click a circle or arc, then a circle, arc or line"
 msgstr "点击圆或圆弧，再点击圆、圆弧或线"
+
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Click a face"
+msgstr "点击一个面"
 
 #: crates/ui-egui/src/workspace/panels/popups.rs
 msgid "Click a face to start. Return finishes; Escape cancels."
@@ -1203,6 +1225,10 @@ msgstr "点击面上的三个点"
 msgid "Click three points on the circle"
 msgstr "点击圆上的三个点"
 
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Click to add or remove, then Done"
+msgstr "点击添加或移除，然后点完成"
+
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Click to pick this kernel (takes effect after a restart)"
 msgstr "点击选择此内核（重启后生效）"
@@ -1239,6 +1265,10 @@ msgstr "点击面或棱边上的两个点"
 msgid "Click two straight edges"
 msgstr "点击两条直边"
 
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Click what to use instead, then Done"
+msgstr "点击要改用的对象，然后点完成"
+
 #: crates/ui-egui/src/workspace/annotate.rs
 msgid "Click where the note goes, type, then press Return"
 msgstr "点击注释的位置，输入文字，再按回车键"
@@ -1264,6 +1294,14 @@ msgstr "封闭小缝隙，去除极小的棱边和面，并翻转朝向错误的
 #: crates/ui-egui/src/report.rs
 msgid "Closed"
 msgstr "已关闭"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Closest Endpoint"
+msgstr "最近端点"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Closest Point"
+msgstr "最近点"
 
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Coarser While Moving:"
@@ -2032,6 +2070,7 @@ msgid "Duplicate"
 msgstr "创建副本"
 
 #: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "Edge"
 msgstr "边"
 
@@ -2080,9 +2119,21 @@ msgstr "椭圆"
 msgid "Emboss"
 msgstr "压印"
 
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Emission"
+msgstr "自发光"
+
 #: crates/ui-egui/src/menubar.rs
 msgid "Enclosing Folder"
 msgstr "上级文件夹"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "End Continuity"
+msgstr "结束连续性"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "End Magnitude"
+msgstr "结束强度"
 
 #: crates/ui-egui/src/workspace/viewport/snap.rs
 msgid "Endpoint"
@@ -2130,6 +2181,10 @@ msgstr "每个形状都从一张图开始。画一个圆。"
 #: crates/ui-egui/src/onboarding.rs
 msgid "Every shortcut, as on the computer."
 msgstr "所有快捷键，与电脑上相同。"
+
+#: crates/ui-egui/src/workspace/export.rs
+msgid "Every shown sketch, zipped when there are several"
+msgstr "所有显示的草图，多个时打包为 ZIP"
 
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Every tool and option, nothing greyed out"
@@ -2261,15 +2316,26 @@ msgstr "拉伸、推拉"
 msgid "Extrusion"
 msgstr "拉伸"
 
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Face"
+msgstr "面"
+
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Face to Align"
+msgstr "要对齐的面"
+
 #: crates/ui-egui/src/workspace/area.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "Faces"
 msgstr "面"
 
 #: crates/ui-egui/src/workspace/panels/popups.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "Faces to Replace"
 msgstr "要替换的面"
 
 #: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "Faces to Thread"
 msgstr "要加螺纹的面"
 
@@ -2313,8 +2379,8 @@ msgid "Fill"
 msgstr "填充"
 
 #: crates/engine/src/cmd/model/mod.rs
+#: crates/engine/src/history.rs
 #: crates/ui-egui/src/menubar.rs
-#: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Fill (Beta)"
 msgstr "填充 (Beta)"
 
@@ -2478,9 +2544,17 @@ msgstr "前"
 msgid "Front, Left, Top, Isometric"
 msgstr "前、左、上、等轴测"
 
+#: crates/doc/src/lib.rs
+msgid "Frosted"
+msgstr "磨砂"
+
 #: crates/ui-egui/src/workspace/step_card.rs
 msgid "Full Length"
 msgstr "全长"
+
+#: crates/ui-egui/src/workspace/badges.rs
+msgid "G0 - Positional"
+msgstr "G0 - 位置"
 
 #: crates/ui-egui/src/workspace/badges.rs
 #: crates/ui-egui/src/workspace/step_card.rs
@@ -2552,6 +2626,11 @@ msgid "Give the stand a color."
 msgstr "给支架上色。"
 
 #: crates/doc/src/lib.rs
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Glass"
+msgstr "玻璃"
+
+#: crates/doc/src/lib.rs
 msgid "Glossy"
 msgstr "高光"
 
@@ -2593,9 +2672,19 @@ msgstr "网格位置"
 msgid "Ground Plane"
 msgstr "地平面"
 
+#: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Guide Curves"
+msgstr "引导曲线"
+
 #: crates/ui-egui/src/workspace/panels/right_popover.rs
 msgid "Guide Points"
 msgstr "引导点"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Guides"
+msgstr "引导线"
 
 #: crates/ui-egui/src/tutorials.rs
 msgid "Half a knob's outline, spun all the way round, is a knob."
@@ -2702,6 +2791,10 @@ msgstr "ShapeCraft 用什么外观？"
 msgid "IGES files"
 msgstr "IGES 文件"
 
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "IOR"
+msgstr "折射率"
+
 #: crates/report/src/draft.rs
 #: crates/report/src/github.rs
 #: crates/ui-egui/src/report.rs
@@ -2758,6 +2851,10 @@ msgstr "导入材质…"
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Import Panorama…"
 msgstr "导入全景图…"
+
+#: crates/ui-egui/src/workspace/import_prefs.rs
+msgid "Import Planar Curves as Sketches"
+msgstr "将平面曲线导入为草图"
 
 #: crates/ui-egui/src/workspace/import_prefs.rs
 msgid "Import Preferences"
@@ -2824,9 +2921,17 @@ msgstr "包含实体颜色"
 msgid "Include Hidden Items"
 msgstr "包含隐藏条目"
 
+#: crates/ui-egui/src/workspace/export.rs
+msgid "Include Mesh Bodies"
+msgstr "包含网格实体"
+
 #: crates/ui-egui/src/workspace/step_card.rs
 msgid "Include Tangent Edges"
 msgstr "包含相切边"
+
+#: crates/ui-egui/src/workspace/export.rs
+msgid "Include Vertex Colors"
+msgstr "包含顶点颜色"
 
 #: crates/ui-egui/src/workspace/export.rs
 msgid "Include Visualization Materials"
@@ -2968,6 +3073,7 @@ msgid "Item"
 msgstr "条目"
 
 #: crates/ui-egui/src/workspace/panels/items.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Items"
 msgstr "条目"
@@ -3265,6 +3371,10 @@ msgstr "正在查找…"
 msgid "Loose"
 msgstr "松"
 
+#: crates/ui-egui/src/workspace/import_prefs.rs
+msgid "Loose curves lying in a plane come in as sketches; off, they're left out."
+msgstr "位于平面内的独立曲线导入为草图；关闭则忽略。"
+
 #: crates/ui-egui/src/app.rs
 #: crates/ui-egui/src/workspace/export.rs
 #: crates/ui-egui/src/workspace/prefs.rs
@@ -3326,6 +3436,7 @@ msgid "Match your system, or keep it light or dark."
 msgstr "跟随系统，或始终浅色或深色。"
 
 #: crates/engine/src/formats/fbx.rs
+#: crates/ui-egui/src/app.rs
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Material"
 msgstr "材质"
@@ -3428,8 +3539,8 @@ msgid "Middle drag and wheel"
 msgstr "中键拖动和滚轮"
 
 #: crates/engine/src/cmd/construct.rs
-#: crates/engine/src/history.rs
 #: crates/ui-egui/src/menubar.rs
+#: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Midplane"
 msgstr "中间平面"
 
@@ -3459,6 +3570,10 @@ msgstr "最小距离"
 #: crates/shapr/src/lib.rs
 msgid "Mirror"
 msgstr "镜像"
+
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Mirror Plane"
+msgstr "镜像平面"
 
 #: crates/ui-egui/src/menubar.rs
 msgid "Mirror Sketch"
@@ -3748,6 +3863,7 @@ msgid "Non-uniform"
 msgstr "非均匀"
 
 #: crates/ui-egui/src/workspace/measure.rs
+#: crates/ui-egui/src/workspace/step_card.rs
 #: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "None"
 msgstr "无"
@@ -3946,6 +4062,7 @@ msgstr "只有周围的场景是生成的"
 
 #: crates/ui-egui/src/workspace/decals.rs
 #: crates/ui-egui/src/workspace/panels/right_popover.rs
+#: crates/ui-egui/src/workspace/visual.rs
 msgid "Opacity"
 msgstr "不透明度"
 
@@ -3985,6 +4102,10 @@ msgstr "打开“浏览”看看可以添加什么。"
 #: crates/ui-egui/src/updates.rs
 msgid "Open Download Page"
 msgstr "打开下载页面"
+
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Open Faces"
+msgstr "开放面"
 
 #: crates/ui-egui/src/report.rs
 msgid "Open Issue to Paste"
@@ -4113,6 +4234,10 @@ msgstr "从图纸生成 PDF"
 msgid "PICK IT FOR"
 msgstr "适合"
 
+#: crates/ui-egui/src/workspace/export.rs
+msgid "Painted faces keep their colors"
+msgstr "上色的面保留其颜色"
+
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Pan"
 msgstr "平移"
@@ -4176,6 +4301,15 @@ msgstr "已原位粘贴：1 个条目"
 msgid "Pasted in place: {#} items"
 msgstr "已原位粘贴：{#} 个条目"
 
+#: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Path"
+msgstr "路径"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Path Intersection"
+msgstr "路径交点"
+
 #: crates/ui-egui/src/menubar.rs
 #: crates/ui-egui/src/workspace/history.rs
 #: crates/ui-egui/src/workspace/mod.rs
@@ -4234,6 +4368,10 @@ msgstr "五边形"
 msgid "Period"
 msgstr "点"
 
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Periodic Loft"
+msgstr "周期放样"
+
 #: crates/doc/src/constraints.rs
 #: crates/ui-egui/src/workspace/constraints.rs
 msgid "Perpendicular"
@@ -4250,6 +4388,10 @@ msgstr "透视"
 #: crates/ui-egui/src/tutorials.rs
 msgid "Phone Stand"
 msgstr "手机支架"
+
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Pick Face Color"
+msgstr "拾取面颜色"
 
 #: crates/ui-egui/src/workspace/start_tool.rs
 #: crates/ui-egui/src/workspace/tools/mod.rs
@@ -4282,6 +4424,9 @@ msgid "Pick a profile or a face, and an axis to spin it around into a solid."
 msgstr "选择一个轮廓或面，以及让它旋转成实体的轴。"
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
+msgid "Pick a profile, then the curves or edges to sweep it along."
+msgstr "选择一个轮廓，然后选择扫掠所沿的曲线或边。"
+
 msgid "Pick a profile, then the path to sweep it along."
 msgstr "选择一个轮廓，再选它要沿着走的路径。"
 
@@ -4296,6 +4441,10 @@ msgstr "选择一端、角、再选另一端"
 #: crates/ui-egui/src/onboarding.rs
 msgid "Pick and press. Hovering lights what a tap picks."
 msgstr "选择和按压。悬停会点亮轻点将选中的东西。"
+
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Pick at least one"
+msgstr "至少选择一个"
 
 #: crates/ui-egui/src/workspace/step_card.rs
 msgid "Pick at least one body to cut"
@@ -4337,7 +4486,6 @@ msgstr "选择你的手已经习惯的应用，旋转、平移和缩放就和它
 msgid "Pick the edges again: open the step's body and fillet them anew"
 msgstr "重新选择棱边：打开该步骤的实体并重新倒圆"
 
-#: crates/ui-egui/src/workspace/step_card.rs
 msgid "Pick the face or plane while extruding: open the step's sketch and extrude again"
 msgstr "在拉伸时选择面或平面：打开该步骤的草图并重新拉伸"
 
@@ -4352,6 +4500,10 @@ msgstr "选择要去掉的面，把实体挖空；拉箭头或输入壁厚。"
 #: crates/ui-egui/src/workspace/step_card.rs
 msgid "Pick the profile again, then Done"
 msgstr "再次选择轮廓，然后点“完成”"
+
+#: crates/ui-egui/src/workspace/tools/mod.rs
+msgid "Pick the profiles and curves around what to fill, then choose how the faces meet at each edge."
+msgstr "选择要填充区域周围的轮廓和曲线，然后选择各边处面的连接方式。"
 
 #: crates/ui-egui/src/workspace/measure.rs
 msgid "Pick three points: an end, the corner, the other end."
@@ -4415,12 +4567,25 @@ msgstr "每英寸像素数；尺寸也以毫米保存"
 msgid "Planar"
 msgstr "平面"
 
-#: crates/engine/src/history.rs
 #: crates/ui-egui/src/menubar.rs
 #: crates/ui-egui/src/workspace/history.rs
+#: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Plane"
 msgstr "平面"
 
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Plane #1"
+msgstr "平面 1"
+
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Plane #2"
+msgstr "平面 2"
+
+#: crates/engine/src/history.rs
+msgid "Plane - 3 Points"
+msgstr "平面 - 三点"
+
+#: crates/engine/src/history.rs
 #: crates/ui-egui/src/workspace/panels/left_toolbar.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Plane - Midplane"
@@ -4433,13 +4598,22 @@ msgid "Plane - Offset"
 msgstr "平面 - 偏移"
 
 #: crates/engine/src/cmd/construct.rs
+#: crates/engine/src/history.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Plane - On Curve at Point"
 msgstr "平面 - 曲线上的点"
 
+#: crates/engine/src/history.rs
+msgid "Plane - Parallel to Face"
+msgstr "平面 - 平行于面"
+
+#: crates/engine/src/history.rs
+msgid "Plane - Perp. to Edge"
+msgstr "平面 - 垂直于边"
+
 #: crates/engine/src/cmd/construct.rs
+#: crates/engine/src/history.rs
 #: crates/ui-egui/src/workspace/panels/left_toolbar.rs
-#: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Plane - Through Edge"
 msgstr "平面 - 过边"
 
@@ -4595,7 +4769,17 @@ msgstr "打印配合"
 
 #: crates/ui-egui/src/workspace/history.rs
 #: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "Profile"
+msgstr "轮廓"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Profile Position"
+msgstr "轮廓位置"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Profiles"
 msgstr "轮廓"
 
 #: crates/ui-egui/src/workspace/slicers.rs
@@ -4614,6 +4798,7 @@ msgid "Project (P)"
 msgstr "投影（P）"
 
 #: crates/ui-egui/src/workspace/panels/popups.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "Project Onto"
 msgstr "投影到"
 
@@ -4839,6 +5024,10 @@ msgstr "矩形（R）"
 msgid "Redo"
 msgstr "重做"
 
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Reference"
+msgstr "参考"
+
 #: crates/ui-egui/src/report.rs
 msgid "Refresh"
 msgstr "刷新"
@@ -4879,6 +5068,7 @@ msgid "Replace Face"
 msgstr "替换面"
 
 #: crates/ui-egui/src/workspace/panels/popups.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "Replacing Face"
 msgstr "替换用的面"
 
@@ -4900,6 +5090,10 @@ msgstr "报告…"
 #: crates/ui-egui/src/workspace/viewport/clicks.rs
 msgid "Require holding shift"
 msgstr "需要按住 Shift"
+
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Reset to Default Material"
+msgstr "重置为默认材质"
 
 #: crates/ui-egui/src/workspace/shortcuts.rs
 msgid "Reset to Defaults"
@@ -5065,6 +5259,18 @@ msgstr "向上旋转 45°"
 msgid "Rotate View"
 msgstr "旋转视图"
 
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Rotate X"
+msgstr "旋转 X"
+
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Rotate Y"
+msgstr "旋转 Y"
+
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Rotate Z"
+msgstr "旋转 Z"
+
 #: crates/ui-egui/src/workspace/badges.rs
 #: crates/ui-egui/src/workspace/viewport/circular.rs
 msgid "Rotated"
@@ -5078,6 +5284,10 @@ msgstr "旋转"
 msgid "Rough"
 msgstr "粗糙"
 
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Roughness"
+msgstr "粗糙度"
+
 #: crates/ui-egui/src/workspace/step_card.rs
 msgid "Round"
 msgstr "圆"
@@ -5090,6 +5300,7 @@ msgstr "把锐利的棱边倒圆。"
 msgid "Round the rim so it's soft to the touch."
 msgstr "把杯口磨圆，摸起来更柔和。"
 
+#: crates/ui-egui/src/workspace/step_card.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Ruled"
 msgstr "直纹"
@@ -5140,6 +5351,10 @@ msgstr "保存更改"
 #: crates/ui-egui/src/workspace/export.rs
 msgid "Save Each 1st-Level Item Separately"
 msgstr "分别保存每个一级条目"
+
+#: crates/ui-egui/src/workspace/export.rs
+msgid "Save Each Sketch Plane Separately"
+msgstr "分别保存每个草图平面"
 
 #: crates/ui-egui/src/plugins.rs
 msgid "Save Image…"
@@ -5481,6 +5696,10 @@ msgstr "选择两个把手"
 msgid "Select edges or a body to round"
 msgstr "选择要倒圆的棱边或实体"
 
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Select edges or curves..."
+msgstr "选择边或曲线..."
+
 #: crates/ui-egui/src/workspace/start_tool.rs
 #: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Select edges or faces to create an offset sketch"
@@ -5514,6 +5733,10 @@ msgstr "选择要放大或缩小的草图曲线"
 msgid "Select sketch curves to turn"
 msgstr "选择要转动的草图曲线"
 
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Select sketch edges..."
+msgstr "选择草图曲线..."
+
 #: crates/ui-egui/src/workspace/keys.rs
 #: crates/ui-egui/src/workspace/panels/items.rs
 msgid "Select something to rename"
@@ -5543,11 +5766,14 @@ msgstr "选择弯曲的线"
 msgid "Select the face or plane the extrusion starts from"
 msgstr "选择拉伸开始的面或平面"
 
+#: crates/ui-egui/src/workspace/tools/mod.rs
+msgid "Select the face, plane or body to extrude to"
+msgstr "选择要拉伸到的面、平面或实体"
+
 #: crates/ui-egui/src/workspace/start_tool.rs
 msgid "Select the faces to open, then Shell"
 msgstr "选择要打开的面，再点“抽壳”"
 
-#: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Select the flat face or plane to extrude to"
 msgstr "选择要拉伸到的平的面或平面"
 
@@ -5647,6 +5873,10 @@ msgstr "选择楔块"
 msgid "Select the widest edge"
 msgstr "选择最宽的棱边"
 
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Select..."
+msgstr "选择..."
+
 #: crates/ui-egui/src/plugins.rs
 #: plugins/official/generative-render/src/lib.rs
 msgid "Selected Faces"
@@ -5679,6 +5909,11 @@ msgstr "已发送为议题 #{#}"
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Serve ShapeCraft to browsers"
 msgstr "向浏览器提供 ShapeCraft"
+
+#: crates/ui-egui/src/workspace/badges.rs
+#: crates/ui-egui/src/workspace/viewport/annotations.rs
+msgid "Set All ⌄"
+msgstr "全部 ⌄"
 
 #: crates/ui-egui/src/plugins.rs
 msgid "Set Up Connections…"
@@ -6226,9 +6461,17 @@ msgstr "标准鼠标、触控板"
 msgid "Start"
 msgstr "起点"
 
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Start Continuity"
+msgstr "起始连续性"
+
 #: crates/ui-egui/src/landing.rs
 msgid "Start Here"
 msgstr "从这里开始"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+msgid "Start Magnitude"
+msgstr "起始强度"
 
 #: crates/ui-egui/src/onboarding.rs
 #: crates/ui-egui/src/setup.rs
@@ -6238,6 +6481,11 @@ msgstr "开始建模"
 #: crates/ui-egui/src/workspace/step_card.rs
 msgid "Start Offset"
 msgstr "起始偏移"
+
+#: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Start Plane"
+msgstr "起始平面"
 
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Start ShapeCraft with:"
@@ -6466,6 +6714,11 @@ msgstr "轻点两下支架以选中整个支架"
 #: crates/ui-egui/src/tutorials.rs
 msgid "Tap the tray twice to select all of it"
 msgstr "轻点两下托盘以选中整个托盘"
+
+#: crates/engine/src/formats/threemf.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
+msgid "Target"
+msgstr "目标"
 
 #: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Targets"
@@ -6809,6 +7062,10 @@ msgstr "三指轻扫"
 msgid "Through All"
 msgstr "贯穿"
 
+#: crates/doc/src/lib.rs
+msgid "Tinted"
+msgstr "有色"
+
 #: crates/ui-egui/src/menubar.rs
 msgid "Tip"
 msgstr "提示"
@@ -6842,6 +7099,7 @@ msgid "Title Block"
 msgstr "标题栏"
 
 #: crates/ui-egui/src/workspace/step_card.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 msgid "To Object"
 msgstr "到对象"
 
@@ -6872,8 +7130,8 @@ msgid "Toolbar"
 msgstr "工具栏"
 
 #: crates/ui-egui/src/menubar.rs
+#: crates/ui-egui/src/workspace/step_picks.rs
 #: crates/ui-egui/src/workspace/toolbar.rs
-#: crates/ui-egui/src/workspace/tools/mod.rs
 msgid "Tools"
 msgstr "工具"
 
@@ -6922,10 +7180,15 @@ msgstr "平移"
 msgid "Translate (N)"
 msgstr "平移（N）"
 
+#: crates/ui-egui/src/workspace/visual.rs
+msgid "Transmission"
+msgstr "透射"
+
 #: crates/ui-egui/src/workspace/toolbar.rs
 msgid "Transparency"
 msgstr "透明度"
 
+#: crates/doc/src/lib.rs
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Transparent"
 msgstr "透明"
@@ -7012,6 +7275,7 @@ msgid "Twelve languages"
 msgstr "十二种语言"
 
 #: crates/engine/src/history.rs
+#: crates/ui-egui/src/workspace/step_card.rs
 msgid "Twist"
 msgstr "扭曲"
 
@@ -7194,6 +7458,10 @@ msgstr "文件请用“文件”菜单"
 #: crates/ui-egui/src/workspace/visual.rs
 msgid "Used Materials"
 msgstr "用到的材质"
+
+#: crates/doc/src/lib.rs
+msgid "Utility"
+msgstr "实用"
 
 #: crates/ui-egui/src/workspace/prefs.rs
 msgid "Value"
