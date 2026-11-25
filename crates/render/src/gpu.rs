@@ -1087,6 +1087,8 @@ impl Renderer {
             // A body with no triangles (an import can arrive with one) has nothing to draw, and slicing its empty
             // vertex and index buffers panics: skip it before anything is uploaded or queued (#39).
             if body.mesh.indices.is_empty() {
+                // It may have edges.
+                level_of.insert(body.id, 0);
                 continue;
             }
             let mut color = c.body.linear();
@@ -1827,6 +1829,102 @@ mod cull_tests {
         fn as_any(&self) -> &dyn std::any::Any {
             self
         }
+    }
+
+    /// While the view moves a heavy body is drawn from its coarser copy, which looks the same; the full mesh and every
+    /// edge are back when it's still. A body with edges and no triangles keeps them all along (#25). Skipped without a
+    /// graphics adapter.
+    #[test]
+    fn a_moving_view_draws_less_and_looks_the_same() {
+        let Ok(mut r) = crate::Renderer::headless() else { return };
+        let mut doc = shapecraft_doc::Document::new("t");
+        let mut add = |mesh: Mesh| {
+            let id = doc.alloc_id();
+            doc.bodies.push(shapecraft_doc::Body {
+                id,
+                name: "b".into(),
+                shape: shapecraft_kernel::Shape::new(NoShape),
+                mesh: Arc::new(mesh),
+                visible: true,
+                appearance: None,
+                face_colors: Vec::new(),
+                facets: None,
+            });
+        };
+        // A disc: a fan about its hub, its rim an edge.
+        let n = 600u32;
+        let mut disc = Mesh::default();
+        disc.positions.push([0.0; 3]);
+        for i in 0..n {
+            let a = std::f32::consts::TAU * i as f32 / n as f32;
+            disc.positions.push([20.0 * a.cos(), 0.0, 20.0 * a.sin()]);
+            disc.indices.extend([0, 1 + i, 1 + (i + 1) % n]);
+        }
+        disc.normals = vec![[0.0, -1.0, 0.0]; disc.positions.len()];
+        disc.triangle_faces = vec![0; n as usize];
+        disc.edges.push((0..=n).map(|i| disc.positions[(1 + i % n) as usize]).collect());
+        (disc.edge_ids, disc.edge_faces) = (vec![0], vec![[0, u32::MAX]]);
+        add(disc);
+        let wire = Mesh {
+            edges: vec![vec![[-24.0, 0.0, -24.0], [24.0, 0.0, -24.0]]],
+            edge_ids: vec![0],
+            edge_faces: vec![[u32::MAX; 2]],
+            ..Default::default()
+        };
+        add(wire);
+        let scene = crate::SceneInput {
+            doc: &doc,
+            selection: &[],
+            hover: None,
+            active_sketch: None,
+            plane_tiles: &[],
+            overlays: &[],
+            colors: crate::SceneColors::default(),
+            show_axes: false,
+            show_edges: true,
+            show_hidden_edges: false,
+            show_decals: false,
+            grid: None,
+            display: Default::default(),
+            section: None,
+            presentation: false,
+            backdrop: crate::Rgba::hex(0x101010),
+            shadow: 0.0,
+            ghosts: &[],
+            tints: &[],
+            drawn: &[],
+            defined: &[],
+            boxing: false,
+            bare: false,
+        };
+        let camera = crate::Camera::standard(crate::StandardView::Front, glam::DVec3::ZERO, 120.0);
+        let size = (300, 300);
+        r.render(&scene, &camera, size).expect("still");
+        let (_, _, still) = r.read_pixels().expect("pixels");
+        let full = r.drawn();
+        assert_eq!((full.coarse, full.triangles, full.segments), (0, 600, 601));
+        r.detail = crate::Detail { prepare: true, within_px: Some(1.0) };
+        for _ in 0..500 {
+            r.render(&scene, &camera, size).expect("moving");
+            if r.drawn().coarse > 0 {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        let coarse = r.drawn();
+        assert_eq!(coarse.coarse, 1, "its copy arrived");
+        assert!(coarse.triangles * 2 < full.triangles && coarse.segments * 2 < full.segments, "{coarse:?}");
+        let (_, _, moving) = r.read_pixels().expect("pixels");
+        let off = still.as_chunks::<4>().0.iter().zip(moving.as_chunks::<4>().0).filter(|(a, b)| a[0].abs_diff(b[0]) > 60).count();
+        assert!(off < 90, "{off} of 90000 pixels differ");
+        // The wire's row is there both times.
+        let drawn_rows = |px: &[u8]| (0..300usize).filter(|y| px[(y * 300 + 150) * 4] != px[(y * 300 + 2) * 4]).count();
+        assert!(drawn_rows(&still).abs_diff(drawn_rows(&moving)) < 3);
+        r.detail.within_px = None;
+        r.render(&scene, &camera, size).expect("still again");
+        assert_eq!(r.drawn(), full);
+        let (_, _, again) = r.read_pixels().expect("pixels");
+        assert_eq!(still, again);
     }
 
     /// A body whose mesh has no triangles (a STEP import can arrive with one) draws nothing instead of panicking on
