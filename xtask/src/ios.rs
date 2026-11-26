@@ -13,8 +13,9 @@ use anyhow::{Context, Result, bail};
 use crate::android::{find, linked_toolkits};
 use crate::util::{clear, copy, run, s, target};
 
-/// The oldest iOS the app runs on. The Duo's own calls (reserved regions, iOS 27.1) are checked for at run time.
-pub const MIN_IOS: &str = "17.0";
+/// The oldest iOS the app runs on: the SDK's own floor, so iPads that stopped at iPadOS 15 or 16 still run it.
+/// Anything newer (the Duo's reserved regions, iOS 27.1) is checked for at run time.
+pub const MIN_IOS: &str = "15.0";
 
 pub struct Kind {
     pub name: &'static str,
@@ -157,7 +158,7 @@ const PBXPROJ: &str = r#"// !$*UTF8*$!
 		A10000000000000000000012 = {isa = XCBuildConfiguration; buildSettings = {
 			CODE_SIGN_STYLE = Automatic; DEVELOPMENT_TEAM = @TEAM@; PRODUCT_BUNDLE_IDENTIFIER = "@BUNDLE@"; PRODUCT_NAME = Provision;
 			GENERATE_INFOPLIST_FILE = YES; INFOPLIST_KEY_UILaunchScreen_Generation = YES; SDKROOT = iphoneos; SWIFT_VERSION = 5.0;
-			IPHONEOS_DEPLOYMENT_TARGET = 17.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
+			IPHONEOS_DEPLOYMENT_TARGET = 15.0; TARGETED_DEVICE_FAMILY = "1,2"; }; name = Debug; };
 		A10000000000000000000013 = {isa = XCConfigurationList; buildConfigurations = (A10000000000000000000012); defaultConfigurationName = Debug; };
 		A10000000000000000000014 = {isa = XCBuildConfiguration; buildSettings = { SDKROOT = iphoneos; }; name = Debug; };
 		A10000000000000000000016 = {isa = XCConfigurationList; buildConfigurations = (A10000000000000000000014); defaultConfigurationName = Debug; };

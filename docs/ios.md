@@ -4,7 +4,7 @@ ShapeCraft runs as a native app on iPhone. On the **iPhone Duo** it's the full m
 and the same interface as on a computer, laid out for the phone opened up. **Other iPhones** are a viewer: projects
 and files open to turn, look at in any display mode, screenshot and export; modeling waits for a computer or a Duo.
 
-There's no App Store or TestFlight build. Put it on your own phone one of two ways:
+It needs iOS or iPadOS 15.0 or newer. There's no App Store or TestFlight build. Put it on your own phone one of two ways:
 
 ## The easy way: sideload the .ipa
 

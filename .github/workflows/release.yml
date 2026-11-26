@@ -218,8 +218,8 @@ jobs:
         if: steps.xcode.outputs.build
         with:
           path: target/ios/occt-device
-          key: occt-ios-device-V7_9_3-macos26-${{ hashFiles('crates/kernel-occt/build.rs', 'xtask/src/ios.rs', 'xtask/src/android.rs') }}
-          restore-keys: occt-ios-device-V7_9_3-macos26-
+          key: occt-ios-device-V7_9_3-macos26-ios15-${{ hashFiles('crates/kernel-occt/build.rs', 'xtask/src/ios.rs', 'xtask/src/android.rs') }}
+          restore-keys: occt-ios-device-V7_9_3-macos26-ios15-
       - name: OCCT for iOS
         if: steps.xcode.outputs.build
         run: |

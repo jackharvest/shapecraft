@@ -2,6 +2,12 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.13.2-alpha
+**iPhones and iPads on iOS 15 and 16 can run ShapeCraft.**
+### Changed
+- **The iOS app runs on iOS and iPadOS 15.0 or newer**, down from 17.0, so older iPads that can't update any further still
+  open it instead of closing at once (#100).
+
 ## 0.13.1-alpha
 **Sweep and Section View look and act as they should.**
 ### Fixed
