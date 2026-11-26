@@ -155,6 +155,8 @@ impl Workspace {
         matches!(self.tool, Tool::Await { kind: super::toolbar::ToolKind::Move, .. })
             || self.card_tool() && self.options_menu.is_some()
             || self.tool_from_nothing && matches!(self.tool, Tool::Loft(_) | Tool::Sweep(_) | Tool::Fill(_))
+            // Sweep with its path picked waits under the idle set.
+            || matches!(&self.tool, Tool::Sweep(t) if !t.path.is_empty())
             // A body face started with E keeps the face set, Extrude lit, until it's pulled.
             || matches!(&self.tool, Tool::Extrude(t) if !matches!(t.target, super::tools::Target::Face { .. }))
                 && (!self.predicted || self.is_live())

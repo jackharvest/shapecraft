@@ -802,7 +802,7 @@ impl Workspace {
                 }
             }
         }
-        // Loft's Result badge sits at its last profile's middle, Sweep's beside the profile.
+        // Loft's Result badge sits at its last profile's middle, Sweep's at its profile's.
         let profiles: Vec<shapecraft_doc::Pick> = match &self.tool {
             Tool::Loft(t) => t.profiles.last().copied().into_iter().collect(),
             Tool::Sweep(t) => vec![t.profile],
@@ -813,8 +813,7 @@ impl Workspace {
         if !middles.is_empty()
             && let Some(at) = self.to_screen(middles.iter().sum::<DVec3>() / middles.len() as f64)
         {
-            let lift = if matches!(self.tool, Tool::Loft(_)) { 0.0 } else { -34.0 };
-            crate::workspace::badges::paint_row(self, ui, &painter, at + vec2(0.0, lift), vec2(1.0, 0.0));
+            crate::workspace::badges::paint_row(self, ui, &painter, at, vec2(1.0, 0.0));
         }
         // Fill: a badge on every edge of the network, Set All in the middle of them.
         if let Tool::Fill(t) = &self.tool

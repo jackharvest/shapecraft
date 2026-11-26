@@ -90,12 +90,19 @@ pub(in crate::workspace) fn popups(ws: &mut Workspace, ui: &mut Ui) {
     let bubble = crate::workspace::badges::cycle_bubble(ws, ui);
     let held = ws.pen_input && ws.pen_held.is_some() && ws.area_open();
     let predicted = if ws.area.is_some() || held || bubble { None } else { predicted };
-    ws.seen_banner = match (&ws.notice, predicted) {
-        (Some((text, _)), _) => text.clone(),
+    // Loft, Sweep and Fill with picks that make nothing: why, in the banner's place (as a refusal is), while the
+    // card is shut (the card has its own red bar).
+    let failed: Option<String> = (matches!(ws.tool, Tool::Loft(_) | Tool::Sweep(_) | Tool::Fill(_)) && ws.options_menu.is_none())
+        .then(|| ws.preview.as_ref().and_then(|p| p.error.clone()))
+        .flatten()
+        .map(|e| sentence(&e));
+    let notice: Option<String> = ws.notice.as_ref().map(|(t, _)| t.clone()).or(failed);
+    ws.seen_banner = match (&notice, predicted) {
+        (Some(text), _) => text.clone(),
         (None, Some((title, body))) => if body.is_empty() { title } else { body }.to_string(),
         (None, None) => String::new(),
     };
-    if let Some((text, _)) = &ws.notice {
+    if let Some(text) = &notice {
         // A refusal takes the banner's place (s12-004): a dark chip, the message centred on up to two lines.
         let mut job = egui::text::LayoutJob::simple(crate::i18n::tr_s(text), theme::body(13.0), Tokens::text_strong(), 280.0);
         job.halign = egui::Align::Center;
@@ -839,4 +846,15 @@ mod touch_hint_tests {
         let idle = Tool::Idle;
         assert_eq!(translated_touch_hint(&idle, None, "Click a face to start. Return finishes; Escape cancels."), "Tap a face to start.");
     }
+}
+
+/// An engine message as a banner sentence: a capital first letter and a full stop.
+fn sentence(text: &str) -> String {
+    let mut chars = text.trim().chars();
+    let mut out: String = chars.next().map(|c| c.to_uppercase().collect()).unwrap_or_default();
+    out.push_str(chars.as_str());
+    if !out.is_empty() && !out.ends_with(['.', '!', '?']) {
+        out.push('.');
+    }
+    out
 }

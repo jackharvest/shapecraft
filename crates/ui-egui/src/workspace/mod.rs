@@ -585,8 +585,10 @@ impl Section {
         self.only || self.flat.is_some()
     }
 
+    /// Where the cut is: a hair past the offset toward what's cut away, so a face the plane sits on (the face just
+    /// picked, at 0 mm) stays a face instead of being half cut.
     pub fn origin(&self) -> DVec3 {
-        self.center + self.normal * self.offset
+        self.center + self.normal * (self.offset + 1e-3)
     }
 }
 
@@ -637,6 +639,13 @@ pub(crate) struct Preview {
     pub doc: Option<shapecraft_doc::Document>,
     /// Why there's nothing to show.
     pub error: Option<String>,
+}
+
+impl Workspace {
+    /// The running tool's preview came back with an error: its picks make nothing.
+    pub(crate) fn preview_failed(&self) -> bool {
+        self.preview.as_ref().is_some_and(|p| p.error.is_some())
+    }
 }
 
 impl Preview {

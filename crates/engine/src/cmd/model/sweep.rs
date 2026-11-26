@@ -451,10 +451,24 @@ fn sweep_shape(s: &Session, face: &Shape, path: &[PathPart], position: Position,
         });
     }
     let at = attach_point(s, face, &shapes, position)?;
-    match planar {
-        Some((frame, curves)) if at.is_none() => Ok(s.kernel.sweep_with(face, frame, &curves, opts)?),
-        _ => Ok(s.kernel.sweep_path(face, &shapes, at, opts)?),
+    let shape = match planar {
+        Some((frame, curves)) if at.is_none() => s.kernel.sweep_with(face, frame, &curves, opts)?,
+        _ => s.kernel.sweep_path(face, &shapes, at, opts)?,
+    };
+    flat_check(s, face, &shape)?;
+    Ok(shape)
+}
+
+/// A path that runs in the profile's own plane sweeps it flat: a body with no volume, which is refused.
+fn flat_check(s: &Session, face: &Shape, shape: &Shape) -> Result<()> {
+    // A kernel that can't measure them isn't stopped here.
+    let (Ok(f), Ok(b)) = (s.kernel.mass_props(face), s.kernel.mass_props(shape)) else { return Ok(()) };
+    if b.volume.abs() <= f.area.abs() * 1e-3 {
+        return Err(EngineError::NotAvailable(
+            "the swept body would be flat: the path runs along the profile's plane where it starts".into(),
+        ));
     }
+    Ok(())
 }
 
 /// Points along an edge's curve, close enough to find crossings on.

@@ -23,6 +23,9 @@ pub struct Caps {
 /// Measured on s16-024.
 const FILL: u32 = 0x5c4c4c;
 const HATCH: u32 = 0x4e4141;
+/// The plain Section View's cut faces: a brick red with darker stripes about 8 px apart (measured 2026-11-25).
+const CAP: u32 = 0x67413c;
+const CAP_HATCH: u32 = 0x583833;
 
 fn basis(n: DVec3) -> (DVec3, DVec3) {
     let u = if n.z.abs() > 0.9 { DVec3::X } else { DVec3::Z.cross(n).normalize() };
@@ -192,13 +195,13 @@ impl Workspace {
         let Some(sec) = self.section else { return };
         if !sec.caps_only() {
             let edge = Rgba::hex(0x17181a);
-            out.push(Overlay::Cap { tris: self.section_caps.faces.clone(), color: Rgba::hex(0x93959c) });
+            out.push(Overlay::Cap { tris: self.section_caps.faces.clone(), color: Rgba::hex(CAP) });
             let (o, n) = (sec.origin(), sec.normal);
             let (u, v) = basis(n);
             let flat = |q: DVec3| DVec2::new((q - o).dot(u), (q - o).dot(v));
             let lines: Vec<(DVec2, DVec2)> = self.section_caps.cut.iter().map(|(a, b)| (flat(*a), flat(*b))).collect();
             let span = self.section_caps.cut.iter().map(|(a, _)| (*a - o).length()).fold(0.0, f64::max);
-            for (a, b) in shapecraft_engine::drawing::hatch(&lines, (world_per_px * 9.0).max(span / 400.0)) {
+            for (a, b) in shapecraft_engine::drawing::hatch(&lines, (world_per_px * 8.0).max(span / 400.0)) {
                 // Just short of the outline, so their ends don't stick out past it.
                 let inset = (b - a).normalize_or_zero() * world_per_px * 1.5;
                 if (b - a).length() < world_per_px * 4.0 {
@@ -206,7 +209,7 @@ impl Workspace {
                 }
                 let (a, b) = (a + inset, b - inset);
                 let at = |q: DVec2| o + u * q.x + v * q.y;
-                out.push(Overlay::Edge { a: at(a), b: at(b), color: Rgba::hex(0x85878e), width: 2.0 });
+                out.push(Overlay::Edge { a: at(a), b: at(b), color: Rgba::hex(CAP_HATCH), width: 2.0 });
             }
             out.extend(self.section_caps.cut.iter().map(|(a, b)| Overlay::Edge { a: *a, b: *b, color: edge, width: 1.6 }));
             return;

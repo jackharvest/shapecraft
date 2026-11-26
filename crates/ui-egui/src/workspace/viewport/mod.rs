@@ -295,9 +295,10 @@ impl Workspace {
             Tool::OffsetFace(t) => t.whole,
             // Ready to make: without Done only Return would (no way on for a mouse or a finger).
             Tool::Revolve(t) => t.params(t.angle).is_some(),
-            Tool::Loft(t) => t.request().is_some(),
-            Tool::Sweep(t) => t.request().is_some(),
-            Tool::Fill(t) => t.request().is_some(),
+            // Not while the picks make nothing (only Cancel then, as observed).
+            Tool::Loft(t) => t.request().is_some() && !self.preview_failed(),
+            Tool::Sweep(t) => t.request().is_some() && !self.preview_failed(),
+            Tool::Fill(t) => t.request().is_some() && !self.preview_failed(),
             Tool::Mirror(t) => t.across_request().is_some(),
             Tool::Shell(t) => t.thickness.abs() > 1e-9,
             Tool::OffsetPlane(t) => t.distance.abs() > 1e-9,

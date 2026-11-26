@@ -4170,7 +4170,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "anyhow",
  "eframe",
@@ -4184,7 +4184,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-android"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "android_logger",
  "eframe",
@@ -4198,7 +4198,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-cli"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "anyhow",
  "png 0.18.1",
@@ -4213,7 +4213,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-doc"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "chrono",
  "fontdb",
@@ -4228,14 +4228,14 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-dwg"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "thiserror 2.0.21",
 ]
 
 [[package]]
 name = "shapecraft-engine"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "glam 0.30.10",
  "image",
@@ -4257,7 +4257,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-ios"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "block2 0.6.2",
  "eframe",
@@ -4274,7 +4274,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-kernel"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "glam 0.30.10",
  "thiserror 2.0.21",
@@ -4282,7 +4282,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-kernel-occt"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "cc",
  "shapecraft-kernel",
@@ -4290,7 +4290,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-kernel-rs"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "arris",
  "glam 0.30.10",
@@ -4301,7 +4301,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-kernels"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "shapecraft-kernel",
  "shapecraft-kernel-occt",
@@ -4310,7 +4310,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-mcp"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "png 0.18.1",
  "serde_json",
@@ -4323,7 +4323,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-plugin-host"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "base64 0.22.1",
  "dirs",
@@ -4343,7 +4343,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-render"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "bytemuck",
  "glam 0.30.10",
@@ -4356,7 +4356,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-report"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "dirs",
  "serde",
@@ -4366,7 +4366,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-shapr"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "glam 0.30.10",
  "miniz_oxide 0.8.9",
@@ -4381,7 +4381,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-snap"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "anyhow",
  "eframe",
@@ -4396,7 +4396,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-ui"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "dirs",
  "eframe",
@@ -4431,7 +4431,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-update"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "dirs",
  "serde_json",
@@ -4441,7 +4441,7 @@ dependencies = [
 
 [[package]]
 name = "shapecraft-xt"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "cfb",
  "lzma-rs",
@@ -6206,7 +6206,7 @@ checksum = "ec7a2a501ed189703dba8b08142f057e887dfc4b2cc4db2d343ac6376ba3e0b9"
 
 [[package]]
 name = "xtask"
-version = "0.13.0"
+version = "0.13.1"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

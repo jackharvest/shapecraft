@@ -50,7 +50,7 @@ impl Workspace {
                 .collect();
             out.push(Overlay::Fill { tris, color: Rgba::hex(0x8a7cf0).with_alpha(235) });
         }
-        // Loft's, Sweep's and Fill's picks show through the solid they make: regions and curves orange, faces blue.
+        // Loft's, Sweep's and Fill's picks show through the solid they make: regions orange, faces blue.
         let (profiles, curves): (Vec<Pick>, Vec<Pick>) = match &self.tool {
             Tool::Loft(t) => (t.profiles.clone(), t.guides.clone()),
             Tool::Sweep(t) => (vec![t.profile], t.path.clone()),
@@ -84,8 +84,9 @@ impl Workspace {
                 _ => {}
             }
         }
+        // Loft's and Fill's curves are orange; a Sweep's path takes the selected-edge blue.
+        let orange = if matches!(self.tool, Tool::Sweep(_)) { Rgba::hex(0x0dabd3) } else { Rgba::hex(0xf2a341) };
         for p in &curves {
-            let orange = Rgba::hex(0xf2a341);
             match *p {
                 Pick::SketchEntity { sketch, entity } => {
                     let Some(sk) = self.session.doc.sketch(sketch) else { continue };

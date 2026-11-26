@@ -2,6 +2,16 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.13.1-alpha
+**Sweep and Section View look and act as they should.**
+### Fixed
+- **Sweep refuses a path that runs along the profile's own plane** and says why in the banner, instead of making a flat body.
+  Done waits until the picks make something, in Loft and Fill too.
+- **Sweep's path shows in the selection blue**, its Result badge sits on the profile, and once the path is picked the left
+  column goes back to the main tools.
+- **Section View fills cut faces brick red with fine stripes**, and the face it was started from stays a face instead of being
+  half cut.
+
 ## 0.13.0-alpha
 **Loft follows guides, Fill spans curves, Sweep runs along edges, and the view can turn freely.**
 ### New
