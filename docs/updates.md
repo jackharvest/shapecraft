@@ -31,7 +31,7 @@ ShapeCraft keeps itself up to date. Nobody has to visit a download page.
 | Installed as | Downloads | Swap |
 |---|---|---|
 | macOS `ShapeCraft.app` (anywhere writable, usually Applications) | `…-macos-universal.dmg` (up to 0.8.5: `…-macos-<arch>.dmg`, see below) | old bundle aside, new one in, old removed |
-| Windows MSI (`installed-by-msi.txt` beside the program) | `…-windows-x64.msi` | `msiexec /i` with a progress bar only (a major upgrade of the same product) |
+| Windows MSI (`installed-by-msi.txt` beside the program) | `…-windows-x64.msi` | `msiexec /i` with a progress bar only (a major upgrade of the same product), into the same folder and for the same users (per-user or everyone, as Windows Installer reports for this copy) |
 | Windows, by the old setup program (up to 0.7.10) | `…-windows-x64.msi` | the MSI into the same folder, then the setup program's uninstaller, Apps & features entry and Start menu folder are removed |
 | Windows portable zip | `…-windows-x64-portable.zip` | new files copied over the folder |
 | Windows on Arm (native Arm64 build, MSI or portable) | `…-windows-arm64.msi` / `…-windows-arm64-portable.zip` | as above (an x64 copy running under emulation keeps updating from x64) |

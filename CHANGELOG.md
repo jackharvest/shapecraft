@@ -2,11 +2,15 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.13.2-alpha
-**iPhones and iPads on iOS 15 and 16 can run ShapeCraft.**
+## 0.13.3-alpha
+**iPads on iOS 15 and 16 can run ShapeCraft, and Windows updates stay in the folder you chose.**
 ### Changed
 - **The iOS app runs on iOS and iPadOS 15.0 or newer**, down from 17.0, so older iPads that can't update any further still
   open it instead of closing at once (#100).
+### Fixed
+- **Windows updates install where ShapeCraft already is**, instead of moving it to the default folder under AppData every
+  time. A copy installed for everyone stays installed for everyone, instead of gaining a second copy for just you. Running
+  a newer .msi by hand also goes into the folder of the copy it replaces (#101).
 
 ## 0.13.1-alpha
 **Sweep and Section View look and act as they should.**

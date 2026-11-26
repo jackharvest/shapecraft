@@ -24,6 +24,23 @@
     <!-- One feature: nothing to change in Apps & features. -->
     <Property Id="ARPNOMODIFY" Value="1" />
 
+    <!-- Into the folder of the copy this one replaces (#101): a major upgrade installs the new product fresh, into the
+         default folder unless told. Windows Installer finds the installed shapecraft.exe by its component (the same Guid
+         in every version, 0.7.11 on), so this also works for copies from before this search. A folder given on the
+         command line wins. A per-user install doesn't follow a copy that is only installed for everyone (its App Paths
+         entry is in HKLM, not HKCU): it couldn't replace that copy, and its folder is often one a user can't write to. -->
+    <Property Id="SCINSTALLEDFOLDER">
+      <ComponentSearch Id="InstalledFolder" Guid="CB035310-A177-45C9-BAA9-57E03D5F2E00" Type="file" />
+    </Property>
+    <Property Id="SCUSERCOPY">
+      <RegistrySearch Id="UserCopy" Root="HKCU" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\shapecraft.exe" Type="raw" />
+    </Property>
+    <Property Id="SCMACHINECOPY">
+      <RegistrySearch Id="MachineCopy" Root="HKLM" Key="Software\Microsoft\Windows\CurrentVersion\App Paths\shapecraft.exe" Type="raw" />
+    </Property>
+    <SetProperty Id="INSTALLFOLDER" Value="[SCINSTALLEDFOLDER]" Before="CostFinalize" Sequence="both"
+                 Condition="SCINSTALLEDFOLDER AND NOT INSTALLFOLDER AND (ALLUSERS = 1 OR SCUSERCOPY OR NOT SCMACHINECOPY)" />
+
     <StandardDirectory Id="ProgramFiles6432Folder">
       <Directory Id="INSTALLFOLDER" Name="ShapeCraft" />
     </StandardDirectory>

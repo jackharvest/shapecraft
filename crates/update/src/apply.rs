@@ -6,7 +6,7 @@
 //! | Installed as | Swap |
 //! |---|---|
 //! | macOS `.app` | move the old bundle aside, move the new one in, remove the old |
-//! | Windows MSI | install the new MSI with a progress bar only (a major upgrade of the same product) |
+//! | Windows MSI | install the new MSI with a progress bar only (a major upgrade of the same product), into the same folder, same scope |
 //! | Windows setup program (before the MSI) | install the MSI into the same folder, then remove the setup program's registration |
 //! | Windows portable zip | copy the new files over the folder |
 //! | AppImage | move the new AppImage over the old file |
@@ -120,6 +120,15 @@ fn pq(s: &str) -> String {
     format!("'{}'", s.replace('\'', "''"))
 }
 
+/// The MSI's UpgradeCode and the Id of the component that holds `shapecraft.exe` (packaging/windows/shapecraft.wxs).
+const MSI_UPGRADE_CODE: &str = "08595BF4-FF15-4278-9413-8F8CFF2897DA";
+const MSI_APP_COMPONENT: &str = "CB035310-A177-45C9-BAA9-57E03D5F2E00";
+
+/// A Windows folder installed for everyone, by its name (used when Windows Installer can't say).
+fn for_everyone(dir: &Path) -> bool {
+    dir.to_string_lossy().to_ascii_lowercase().contains("program files")
+}
+
 pub(crate) fn windows_script(
     install: &Install,
     staged: &Path,
@@ -131,23 +140,41 @@ pub(crate) fn windows_script(
 ) -> Result<String, String> {
     let s = |path: &Path| pq(&path.to_string_lossy());
     let (steps, exe) = match install {
-        // 3010: installed, a restart would finish it (nothing of ShapeCraft's needs one). An install for everyone asks
-        // Windows for permission first.
-        Install::WindowsMsi(dir) => (
-            format!(
-                "$r = Start-Process -FilePath 'msiexec.exe' -ArgumentList '/i',('\"' + {} + '\"'),'/passive','/norestart' -Wait -PassThru\n\
-                 if ($r.ExitCode -ne 0 -and $r.ExitCode -ne 3010) {{ throw \"the MSI stopped with code $($r.ExitCode)\" }}\n",
-                s(staged)
-            ),
-            dir.join("shapecraft.exe"),
-        ),
+        // The new MSI goes into this copy's folder, for the same users (#101): a major upgrade installs the new product
+        // fresh, into the default folder unless told, and only finds the old one in its own scope (per-user or
+        // everyone's). Windows Installer says which installed copy is this one (its program's path) and its scope; the
+        // folder's name is the guess when it can't. 3010: installed, a restart would finish it (nothing of
+        // ShapeCraft's needs one). An install for everyone asks Windows for permission first.
+        Install::WindowsMsi(dir) => {
+            let exe = dir.join("shapecraft.exe");
+            let guess = if for_everyone(dir) { "'ALLUSERS=1'" } else { "'ALLUSERS=2','MSIINSTALLPERUSER=1'" };
+            (
+                format!(
+                    "$scope = @({guess})\n\
+                     try {{\n\
+                     $wi = New-Object -ComObject WindowsInstaller.Installer\n\
+                     foreach ($pc in $wi.RelatedProducts('{{{MSI_UPGRADE_CODE}}}')) {{\n\
+                     if ($wi.ComponentPath($pc, '{{{MSI_APP_COMPONENT}}}') -eq {exe}) {{\n\
+                     $scope = if ([string]$wi.ProductInfo($pc, 'AssignmentType') -eq '1') {{ @('ALLUSERS=1') }} else {{ @('ALLUSERS=2','MSIINSTALLPERUSER=1') }}\n\
+                     }}\n}}\n\
+                     }} catch {{ Say ('scope from the folder name: ' + $_) }}\n\
+                     Say ('installing into ' + {dir} + ' with ' + ($scope -join ' '))\n\
+                     $r = Start-Process -FilePath 'msiexec.exe' -ArgumentList (@('/i',('\"' + {staged} + '\"'),'/passive','/norestart') + $scope + @(('INSTALLFOLDER=\"' + {dir} + '\"'))) -Wait -PassThru\n\
+                     if ($r.ExitCode -ne 0 -and $r.ExitCode -ne 3010) {{ throw \"the MSI stopped with code $($r.ExitCode)\" }}\n",
+                    staged = s(staged),
+                    dir = s(dir),
+                    exe = s(&exe),
+                ),
+                exe,
+            )
+        }
         // A copy from the old setup program (Inno Setup) moves to the MSI: the MSI goes into the same folder, for the
         // same users, replacing every file (REINSTALLMODE a: the setup program's files carry their own dates, which
         // Windows Installer would otherwise keep as "changed by the user"). Only once it is in does the setup program's
         // registration go (its uninstaller files, its Apps & features entry, its Start menu folder), so a failed MSI
         // leaves the old copy as it was.
         Install::WindowsInstalled(dir) => {
-            let everyone = dir.to_string_lossy().to_ascii_lowercase().contains("program files");
+            let everyone = for_everyone(dir);
             let scope = if everyone { "'ALLUSERS=1'" } else { "'ALLUSERS=2','MSIINSTALLPERUSER=1'" };
             let hive = if everyone { "HKLM" } else { "HKCU" };
             let menu = if everyone { "CommonPrograms" } else { "Programs" };
@@ -362,9 +389,29 @@ mod tests {
             &[],
         )
         .unwrap_or_default();
-        assert!(m.contains(r#"'msiexec.exe' -ArgumentList '/i',('"' + 'C:\c\shapecraft-0.8.0-windows-x64.msi' + '"'),'/passive'"#));
+        assert!(m.contains(r#"'msiexec.exe' -ArgumentList (@('/i',('"' + 'C:\c\shapecraft-0.8.0-windows-x64.msi' + '"'),'/passive'"#));
+        // Into the same folder, in the scope Windows Installer reports for this copy (#101).
+        assert!(m.contains(r#"('INSTALLFOLDER="' + 'C:\Program Files\ShapeCraft' + '"')"#));
+        assert!(m.contains("RelatedProducts('{08595BF4-FF15-4278-9413-8F8CFF2897DA}')"));
+        assert!(m.contains(r"ComponentPath($pc, '{CB035310-A177-45C9-BAA9-57E03D5F2E00}') -eq 'C:\Program Files\ShapeCraft"));
+        assert!(m.contains("$scope = @('ALLUSERS=1')"));
+        let custom = Install::WindowsMsi(PathBuf::from(r"D:\Apps\ShapeCraft"));
+        let c =
+            windows_script(&custom, Path::new(r"C:\c\x.msi"), Path::new(r"C:\c"), Path::new(r"C:\c\log"), 7, true, &[]).unwrap_or_default();
+        assert!(c.contains(r#"('INSTALLFOLDER="' + 'D:\Apps\ShapeCraft' + '"')"#));
+        assert!(c.contains("$scope = @('ALLUSERS=2','MSIINSTALLPERUSER=1')"));
         assert!(m.contains("-ne 3010"));
         assert!(m.contains(r"Start-Process -FilePath 'C:\Program Files\ShapeCraft"));
         assert!(windows_script(&Install::Dev, Path::new("x"), Path::new("x"), Path::new("x"), 1, true, &[]).is_err());
+    }
+
+    #[test]
+    fn the_msi_ids_match_the_package() {
+        let wxs = include_str!("../../../packaging/windows/shapecraft.wxs");
+        assert!(wxs.contains(&format!("UpgradeCode=\"{MSI_UPGRADE_CODE}\"")));
+        assert!(wxs.contains(&format!("<Component Id=\"ShapeCraftApp\" Guid=\"{MSI_APP_COMPONENT}\">")));
+        // The package finds the folder of the copy it replaces by that component, for MSIs run without the updater
+        // and for the first update from a copy whose updater didn't pass the folder yet (#101).
+        assert!(wxs.contains(&format!("<ComponentSearch Id=\"InstalledFolder\" Guid=\"{MSI_APP_COMPONENT}\"")));
     }
 }
