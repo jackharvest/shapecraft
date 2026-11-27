@@ -8176,3 +8176,15 @@ msgstr ""
 #: crates/ui-egui/src/landing.rs
 msgid "✓ Name"
 msgstr ""
+
+#: crates/ui-egui/src/app.rs
+msgid "{} crashed while ShapeCraft started last time, so it's using {} now. See Preferences ▸ ShapeCraft."
+msgstr ""
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Recommended: the best path this computer has, except {}"
+msgstr ""
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Crashed ShapeCraft at start · pick it to try again"
+msgstr ""

@@ -885,6 +885,7 @@ impl ShapeCraftApp {
             args.push("--open".into());
             args.push(dir.into_os_string());
         }
+        crate::graphics::settled();
         let started = std::env::current_exe().and_then(|exe| std::process::Command::new(exe).args(args).env(RESTARTED_ENV, "1").spawn());
         if let Err(e) = started {
             log::error!("couldn't restart: {e}");
@@ -2020,7 +2021,14 @@ impl ShapeCraftApp {
                 ws.toast("The graphics driver reset, so ShapeCraft restarted. Your work was saved.");
             }
         }
+        crate::graphics::frame_drawn();
         if let Some(ws) = self.ws.as_deref_mut()
+            && let Some((crashed, now)) = crate::graphics::take_crash_notice()
+        {
+            ws.toast(format!(
+                "{crashed} crashed while ShapeCraft started last time, so it's using {now} now. See Preferences ▸ ShapeCraft."
+            ));
+        } else if let Some(ws) = self.ws.as_deref_mut()
             && crate::graphics::take_slow_warning()
         {
             ws.toast("Drawing on the processor, so things may feel slow. See Preferences ▸ ShapeCraft.");

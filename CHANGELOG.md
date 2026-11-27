@@ -2,8 +2,9 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
-## 0.13.3-alpha
-**iPads on iOS 15 and 16 can run ShapeCraft, and Windows updates stay in the folder you chose.**
+## 0.13.4-alpha
+**ShapeCraft gets past a graphics driver that crashes it, iPads on iOS 15 and 16 can run it, and Windows updates stay in the
+folder you chose.**
 ### Changed
 - **The iOS app runs on iOS and iPadOS 15.0 or newer**, down from 17.0, so older iPads that can't update any further still
   open it instead of closing at once (#100).
@@ -11,6 +12,12 @@ How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest fi
 - **Windows updates install where ShapeCraft already is**, instead of moving it to the default folder under AppData every
   time. A copy installed for everyone stays installed for everyone, instead of gaining a second copy for just you. Running
   a newer .msi by hand also goes into the folder of the copy it replaces (#101).
+- **A graphics driver that crashes ShapeCraft while it starts no longer stops it for good.** If the app closes on its own
+  while starting on one way of drawing (Vulkan, say), the next start skips it and uses the next one (DirectX 12, OpenGL or
+  the processor), says so, and Preferences ▸ ShapeCraft lets you try it again. Seen in Windows Sandbox with Intel's Vulkan
+  driver; thanks DavidB63 for the reports.
+- **The log says which graphics path and driver ShapeCraft started on**, and an unknown `--graphics` value is noted
+  instead of passing silently.
 
 ## 0.13.1-alpha
 **Sweep and Section View look and act as they should.**

@@ -505,7 +505,13 @@ fn graphics_row(status: &graphics::Status, choice: &str, gpu: &str) -> (bool, St
         _ => "",
     };
     match (choice, found) {
+        (graphics::AUTOMATIC, _) if !status.skipped.is_empty() => {
+            (true, crate::i18n::tr_s(format!("Recommended: the best path this computer has, except {}", status.skipped.join(", "))))
+        }
         (graphics::AUTOMATIC, _) => (true, "Recommended: the best path this computer has".to_string()),
+        (_, None) if status.skipped.contains(&choice) => {
+            (true, crate::i18n::tr("Crashed ShapeCraft at start · pick it to try again").to_string())
+        }
         (_, None) if status.unchecked(choice) => {
             (true, format!("{}{}", crate::i18n::tr("Not checked in this run"), crate::i18n::tr(warning)))
         }
@@ -535,6 +541,9 @@ fn shapecraft_tab(ui: &mut Ui, r: Rect, s: &mut Settings) {
     for choice in graphics::choices() {
         let (enabled, detail) = graphics_row(&status, choice, &s.gpu);
         if radio(ui, pos2(col, y), &format!("pref-gfx-{choice}"), s.graphics == *choice, enabled, choice, &detail) {
+            if status.skipped.contains(choice) {
+                graphics::try_again(choice);
+            }
             s.graphics = (*choice).to_string();
         }
         y += 38.0;

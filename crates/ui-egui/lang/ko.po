@@ -8177,3 +8177,15 @@ msgstr "✓ 수정일"
 #: crates/ui-egui/src/landing.rs
 msgid "✓ Name"
 msgstr "✓ 이름"
+
+#: crates/ui-egui/src/app.rs
+msgid "{} crashed while ShapeCraft started last time, so it's using {} now. See Preferences ▸ ShapeCraft."
+msgstr "지난번 ShapeCraft 시작 중 {}이(가) 충돌하여 지금은 {}을(를) 사용합니다. 환경설정 ▸ ShapeCraft를 참고하세요."
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Recommended: the best path this computer has, except {}"
+msgstr "권장: 이 컴퓨터에서 가장 좋은 방식, {} 제외"
+
+#: crates/ui-egui/src/workspace/prefs.rs
+msgid "Crashed ShapeCraft at start · pick it to try again"
+msgstr "시작할 때 ShapeCraft가 충돌함 · 선택하면 다시 시도합니다"

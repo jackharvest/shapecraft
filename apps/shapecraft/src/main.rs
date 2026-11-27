@@ -63,7 +63,12 @@ fn run() -> anyhow::Result<()> {
         let spec = args.get(i + 1).filter(|a| !a.starts_with("--")).cloned().unwrap_or_default();
         return serve(&spec, opts, &saved, kernel);
     }
-    let choice = value("--graphics").and_then(|g| graphics::parse(&g).map(str::to_string)).unwrap_or(saved.graphics);
+    let flag = value("--graphics");
+    let forced = flag.as_deref().and_then(graphics::parse).map(str::to_string);
+    if let (Some(f), None) = (&flag, &forced) {
+        graphics::unknown_flag(f);
+    }
+    let choice = forced.clone().unwrap_or(saved.graphics);
     let viewport = egui::ViewportBuilder::default()
         .with_title("ShapeCraft")
         .with_inner_size([1600.0, 1000.0])
@@ -100,8 +105,11 @@ fn run() -> anyhow::Result<()> {
     };
     // A path that can't start must not lock anyone out of the app that could change it.
     let mut first_failure = None;
-    for pass in graphics::passes(&choice) {
-        match run(&pass, opts.clone()) {
+    for pass in graphics::launch_passes(&choice, forced.is_some()) {
+        let result = run(&pass, opts.clone());
+        // Back here on its own, so whatever this path did, it didn't take the process down.
+        graphics::settled();
+        match result {
             Ok(()) => return Ok(()),
             Err(e) => {
                 // Without a window system no pass can run, and a second try would only report that it was the second.
