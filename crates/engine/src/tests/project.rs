@@ -88,6 +88,39 @@ fn appearances_apply_undo_and_save() {
     let _ = std::fs::remove_dir_all(dir);
 }
 
+/// #105: an inserted picture moves, turns and copies with Move/Rotate, and undo puts it back.
+#[test]
+fn inserted_images_move_turn_and_copy() {
+    let dir = std::env::temp_dir().join(format!("shapecraft-img-move-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    let pic = dir.join("pic.png");
+    let mut png = Vec::new();
+    image::RgbaImage::from_pixel(4, 2, image::Rgba([10, 20, 30, 255]))
+        .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
+        .unwrap();
+    std::fs::write(&pic, &png).unwrap();
+    let mut s = session();
+    let id = s.execute("insert_image", &json!({"path": pic, "plane": "xy", "width": 40})).unwrap().value["image"].as_u64().unwrap();
+    // The picture is selected after Insert: a move with no items moves it.
+    s.execute("translate", &json!({"by": [5, 0, 7]})).unwrap();
+    assert!(s.doc.images[0].plane.origin.distance(glam::DVec3::new(5.0, 0.0, 7.0)) < 1e-9);
+    s.execute("rotate", &json!({"items": [id], "origin": [5, 0, 7], "axis": [1, 0, 0], "angle": 90})).unwrap();
+    assert!(s.doc.images[0].plane.normal().distance(glam::DVec3::new(0.0, -1.0, 0.0)) < 1e-9, "stood up");
+    let out = s.execute("translate", &json!({"items": [id], "by": [0, 0, 30], "copy": true})).unwrap();
+    assert_eq!(s.doc.images.len(), 2);
+    let copy = out.value["copies"][0].as_u64().unwrap();
+    assert_eq!(s.selection, vec![Pick::Image { image: shapecraft_doc::ItemId(copy) }]);
+    assert!(s.doc.images[1].plane.origin.distance(glam::DVec3::new(5.0, 0.0, 37.0)) < 1e-9);
+    assert!(std::sync::Arc::ptr_eq(&s.doc.images[0].file, &s.doc.images[1].file), "the copy shares the picture");
+    for _ in 0..3 {
+        s.execute("undo", &json!({})).unwrap();
+    }
+    assert_eq!(s.doc.images.len(), 1);
+    assert!(s.doc.images[0].plane.origin.length() < 1e-9, "back where it was inserted");
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn reference_images_insert_resize_save_and_undo() {
     let dir = std::env::temp_dir().join(format!("shapecraft-img-{}", std::process::id()));

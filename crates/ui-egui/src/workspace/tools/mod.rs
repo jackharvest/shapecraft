@@ -1136,7 +1136,7 @@ impl RotateAxisTool {
             let items: Vec<ItemId> = rest.iter().filter_map(Pick::body).collect();
             let (mut min, mut max) = (DVec3::splat(f64::INFINITY), DVec3::splat(f64::NEG_INFINITY));
             for id in &items {
-                let bb = s.doc.body(*id).and_then(|b| s.kernel.bounds(&b.shape).ok())?;
+                let bb = s.doc.body(*id).and_then(|b| shapecraft_engine::cmd::body_box(s, b).ok())?;
                 min = min.min(bb.min);
                 max = max.max(bb.max);
             }

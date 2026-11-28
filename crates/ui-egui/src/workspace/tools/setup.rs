@@ -302,7 +302,7 @@ impl FilletTool {
         }
         let body = body?;
         let b = s.doc.body(body)?;
-        let bb = s.kernel.bounds(&b.shape).ok()?;
+        let bb = shapecraft_engine::cmd::body_box(s, b).ok()?;
         let center = (bb.min + bb.max) / 2.0;
         // The handle sits on the newest pick (the edge just added, or a face's inner loop, which comes last).
         let line: Vec<DVec3> = edges
@@ -400,6 +400,7 @@ impl MoveTool {
         let mut items: Vec<ItemId> = Vec::new();
         for b in s.selection.iter().filter_map(|p| match *p {
             Pick::Plane { plane } => Some(plane),
+            Pick::Image { image } => Some(image),
             _ => p.body(),
         }) {
             if !items.contains(&b) {
@@ -484,8 +485,11 @@ impl MoveTool {
                 point: None,
             });
         }
-        // Faces of one body (nothing else picked): they move on their own, the gizmo at their middle.
-        if let Some((body, faces)) = picked_faces(s) {
+        // Faces of one body (nothing else picked): they move on their own, the gizmo at their middle. A mesh body has no
+        // faces of its own to move: a click on it moves the whole body (#105).
+        if let Some((body, faces)) = picked_faces(s)
+            && !s.doc.body(body).is_some_and(|b| b.is_mesh())
+        {
             let b = s.doc.body(body)?;
             let mut min = DVec3::splat(f64::INFINITY);
             let mut max = DVec3::splat(f64::NEG_INFINITY);
@@ -541,7 +545,13 @@ impl MoveTool {
                 max = max.max(pl.plane.origin);
                 continue;
             }
-            let bb = s.doc.body(*id).and_then(|b| s.kernel.bounds(&b.shape).ok())?;
+            // A picture counts as its middle (#105).
+            if let Some(im) = s.doc.image(*id) {
+                min = min.min(im.plane.origin);
+                max = max.max(im.plane.origin);
+                continue;
+            }
+            let bb = s.doc.body(*id).and_then(|b| shapecraft_engine::cmd::body_box(s, b).ok())?;
             min = min.min(bb.min);
             max = max.max(bb.max);
         }
@@ -667,7 +677,7 @@ pub(super) fn selected_items_bounds(s: &Session) -> Option<(Vec<ItemId>, DVec3, 
     let mut min = DVec3::splat(f64::INFINITY);
     let mut max = DVec3::splat(f64::NEG_INFINITY);
     for id in &items {
-        let bb = s.doc.body(*id).and_then(|b| s.kernel.bounds(&b.shape).ok())?;
+        let bb = s.doc.body(*id).and_then(|b| shapecraft_engine::cmd::body_box(s, b).ok())?;
         min = min.min(bb.min);
         max = max.max(bb.max);
     }
@@ -824,7 +834,7 @@ impl OffsetFaceTool {
                 }
                 // A full cylinder's normals cancel out; point at the face from the body's middle instead.
                 let n = n.try_normalize().or_else(|| {
-                    let bb = s.kernel.bounds(&b.shape).ok()?;
+                    let bb = shapecraft_engine::cmd::body_box(s, b).ok()?;
                     (center - (bb.min + bb.max) / 2.0).try_normalize()
                 })?;
                 (center, n)
@@ -1066,7 +1076,7 @@ impl ShellTool {
         let (anchor, dir) = match fp {
             Some(fp) => (fp.origin, -fp.normal),
             None => {
-                let bb = s.kernel.bounds(&b.shape).ok()?;
+                let bb = shapecraft_engine::cmd::body_box(s, b).ok()?;
                 (DVec3::new((bb.min.x + bb.max.x) / 2.0, (bb.min.y + bb.max.y) / 2.0, bb.max.z), -DVec3::Z)
             }
         };
@@ -1522,6 +1532,58 @@ mod tests {
             kinds: true,
             whole: false,
         }
+    }
+
+    /// #105: Move/Rotate starts on a picked mesh body (an STL) and on a picked inserted picture, its gizmo at
+    /// their middle.
+    #[test]
+    #[allow(clippy::unwrap_used)]
+    fn move_starts_on_a_mesh_body_and_a_picture() {
+        let dir = std::env::temp_dir().join(format!("shapecraft-move105-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        // A 10 mm cube STL at (20, 0, 0).
+        let v: Vec<[f32; 3]> =
+            (0..8).map(|i| [20.0 + 10.0 * (i & 1) as f32, 10.0 * ((i >> 1) & 1) as f32, 10.0 * ((i >> 2) & 1) as f32]).collect();
+        let mut stl = vec![0u8; 80];
+        stl.extend_from_slice(&12u32.to_le_bytes());
+        for q in [[0, 2, 3, 1], [4, 5, 7, 6], [0, 1, 5, 4], [2, 6, 7, 3], [0, 4, 6, 2], [1, 3, 7, 5]] {
+            for t in [[q[0], q[1], q[2]], [q[0], q[2], q[3]]] {
+                stl.extend_from_slice(&[0u8; 12]);
+                for i in t {
+                    for c in v[i] {
+                        stl.extend_from_slice(&c.to_le_bytes());
+                    }
+                }
+                stl.extend_from_slice(&[0, 0]);
+            }
+        }
+        std::fs::write(dir.join("cube.stl"), stl).unwrap();
+        // A 1×1 PNG.
+        let png: [u8; 67] = [
+            0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x00, 0x00, 0x01, 0x08, 0x06, 0x00, 0x00, 0x00, 0x1F, 0x15, 0xC4, 0x89, 0x00, 0x00, 0x00, 0x0A, 0x49, 0x44, 0x41, 0x54, 0x78,
+            0x9C, 0x63, 0x00, 0x01, 0x00, 0x00, 0x05, 0x00, 0x01, 0x0D, 0x0A, 0x2D, 0xB4, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E, 0x44,
+            0xAE, 0x42, 0x60, 0x82,
+        ];
+        std::fs::write(dir.join("pic.png"), png).unwrap();
+        let mut s = Session::new(std::sync::Arc::new(shapecraft_kernel_occt::OcctKernel::new()), "Move 105");
+        let out = s.execute("import_file", &serde_json::json!({"path": dir.join("cube.stl")})).unwrap();
+        let body = ItemId(out.value["bodies"][0].as_u64().unwrap());
+        s.selection = vec![Pick::Body { body }];
+        let t = MoveTool::from_selection(&s).expect("Move starts on a mesh body");
+        assert_eq!(t.items, vec![body]);
+        assert!(t.pivot.distance(DVec3::new(25.0, 5.0, 5.0)) < 1e-4, "{}", t.pivot);
+        let out = s.execute("insert_image", &serde_json::json!({"path": dir.join("pic.png"), "plane": "xz"})).unwrap();
+        let image = ItemId(out.value["image"].as_u64().unwrap());
+        assert_eq!(s.selection, vec![Pick::Image { image }]);
+        let t = MoveTool::from_selection(&s).expect("Move starts on a picture");
+        assert_eq!(t.items, vec![image]);
+        assert!(t.pivot.length() < 1e-9);
+        let (cmd, params) = t.request(12.0);
+        s.execute(cmd, &params).unwrap();
+        assert!(s.doc.image(image).unwrap().plane.origin.distance(DVec3::new(0.0, 0.0, 12.0)) < 1e-9);
+        let _ = std::fs::remove_dir_all(dir);
     }
 
     #[test]

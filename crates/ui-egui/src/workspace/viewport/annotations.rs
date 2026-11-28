@@ -521,7 +521,7 @@ impl Workspace {
             for (ids, plus) in [(&t.targets, true), (&t.tools, false)] {
                 for id in ids.iter() {
                     let Some(b) = self.session.doc.body(*id) else { continue };
-                    let Ok(bb) = self.session.kernel.bounds(&b.shape) else { continue };
+                    let Ok(bb) = shapecraft_engine::cmd::body_box(&self.session, b) else { continue };
                     let Some(c) = self.to_screen((bb.min + bb.max) / 2.0) else { continue };
                     let r = Rect::from_center_size(c, vec2(30.0, 22.0));
                     painter.rect_filled(r, radius(11), Color32::WHITE);

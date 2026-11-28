@@ -764,7 +764,7 @@ impl Workspace {
                             self.session
                                 .doc
                                 .body(*id)
-                                .and_then(|b| self.session.kernel.bounds(&b.shape).ok())
+                                .and_then(|b| shapecraft_engine::cmd::body_box(&self.session, b).ok())
                                 .and_then(|bb| self.to_screen((bb.min + bb.max) / 2.0))
                                 .is_some_and(|m| (m.x - c.x).abs() < 16.0 && (m.y - c.y).abs() < 12.0)
                         })
@@ -1058,6 +1058,8 @@ impl Workspace {
             Tool::Mirror(t) => {
                 let normal_origin = if let Some(i) = self.mirror_tile_under(c) {
                     Some((AXES[i.min(2)], DVec3::ZERO))
+                } else if let Some((_, n)) = self.mirror_axis_under(c) {
+                    Some((n, DVec3::ZERO))
                 } else {
                     match self.pick_at(c) {
                         Some((Pick::Face { body, face }, _)) => self

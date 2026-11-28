@@ -455,6 +455,36 @@ impl Workspace {
                 }
             }
         }
+        // Sketch Mirror over an origin axis (#104): the axis light blue and the picked curves mirrored across the plane
+        // through it that stands square to their sketch.
+        if let Tool::Mirror(t) = &self.tool
+            && let Some(h) = t.hovered.filter(|h| (3..6).contains(h))
+            && let Some(sk) = self.session.selection.iter().find_map(Pick::sketch).and_then(|id| self.session.doc.sketch(id))
+            && let Some(n) = sk.plane.normal().cross(crate::workspace::tools::AXES[h - 3]).try_normalize()
+        {
+            let axis = crate::workspace::tools::AXES[h - 3] * self.camera.distance * 4.0;
+            out.push(Overlay::Line { a: -axis, b: axis, color: Rgba::hex(0x4fb3ff), width: 2.5 });
+            let flip = |p: DVec3| p - n * (2.0 * p.dot(n));
+            for pick in &self.session.selection {
+                let ents: Vec<u32> = match *pick {
+                    Pick::SketchEntity { sketch, entity } if sketch == sk.id => vec![entity],
+                    Pick::Sketch { sketch } if sketch == sk.id => (0..sk.entities.len() as u32).collect(),
+                    _ => continue,
+                };
+                for e in ents.iter().filter_map(|e| sk.entities.get(*e as usize)) {
+                    for o in e.outlines() {
+                        for w in o.windows(2) {
+                            out.push(Overlay::Line {
+                                a: flip(sk.plane.to_world(w[0])),
+                                b: flip(sk.plane.to_world(w[1])),
+                                color: Rgba::hex(0x1d4eff),
+                                width: 1.7,
+                            });
+                        }
+                    }
+                }
+            }
+        }
         // Sketch Fillet: the rounded result (changed lines green, new arcs blue) and the corners as rings, orange
         // when picked (s11-095).
         if let (Tool::SketchFillet { all, corners, radius }, Some(sk)) = (&self.tool, self.session.active_sketch()) {

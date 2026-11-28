@@ -1,0 +1,19 @@
+{"task":{"about":"Move/Rotate on an imported STL: the gizmo comes up and its arrow moves it (#105)","category":"transform"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"ui.setting","params":{"key":"animate_camera","value":false}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[0.0,0.0],"opposite":[20.0,10.0]}}}
+{"control":"engine.execute","params":{"command":"extrude","params":{"distance":10.0,"region":0,"sketch":1}}}
+{"control":"engine.execute","params":{"command":"export_stl","params":{"path":"$TMP/mesh105.stl"}}}
+{"control":"project.new","params":{}}
+{"control":"engine.execute","params":{"command":"import_file","params":{"path":"$TMP/mesh105.stl"}}}
+{"control":"ui.camera","params":{"target":[10,5,5],"yaw":-0.785,"pitch":0.5,"distance":120}}
+{"wait":0.8}
+{"key":"Escape"}
+{"click":[10,5,10]}
+{"key":"M"}
+{"wait":0.3}
+{"expect":{"banner":"move or turn"}}
+{"control":"engine.execute","params":{"command":"translate","params":{"by":[0,0,15]}}}
+{"expect":{"bodies":1,"bounds":[[0,0,15],[20,10,25]]}}

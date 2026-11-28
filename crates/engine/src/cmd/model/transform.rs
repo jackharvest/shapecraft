@@ -14,21 +14,39 @@ use super::{
 };
 use crate::{EngineError, Params, Result, Session};
 
-/// Selected bodies and construction planes: what Move/Rotate moves.
+/// Selected bodies, construction planes and pictures: what Move/Rotate moves.
 fn selected_movables(s: &Session) -> Vec<ItemId> {
     let mut out = selected_bodies(s);
     for p in &s.selection {
-        if let Pick::Plane { plane } = *p
-            && !out.contains(&plane)
+        if let Pick::Plane { plane: id } | Pick::Image { image: id } = *p
+            && !out.contains(&id)
         {
-            out.push(plane);
+            out.push(id);
         }
     }
     out
 }
 
-/// Moves a construction plane by `f`, or adds a moved copy (returned).
+/// Moves a construction plane or a picture by `f`, or adds a moved copy (returned).
 fn xform_plane(s: &mut Session, id: ItemId, copy: bool, mut f: impl FnMut(SketchPlane) -> SketchPlane) -> Result<Option<ItemId>> {
+    if let Some(im) = s.doc.image(id) {
+        let moved = f(im.plane);
+        if !(moved.origin.is_finite() && moved.x.is_finite() && moved.y.is_finite()) {
+            return Err(EngineError::BadParams("that move isn't finite".into()));
+        }
+        if copy {
+            let mut c = im.clone();
+            c.id = s.doc.alloc_id();
+            c.plane = moved;
+            let new = c.id;
+            s.doc.images.push(c);
+            return Ok(Some(new));
+        }
+        if let Some(im) = s.doc.images.iter_mut().find(|i| i.id == id) {
+            im.plane = moved;
+        }
+        return Ok(None);
+    }
     let (plane, size) =
         s.doc.plane(id).map(|p| (p.plane, p.size)).ok_or_else(|| EngineError::BadParams(format!("no body or plane {}", id.0)))?;
     let moved = f(plane);
@@ -46,7 +64,13 @@ fn xform_plane(s: &mut Session, id: ItemId, copy: bool, mut f: impl FnMut(Sketch
 
 /// How an item is selected as a whole.
 fn item_pick(s: &Session, id: ItemId) -> Pick {
-    if s.doc.plane(id).is_some() { Pick::Plane { plane: id } } else { Pick::Body { body: id } }
+    if s.doc.plane(id).is_some() {
+        Pick::Plane { plane: id }
+    } else if s.doc.image(id).is_some() {
+        Pick::Image { image: id }
+    } else {
+        Pick::Body { body: id }
+    }
 }
 
 /// The selected curves of one sketch, when no bodies are selected (sketch-mode Move, Mirror, Pattern).

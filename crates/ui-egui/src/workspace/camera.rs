@@ -149,7 +149,7 @@ impl Workspace {
     /// Frames one body (or everything), keeping the view direction.
     pub fn zoom_to(&mut self, body: Option<ItemId>) {
         let bounds = match body.and_then(|b| self.session.doc.body(b)) {
-            Some(b) => self.session.kernel.bounds(&b.shape).ok().map(|bb| (bb.min, bb.max)),
+            Some(b) => shapecraft_engine::cmd::body_box(&self.session, b).ok().map(|bb| (bb.min, bb.max)),
             None => self.session.doc.bounds(),
         };
         if let Some((min, max)) = bounds {

@@ -156,6 +156,43 @@ impl Workspace {
         best.map(|(_, i)| i)
     }
 
+    /// The origin axis whose line runs within a few pixels of the cursor (0 X, 1 Y, 2 Z; either side of the origin).
+    pub(in crate::workspace) fn world_axis_under(&self, cursor: Pos2) -> Option<usize> {
+        if !self.view_opts.axes {
+            return None;
+        }
+        let (o, d) = self.camera.ray(self.local(cursor), self.size());
+        let mut best: Option<(f32, usize)> = None;
+        for (i, a) in AXES.iter().enumerate() {
+            // The axis point nearest the ray under the cursor.
+            let b = a.dot(d);
+            let den = 1.0 - b * b;
+            if den < 1e-9 {
+                continue;
+            }
+            let t = (a.dot(o) - b * d.dot(o)) / den;
+            let Some(p) = self.to_screen(*a * t) else { continue };
+            let px = p.distance(cursor);
+            if px < 6.0 && best.is_none_or(|(bp, _)| px < bp) {
+                best = Some((px, i));
+            }
+        }
+        best.map(|(_, i)| i)
+    }
+
+    /// Sketch Mirror across an origin axis under the cursor: the plane through it that stands square to the picked
+    /// curves' sketch (#104). `(axis, plane normal)`.
+    pub(in crate::workspace) fn mirror_axis_under(&self, cursor: Pos2) -> Option<(usize, DVec3)> {
+        let Tool::Mirror(t) = &self.tool else { return None };
+        if t.split || !t.items.is_empty() {
+            return None;
+        }
+        let sketch = self.session.selection.iter().find_map(Pick::sketch).and_then(|id| self.session.doc.sketch(id))?;
+        let i = self.world_axis_under(cursor)?;
+        let n = sketch.plane.normal().cross(AXES[i]).try_normalize()?;
+        Some((i, n))
+    }
+
     /// A point of a mirror tile on screen (0 YZ, 1 XZ, 2 XY), off the middle where the three cross.
     pub(in crate::workspace) fn mirror_tile_spot(&self, i: usize) -> Option<Pos2> {
         let tiles = self.mirror_tiles();

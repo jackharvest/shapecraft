@@ -606,7 +606,8 @@ pub(super) fn commands() -> Vec<CommandSpec> {
 fn select(s: &mut Session, p: &Params) -> Result<Value> {
     let picks: Vec<Pick> = p.parse("picks")?;
     let add = p.bool_or("add", false);
-    let toggle = add && p.bool_or("toggle", false);
+    // Read either way: a plain click sends it too, and a parameter left unread fails a strict run.
+    let toggle = p.bool_or("toggle", false) && add;
     if !add {
         s.selection.clear();
     }

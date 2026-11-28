@@ -43,6 +43,7 @@ fn has_bodies(s: &Session) -> bool {
 fn has_bodies_or_curves(s: &Session) -> bool {
     has_bodies(s)
         || !s.doc.planes.is_empty()
+        || !s.doc.images.is_empty()
         || s.selection.iter().any(|p| matches!(p, Pick::SketchEntity { .. } | Pick::Region { .. } | Pick::Sketch { .. }))
 }
 

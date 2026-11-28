@@ -1,0 +1,17 @@
+{"task":{"about":"Sketch Mirror across the X axis: hover it, click it (#104)","category":"transform"}}
+{"size":[1840,1324]}
+{"control":"project.new","params":{}}
+{"control":"ui.setting","params":{"key":"animate_camera","value":false}}
+{"control":"engine.execute","params":{"command":"sketch","params":{"plane":"xy"}}}
+{"control":"engine.execute","params":{"command":"rectangle","params":{"corner":[4,3],"opposite":[14,11]}}}
+{"control":"engine.execute","params":{"command":"exit_sketching","params":{}}}
+{"control":"ui.camera","params":{"target":[5,4,0],"yaw":-0.785,"pitch":0.6,"distance":60}}
+{"wait":0.8}
+{"wait":0.3}
+{"click":[9,7,0]}
+{"control":"ui.press","params":{"label":"Mirror"}}
+{"wait":0.3}
+{"hover":[9,0,0]}
+{"click":[9,0,0]}
+{"wait":0.3}
+{"expect":{"regions":2}}

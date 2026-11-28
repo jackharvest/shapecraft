@@ -183,12 +183,14 @@ impl Workspace {
             }
             Tool::Mirror(_) => {
                 let tile = self.mirror_tile_under(c);
+                // An origin axis mirrors sketch curves too (#104): hovered as 3 + its index.
+                let axis = if tile.is_none() { self.mirror_axis_under(c).map(|(i, _)| 3 + i) } else { None };
                 if let Tool::Mirror(t) = &mut self.tool {
-                    t.hovered = tile;
+                    t.hovered = tile.or(axis);
                 }
                 // In a sketch a straight line can be the mirror too (s11-091/092).
                 let sketch = self.session.active_sketch;
-                self.hover = if tile.is_none() {
+                self.hover = if tile.is_none() && axis.is_none() {
                     let split = matches!(&self.tool, Tool::Mirror(t) if t.split);
                     self.pick_at(c).map(|(p, _)| p).filter(|p| {
                         matches!(p, Pick::Face { .. } | Pick::Plane { .. })
