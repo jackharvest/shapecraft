@@ -2,6 +2,27 @@
 
 How versions are numbered: [`docs/versioning.md`](docs/versioning.md). Newest first.
 
+## 0.13.5-alpha
+**Imported meshes and pictures move, sketches snap onto their own curves and mirror across the origin axes, and ShapeCraft
+shows its icon on Windows.**
+### New
+- **Points snap onto a sketch curve anywhere along it**, not only at its ends and middle: near a line, circle, arc or
+  spline the point lands on the curve itself, the purple mark shows where and the curve turns orange. Thanks
+  [@richcourt](https://github.com/richcourt) (#102).
+- **Sketch Mirror takes an origin axis as the mirror line.** Hover the red, green or blue axis while mirroring sketch
+  curves: it lights up and the mirrored copy shows; click to mirror across it. Thanks
+  [@micide0606](https://github.com/micide0606) (#104).
+### Fixed
+- **Imported STL, OBJ and 3MF bodies move and turn.** Picking one now brings up the Move/Rotate gizmo instead of asking
+  you to pick something. Pictures from Insert ▸ Image move, turn and copy the same way. Thanks
+  [@hamzty](https://github.com/hamzty) (#105).
+- **Editing an extrude's draft angle no longer fails** with "NCollection_Sequence::Value" when its profile has a loose
+  sketch line lying inside it. Thanks [@richcourt](https://github.com/richcourt) (#103).
+- **The origin axes stay put while you move around** instead of flickering out on some graphics cards. Thanks
+  [@micide0606](https://github.com/micide0606) (#104).
+- **ShapeCraft shows its own icon on Windows**: in the Start menu, the taskbar, Explorer and the program's Properties,
+  instead of the blank program icon. Thanks [@molumen](https://github.com/molumen) (#106).
+
 ## 0.13.4-alpha
 **ShapeCraft gets past a graphics driver that crashes it, iPads on iOS 15 and 16 can run it, and Windows updates stay in the
 folder you chose.**
