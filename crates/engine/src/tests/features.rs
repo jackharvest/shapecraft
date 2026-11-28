@@ -1258,3 +1258,21 @@ fn fill_spans_profiles_and_guide_curves() {
     let v = volume(&mut s);
     assert!(v > std::f64::consts::PI * 2000.0 * 1.5 && v < std::f64::consts::PI * 2000.0 * 2.5, "{v}");
 }
+
+#[test]
+fn drafted_slot_extrudes() {
+    // #103: a slot (two lines, two arcs, a construction line between the centers) with a draft failed in the kernel.
+    for draft in [1.0, -1.0, 5.0] {
+        let mut s = session();
+        s.execute("sketch", &json!({"plane": "xy"})).unwrap();
+        s.execute("slot", &json!({"a": [-20, 0], "b": [20, 0], "radius": 4})).unwrap();
+        // A loose line inside the slot stays in the region's face as an inner edge.
+        s.execute("line", &json!({"a": [-18, 1], "b": [15, 1]})).unwrap();
+        let sk = s.active_sketch.unwrap();
+        let r = s.execute("extrude", &json!({"sketch": sk.0, "region": 0, "distance": 0.6, "draft": draft}));
+        assert!(r.is_ok(), "draft {draft}: {r:?}");
+        let v = volume(&mut s);
+        let flat = (40.0 * 8.0 + std::f64::consts::PI * 16.0) * 0.6;
+        assert!((v - flat).abs() < flat * 0.05, "draft {draft}: {v} vs {flat}");
+    }
+}

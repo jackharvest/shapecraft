@@ -168,6 +168,7 @@
 #include <TopoDS.hxx>
 #include <TopoDS_Compound.hxx>
 #include <BRep_Builder.hxx>
+#include <TopoDS_Iterator.hxx>
 #include <TColgp_Array1OfPnt2d.hxx>
 #include <gp_Ax2.hxx>
 #include <gp_Circ.hxx>
@@ -3401,13 +3402,47 @@ int sk_fill(const SkShape* s, const uint32_t* ids, size_t n, SkShape** out) {
 
 extern "C" {
 
+// The face with its closed boundary wires only: loose sketch lines left inside a region (inner or open edges) are dropped.
+// LocOpe_DPrism leans every edge it is given and fails on such an edge (#103).
+static TopoDS_Face boundary_only(const TopoDS_Face& f) {
+  bool loose = false;
+  for (TopoDS_Iterator it(f, Standard_False); it.More(); it.Next()) {
+    if (it.Value().ShapeType() != TopAbs_WIRE) continue;
+    if (!BRep_Tool::IsClosed(it.Value())) loose = true;
+    for (TopoDS_Iterator e(it.Value(), Standard_False); e.More(); e.Next()) {
+      TopAbs_Orientation o = e.Value().Orientation();
+      if (o == TopAbs_INTERNAL || o == TopAbs_EXTERNAL) loose = true;
+    }
+  }
+  if (!loose) return f;
+  BRep_Builder b;
+  TopoDS_Face g = TopoDS::Face(f.EmptyCopied());
+  for (TopoDS_Iterator it(f, Standard_False); it.More(); it.Next()) {
+    if (it.Value().ShapeType() != TopAbs_WIRE) continue;
+    TopoDS_Wire kept;
+    b.MakeWire(kept);
+    int n = 0;
+    for (TopoDS_Iterator e(it.Value(), Standard_False); e.More(); e.Next()) {
+      TopAbs_Orientation o = e.Value().Orientation();
+      if (o == TopAbs_INTERNAL || o == TopAbs_EXTERNAL) continue;
+      b.Add(kept, e.Value());
+      n++;
+    }
+    if (n == 0 || !BRep_Tool::IsClosed(kept)) continue;
+    kept.Closed(Standard_True);
+    kept.Orientation(it.Value().Orientation());
+    b.Add(g, kept);
+  }
+  return g;
+}
+
 // Extrudes a planar face along (dx, dy, dz) (which must be along its normal, either way), with the side walls
 // leaning in by `angle` radians (out for a negative angle).
 int sk_prism_draft(const SkShape* face, double dx, double dy, double dz, double angle, SkShape** out) {
   return guard([&] {
     TopExp_Explorer ex(face->shape, TopAbs_FACE);
     if (!ex.More()) return fail("not a face");
-    TopoDS_Face f = TopoDS::Face(ex.Current());
+    TopoDS_Face f = boundary_only(TopoDS::Face(ex.Current()));
     gp_Vec dir(dx, dy, dz);
     double height = dir.Magnitude();
     if (height <= 0.0) return fail("extrude distance is zero");
