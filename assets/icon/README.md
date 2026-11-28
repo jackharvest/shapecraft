@@ -2,7 +2,8 @@
 
 `shapecraft.svg` is the master (full-bleed tile); `shapecraft-mac.svg` sits on Apple's icon grid with a soft
 shadow. `png/` holds the rendered sizes, `shapecraft.icns` (macOS) and `shapecraft.ico` (Windows) are built from
-them. Small sizes use heavier strokes and no blur so they stay crisp (see `VARIANTS` in `xtask/src/icons.rs`).
+them. The .ico holds bitmap images below 256 px and a PNG at 256 (older Windows icon paths read only bitmaps);
+`apps/shapecraft/build.rs` builds it into shapecraft.exe on Windows. Small sizes use heavier strokes and no blur so they stay crisp (see `VARIANTS` in `xtask/src/icons.rs`).
 
 Regenerate (Rust, no other tools; the .icns needs macOS's iconutil):
 

@@ -232,7 +232,38 @@ pub fn png(svg_text: &str, size: u32) -> Result<Vec<u8>> {
     Ok(out)
 }
 
-/// An .ico holding PNG images (Windows reads PNG entries from Vista on).
+/// A PNG as an .ico bitmap entry: a 32-bit BGRA DIB, bottom-up, with an empty AND mask. Windows' older icon paths
+/// (shortcut and file icons at small sizes) read only these; PNG entries are safe at 256 px (#106).
+fn dib(png_bytes: &[u8]) -> Result<Vec<u8>> {
+    let mut reader = png::Decoder::new(std::io::Cursor::new(png_bytes)).read_info()?;
+    let mut rgba = vec![0; reader.output_buffer_size().context("png size")?];
+    let info = reader.next_frame(&mut rgba)?;
+    if info.color_type != png::ColorType::Rgba || info.bit_depth != png::BitDepth::Eight {
+        bail!("icon renders are 8-bit RGBA");
+    }
+    let (w, h) = (info.width, info.height);
+    let mask_row = w.div_ceil(32) * 4;
+    let mut out = Vec::new();
+    for v in [40u32, w] {
+        out.extend(v.to_le_bytes());
+    }
+    out.extend((h * 2).to_le_bytes()); // colour rows + mask rows
+    out.extend(1u16.to_le_bytes());
+    out.extend(32u16.to_le_bytes());
+    out.extend(0u32.to_le_bytes()); // BI_RGB
+    out.extend((w * h * 4 + mask_row * h).to_le_bytes());
+    out.extend([0u8; 16]);
+    for y in (0..h).rev() {
+        for x in 0..w {
+            let i = ((y * w + x) * 4) as usize;
+            out.extend([rgba[i + 2], rgba[i + 1], rgba[i], rgba[i + 3]]);
+        }
+    }
+    out.extend(std::iter::repeat_n(0u8, (mask_row * h) as usize));
+    Ok(out)
+}
+
+/// An .ico: bitmap entries below 256 px, a PNG entry at 256 (Windows reads PNG entries from Vista on).
 fn ico(images: &[(u32, Vec<u8>)]) -> Vec<u8> {
     let mut out = Vec::new();
     out.extend(0u16.to_le_bytes());
@@ -270,7 +301,9 @@ pub fn write(args: &[String]) -> Result<()> {
         let plain = png(&svg(v, false), size)?;
         std::fs::write(out.join(format!("png/shapecraft-{size}.png")), &plain)?;
         std::fs::write(out.join(format!("png/mac-{size}.png")), png(&svg(v, true), size)?)?;
-        if size <= 256 {
+        if size < 256 {
+            for_ico.push((size, dib(&plain)?));
+        } else if size == 256 {
             for_ico.push((size, plain));
         }
         let _ = write!(log, "{size} ");
