@@ -347,6 +347,17 @@ impl Workspace {
             }
             _ => {}
         }
+        // Snapped onto a curve somewhere along it: the curve shows orange under the mark (#102).
+        if let (Some(pl), Some(i), Some(sk), true) =
+            (plane, snap.as_ref().and_then(|s| s.curve), self.session.active_sketch(), self.tool.is_sketch_tool())
+            && let Some(e) = sk.entities.get(i as usize)
+        {
+            for o in e.outlines() {
+                for w in o.windows(2) {
+                    out.push(Overlay::Line { a: pl.to_world(w[0]), b: pl.to_world(w[1]), color: preview, width: 2.5 });
+                }
+            }
+        }
         if let (Some(pl), Some((c, on_point)), true) = (plane, snapped, self.tool.is_sketch_tool()) {
             if on_point {
                 // A purple disc with a dark gap round a bright purple center (s11-030).

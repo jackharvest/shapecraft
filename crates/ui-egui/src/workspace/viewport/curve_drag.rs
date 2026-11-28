@@ -381,5 +381,27 @@ mod tests {
             let snap = ws.sketch_snap().unwrap();
             assert!(snap.point && snap.p.distance(DVec2::new(10.0, 5.0)) < 1e-9, "{:?}", snap.p);
         }
+
+        /// #102: near a curve but away from its key points, the point lands on the curve itself (a side, a circle);
+        /// a key point close by still wins.
+        #[test]
+        fn points_snap_onto_curves_anywhere_along_them() {
+            let (mut ws, ctx) = sketch_with(&[
+                json!(["rectangle", {"corner": [0, 0], "opposite": [20, 10]}]),
+                json!(["circle", {"center": [-12, 5], "radius": 4}]),
+            ]);
+            let mut at = |p: DVec2| {
+                let s = screen(&ws, p);
+                frame(&ctx, &mut ws, vec![Event::PointerMoved(s)]);
+                ws.sketch_snap().unwrap()
+            };
+            let side = at(DVec2::new(6.3, 0.06));
+            assert!(side.point && side.curve.is_some() && side.p.distance(DVec2::new(6.3, 0.0)) < 1e-3, "{:?}", side.p);
+            let rim = at(DVec2::new(-12.0 + 2.9, 5.0 + 2.8));
+            let r = rim.p.distance(DVec2::new(-12.0, 5.0));
+            assert!(rim.curve.is_some() && (r - 4.0).abs() < 1e-9, "on the circle: {:?}", rim.p);
+            let mid = at(DVec2::new(10.1, 0.05));
+            assert!(mid.curve.is_none() && mid.p.distance(DVec2::new(10.0, 0.0)) < 1e-9, "the midpoint wins: {:?}", mid.p);
+        }
     }
 }

@@ -19,8 +19,10 @@ pub(super) struct Snap {
     pub(super) point: bool,
     /// Inference lines: from the point we line up with, to the cursor.
     pub(super) guides: Vec<(DVec2, DVec2)>,
-    /// What the point is ("Endpoint", "Midpoint", "Center"…), shown in a label while hovering it, as observed.
+    /// What the point is ("Endpoint", "Midpoint", "Center"…), shown in a label while hovering it.
     name: Option<&'static str>,
+    /// Snapped onto this curve of the sketch somewhere along it (not at one of its key points): it shows orange (#102).
+    pub(super) curve: Option<u32>,
 }
 
 impl Workspace {
@@ -198,10 +200,31 @@ impl Workspace {
             && self.snap_opts.guide_points
         {
             let name = names.get(i).copied().filter(|_| i < named).or(Some("Point"));
-            return Some(Snap { p, point: true, guides: Vec::new(), name });
+            return Some(Snap { p, point: true, guides: Vec::new(), name, curve: None });
+        }
+        // Anywhere along a curve of the sketch: the nearest point on it (#102). Key points above win; a curve being
+        // dragged would only catch itself.
+        if self.snap_opts.guide_points
+            && self.curve_drag.is_none()
+            && let Some(sk) = self.session.active_sketch()
+            && sk.entities.len() <= 5000
+        {
+            let mut on: Option<(f64, DVec2, u32)> = None;
+            for (i, e) in sk.entities.iter().enumerate() {
+                if let Some(q) = nearest_on(e, local)
+                    && let Some(dpx) = screen_dist(q)
+                    && dpx < snap_px * 0.8
+                    && on.is_none_or(|(b, ..)| dpx < b)
+                {
+                    on = Some((dpx, q, i as u32));
+                }
+            }
+            if let Some((_, p, i)) = on {
+                return Some(Snap { p, point: true, guides: Vec::new(), name: Some("Edge"), curve: Some(i) });
+            }
         }
         if !self.snap_opts.guide_lines {
-            return Some(Snap { p: self.grid_snapped(local), point: false, guides: Vec::new(), name: None });
+            return Some(Snap { p: self.grid_snapped(local), point: false, guides: Vec::new(), name: None, curve: None });
         }
         // Line up with a key point: same u (vertical guide) and/or same v (horizontal guide).
         let mut vertical: Option<(f64, DVec2)> = None;
@@ -228,7 +251,7 @@ impl Workspace {
             p.y = k.y;
         }
         let guides = vertical.into_iter().chain(horizontal).map(|(_, k)| (k, p)).collect();
-        Some(Snap { p, point: false, guides, name: None })
+        Some(Snap { p, point: false, guides, name: None, curve: None })
     }
 
     /// The arc being drawn as (start, a point on it, end). With only the start placed, it runs to the pointer with
@@ -429,6 +452,38 @@ fn key_points(e: &SketchEntity) -> Vec<DVec2> {
         SketchEntity::Spline { ref points } => points.clone(),
         SketchEntity::ControlSpline { ref poles } => poles.first().into_iter().chain(poles.last()).copied().collect(),
         SketchEntity::Text { origin, .. } => vec![origin],
+    }
+}
+
+/// The point of a sketch curve nearest `p`: exact on lines, circles and arcs, along the drawn outline otherwise.
+/// Text has none (its letters aren't curves to draw onto).
+fn nearest_on(e: &SketchEntity, p: DVec2) -> Option<DVec2> {
+    match *e {
+        SketchEntity::Line { a, b } => {
+            let (_, t) = seg_dist(p, a, b);
+            Some(a + (b - a) * t)
+        }
+        SketchEntity::Circle { center, radius } => Some(center + (p - center).try_normalize()? * radius),
+        SketchEntity::Text { .. } => None,
+        _ => {
+            let mut best: Option<(f64, DVec2)> = None;
+            for o in e.outlines() {
+                for w in o.windows(2) {
+                    let (d, t) = seg_dist(p, w[0], w[1]);
+                    if best.is_none_or(|(b, _)| d < b) {
+                        best = Some((d, w[0] + (w[1] - w[0]) * t));
+                    }
+                }
+            }
+            let q = best?.1;
+            // An arc's outline is chords: put the point back on the arc itself.
+            if let SketchEntity::Arc { a, mid, b } = *e
+                && let Some((c, r)) = shapecraft_doc::circle_through(a, mid, b)
+            {
+                return Some(c + (q - c).try_normalize()? * r);
+            }
+            Some(q)
+        }
     }
 }
 
