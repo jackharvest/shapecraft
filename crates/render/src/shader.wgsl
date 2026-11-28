@@ -283,20 +283,21 @@ fn nudge(p: vec3<f32>, amount: f32) -> vec3<f32> {
 fn vs_line(v: LineIn) -> ColorOut {
     var ca = g.view_proj * vec4<f32>(nudge(v.a, 0.002), 1.0);
     var cb = g.view_proj * vec4<f32>(nudge(v.b, 0.002), 1.0);
-    // Clip against the near plane so lines through the camera don't flip.
-    let eps = 1e-5;
-    if (ca.w < eps && cb.w < eps) {
+    // Clip against the near plane (z = 0 in clip space; w there is the near distance) so lines through the
+    // camera don't flip. Clipping at a tiny w instead put the cut end ~1e9 px off screen, which some drivers drop:
+    // the long origin axes flickered away as the view moved (#104).
+    if (ca.z < 0.0 && cb.z < 0.0) {
         var o: ColorOut;
         o.clip = vec4<f32>(2.0, 2.0, 2.0, 1.0);
         o.color = vec4<f32>(0.0);
         o.world = vec4<f32>(0.0);
         return o;
     }
-    if (ca.w < eps) {
-        ca = mix(ca, cb, (eps - ca.w) / (cb.w - ca.w));
+    if (ca.z < 0.0) {
+        ca = mix(ca, cb, (0.0 - ca.z) / (cb.z - ca.z));
     }
-    if (cb.w < eps) {
-        cb = mix(cb, ca, (eps - cb.w) / (ca.w - cb.w));
+    if (cb.z < 0.0) {
+        cb = mix(cb, ca, (0.0 - cb.z) / (ca.z - cb.z));
     }
     let sa = ca.xy / ca.w * g.viewport.xy * 0.5;
     let sb = cb.xy / cb.w * g.viewport.xy * 0.5;
