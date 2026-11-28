@@ -116,8 +116,10 @@ pub fn layers() -> Result<()> {
                 problems.push(format!("{name} builds C++: only shapecraft-kernel-occt may"));
             }
         }
+        // The app's build script only packs the icon into a Windows resource file (no compiler, no native code);
+        // the C++ check above still holds for it.
         let build_rs = p.with_file_name("build.rs");
-        if build_rs.exists() && name != "shapecraft-kernel-occt" {
+        if build_rs.exists() && !matches!(name.as_str(), "shapecraft-kernel-occt" | "shapecraft") {
             problems.push(format!("{name} has a build script: only shapecraft-kernel-occt builds native code"));
         }
     }
